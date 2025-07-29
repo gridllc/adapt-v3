@@ -5,7 +5,7 @@
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "allowJs": true,
+    "allowJs": false, // Only set to true if you have JS files in src
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -14,8 +14,15 @@
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "isolatedModules": true, // Good for future-proofing and tooling
+    "noEmitOnError": true // Prevents emitting if there are type errors
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-} 
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
