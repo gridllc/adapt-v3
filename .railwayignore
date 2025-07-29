@@ -1,11 +1,7 @@
 frontend/
-node_modules/
-.git/
-.vscode/
-tests/
 docs/
-scripts/
-*.log
-.env.local
-.env.development
-.env.test 
+tests/
+.git/
+.github/
+*.md
+.env* 

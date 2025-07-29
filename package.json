@@ -2,14 +2,12 @@
   "name": "adapt-v3",
   "version": "1.0.0",
   "description": "AI-Powered Interactive Training Platform",
+  "private": true,
   "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
-    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
-    "build": "cd backend && npm run build",
-    "start": "cd backend && npm start",
-    "test": "cd frontend && npm test && cd ../backend && npm test"
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
