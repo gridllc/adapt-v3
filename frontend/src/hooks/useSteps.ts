@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
+import { API_CONFIG, API_ENDPOINTS } from '@config/api'
 
-export interface Step {
+interface Step {
   stepTitle: string
   text: string
   timestamp?: number
@@ -15,8 +16,7 @@ export function useSteps(moduleId?: string) {
     if (!moduleId) return
 
     setLoading(true)
-    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
-    fetch(`${apiBase}/api/steps/${moduleId}`)
+    fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.STEPS(moduleId)))
       .then(res => {
         if (!res.ok) throw new Error('Steps not found')
         return res.json()

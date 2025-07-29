@@ -13,7 +13,7 @@ import clerkWebhookRoutes from './routes/clerkWebhookRoutes.js'
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 8001
+const PORT = process.env.PORT || 8002
 
 // Security Middleware
 app.use(helmet())

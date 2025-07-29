@@ -7,6 +7,7 @@ import { HomePage } from '@pages/HomePage'
 import { DashboardPage } from '@pages/DashboardPage'
 import { TrainingPage } from '@pages/TrainingPage'
 import { UploadPage } from '@pages/UploadPage'
+import { EditStepsPage } from '@pages/EditStepsPage'
 
 function App() {
   return (
@@ -19,36 +20,40 @@ function App() {
       <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" />} />
 
       {/* Protected routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
+      <Route element={<ProtectedRoute />}>
+        <Route
+          path="/dashboard"
+          element={
             <Layout>
               <DashboardPage />
             </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/training/:moduleId"
-        element={
-          <ProtectedRoute>
+          }
+        />
+        <Route
+          path="/training/:moduleId"
+          element={
             <Layout>
               <TrainingPage />
             </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/upload"
-        element={
-          <ProtectedRoute>
+          }
+        />
+        <Route
+          path="/upload"
+          element={
             <Layout>
               <UploadPage />
             </Layout>
-          </ProtectedRoute>
-        }
-      />
+          }
+        />
+        <Route
+          path="/edit-steps/:moduleId"
+          element={
+            <Layout>
+              <EditStepsPage />
+            </Layout>
+          }
+        />
+      </Route>
     </Routes>
   )
 }

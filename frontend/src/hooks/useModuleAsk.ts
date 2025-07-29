@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { API_CONFIG, API_ENDPOINTS } from '@config/api'
 
 interface AskResult {
   answer: string | null
@@ -20,8 +21,7 @@ export function useModuleAsk(): AskResult {
     setAnswer(null)
     setSource(null)
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || ''
-      const res = await fetch(`${apiBase}/api/ai/ask`, {
+      const res = await fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.AI_ASK), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moduleId, question }),

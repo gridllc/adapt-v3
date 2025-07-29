@@ -15,15 +15,17 @@ export default defineConfig({
       '@services': path.resolve(__dirname, './src/services'),
       '@utils': path.resolve(__dirname, './src/utils'),
       '@types': path.resolve(__dirname, './src/types'),
+      '@config': path.resolve(__dirname, './src/config'),
     },
   },
   server: {
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
       },
     },
   },

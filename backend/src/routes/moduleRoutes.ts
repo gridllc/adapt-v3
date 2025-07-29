@@ -6,7 +6,7 @@ import fs from 'fs'
 const router = express.Router()
 
 // Get all modules (JSON file-based)
-router.get('/modules', async (req, res) => {
+router.get('/', async (req, res) => {
   const dataPath = path.resolve(__dirname, '../data/modules.json')
   try {
     const raw = await fs.promises.readFile(dataPath, 'utf-8')
@@ -18,9 +18,6 @@ router.get('/modules', async (req, res) => {
   }
 })
 
-// Existing controller-based endpoints
-// Get all modules
-router.get('/', moduleController.getAllModules)
 // Get module by ID
 router.get('/:id', moduleController.getModuleById)
 // Update module

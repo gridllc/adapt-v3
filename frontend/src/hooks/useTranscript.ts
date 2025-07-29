@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { API_CONFIG, API_ENDPOINTS } from '@config/api'
 
 export function useTranscript(moduleId?: string) {
   const [transcript, setTranscript] = useState<string | any[] | null>(null)
@@ -9,8 +10,7 @@ export function useTranscript(moduleId?: string) {
     if (!moduleId) return
 
     setLoading(true)
-    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
-    fetch(`${apiBase}/api/transcript/${moduleId}`)
+    fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.TRANSCRIPT(moduleId)))
       .then(res => {
         if (!res.ok) throw new Error('Transcript not found')
         return res.json()

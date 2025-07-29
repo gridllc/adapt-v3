@@ -1,24 +1,23 @@
-import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react'
-import { ReactNode } from 'react'
+import React from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAuth } from '@features/auth/hooks/useAuth'
+import { LoadingSpinner } from '@components/common/LoadingSpinner'
 
-interface Props {
-  children: ReactNode
-}
+export const ProtectedRoute: React.FC = () => {
+  const { isLoaded, isSignedIn } = useAuth()
 
-export function ProtectedRoute({ children }: Props) {
-  // Temporarily disable authentication for development
-  const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-  
-  if (!clerkConfigured) {
-    return <>{children}</>
+  // More robust loading check
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner />
+      </div>
+    )
   }
-  
-  return (
-    <>
-      <SignedIn>{children}</SignedIn>
-      <SignedOut>
-        <RedirectToSignIn />
-      </SignedOut>
-    </>
-  )
+
+  if (!isSignedIn) {
+    return <Navigate to="/sign-in" replace />
+  }
+
+  return <Outlet />
 } 

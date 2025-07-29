@@ -1,5 +1,6 @@
 // src/hooks/useSignedVideoUrl.ts
 import { useState, useEffect } from 'react'
+import { API_CONFIG, API_ENDPOINTS } from '@config/api'
 
 interface UseSignedVideoUrlResult {
   url: string | null
@@ -24,8 +25,7 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
     setLoading(true)
     setError(null)
 
-    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
-    fetch(`${apiBase}/api/video-url/${encodeURIComponent(filename)}`, { signal: controller.signal })
+    fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.VIDEO_URL(filename)), { signal: controller.signal })
       .then(res => {
         if (!res.ok) throw new Error(`Failed to get video URL: ${res.status} ${res.statusText}`)
         return res.json()

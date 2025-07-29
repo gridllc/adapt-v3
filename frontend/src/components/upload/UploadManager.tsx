@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
+import { API_CONFIG, API_ENDPOINTS } from '@config/api'
 
 export const UploadManager: React.FC = () => {
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
@@ -21,10 +22,9 @@ export const UploadManager: React.FC = () => {
 
         // Start upload
         try {
-          const apiBase = import.meta.env.VITE_API_BASE_URL || ''
           const response = await uploadWithProgress({
             file,
-            url: `${apiBase}/api/upload`,
+            url: API_CONFIG.getApiUrl(API_ENDPOINTS.UPLOAD),
             onProgress: (progress) => updateProgress(uploadId, progress),
           })
 
@@ -54,7 +54,6 @@ export const UploadManager: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Drop Zone */}
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
@@ -65,22 +64,21 @@ export const UploadManager: React.FC = () => {
       >
         <input {...getInputProps()} />
         <div className="space-y-2">
-          <div className="text-2xl">📹</div>
-          <p className="text-lg font-medium text-gray-900">
-            {isDragActive ? 'Drop the video here' : 'Drag & drop video here'}
+          <div className="text-2xl">📁</div>
+          <p className="text-lg font-medium">
+            {isDragActive ? 'Drop the video here' : 'Drag & drop video files here'}
           </p>
           <p className="text-sm text-gray-500">
-            or click to select a file (MP4, WebM, max 3 minutes)
+            or click to select files (MP4, WebM up to 100MB)
           </p>
         </div>
       </div>
 
-      {/* Upload Queue */}
-      {Object.keys(uploads).length > 0 && (
+      {uploads.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
-          {Object.entries(uploads).map(([id, upload]) => (
-            <UploadItem key={id} id={id} upload={upload} />
+          <h3 className="text-lg font-medium">Uploads</h3>
+          {uploads.map((upload) => (
+            <UploadItem key={upload.id} upload={upload} />
           ))}
         </div>
       )}
