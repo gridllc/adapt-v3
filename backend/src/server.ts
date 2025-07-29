@@ -13,13 +13,13 @@ import clerkWebhookRoutes from './routes/clerkWebhookRoutes.js'
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 8000
+const PORT = process.env.PORT || 8001
 
 // Security Middleware
 app.use(helmet())
-// For Vite dev use 5173; adjust for production as needed
+// For Vite dev use 3000; adjust for production as needed
 app.use(cors({
-  origin: 'http://localhost:5173', // Use process.env.FRONTEND_URL for production
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:3005', 'http://localhost:3006', 'http://localhost:3007', 'http://localhost:3008'], // Use process.env.FRONTEND_URL for production
   credentials: true,
 }))
 app.use(express.json({ limit: '50mb' }))

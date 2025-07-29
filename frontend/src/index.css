@@ -1,55 +1,30 @@
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
-import { SignUp } from '@clerk/clerk-react'
-import { ProtectedRoute } from '@components/common/ProtectedRoute'
-import { Layout } from '@components/common/Layout'
-import { HomePage } from '@pages/HomePage'
-import { DashboardPage } from '@pages/DashboardPage'
-import { TrainingPage } from '@pages/TrainingPage'
-import { UploadPage } from '@pages/UploadPage'
-import SignInPage from '@pages/SignInPage'
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-function App() {
-  return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/sign-in" element={<SignInPage />} />
-      <Route path="/sign-up" element={<SignUp />} />
-      
-      {/* Protected routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <DashboardPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/training/:moduleId"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <TrainingPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/upload"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <UploadPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
-  )
+/* Base styles */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-export default App
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Custom styles */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Ensure proper layout */
+#root {
+  min-height: 100vh;
+}

@@ -9,7 +9,10 @@ import { tmpdir } from 'os'
 
 // ffmpeg.setFfmpegPath(ffmpegPath.path)
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
+// Initialize OpenAI client only if API key is available
+const openai = process.env.OPENAI_API_KEY 
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null
 
 // const s3 = new S3Client({
 //   region: process.env.S3_REGION!,

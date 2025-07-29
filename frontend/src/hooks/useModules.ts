@@ -13,7 +13,7 @@ export function useModules() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001'
     fetch(`${apiBase}/api/modules`)
       .then(res => {
         if (!res.ok) throw new Error('Failed to load modules')

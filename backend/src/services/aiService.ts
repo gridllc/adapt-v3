@@ -1,26 +1,52 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-})
+// Initialize clients only if API keys are available
+const genAI = process.env.GEMINI_API_KEY 
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  : null
+
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null
 
 export const aiService = {
   async processVideo(videoUrl: string) {
     try {
       // Try Gemini first
-      const geminiResult = await this.processWithGemini(videoUrl)
-      return geminiResult
+      if (genAI) {
+        const geminiResult = await this.processWithGemini(videoUrl)
+        return geminiResult
+      }
     } catch (error) {
       console.log('Gemini failed, trying OpenAI...')
-      // Fallback to OpenAI
+    }
+    
+    // Fallback to OpenAI
+    if (openai) {
       const openaiResult = await this.processWithOpenAI(videoUrl)
       return openaiResult
+    }
+    
+    // If no AI services available, return mock data
+    return {
+      title: 'Sample Training Video',
+      description: 'A sample training video for demonstration',
+      steps: [
+        {
+          timestamp: 0,
+          title: 'Introduction',
+          description: 'Welcome to the training',
+          duration: 30,
+        },
+      ],
+      totalDuration: 180,
     }
   },
 
   async processWithGemini(videoUrl: string) {
+    if (!genAI) throw new Error('Gemini API key not configured')
+    
     const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' })
     
     const prompt = `
@@ -40,6 +66,8 @@ export const aiService = {
   },
 
   async processWithOpenAI(videoUrl: string) {
+    if (!openai) throw new Error('OpenAI API key not configured')
+    
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-vision-preview',
       messages: [
@@ -65,16 +93,25 @@ export const aiService = {
 
   async chat(message: string, context: any) {
     try {
-      const geminiResult = await this.chatWithGemini(message, context)
-      return geminiResult
+      if (genAI) {
+        const geminiResult = await this.chatWithGemini(message, context)
+        return geminiResult
+      }
     } catch (error) {
       console.log('Gemini chat failed, trying OpenAI...')
+    }
+    
+    if (openai) {
       const openaiResult = await this.chatWithOpenAI(message, context)
       return openaiResult
     }
+    
+    return 'AI services are not configured. Please set up API keys for Gemini or OpenAI.'
   },
 
   async chatWithGemini(message: string, context: any) {
+    if (!genAI) throw new Error('Gemini API key not configured')
+    
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
     
     const prompt = `
@@ -90,6 +127,8 @@ export const aiService = {
   },
 
   async chatWithOpenAI(message: string, context: any) {
+    if (!openai) throw new Error('OpenAI API key not configured')
+    
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
@@ -109,6 +148,8 @@ export const aiService = {
 } 
 
 export async function askGemini(question: string, context: string): Promise<string> {
+  if (!genAI) throw new Error('Gemini API key not configured')
+  
   const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
   const result = await model.generateContent([context, question])
   const response = await result.response
@@ -116,6 +157,8 @@ export async function askGemini(question: string, context: string): Promise<stri
 }
 
 export async function askOpenAI(question: string, context: string): Promise<string> {
+  if (!openai) throw new Error('OpenAI API key not configured')
+  
   const result = await openai.chat.completions.create({
     model: 'gpt-4',
     messages: [

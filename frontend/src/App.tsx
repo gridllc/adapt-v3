@@ -1,21 +1,22 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { SignUp } from '@clerk/clerk-react'
+import { SignUp, SignIn } from '@clerk/clerk-react'
 import { ProtectedRoute } from '@components/common/ProtectedRoute'
 import { Layout } from '@components/common/Layout'
 import { HomePage } from '@pages/HomePage'
 import { DashboardPage } from '@pages/DashboardPage'
 import { TrainingPage } from '@pages/TrainingPage'
 import { UploadPage } from '@pages/UploadPage'
-import SignInPage from '@pages/SignInPage'
 
 function App() {
   return (
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<HomePage />} />
-      <Route path="/sign-in" element={<SignInPage />} />
-      <Route path="/sign-up" element={<SignUp />} />
+      
+      {/* Clerk authentication routes */}
+      <Route path="/sign-in/*" element={<SignIn routing="path" path="/sign-in" />} />
+      <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" />} />
 
       {/* Protected routes */}
       <Route
