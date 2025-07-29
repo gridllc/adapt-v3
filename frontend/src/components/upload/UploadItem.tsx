@@ -1,6 +1,6 @@
 import React from 'react'
-import { formatFileSize } from '@utils/uploadUtils'
-import { useUploadStore } from '@stores/uploadStore'
+import { formatFileSize } from '../../utils/uploadUtils'
+import { useUploadStore } from '../../stores/uploadStore'
 
 interface UploadItemProps {
   id: string

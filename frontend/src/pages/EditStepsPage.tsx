@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { API_CONFIG, API_ENDPOINTS } from '@config/api'
+import { API_CONFIG, API_ENDPOINTS } from '../config/api'
 
 interface Step {
   stepTitle: string

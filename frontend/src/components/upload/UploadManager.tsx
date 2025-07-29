@@ -1,9 +1,9 @@
 import React, { useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
-import { useUploadStore } from '@stores/uploadStore'
-import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
-import { API_CONFIG, API_ENDPOINTS } from '@config/api'
+import { useUploadStore } from '../../stores/uploadStore'
+import { uploadWithProgress, validateFile } from '../../utils/uploadUtils'
+import { API_CONFIG, API_ENDPOINTS } from '../../config/api'
 
 export const UploadManager: React.FC = () => {
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
@@ -52,6 +52,9 @@ export const UploadManager: React.FC = () => {
     maxSize: 100 * 1024 * 1024, // 100MB
   })
 
+  // Convert uploads Record to array for rendering
+  const uploadsArray = Object.values(uploads)
+
   return (
     <div className="space-y-4">
       <div
@@ -74,11 +77,11 @@ export const UploadManager: React.FC = () => {
         </div>
       </div>
 
-      {uploads.length > 0 && (
+      {uploadsArray.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-lg font-medium">Uploads</h3>
-          {uploads.map((upload) => (
-            <UploadItem key={upload.id} upload={upload} />
+          {uploadsArray.map((upload) => (
+            <UploadItem key={upload.id} id={upload.id} upload={upload} />
           ))}
         </div>
       )}

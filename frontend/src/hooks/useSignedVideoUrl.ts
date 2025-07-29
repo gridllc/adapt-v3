@@ -1,6 +1,6 @@
 // src/hooks/useSignedVideoUrl.ts
 import { useState, useEffect } from 'react'
-import { API_CONFIG, API_ENDPOINTS } from '@config/api'
+import { API_CONFIG, API_ENDPOINTS } from '../config/api'
 
 interface UseSignedVideoUrlResult {
   url: string | null

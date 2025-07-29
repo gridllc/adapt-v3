@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { API_CONFIG, API_ENDPOINTS } from '@config/api'
+import { API_CONFIG, API_ENDPOINTS } from '../config/api'
 
 interface AskResult {
   answer: string | null
