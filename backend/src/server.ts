@@ -3,18 +3,23 @@ import cors from 'cors'
 import helmet from 'helmet'
 import dotenv from 'dotenv'
 import path from 'path'
-import { uploadRoutes } from './routes/uploadRoutes'
-import { aiRoutes } from './routes/aiRoutes'
-import { moduleRoutes } from './routes/moduleRoutes'
-import videoRoutes from './routes/videoRoutes'
-import transcriptRoutes from './routes/transcriptRoutes'
-import stepsRoutes from './routes/stepsRoutes'
-import clerkWebhookRoutes from './routes/clerkWebhookRoutes'
+import { fileURLToPath } from 'url'
+import { uploadRoutes } from './routes/uploadRoutes.js'
+import { aiRoutes } from './routes/aiRoutes.js'
+import { moduleRoutes } from './routes/moduleRoutes.js'
+import videoRoutes from './routes/videoRoutes.js'
+import transcriptRoutes from './routes/transcriptRoutes.js'
+import stepsRoutes from './routes/stepsRoutes.js'
+import clerkWebhookRoutes from './routes/clerkWebhookRoutes.js'
 
 dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 8000
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Security Middleware
 app.use(helmet())
