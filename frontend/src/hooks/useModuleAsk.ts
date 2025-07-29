@@ -20,7 +20,8 @@ export function useModuleAsk(): AskResult {
     setAnswer(null)
     setSource(null)
     try {
-      const res = await fetch('/api/ai/ask', {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || ''
+      const res = await fetch(`${apiBase}/api/ai/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moduleId, question }),

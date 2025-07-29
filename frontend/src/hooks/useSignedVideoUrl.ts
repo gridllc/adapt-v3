@@ -24,7 +24,8 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
     setLoading(true)
     setError(null)
 
-    fetch(`/api/video-url/${encodeURIComponent(filename)}`, { signal: controller.signal })
+    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
+    fetch(`${apiBase}/api/video-url/${encodeURIComponent(filename)}`, { signal: controller.signal })
       .then(res => {
         if (!res.ok) throw new Error(`Failed to get video URL: ${res.status} ${res.statusText}`)
         return res.json()

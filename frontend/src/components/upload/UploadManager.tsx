@@ -21,9 +21,10 @@ export const UploadManager: React.FC = () => {
 
         // Start upload
         try {
+          const apiBase = import.meta.env.VITE_API_BASE_URL || ''
           const response = await uploadWithProgress({
             file,
-            url: '/api/upload',
+            url: `${apiBase}/api/upload`,
             onProgress: (progress) => updateProgress(uploadId, progress),
           })
 

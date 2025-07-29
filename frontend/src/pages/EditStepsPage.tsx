@@ -16,7 +16,8 @@ export const EditStepsPage: React.FC = () => {
 
   useEffect(() => {
     if (!moduleId) return;
-    fetch(`/api/transcript/${moduleId}`)
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    fetch(`${apiBase}/api/transcript/${moduleId}`)
       .then(res => res.json())
       .then(data => {
         setTranscript(data.transcript || '');
@@ -45,7 +46,8 @@ export const EditStepsPage: React.FC = () => {
   };
 
   const saveSteps = async () => {
-    await fetch(`/api/steps/${moduleId}`, {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    await fetch(`${apiBase}/api/steps/${moduleId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ steps }),

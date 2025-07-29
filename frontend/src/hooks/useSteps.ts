@@ -15,7 +15,8 @@ export function useSteps(moduleId?: string) {
     if (!moduleId) return
 
     setLoading(true)
-    fetch(`/api/steps/${moduleId}`)
+    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
+    fetch(`${apiBase}/api/steps/${moduleId}`)
       .then(res => {
         if (!res.ok) throw new Error('Steps not found')
         return res.json()

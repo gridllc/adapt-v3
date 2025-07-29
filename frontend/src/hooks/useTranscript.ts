@@ -9,7 +9,8 @@ export function useTranscript(moduleId?: string) {
     if (!moduleId) return
 
     setLoading(true)
-    fetch(`/api/transcript/${moduleId}`)
+    const apiBase = import.meta.env.VITE_API_BASE_URL || ''
+    fetch(`${apiBase}/api/transcript/${moduleId}`)
       .then(res => {
         if (!res.ok) throw new Error('Transcript not found')
         return res.json()
