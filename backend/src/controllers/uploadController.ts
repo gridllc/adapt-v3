@@ -3,7 +3,12 @@ import { aiService } from '../services/aiService.js'
 import { storageService } from '../services/storageService.js'
 import path from 'path'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
 import { transcribeS3Video } from '../services/transcriptionService.js'
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {

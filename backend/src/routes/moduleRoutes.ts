@@ -2,8 +2,13 @@ import express from 'express'
 import { moduleController } from '../controllers/moduleController.js'
 import path from 'path'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
 
 const router = express.Router()
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Get all modules (JSON file-based)
 router.get('/', async (req, res) => {

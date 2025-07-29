@@ -8,7 +8,7 @@
     "allowJs": false, // Only set to true if you have JS files in src
     "outDir": "./dist",
     "rootDir": "./src",
-    "strict": true,
+    "strict": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,

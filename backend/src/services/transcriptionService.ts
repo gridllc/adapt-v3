@@ -1,11 +1,16 @@
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 // import ffmpegPath from '@ffmpeg-installer/ffmpeg'
 // import ffmpeg from 'fluent-ffmpeg'
 import OpenAI from 'openai'
 // import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { tmpdir } from 'os'
 // import { v4 as uuidv4 } from 'uuid'
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // ffmpeg.setFfmpegPath(ffmpegPath.path)
 

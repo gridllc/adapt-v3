@@ -128,7 +128,7 @@ export const useUploadStore = create<UploadState>()(
       partialize: (state) => ({
         uploads: Object.fromEntries(
           Object.entries(state.uploads).filter(
-            ([_, upload]) => upload.status === 'error' || upload.status === 'success'
+            ([_, upload]) => (upload as UploadEntry).status === 'error' || (upload as UploadEntry).status === 'success'
           )
         ),
       }),

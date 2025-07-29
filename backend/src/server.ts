@@ -2,6 +2,8 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import dotenv from 'dotenv'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { moduleRoutes } from './routes/moduleRoutes.js'
@@ -13,17 +15,39 @@ import clerkWebhookRoutes from './routes/clerkWebhookRoutes.js'
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 8002
+const PORT = process.env.PORT || 8000
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Security Middleware
 app.use(helmet())
-// For Vite dev use 3000; adjust for production as needed
+
+// CORS configuration for both development and production
+const allowedOrigins: string[] = [
+  'http://localhost:3000',
+  'http://localhost:3001', 
+  'http://localhost:3002',
+  'http://localhost:3003',
+  'http://localhost:3004',
+  'http://localhost:3005',
+  'http://localhost:3006',
+  'http://localhost:3007',
+  'http://localhost:3008',
+  process.env.FRONTEND_URL // Add production frontend URL
+].filter((origin): origin is string => Boolean(origin)) // Remove undefined values and type as string[]
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:3005', 'http://localhost:3006', 'http://localhost:3007', 'http://localhost:3008'], // Use process.env.FRONTEND_URL for production
+  origin: allowedOrigins,
   credentials: true,
 }))
+
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // Routes
 app.use('/api/upload', uploadRoutes)
