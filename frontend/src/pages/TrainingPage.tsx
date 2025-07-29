@@ -1,8 +1,11 @@
 import React from 'react'
 import { useParams } from 'react-router-dom'
+import { useSignedVideoUrl } from '@/hooks/useSignedVideoUrl'
 
 export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
+  const filename = moduleId ? `${moduleId}.mp4` : undefined
+  const { url, loading, error } = useSignedVideoUrl(filename)
 
   return (
     <div className="space-y-6">
@@ -13,11 +16,21 @@ export const TrainingPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
         <div className="lg:col-span-2">
-          <div className="bg-black rounded-lg aspect-video">
-            <div className="flex items-center justify-center h-full text-white">
-              Video Player Placeholder
+          {loading ? (
+            <div className="bg-black rounded-lg aspect-video flex items-center justify-center text-white">
+              Loading video...
             </div>
-          </div>
+          ) : error ? (
+            <div className="bg-black rounded-lg aspect-video flex items-center justify-center text-red-400">
+              {error}
+            </div>
+          ) : url ? (
+            <video controls src={url} className="w-full rounded-lg" />
+          ) : (
+            <div className="bg-black rounded-lg aspect-video flex items-center justify-center text-white">
+              Video unavailable
+            </div>
+          )}
         </div>
         
         {/* Chat Interface */}

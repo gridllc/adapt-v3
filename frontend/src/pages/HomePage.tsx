@@ -10,7 +10,7 @@ export const HomePage: React.FC = () => {
             Welcome to Adapt
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            AI-powered interactive training platform where you learn real-world tasks 
+            AI-powered interactive training platform where you learn real-world tasks
             through videos, step-by-step guidance, and intelligent assistance.
           </p>
           <div className="space-x-4">

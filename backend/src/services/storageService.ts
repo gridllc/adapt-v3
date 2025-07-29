@@ -2,14 +2,14 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { v4 as uuidv4 } from 'uuid'
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.S3_REGION || 'us-west-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
 })
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adapt-videos'
+const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adaptv3-training-videos'
 
 export const storageService = {
   async uploadVideo(file: Express.Multer.File): Promise<string> {

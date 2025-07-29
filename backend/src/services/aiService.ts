@@ -107,3 +107,21 @@ export const aiService = {
     return completion.choices[0]?.message?.content || 'Sorry, I could not process your request.'
   },
 } 
+
+export async function askGemini(question: string, context: string): Promise<string> {
+  const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
+  const result = await model.generateContent([context, question])
+  const response = await result.response
+  return response.text()
+}
+
+export async function askOpenAI(question: string, context: string): Promise<string> {
+  const result = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      { role: 'system', content: context },
+      { role: 'user', content: question },
+    ],
+  })
+  return result.choices[0].message.content || ''
+} 

@@ -1,24 +1,55 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+import React from 'react'
+import { Routes, Route } from 'react-router-dom'
+import { SignUp } from '@clerk/clerk-react'
+import { ProtectedRoute } from '@components/common/ProtectedRoute'
+import { Layout } from '@components/common/Layout'
+import { HomePage } from '@pages/HomePage'
+import { DashboardPage } from '@pages/DashboardPage'
+import { TrainingPage } from '@pages/TrainingPage'
+import { UploadPage } from '@pages/UploadPage'
+import SignInPage from '@pages/SignInPage'
 
-/* Custom styles */
-@layer base {
-  html {
-    font-family: system-ui, sans-serif;
-  }
+function App() {
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<HomePage />} />
+      <Route path="/sign-in" element={<SignInPage />} />
+      <Route path="/sign-up" element={<SignUp />} />
+      
+      {/* Protected routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <DashboardPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/training/:moduleId"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <TrainingPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/upload"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <UploadPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
+  )
 }
 
-@layer components {
-  .btn-primary {
-    @apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors;
-  }
-  
-  .btn-secondary {
-    @apply bg-gray-200 text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors;
-  }
-  
-  .card {
-    @apply bg-white p-6 rounded-lg shadow-sm border;
-  }
-} 
+export default App
