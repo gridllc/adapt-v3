@@ -11,7 +11,7 @@ export const UploadManager: React.FC = () => {
     for (const file of acceptedFiles) {
       try {
         // Validate file
-        const validation = validateFile(file)
+        const validation = await validateFile(file)
         if (!validation.valid) {
           throw new Error(validation.error)
         }
