@@ -1,24 +1,49 @@
-// API Configuration
+// Automatically detect environment and set API base URL
+const isDevelopment = import.meta.env.DEV
+const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
+  (isDevelopment ? '' : RAILWAY_URL)
+
 export const API_CONFIG = {
-  // In development, use the Vite proxy (empty string means use relative URLs)
-  // In production, this should be set to the actual API URL
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || '',
-  
-  // Helper function to get the full API URL
+  baseURL: API_BASE_URL,
+  timeout: 10000,
   getApiUrl: (endpoint: string): string => {
-    const base = API_CONFIG.BASE_URL
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
-    return base ? `${base}${cleanEndpoint}` : cleanEndpoint
+    return API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint
   }
 }
 
-// Common API endpoints
 export const API_ENDPOINTS = {
   MODULES: '/api/modules',
-  UPLOAD: '/api/upload',
-  AI_ASK: '/api/ai/ask',
-  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
   STEPS: (moduleId: string) => `/api/steps/${moduleId}`,
-  VIDEO_URL: (filename: string) => `/api/video-url/${encodeURIComponent(filename)}`,
-  HEALTH: '/api/health'
-} as const 
+  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
+  VIDEO_URL: (filename: string) => `/api/video-url/${filename}`,
+  AI_ASK: '/api/ai/ask',
+  health: '/api/health',
+  upload: '/api/upload',
+}
+
+export function apiUrl(endpoint: string): string {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  return API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint
+}
+
+export async function api(endpoint: string, options?: RequestInit) {
+  const url = apiUrl(endpoint)
+  
+  const response = await fetch(url, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  })
+  
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.statusText}`)
+  }
+  
+  return response.json()
+}
