@@ -14,6 +14,13 @@ import clerkWebhookRoutes from './routes/clerkWebhookRoutes.js'
 
 dotenv.config()
 
+console.log('Starting server...')
+console.log('Environment check:', {
+  hasClerk: !!process.env.CLERK_SECRET_KEY,
+  hasGemini: !!process.env.GEMINI_API_KEY,
+  port: process.env.PORT
+})
+
 const app = express()
 const PORT = process.env.PORT || 8000
 
@@ -50,12 +57,25 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // Routes
+console.log('Loading upload routes...')
 app.use('/api/upload', uploadRoutes)
+
+console.log('Loading AI routes...')
 app.use('/api/ai', aiRoutes)
+
+console.log('Loading module routes...')
 app.use('/api/modules', moduleRoutes)
+
+console.log('Loading video routes...')
 app.use('/api', videoRoutes)
+
+console.log('Loading transcript routes...')
 app.use('/api', transcriptRoutes)
+
+console.log('Loading steps routes...')
 app.use('/api', stepsRoutes)
+
+console.log('Loading Clerk webhook routes...')
 app.use('/api', express.json({ type: '*/*' }), clerkWebhookRoutes)
 
 // Health check
