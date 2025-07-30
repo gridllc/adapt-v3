@@ -121,11 +121,8 @@ const UploadManager = () => {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={handleClick}
-          className={`border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer ${
-            isDragActive
-              ? 'border-blue-500 bg-blue-50 scale-[1.02]'
-              : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
-          }`}
+          className="border-4 border-red-500 bg-blue-100 rounded-xl p-12 text-center transition-all cursor-pointer"
+          style={{ minHeight: '200px', border: '4px solid red' }}
         >
           <input
             ref={fileInputRef}
