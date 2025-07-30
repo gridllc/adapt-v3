@@ -1,6 +1,5 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Play, Users, Zap } from 'lucide-react'
 
 export const HomePage: React.FC = () => {
   const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
@@ -33,7 +32,7 @@ export const HomePage: React.FC = () => {
                   to="/sign-up"
                   className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition-all duration-200 font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
-                  Get Started <ArrowRight className="w-5 h-5" />
+                  Get Started <span className="text-lg">→</span>
                 </Link>
                 <Link
                   to="/sign-in"
@@ -47,7 +46,7 @@ export const HomePage: React.FC = () => {
                 to="/dashboard"
                 className="bg-blue-600 text-white px-8 py-4 rounded-xl hover:bg-blue-700 transition-all duration-200 font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
               >
-                Go to Dashboard <ArrowRight className="w-5 h-5" />
+                Go to Dashboard <span className="text-lg">→</span>
               </Link>
             )}
           </div>
@@ -57,7 +56,7 @@ export const HomePage: React.FC = () => {
         <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center hover:shadow-lg transition-all duration-200">
             <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Play className="w-8 h-8 text-blue-600" />
+              <span className="text-3xl">▶️</span>
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Video Learning</h3>
             <p className="text-gray-600">
@@ -67,7 +66,7 @@ export const HomePage: React.FC = () => {
           
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center hover:shadow-lg transition-all duration-200">
             <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Zap className="w-8 h-8 text-green-600" />
+              <span className="text-3xl">⚡</span>
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-4">AI Assistance</h3>
             <p className="text-gray-600">
@@ -77,7 +76,7 @@ export const HomePage: React.FC = () => {
           
           <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center hover:shadow-lg transition-all duration-200">
             <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Users className="w-8 h-8 text-purple-600" />
+              <span className="text-3xl">👥</span>
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-4">Interactive Training</h3>
             <p className="text-gray-600">
