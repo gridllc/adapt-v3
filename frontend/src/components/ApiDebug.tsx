@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import { API_CONFIG, API_ENDPOINTS, api } from '../config/api'
 
 export const ApiDebug: React.FC = () => {
   const [apiInfo, setApiInfo] = useState<any>({})
   const [testResults, setTestResults] = useState<any>({})
+  const { isSignedIn, isLoaded } = useAuth()
+  const { user } = useUser()
 
   useEffect(() => {
     setApiInfo({
@@ -14,6 +17,11 @@ export const ApiDebug: React.FC = () => {
       modulesUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES),
       healthUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.health),
       origin: window.location.origin,
+      clerkKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
+      clerkKeyPrefix: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.substring(0, 15) + '...',
+      clerkLoaded: isLoaded,
+      clerkSignedIn: isSignedIn,
+      clerkUser: user?.emailAddresses?.[0]?.emailAddress || 'None',
     })
   }, [])
 

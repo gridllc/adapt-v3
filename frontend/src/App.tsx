@@ -21,8 +21,8 @@ function App() {
       <Route path="/" element={<HomePage />} />
       
       {/* Clerk authentication routes */}
-      <Route path="/sign-in/*" element={<SignIn routing="path" path="/sign-in" />} />
-      <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" />} />
+      <Route path="/sign-in/*" element={<SignIn routing="path" path="/sign-in" redirectUrl="/dashboard" />} />
+      <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" redirectUrl="/dashboard" />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
@@ -59,6 +59,9 @@ function App() {
           }
         />
       </Route>
+      
+      {/* Catch-all route for unknown paths */}
+      <Route path="*" element={<HomePage />} />
     </Routes>
     </>
   )
