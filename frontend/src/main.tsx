@@ -15,13 +15,31 @@ console.log('Clerk Key Debug:', {
   allEnvVars: Object.keys(import.meta.env).filter(key => key.includes('CLERK'))
 })
 
-if (!CLERK_PUBLISHABLE_KEY) {
-  console.error('❌ Missing Clerk Publishable Key')
-  throw new Error('Missing Clerk Publishable Key')
-}
+// Configuration Error Component
+const ConfigurationError: React.FC = () => (
+  <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+    <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+      <div className="text-red-500 text-5xl mb-4">⚠️</div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-4">Configuration Error</h1>
+      <p className="text-gray-600 mb-6">
+        The Clerk authentication service is not properly configured. 
+        Please check that the <code className="bg-gray-100 px-2 py-1 rounded">VITE_CLERK_PUBLISHABLE_KEY</code> environment variable is set.
+      </p>
+      <div className="text-sm text-gray-500">
+        If you're a developer, check the console for more details.
+      </div>
+    </div>
+  </div>
+)
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+// Main App Wrapper with Error Handling
+const AppWrapper: React.FC = () => {
+  if (!CLERK_PUBLISHABLE_KEY) {
+    console.error('❌ Missing Clerk Publishable Key')
+    return <ConfigurationError />
+  }
+
+  return (
     <ErrorBoundary>
       <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
         <BrowserRouter
@@ -34,5 +52,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </BrowserRouter>
       </ClerkProvider>
     </ErrorBoundary>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <AppWrapper />
   </React.StrictMode>,
 ) 
