@@ -1,5 +1,5 @@
-// Environment detection and API base URL configuration
-const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development'
+// Environment detection and API base URL configuration  
+const isDevelopment = import.meta.env.MODE === 'development'
 const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
 
 // Priority: env var > production URL > empty (for dev proxy)

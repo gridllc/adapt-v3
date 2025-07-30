@@ -10,7 +10,7 @@ export const ApiDebug: React.FC = () => {
 
   useEffect(() => {
     setApiInfo({
-      isDev: import.meta.env.DEV,
+      isDev: import.meta.env.MODE === 'development',
       mode: import.meta.env.MODE,
       baseURL: API_CONFIG.baseURL,
       envVar: import.meta.env.VITE_API_BASE_URL,
