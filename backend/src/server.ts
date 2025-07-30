@@ -34,6 +34,7 @@ app.use(helmet())
 // CORS configuration for both development and production
 const allowedOrigins: string[] = [
   'http://localhost:3000',
+  'http://localhost:5173', // Vite default
   'http://localhost:3001', 
   'http://localhost:3002',
   'http://localhost:3003',
@@ -42,11 +43,25 @@ const allowedOrigins: string[] = [
   'http://localhost:3006',
   'http://localhost:3007',
   'http://localhost:3008',
-  process.env.FRONTEND_URL // Add production frontend URL
+  process.env.FRONTEND_URL, // Add production frontend URL
+  'https://adapt-v3-frontend.vercel.app', // Common Vercel pattern
+  'https://adapt-v3.vercel.app', // Alternate pattern
 ].filter((origin): origin is string => Boolean(origin)) // Remove undefined values and type as string[]
 
+console.log('CORS allowed origins:', allowedOrigins)
+
 app.use(cors({
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true)
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      console.log('CORS blocked origin:', origin)
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
   credentials: true,
 }))
 
