@@ -11,20 +11,12 @@ if (!import.meta.env.VITE_API_BASE_URL && !isDevelopment && !API_BASE_URL) {
   console.warn('No VITE_API_BASE_URL found, using Railway URL')
 }
 
-console.log('API Config:', {
-  isDev: isDevelopment,
-  mode: import.meta.env.MODE,
-  baseURL: API_BASE_URL,
-  envVar: import.meta.env.VITE_API_BASE_URL
-})
-
 export const API_CONFIG = {
   baseURL: API_BASE_URL,
   timeout: 10000,
   getApiUrl: (endpoint: string): string => {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
     const fullUrl = API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint
-    console.log(`API URL: ${endpoint} -> ${fullUrl}`)
     return fullUrl
   }
 }

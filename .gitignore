@@ -19,4 +19,16 @@ Thumbs.db
 .idea/
 
 # Testing
-coverage/
+coverage/"*.mp4" 
+
+# Ignore all video files
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mkv
+
+# Ignore uploaded video folders (if applicable)
+backend/src/uploads/
+uploads/
+public/videos/

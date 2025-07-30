@@ -8,13 +8,6 @@ import './index.css'
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
-console.log('Clerk Key Debug:', {
-  keyExists: !!CLERK_PUBLISHABLE_KEY,
-  keyLength: CLERK_PUBLISHABLE_KEY?.length,
-  keyPrefix: CLERK_PUBLISHABLE_KEY?.substring(0, 20),
-  allEnvVars: Object.keys(import.meta.env).filter(key => key.includes('CLERK'))
-})
-
 // Configuration Error Component
 const ConfigurationError: React.FC = () => (
   <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
