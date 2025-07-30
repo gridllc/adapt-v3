@@ -23,6 +23,7 @@ function App() {
       {/* Clerk authentication routes */}
       <Route path="/sign-in/*" element={<SignIn routing="path" path="/sign-in" redirectUrl="/dashboard" />} />
       <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" redirectUrl="/dashboard" />} />
+      <Route path="/sso-callback" element={<div>Loading...</div>} />
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>

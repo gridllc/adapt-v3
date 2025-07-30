@@ -34,7 +34,11 @@ const AppWrapper: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY}>
+      <ClerkProvider 
+        publishableKey={CLERK_PUBLISHABLE_KEY}
+        afterSignInUrl="/dashboard"
+        afterSignUpUrl="/dashboard"
+      >
         <BrowserRouter
           future={{
             v7_startTransition: true,
