@@ -106,8 +106,15 @@ const UploadManager = () => {
     setErrorMessage('')
   }
 
+  console.log('UploadManager rendering, uploadStatus:', uploadStatus)
+  
   return (
     <div className="space-y-4">
+      {/* Debug: Test if Tailwind is working */}
+      <div className="bg-red-500 text-white p-4 rounded">
+        DEBUG: Upload Status = {uploadStatus} | Tailwind CSS Test
+      </div>
+      
       {uploadStatus === 'idle' && (
         <div
           onDragOver={handleDragOver}
