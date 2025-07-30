@@ -35,8 +35,9 @@ export const API_ENDPOINTS = {
   TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
   VIDEO_URL: (filename: string) => `/api/video-url/${filename}`,
   AI_ASK: '/api/ai/ask',
+  UPLOAD: '/api/upload',
   health: '/api/health',
-  upload: '/api/upload',
+  upload: '/api/upload', // Keep both for compatibility
 }
 
 export function apiUrl(endpoint: string): string {
