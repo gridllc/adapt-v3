@@ -1,4 +1,4 @@
-// ✅ Responsive, sticky Navigation with logo and mobile menu toggle
+// ✅ Responsive sticky Navigation using emoji instead of lucide icons
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
@@ -33,18 +33,19 @@ export const Navigation: React.FC = () => {
 
           {/* Desktop Links */}
           <div className="hidden sm:flex items-center space-x-4">
-            {navLink('/', 'Home')}
-            {navLink('/dashboard', 'Dashboard')}
-            {navLink('/upload', 'Upload')}
+            {navLink('/', '🏠 Home')}
+            {navLink('/dashboard', '📊 Dashboard')}
+            {navLink('/upload', '📤 Upload')}
             <UserButton afterSignOutUrl="/" />
           </div>
 
           {/* Mobile Menu Toggle */}
-          <button 
-            className="sm:hidden text-gray-600 hover:text-gray-900 text-2xl" 
+          <button
+            className="sm:hidden text-2xl"
             onClick={() => setMobileOpen(!mobileOpen)}
+            aria-label="Toggle menu"
           >
-            {mobileOpen ? '✕' : '☰'}
+            {mobileOpen ? '❌' : '📖'}
           </button>
         </div>
       </div>
@@ -52,12 +53,10 @@ export const Navigation: React.FC = () => {
       {/* Mobile Dropdown */}
       {mobileOpen && (
         <div className="sm:hidden px-4 pb-4 space-y-2 border-t bg-white shadow-md">
-          {navLink('/', 'Home')}
-          {navLink('/dashboard', 'Dashboard')}
-          {navLink('/upload', 'Upload')}
-          <div className="px-4 py-2">
-            <UserButton afterSignOutUrl="/" />
-          </div>
+          {navLink('/', '🏠 Home')}
+          {navLink('/dashboard', '📊 Dashboard')}
+          {navLink('/upload', '📤 Upload')}
+          <UserButton afterSignOutUrl="/" />
         </div>
       )}
     </nav>
