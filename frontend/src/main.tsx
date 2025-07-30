@@ -8,7 +8,15 @@ import './index.css'
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
+console.log('Clerk Key Debug:', {
+  keyExists: !!CLERK_PUBLISHABLE_KEY,
+  keyLength: CLERK_PUBLISHABLE_KEY?.length,
+  keyPrefix: CLERK_PUBLISHABLE_KEY?.substring(0, 20),
+  allEnvVars: Object.keys(import.meta.env).filter(key => key.includes('CLERK'))
+})
+
 if (!CLERK_PUBLISHABLE_KEY) {
+  console.error('❌ Missing Clerk Publishable Key')
   throw new Error('Missing Clerk Publishable Key')
 }
 
