@@ -75,12 +75,26 @@ app.use('/api', transcriptRoutes)
 console.log('Loading steps routes...')
 app.use('/api', stepsRoutes)
 
-console.log('Loading Clerk webhook routes...')
-app.use('/api', express.json({ type: '*/*' }), clerkWebhookRoutes)
+// Temporarily disabled Clerk webhooks for debugging
+// console.log('Loading Clerk webhook routes...')
+// app.use('/api', express.json({ type: '*/*' }), clerkWebhookRoutes)
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Test endpoint for debugging
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Backend is working!',
+    timestamp: new Date().toISOString(),
+    environment: {
+      hasClerk: !!process.env.CLERK_SECRET_KEY,
+      hasGemini: !!process.env.GEMINI_API_KEY,
+      port: process.env.PORT
+    }
+  })
 })
 
 // Error handling
