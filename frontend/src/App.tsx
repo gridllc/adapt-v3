@@ -7,7 +7,7 @@ import { HomePage } from '@pages/HomePage'
 import { DashboardPage } from '@pages/DashboardPage'
 import { TrainingPage } from '@pages/TrainingPage'
 import { UploadPage } from '@pages/UploadPage'
-import { EditStepsPage } from '@pages/EditStepsPage'
+import EditStepsPage from '@pages/EditStepsPage'
 import { ApiDebug } from '@components/ApiDebug'
 
 function App() {
