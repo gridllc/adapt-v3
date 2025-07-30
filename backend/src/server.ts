@@ -68,10 +68,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Serve uploaded files with proper video headers
-app.use('/uploads', videoRoutes)
-
-// Routes
+// Routes (API routes must come before static file serving)
 console.log('Loading upload routes...')
 app.use('/api/upload', uploadRoutes)
 
@@ -83,6 +80,9 @@ app.use('/api/modules', moduleRoutes)
 
 console.log('Loading video routes...')
 app.use('/api', videoRoutes)
+
+// Serve uploaded files with proper video headers (must come AFTER API routes)
+app.use('/uploads', videoRoutes)
 
 console.log('Loading transcript routes...')
 app.use('/api', transcriptRoutes)
