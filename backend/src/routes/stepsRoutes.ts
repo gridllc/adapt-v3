@@ -42,4 +42,24 @@ router.get('/steps/:moduleId', async (req: Request, res: Response) => {
   }
 })
 
+// Delete steps for a module
+router.delete('/steps/:moduleId', async (req: Request, res: Response) => {
+  try {
+    const { moduleId } = req.params
+    const filePath = path.resolve(__dirname, `../data/steps/${moduleId}.json`)
+    
+    // Check if file exists before trying to delete
+    if (fs.existsSync(filePath)) {
+      await fs.promises.unlink(filePath)
+      console.log(`✅ Deleted steps file: ${filePath}`)
+      return res.status(200).json({ success: true, message: 'Steps deleted successfully' })
+    } else {
+      return res.status(404).json({ error: 'Steps file not found' })
+    }
+  } catch (err) {
+    console.error('Delete steps error:', err)
+    return res.status(500).json({ error: 'Failed to delete steps' })
+  }
+})
+
 export default router
