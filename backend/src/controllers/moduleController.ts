@@ -45,8 +45,14 @@ export const moduleController = {
     try {
       const { id } = req.params
       
-      // This would typically delete from storage/database
-      res.json({ success: true, id })
+      // Delete from modules.json
+      const success = await storageService.deleteModule(id)
+      
+      if (success) {
+        res.json({ success: true, id, message: 'Module deleted successfully' })
+      } else {
+        res.status(404).json({ error: 'Module not found' })
+      }
     } catch (error) {
       console.error('Delete module error:', error)
       res.status(500).json({ error: 'Failed to delete module' })

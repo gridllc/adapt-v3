@@ -86,6 +86,65 @@ export const storageService = {
       },
     ]
   },
+
+  async deleteModule(moduleId: string): Promise<boolean> {
+    try {
+      const dataDir = path.resolve(__dirname, '../data')
+      const modulesPath = path.join(dataDir, 'modules.json')
+      const uploadsDir = path.resolve(__dirname, '../uploads')
+      
+      // Read current modules
+      let modules = []
+      try {
+        const raw = await fs.promises.readFile(modulesPath, 'utf-8')
+        modules = JSON.parse(raw)
+      } catch (err) {
+        console.log('No modules.json found or invalid JSON')
+        return false
+      }
+      
+      // Find the module to delete
+      const moduleIndex = modules.findIndex((m: any) => m.id === moduleId)
+      if (moduleIndex === -1) {
+        return false
+      }
+      
+      const moduleToDelete = modules[moduleIndex]
+      
+      // Remove from modules array
+      modules.splice(moduleIndex, 1)
+      
+      // Write updated modules.json
+      await fs.promises.writeFile(modulesPath, JSON.stringify(modules, null, 2))
+      
+      // Delete associated video file
+      const videoPath = path.join(uploadsDir, `${moduleId}.mp4`)
+      if (fs.existsSync(videoPath)) {
+        await fs.promises.unlink(videoPath)
+        console.log(`Deleted video file: ${videoPath}`)
+      }
+      
+      // Delete associated data file
+      const dataPath = path.join(dataDir, `${moduleId}.json`)
+      if (fs.existsSync(dataPath)) {
+        await fs.promises.unlink(dataPath)
+        console.log(`Deleted data file: ${dataPath}`)
+      }
+      
+      // Delete associated transcript file if exists
+      const transcriptPath = path.join(dataDir, 'transcripts', `${moduleId}.json`)
+      if (fs.existsSync(transcriptPath)) {
+        await fs.promises.unlink(transcriptPath)
+        console.log(`Deleted transcript file: ${transcriptPath}`)
+      }
+      
+      console.log(`Successfully deleted module: ${moduleId}`)
+      return true
+    } catch (error) {
+      console.error('Delete module error:', error)
+      return false
+    }
+  },
 }
 
 export async function getSignedS3Url(filename: string): Promise<string> {
