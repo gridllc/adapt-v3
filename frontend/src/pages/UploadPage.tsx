@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Upload, Video, CheckCircle, AlertCircle, Loader } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { API_CONFIG, API_ENDPOINTS } from '@config/api'
+import { API_CONFIG, API_ENDPOINTS } from '../config/api'
 
 // Upload Manager Component
 const UploadManager = () => {
