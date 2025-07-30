@@ -8,7 +8,6 @@ export const DashboardPage: React.FC = () => {
   const { modules, loading, error } = useModules()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('all')
   const [deleted, setDeleted] = useState<string[]>([])
 
   const handleDelete = async (id: string) => {
@@ -20,7 +19,7 @@ export const DashboardPage: React.FC = () => {
   const filteredModules = modules.filter(m => {
     if (deleted.includes(m.id)) return false
     const match = m.title.toLowerCase().includes(searchTerm.toLowerCase())
-    return match && (selectedCategory === 'all' || m.category === selectedCategory)
+    return match
   })
 
   return (
