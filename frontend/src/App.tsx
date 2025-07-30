@@ -8,10 +8,15 @@ import { DashboardPage } from '@pages/DashboardPage'
 import { TrainingPage } from '@pages/TrainingPage'
 import { UploadPage } from '@pages/UploadPage'
 import { EditStepsPage } from '@pages/EditStepsPage'
+import { ApiDebug } from '@components/ApiDebug'
 
 function App() {
   return (
-    <Routes>
+    <>
+      {/* Temporary debug panel - remove after testing */}
+      <ApiDebug />
+      
+      <Routes>
       {/* Public routes */}
       <Route path="/" element={<HomePage />} />
       
@@ -55,6 +60,7 @@ function App() {
         />
       </Route>
     </Routes>
+    </>
   )
 }
 
