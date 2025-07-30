@@ -1,40 +1,7 @@
-import React, { useCallback, useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { Upload, Video, CheckCircle, AlertCircle, Loader } from 'lucide-react'
-import { useNavigate, Link } from 'react-router-dom'
-import { UserButton } from '@clerk/clerk-react'
+import { useNavigate } from 'react-router-dom'
 import { API_CONFIG, API_ENDPOINTS } from '@config/api'
-
-// Navigation Component
-const Navigation = () => {
-  return (
-    <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-8">
-            <Link to="/dashboard" className="text-xl font-semibold text-gray-900">Adapt</Link>
-            <div className="flex space-x-6">
-              <Link 
-                to="/dashboard" 
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium transition-colors"
-              >
-                Dashboard
-              </Link>
-              <Link 
-                to="/upload" 
-                className="text-blue-600 hover:text-blue-700 px-3 py-2 text-sm font-medium transition-colors"
-              >
-                Upload
-              </Link>
-            </div>
-          </div>
-          <div className="flex items-center">
-            <UserButton afterSignOutUrl="/" />
-          </div>
-        </div>
-      </div>
-    </nav>
-  )
-}
 
 // Upload Manager Component
 const UploadManager = () => {
@@ -257,70 +224,66 @@ const UploadManager = () => {
 // Main Upload Page Component
 export const UploadPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      
-      <main className="max-w-4xl mx-auto px-4 py-12">
-        {/* Header Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Upload Training Module
-          </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Transform your video content into interactive training modules. 
-            Our AI will automatically extract key steps and create engaging learning experiences.
+    <div className="space-y-8">
+      {/* Header Section */}
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          Upload Training Module
+        </h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          Transform your video content into interactive training modules. 
+          Our AI will automatically extract key steps and create engaging learning experiences.
+        </p>
+      </div>
+
+      {/* Upload Section */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-8 py-6 border-b border-gray-200">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-2">
+            Upload Video
+          </h2>
+          <p className="text-gray-600">
+            Upload a video file to get started. The AI will analyze your content and generate a structured training module.
           </p>
         </div>
-
-        {/* Upload Section */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-8 py-6 border-b border-gray-200">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">
-              Upload Video
-            </h2>
-            <p className="text-gray-600">
-              Upload a video file to get started. The AI will analyze your content and generate a structured training module.
-            </p>
-          </div>
-          
-          <div className="p-8">
-            <UploadManager />
-          </div>
+        
+        <div className="p-8">
+          <UploadManager />
         </div>
+      </div>
 
-        {/* Info Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mt-12">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <Upload className="w-6 h-6 text-blue-600" />
-            </div>
-            <h3 className="font-semibold text-gray-800 mb-2">Easy Upload</h3>
-            <p className="text-sm text-gray-600">
-              Simply drag and drop your video files. We support MP4 and WebM formats.
-            </p>
+      {/* Info Cards */}
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+            <Upload className="w-6 h-6 text-blue-600" />
           </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <h3 className="font-semibold text-gray-800 mb-2">AI Processing</h3>
-            <p className="text-sm text-gray-600">
-              Our AI automatically extracts key learning points and creates structured modules.
-            </p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <Video className="w-6 h-6 text-purple-600" />
-            </div>
-            <h3 className="font-semibold text-gray-800 mb-2">Interactive Learning</h3>
-            <p className="text-sm text-gray-600">
-              Generated modules include timestamped steps, AI chat assistance, and progress tracking.
-            </p>
-          </div>
+          <h3 className="font-semibold text-gray-800 mb-2">Easy Upload</h3>
+          <p className="text-sm text-gray-600">
+            Simply drag and drop your video files. We support MP4 and WebM formats.
+          </p>
         </div>
-      </main>
+        
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+            <CheckCircle className="w-6 h-6 text-green-600" />
+          </div>
+          <h3 className="font-semibold text-gray-800 mb-2">AI Processing</h3>
+          <p className="text-sm text-gray-600">
+            Our AI automatically extracts key learning points and creates structured modules.
+          </p>
+        </div>
+        
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+            <Video className="w-6 h-6 text-purple-600" />
+          </div>
+          <h3 className="font-semibold text-gray-800 mb-2">Interactive Learning</h3>
+          <p className="text-sm text-gray-600">
+            Generated modules include timestamped steps, AI chat assistance, and progress tracking.
+          </p>
+        </div>
+      </div>
     </div>
   )
 } 
