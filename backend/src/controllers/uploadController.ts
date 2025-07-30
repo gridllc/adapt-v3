@@ -26,18 +26,18 @@ export const uploadController = {
       }
 
       // Upload to storage
-      const videoUrl = await storageService.uploadVideo(file)
+      const { moduleId, videoUrl } = await storageService.uploadVideo(file)
 
       // Process with AI
       const moduleData = await aiService.processVideo(videoUrl)
 
-      // Save module
-      const moduleId = await storageService.saveModule(moduleData)
+      // Save module data
+      await storageService.saveModule({ ...moduleData, id: moduleId })
 
       // Append to modules.json
       const newModule = {
         id: moduleId,
-        filename: file.filename || `${moduleId}.mp4`,
+        filename: `${moduleId}.mp4`, // Consistent naming
         title: originalname.replace(/\.[^/.]+$/, ''),
         createdAt: new Date().toISOString(),
       }
@@ -53,7 +53,7 @@ export const uploadController = {
       await fs.promises.writeFile(dataPath, JSON.stringify(existingModules, null, 2))
 
       // Start transcription in background (fire-and-forget)
-      transcribeS3Video(moduleId, file.filename || `${moduleId}.mp4`)
+      transcribeS3Video(moduleId, `${moduleId}.mp4`)
         .then(() => console.log(`Transcript generated for ${moduleId}`))
         .catch(err => console.error(`Transcript generation failed for ${moduleId}:`, err))
 

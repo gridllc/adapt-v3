@@ -12,7 +12,7 @@ function generateId(): string {
 }
 
 export const storageService = {
-  async uploadVideo(file: Express.Multer.File): Promise<string> {
+  async uploadVideo(file: Express.Multer.File): Promise<{ moduleId: string; videoUrl: string }> {
     const moduleId = generateId()
     const uploadsDir = path.resolve(__dirname, '../uploads')
     
@@ -21,13 +21,17 @@ export const storageService = {
       fs.mkdirSync(uploadsDir, { recursive: true })
     }
     
-    const filename = `${moduleId}-${file.originalname}`
+    // Use consistent naming: moduleId.mp4 for easier access
+    const filename = `${moduleId}.mp4`
     const filePath = path.join(uploadsDir, filename)
     
-    // Save file locally
+    // Save file locally with consistent extension
     await fs.promises.writeFile(filePath, file.buffer)
     
-    return `http://localhost:8000/uploads/${filename}`
+    return {
+      moduleId,
+      videoUrl: `http://localhost:8000/uploads/${filename}`
+    }
   },
 
   async saveModule(moduleData: any): Promise<string> {
