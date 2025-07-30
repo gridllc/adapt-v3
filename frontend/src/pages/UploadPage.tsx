@@ -134,9 +134,9 @@ const UploadManager = () => {
           <div className="space-y-4">
             <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
               {isDragActive ? (
-                <Upload className="w-8 h-8 text-blue-600" />
+                <div>📤 UPLOAD</div>
               ) : (
-                <Video className="w-8 h-8 text-blue-600" />
+                <div>📹 VIDEO</div>
               )}
             </div>
             <div>
