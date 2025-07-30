@@ -33,9 +33,9 @@ app.use(helmet())
 
 // CORS configuration for both development and production
 const allowedOrigins: string[] = [
+  'http://localhost:3001', // Primary development port for Clerk
   'http://localhost:3000',
-  'http://localhost:5173', // Vite default
-  'http://localhost:3001', 
+  'http://localhost:5173', // Vite default 
   'http://localhost:3002',
   'http://localhost:3003',
   'http://localhost:3004',
