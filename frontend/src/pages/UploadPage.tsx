@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react'
-import { Upload, Video, CheckCircle, AlertCircle, Loader } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { API_CONFIG, API_ENDPOINTS } from '../config/api'
 
@@ -130,9 +129,9 @@ const UploadManager = () => {
           <div className="space-y-4">
             <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
               {isDragActive ? (
-                <Upload className="w-8 h-8 text-blue-600" />
+                <span className="text-2xl">📤</span>
               ) : (
-                <Video className="w-8 h-8 text-blue-600" />
+                <span className="text-2xl">🎬</span>
               )}
             </div>
             <div>
@@ -153,7 +152,7 @@ const UploadManager = () => {
       {uploadStatus === 'uploading' && (
         <div className="border-2 border-blue-200 bg-blue-50 rounded-xl p-8 text-center">
           <div className="space-y-4">
-            <Loader className="w-12 h-12 text-blue-600 mx-auto animate-spin" />
+            <div className="w-12 h-12 mx-auto animate-spin text-blue-600 text-2xl flex items-center justify-center">⏳</div>
             <div>
               <p className="text-lg font-semibold text-gray-800 mb-2">Uploading {fileName}</p>
               <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
@@ -171,7 +170,7 @@ const UploadManager = () => {
       {uploadStatus === 'success' && (
         <div className="border-2 border-green-200 bg-green-50 rounded-xl p-8 text-center">
           <div className="space-y-4">
-            <CheckCircle className="w-12 h-12 text-green-600 mx-auto" />
+            <div className="w-12 h-12 mx-auto text-green-600 text-2xl flex items-center justify-center">✅</div>
             <div>
               <p className="text-lg font-semibold text-green-800 mb-2">Upload Complete!</p>
               <p className="text-sm text-green-600 mb-4">
@@ -201,7 +200,7 @@ const UploadManager = () => {
       {uploadStatus === 'error' && (
         <div className="border-2 border-red-200 bg-red-50 rounded-xl p-8 text-center">
           <div className="space-y-4">
-            <AlertCircle className="w-12 h-12 text-red-600 mx-auto" />
+            <div className="w-12 h-12 mx-auto text-red-600 text-2xl flex items-center justify-center">⚠️</div>
             <div>
               <p className="text-lg font-semibold text-red-800 mb-2">Upload Failed</p>
               <p className="text-sm text-red-600 mb-4">
@@ -240,15 +239,15 @@ export const UploadPage: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-8 py-6 border-b border-gray-200">
           <h2 className="text-2xl font-semibold text-gray-800 mb-2">
-            Upload Video
-          </h2>
+          Upload Video
+        </h2>
           <p className="text-gray-600">
             Upload a video file to get started. The AI will analyze your content and generate a structured training module.
-          </p>
+        </p>
         </div>
-        
+
         <div className="p-8">
-          <UploadManager />
+        <UploadManager />
         </div>
       </div>
 
@@ -256,7 +255,7 @@ export const UploadPage: React.FC = () => {
       <div className="grid md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-            <Upload className="w-6 h-6 text-blue-600" />
+            <span className="text-xl">📤</span>
           </div>
           <h3 className="font-semibold text-gray-800 mb-2">Easy Upload</h3>
           <p className="text-sm text-gray-600">
@@ -266,7 +265,7 @@ export const UploadPage: React.FC = () => {
         
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-            <CheckCircle className="w-6 h-6 text-green-600" />
+            <span className="text-xl">✅</span>
           </div>
           <h3 className="font-semibold text-gray-800 mb-2">AI Processing</h3>
           <p className="text-sm text-gray-600">
@@ -276,7 +275,7 @@ export const UploadPage: React.FC = () => {
         
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
           <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-            <Video className="w-6 h-6 text-purple-600" />
+            <span className="text-xl">🎬</span>
           </div>
           <h3 className="font-semibold text-gray-800 mb-2">Interactive Learning</h3>
           <p className="text-sm text-gray-600">
