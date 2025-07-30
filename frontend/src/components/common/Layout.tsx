@@ -6,6 +6,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
+  console.log('Layout rendering')
   return (
     <div className="min-h-screen bg-gray-50">
       <Navigation />

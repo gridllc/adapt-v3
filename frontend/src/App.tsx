@@ -13,8 +13,8 @@ import { ApiDebug } from '@components/ApiDebug'
 function App() {
   return (
     <>
-      {/* Temporary debug panel - remove after testing */}
-      <ApiDebug />
+      {/* Debug panel temporarily disabled */}
+      {/* <ApiDebug /> */}
       
       <Routes>
       {/* Public routes */}
