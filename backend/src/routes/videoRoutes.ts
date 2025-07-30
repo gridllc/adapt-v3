@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { getSignedS3Url } from '../services/storageService.js'
+import { videoController } from '../controllers/videoController.js'
 
 const router = express.Router()
 
@@ -8,6 +9,7 @@ const paramSchema = z.object({
   filename: z.string().min(5).max(200),
 })
 
+// Get signed URL for video (API endpoint)
 router.get('/video-url/:filename', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { filename } = paramSchema.parse(req.params)
@@ -25,5 +27,8 @@ router.get('/video-url/:filename', async (req: Request, res: Response, next: Nex
     return res.status(500).json({ error: 'URL generation failed' })
   }
 })
+
+// Serve video files directly with proper headers
+router.get('/:filename', videoController.serveVideo)
 
 export default router
