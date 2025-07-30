@@ -106,23 +106,19 @@ const UploadManager = () => {
     setErrorMessage('')
   }
 
-  console.log('UploadManager rendering, uploadStatus:', uploadStatus)
-  
   return (
     <div className="space-y-4">
-      {/* Debug: Test if Tailwind is working */}
-      <div className="bg-red-500 text-white p-4 rounded">
-        DEBUG: Upload Status = {uploadStatus} | Tailwind CSS Test
-      </div>
-      
       {uploadStatus === 'idle' && (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={handleClick}
-          className="border-4 border-red-500 bg-blue-100 rounded-xl p-12 text-center transition-all cursor-pointer"
-          style={{ minHeight: '200px', border: '4px solid red' }}
+          className={`border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer ${
+            isDragActive
+              ? 'border-blue-500 bg-blue-50 scale-[1.02]'
+              : 'border-gray-300 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'
+          }`}
         >
           <input
             ref={fileInputRef}
@@ -134,9 +130,9 @@ const UploadManager = () => {
           <div className="space-y-4">
             <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
               {isDragActive ? (
-                <div>📤 UPLOAD</div>
+                <Upload className="w-8 h-8 text-blue-600" />
               ) : (
-                <div>📹 VIDEO</div>
+                <Video className="w-8 h-8 text-blue-600" />
               )}
             </div>
             <div>
@@ -232,7 +228,7 @@ export const UploadPage: React.FC = () => {
       {/* Header Section */}
       <div className="text-center">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Upload Training Module v3
+          Upload Training Module
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           Transform your video content into interactive training modules. 
