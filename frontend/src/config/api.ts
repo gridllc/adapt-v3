@@ -17,6 +17,17 @@ export const API_CONFIG = {
   getApiUrl: (endpoint: string): string => {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
     const fullUrl = API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint
+    
+    // Debug logging in development
+    if (isDevelopment) {
+      console.log('🔗 API Call:', {
+        endpoint,
+        cleanEndpoint,
+        API_BASE_URL,
+        fullUrl
+      })
+    }
+    
     return fullUrl
   }
 }
