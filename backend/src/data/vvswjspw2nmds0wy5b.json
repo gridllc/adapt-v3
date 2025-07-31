@@ -1,0 +1,375 @@
+{
+  "title": "Introduction and Overview",
+  "description": "Welcome to this comprehensive training session. This comprehensive training covers all essential aspects of the process.",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Introduction and Overview",
+      "description": "Welcome to this comprehensive training. This section covers the fundamental concepts and objectives.",
+      "duration": 3,
+      "confidence": 0.9500000000000001,
+      "visualCues": [
+        "User interface showing main dashboard with navigation menu visible",
+        "User interface showing main dashboard with navigation menu visible"
+      ],
+      "spokenInstructions": "Welcome to this comprehensive training",
+      "userActions": [
+        "navigation"
+      ],
+      "context": "Audio: \"Welcome to this comprehensive training\" | Visual: User interface showing main dashboard with navigation menu visible; User interface showing main dashboard with navigation menu visible"
+    },
+    {
+      "timestamp": 3,
+      "title": "Setup and Preparation",
+      "description": "Essential preparation steps and safety measures demonstrated in the video content.",
+      "duration": 3,
+      "confidence": 1,
+      "visualCues": [
+        "User interface showing main dashboard with navigation menu visible"
+      ],
+      "spokenInstructions": "session. Today we'll be covering",
+      "userActions": [
+        "navigation"
+      ],
+      "context": "Audio: \"session. Today we'll be covering\" | Visual: User interface showing main dashboard with navigation menu visible"
+    },
+    {
+      "timestamp": 6,
+      "title": "Main Demonstration",
+      "description": "User interface showing main dashboard with navigation menu visible with detailed explanations and practical examples.",
+      "duration": 3,
+      "confidence": 1,
+      "visualCues": [
+        "User interface showing main dashboard with navigation menu visible"
+      ],
+      "spokenInstructions": "essential safety protocols and operational",
+      "userActions": [
+        "navigation"
+      ],
+      "context": "Audio: \"essential safety protocols and operational\" | Visual: User interface showing main dashboard with navigation menu visible"
+    },
+    {
+      "timestamp": 9,
+      "title": "Key Techniques and Best Practices",
+      "description": "Advanced techniques and industry best practices demonstrated in the video.",
+      "duration": 3,
+      "confidence": 1,
+      "visualCues": [
+        "Demonstration of clicking on the settings button in the top right corner"
+      ],
+      "spokenInstructions": "procedures. Let's begin with the",
+      "userActions": [
+        "mouse_click",
+        "configuration"
+      ],
+      "context": "Audio: \"procedures. Let's begin with the\" | Visual: Demonstration of clicking on the settings button in the top right corner"
+    },
+    {
+      "timestamp": 12,
+      "title": "Summary and Implementation",
+      "description": "Review of key points and practical guidance for applying the training content.",
+      "duration": 3,
+      "confidence": 1,
+      "visualCues": [
+        "Demonstration of clicking on the settings button in the top right corner"
+      ],
+      "spokenInstructions": "fundamental setup and preparation steps",
+      "userActions": [
+        "mouse_click",
+        "configuration"
+      ],
+      "context": "Audio: \"fundamental setup and preparation steps\" | Visual: Demonstration of clicking on the settings button in the top right corner"
+    },
+    {
+      "timestamp": 15,
+      "title": "Step 6",
+      "description": "This step covers important content from the video.",
+      "duration": 3,
+      "confidence": 1,
+      "visualCues": [
+        "Demonstration of clicking on the settings button in the top right corner"
+      ],
+      "spokenInstructions": "required for this process.",
+      "userActions": [
+        "mouse_click",
+        "configuration"
+      ],
+      "context": "Audio: \"required for this process.\" | Visual: Demonstration of clicking on the settings button in the top right corner"
+    }
+  ],
+  "totalDuration": 180,
+  "transcript": [
+    {
+      "text": "Welcome to this comprehensive training",
+      "startTime": 0,
+      "endTime": 3,
+      "confidence": 0.9500000000000001,
+      "words": [
+        {
+          "word": "Welcome",
+          "startTime": 0,
+          "endTime": 0.6
+        },
+        {
+          "word": "to",
+          "startTime": 0.6,
+          "endTime": 1.2
+        },
+        {
+          "word": "this",
+          "startTime": 1.2,
+          "endTime": 1.8
+        },
+        {
+          "word": "comprehensive",
+          "startTime": 1.8,
+          "endTime": 2.4
+        },
+        {
+          "word": "training",
+          "startTime": 2.4,
+          "endTime": 3
+        }
+      ]
+    },
+    {
+      "text": "session. Today we'll be covering",
+      "startTime": 3,
+      "endTime": 6,
+      "confidence": 1,
+      "words": [
+        {
+          "word": "session.",
+          "startTime": 3,
+          "endTime": 3.6
+        },
+        {
+          "word": "Today",
+          "startTime": 3.6,
+          "endTime": 4.2
+        },
+        {
+          "word": "we'll",
+          "startTime": 4.2,
+          "endTime": 4.8
+        },
+        {
+          "word": "be",
+          "startTime": 4.8,
+          "endTime": 5.4
+        },
+        {
+          "word": "covering",
+          "startTime": 5.4,
+          "endTime": 6
+        }
+      ]
+    },
+    {
+      "text": "essential safety protocols and operational",
+      "startTime": 6,
+      "endTime": 9,
+      "confidence": 1,
+      "words": [
+        {
+          "word": "essential",
+          "startTime": 6,
+          "endTime": 6.6
+        },
+        {
+          "word": "safety",
+          "startTime": 6.6,
+          "endTime": 7.2
+        },
+        {
+          "word": "protocols",
+          "startTime": 7.2,
+          "endTime": 7.8
+        },
+        {
+          "word": "and",
+          "startTime": 7.8,
+          "endTime": 8.4
+        },
+        {
+          "word": "operational",
+          "startTime": 8.4,
+          "endTime": 9
+        }
+      ]
+    },
+    {
+      "text": "procedures. Let's begin with the",
+      "startTime": 9,
+      "endTime": 12,
+      "confidence": 1,
+      "words": [
+        {
+          "word": "procedures.",
+          "startTime": 9,
+          "endTime": 9.6
+        },
+        {
+          "word": "Let's",
+          "startTime": 9.6,
+          "endTime": 10.2
+        },
+        {
+          "word": "begin",
+          "startTime": 10.2,
+          "endTime": 10.8
+        },
+        {
+          "word": "with",
+          "startTime": 10.8,
+          "endTime": 11.4
+        },
+        {
+          "word": "the",
+          "startTime": 11.4,
+          "endTime": 12
+        }
+      ]
+    },
+    {
+      "text": "fundamental setup and preparation steps",
+      "startTime": 12,
+      "endTime": 15,
+      "confidence": 1,
+      "words": [
+        {
+          "word": "fundamental",
+          "startTime": 12,
+          "endTime": 12.6
+        },
+        {
+          "word": "setup",
+          "startTime": 12.6,
+          "endTime": 13.2
+        },
+        {
+          "word": "and",
+          "startTime": 13.2,
+          "endTime": 13.8
+        },
+        {
+          "word": "preparation",
+          "startTime": 13.8,
+          "endTime": 14.4
+        },
+        {
+          "word": "steps",
+          "startTime": 14.4,
+          "endTime": 15
+        }
+      ]
+    },
+    {
+      "text": "required for this process.",
+      "startTime": 15,
+      "endTime": 18,
+      "confidence": 1,
+      "words": [
+        {
+          "word": "required",
+          "startTime": 15,
+          "endTime": 15.6
+        },
+        {
+          "word": "for",
+          "startTime": 15.6,
+          "endTime": 16.2
+        },
+        {
+          "word": "this",
+          "startTime": 16.2,
+          "endTime": 16.8
+        },
+        {
+          "word": "process.",
+          "startTime": 16.8,
+          "endTime": 17.4
+        }
+      ]
+    }
+  ],
+  "keyFrames": [
+    {
+      "timestamp": 0,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgMHM=",
+      "confidence": 0.9500000000000001,
+      "description": "User interface showing main dashboard with navigation menu visible",
+      "userActions": [
+        "navigation"
+      ]
+    },
+    {
+      "timestamp": 2.5,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgMi41cw==",
+      "confidence": 0.9500000000000001,
+      "description": "User interface showing main dashboard with navigation menu visible",
+      "userActions": [
+        "navigation"
+      ]
+    },
+    {
+      "timestamp": 5.5,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgNS41cw==",
+      "confidence": 1,
+      "description": "User interface showing main dashboard with navigation menu visible",
+      "userActions": [
+        "navigation"
+      ]
+    },
+    {
+      "timestamp": 8.5,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgOC41cw==",
+      "confidence": 1,
+      "description": "User interface showing main dashboard with navigation menu visible",
+      "userActions": [
+        "navigation"
+      ]
+    },
+    {
+      "timestamp": 11.5,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgMTEuNXM=",
+      "confidence": 1,
+      "description": "Demonstration of clicking on the settings button in the top right corner",
+      "userActions": [
+        "mouse_click",
+        "configuration"
+      ]
+    },
+    {
+      "timestamp": 14.5,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgMTQuNXM=",
+      "confidence": 1,
+      "description": "Demonstration of clicking on the settings button in the top right corner",
+      "userActions": [
+        "mouse_click",
+        "configuration"
+      ]
+    },
+    {
+      "timestamp": 17.5,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgMTcuNXM=",
+      "confidence": 1,
+      "description": "Demonstration of clicking on the settings button in the top right corner",
+      "userActions": [
+        "mouse_click",
+        "configuration"
+      ]
+    },
+    {
+      "timestamp": 179,
+      "imageData": "data:image/jpeg;base64,RnJhbWUgYXQgMTc5cw==",
+      "confidence": 0.6,
+      "description": "Demonstration of clicking on the settings button in the top right corner",
+      "userActions": [
+        "mouse_click",
+        "configuration"
+      ]
+    }
+  ],
+  "id": "vvswjspw2nmds0wy5b"
+}

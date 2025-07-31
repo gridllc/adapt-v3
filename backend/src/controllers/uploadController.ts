@@ -41,8 +41,16 @@ export const uploadController = {
       try {
         console.log(`🎯 Creating structured training steps for module: ${moduleId}`)
         
-        // Get the actual video file path
-        const videoPath = path.join(__dirname, '../uploads', `${moduleId}.mp4`)
+        // Get the actual video file path - use the same path as storageService
+        const videoPath = path.join(path.resolve(__dirname, '../../..'), 'backend', 'uploads', `${moduleId}.mp4`)
+        
+        // Debug: Check if file exists
+        const fs = await import('fs')
+        if (!fs.existsSync(videoPath)) {
+          console.error(`❌ Video file not found: ${videoPath}`)
+          throw new Error(`Video file not found: ${videoPath}`)
+        }
+        console.log(`✅ Video file found: ${videoPath}`)
         
         // Create structured training steps with enhanced formatting
         trainingData = await createTrainingStepsFromVideo(videoPath, {

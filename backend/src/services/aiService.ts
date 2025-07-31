@@ -77,8 +77,8 @@ export const aiService = {
       
       console.log(`🎬 Starting enhanced video analysis for: ${moduleId}`)
       
-      // Get video file path
-      const videoPath = path.join(projectRoot, 'backend', 'uploads', `${moduleId}.mp4`)
+      // Get video file path - use the same path as storageService
+      const videoPath = path.join(path.resolve(__dirname, '../../..'), 'backend', 'uploads', `${moduleId}.mp4`)
       
       // Check if video file exists
       const fs = await import('fs')
@@ -118,8 +118,8 @@ export const aiService = {
       
       console.log(`🎬 Starting actual video analysis for: ${moduleId}`)
       
-      // Get video file path
-      const videoPath = path.join(projectRoot, 'backend', 'src', 'uploads', `${moduleId}.mp4`)
+      // Get video file path - use the same path as storageService
+      const videoPath = path.join(path.resolve(__dirname, '../../..'), 'backend', 'uploads', `${moduleId}.mp4`)
       
       // Check if video file exists
       const fs = await import('fs')
