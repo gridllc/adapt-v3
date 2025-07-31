@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
+import stepsRoutes from './routes/stepsRoutes.js'
+import videoRoutes from './routes/videoRoutes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -22,6 +24,8 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 app.use('/api/modules', moduleRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/ai', aiRoutes)
+app.use('/api/steps', stepsRoutes)
+app.use('/api/video-url', videoRoutes)
 
 // 🚀 Enhanced video serving with CORS and range support
 app.get('/uploads/:filename', (req, res) => {
@@ -93,5 +97,5 @@ app.get('/api/test', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
-  console.log(`📁 Video files served from: ${path.join(__dirname, '../src/uploads')}`)
+  console.log(`📁 Video files served from: ${path.join(__dirname, '../uploads')}`)
 }) 

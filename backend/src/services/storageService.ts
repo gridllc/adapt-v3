@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Always resolve from project root, not dist or src
+const projectRoot = path.resolve(__dirname, '../../..')
+const dataDir = path.join(projectRoot, 'backend', 'src', 'data')
+const uploadsDir = path.join(projectRoot, 'backend', 'uploads')
+
 // Simple ID generator for now
 function generateId(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -14,7 +19,6 @@ function generateId(): string {
 export const storageService = {
   async uploadVideo(file: Express.Multer.File): Promise<{ moduleId: string; videoUrl: string }> {
     const moduleId = generateId()
-    const uploadsDir = path.resolve(__dirname, '../uploads')
     
     // Create uploads directory if it doesn't exist
     if (!fs.existsSync(uploadsDir)) {
@@ -30,13 +34,12 @@ export const storageService = {
     
     return {
       moduleId,
-      videoUrl: `/uploads/${filename}`
+      videoUrl: `http://localhost:8000/uploads/${filename}`
     }
   },
 
   async saveModule(moduleData: any): Promise<string> {
-    const moduleId = generateId()
-    const dataDir = path.resolve(__dirname, '../data')
+    const moduleId = moduleData.id || generateId()
     
     // Create data directory if it doesn't exist
     if (!fs.existsSync(dataDir)) {
@@ -50,27 +53,22 @@ export const storageService = {
   },
 
   async getModule(moduleId: string): Promise<any> {
-    // This would typically fetch from S3 or database
-    // For now, return mock data
-    return {
-      id: moduleId,
-      title: 'Sample Training Module',
-      description: 'A sample training module',
-      videoUrl: 'https://example.com/video.mp4',
-      steps: [
-        {
-          timestamp: 0,
-          title: 'Introduction',
-          description: 'Welcome to the training',
-          duration: 30,
-        },
-      ],
+    try {
+      const modulePath = path.join(dataDir, `${moduleId}.json`)
+      if (!fs.existsSync(modulePath)) {
+        console.log(`Module file not found: ${modulePath}`)
+        return null
+      }
+      const raw = await fs.promises.readFile(modulePath, 'utf-8')
+      return JSON.parse(raw)
+    } catch (error) {
+      console.error('Error loading module:', error)
+      return null
     }
   },
 
   async getAllModules(): Promise<any[]> {
     try {
-      const dataDir = path.resolve(__dirname, '../data')
       const modulesPath = path.join(dataDir, 'modules.json')
       
       // Check if modules.json exists
@@ -93,9 +91,7 @@ export const storageService = {
 
   async deleteModule(moduleId: string): Promise<boolean> {
     try {
-      const dataDir = path.resolve(__dirname, '../data')
       const modulesPath = path.join(dataDir, 'modules.json')
-      const uploadsDir = path.resolve(__dirname, '../uploads')
       
       // Read current modules
       let modules = []
@@ -152,6 +148,6 @@ export const storageService = {
 }
 
 export async function getSignedS3Url(filename: string): Promise<string> {
-  // For local development, return the local file URL
-  return `/uploads/${filename}`
+  // For local development, return the local file URL with absolute path
+  return `http://localhost:8000/uploads/${filename}`
 } 

@@ -2,14 +2,22 @@ import express, { Request, Response } from 'express'
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '../../../')
+const dataDir = path.join(projectRoot, 'backend', 'src', 'data')
 
 const router = express.Router()
 
 const stepSchema = z.object({
-  stepTitle: z.string().min(1),
-  text: z.string().min(1),
-  timestamp: z.number().optional(),
+  timestamp: z.number(),
+  title: z.string().min(1),
+  description: z.string(),
+  duration: z.number().optional(),
 })
+
 const stepsSchema = z.object({
   steps: z.array(stepSchema),
 })
@@ -19,8 +27,9 @@ router.post('/steps/:moduleId', async (req: Request, res: Response) => {
   try {
     const { moduleId } = req.params
     const { steps } = stepsSchema.parse(req.body)
-    const savePath = path.resolve(__dirname, `../data/steps/${moduleId}.json`)
-    await fs.promises.mkdir(path.dirname(savePath), { recursive: true })
+    const stepsDir = path.join(dataDir, 'steps')
+    const savePath = path.join(stepsDir, `${moduleId}.json`)
+    await fs.promises.mkdir(stepsDir, { recursive: true })
     await fs.promises.writeFile(savePath, JSON.stringify(steps, null, 2))
     return res.status(200).json({ success: true })
   } catch (err: any) {
@@ -33,7 +42,7 @@ router.post('/steps/:moduleId', async (req: Request, res: Response) => {
 router.get('/steps/:moduleId', async (req: Request, res: Response) => {
   try {
     const { moduleId } = req.params
-    const filePath = path.resolve(__dirname, `../data/steps/${moduleId}.json`)
+    const filePath = path.join(dataDir, 'steps', `${moduleId}.json`)
     const raw = await fs.promises.readFile(filePath, 'utf-8')
     const steps = JSON.parse(raw)
     return res.status(200).json({ success: true, steps })
@@ -46,7 +55,7 @@ router.get('/steps/:moduleId', async (req: Request, res: Response) => {
 router.delete('/steps/:moduleId', async (req: Request, res: Response) => {
   try {
     const { moduleId } = req.params
-    const filePath = path.resolve(__dirname, `../data/steps/${moduleId}.json`)
+    const filePath = path.join(dataDir, 'steps', `${moduleId}.json`)
     
     // Check if file exists before trying to delete
     if (fs.existsSync(filePath)) {
