@@ -30,7 +30,7 @@ export const storageService = {
     
     return {
       moduleId,
-      videoUrl: `http://localhost:8000/uploads/${filename}`
+      videoUrl: `/uploads/${filename}`
     }
   },
 
@@ -149,5 +149,5 @@ export const storageService = {
 
 export async function getSignedS3Url(filename: string): Promise<string> {
   // For local development, return the local file URL
-  return `http://localhost:8000/uploads/${filename}`
+  return `/uploads/${filename}`
 } 

@@ -25,14 +25,18 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
     setLoading(true)
     setError(null)
 
-    fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.VIDEO_URL(filename)), { signal: controller.signal })
+    const apiUrl = API_CONFIG.getApiUrl(API_ENDPOINTS.VIDEO_URL(filename))
+    
+    fetch(apiUrl, { signal: controller.signal })
       .then(res => {
         if (!res.ok) throw new Error(`Failed to get video URL: ${res.status} ${res.statusText}`)
         return res.json()
       })
       .then(data => {
         if (data?.url) {
-          setUrl(data.url)
+          // Convert relative URL to absolute URL for video player
+          const videoUrl = data.url.startsWith('http') ? data.url : `http://localhost:8000${data.url}`
+          setUrl(videoUrl)
         } else {
           setUrl(null)
           setError('No URL returned from server')

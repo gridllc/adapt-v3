@@ -79,10 +79,10 @@ console.log('Loading module routes...')
 app.use('/api/modules', moduleRoutes)
 
 console.log('Loading video routes...')
-app.use('/api', videoRoutes)
+app.use('/api', videoRoutes)3
 
 // Serve uploaded files with proper video headers (must come AFTER API routes)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
+app.use('/uploads', express.static(path.join(__dirname, '../src/uploads')))
 
 console.log('Loading transcript routes...')
 app.use('/api', transcriptRoutes)
