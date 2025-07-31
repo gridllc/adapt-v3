@@ -41,6 +41,8 @@ export const API_ENDPOINTS = {
   UPLOAD: '/api/upload',
   health: '/api/health',
   upload: '/api/upload', // Keep both for compatibility
+  FEEDBACK: '/api/feedback/submit',
+  FEEDBACK_STATS: '/api/feedback/stats',
 }
 
 export function apiUrl(endpoint: string): string {

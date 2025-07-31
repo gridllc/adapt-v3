@@ -74,5 +74,46 @@ export const videoController = {
       console.error('Video serving error:', error)
       res.status(500).json({ error: 'Failed to serve video' })
     }
+  },
+  async getSignedS3Url(req: Request, res: Response) {
+    try {
+      const { filename } = req.params
+      
+      // Always ensure filename has .mp4 extension
+      const videoFilename = filename.endsWith('.mp4') ? filename : `${filename}.mp4`
+      
+      console.log(`🎬 Video URL request for: ${videoFilename}`)
+      console.log(`🔍 Original filename: ${filename}`)
+      console.log(`🔍 Video filename with extension: ${videoFilename}`)
+      
+      // Check if video file exists using the correct path
+      const videoPath = path.join('C:/Users/pgrif/AI_Projects/adapt-v3/backend/uploads', videoFilename)
+      console.log(`📁 Checking video path: ${videoPath}`)
+      
+      if (!fs.existsSync(videoPath)) {
+        console.log(`❌ Video file not found: ${videoPath}`)
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Video file not found',
+          requestedFile: videoFilename,
+          checkedPath: videoPath
+        })
+      }
+      
+      // Return URL with .mp4 extension
+      const videoUrl = `http://localhost:8000/uploads/${videoFilename}`
+      console.log(`✅ Video URL generated: ${videoUrl}`)
+      
+      res.json({
+        success: true,
+        url: videoUrl
+      })
+    } catch (error) {
+      console.error('❌ Error getting video URL:', error)
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to get video URL' 
+      })
+    }
   }
 }

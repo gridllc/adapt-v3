@@ -18,23 +18,29 @@ function generateId(): string {
 
 export const storageService = {
   async uploadVideo(file: Express.Multer.File): Promise<{ moduleId: string; videoUrl: string }> {
-    const moduleId = generateId()
-    
-    // Create uploads directory if it doesn't exist
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true })
-    }
-    
-    // Use consistent naming: moduleId.mp4 for easier access
-    const filename = `${moduleId}.mp4`
-    const filePath = path.join(uploadsDir, filename)
-    
-    // Save file locally with consistent extension
-    await fs.promises.writeFile(filePath, file.buffer)
-    
-    return {
-      moduleId,
-      videoUrl: `http://localhost:8000/uploads/${filename}`
+    try {
+      const moduleId = generateId()
+      const filename = `${moduleId}.mp4`
+      const filePath = path.join(uploadsDir, filename)
+      
+      console.log(`📁 Uploading video: ${filename}`)
+      console.log(`📁 File path: ${filePath}`)
+      
+      // Ensure uploads directory exists
+      await fs.promises.mkdir(uploadsDir, { recursive: true })
+      
+      // Save the file
+      await fs.promises.writeFile(filePath, file.buffer)
+      
+      console.log(`✅ Video uploaded successfully: ${filename}`)
+      
+      return {
+        moduleId,
+        videoUrl: `http://localhost:8000/uploads/${filename}`
+      }
+    } catch (error) {
+      console.error('❌ Error uploading video:', error)
+      throw new Error('Failed to upload video')
     }
   },
 

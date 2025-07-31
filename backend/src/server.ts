@@ -8,6 +8,7 @@ import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import stepsRoutes from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
+import feedbackRoutes from './routes/feedbackRoutes.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -26,53 +27,16 @@ app.use('/api/upload', uploadRoutes)
 app.use('/api/ai', aiRoutes)
 app.use('/api/steps', stepsRoutes)
 app.use('/api/video-url', videoRoutes)
+app.use('/api/feedback', feedbackRoutes)
 
-// 🚀 Enhanced video serving with CORS and range support
-app.get('/uploads/:filename', (req, res) => {
-  const filePath = path.join(__dirname, '../uploads', req.params.filename)
-
-  if (!fs.existsSync(filePath)) {
-    console.log(`Video not found: ${filePath}`)
-    return res.status(404).send('Video not found')
-  }
-
-  const stat = fs.statSync(filePath)
-  const fileSize = stat.size
-  const range = req.headers.range
-
-  // CORS headers for video files
+// Add CORS headers for video files
+app.use('/uploads', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Range')
-
-  if (range) {
-    const parts = range.replace(/bytes=/, '').split('-')
-    const start = parseInt(parts[0], 10)
-    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
-    const chunkSize = end - start + 1
-
-    const file = fs.createReadStream(filePath, { start, end })
-    res.writeHead(206, {
-      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': chunkSize,
-      'Content-Type': 'video/mp4',
-      'Access-Control-Allow-Origin': '*',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-    })
-    file.pipe(res)
-  } else {
-    res.writeHead(200, {
-      'Content-Length': fileSize,
-      'Content-Type': 'video/mp4',
-      'Accept-Ranges': 'bytes',
-      'Access-Control-Allow-Origin': '*',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-    })
-    fs.createReadStream(filePath).pipe(res)
-  }
-})
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+  next()
+}, express.static('C:/Users/pgrif/AI_Projects/adapt-v3/backend/uploads'))
 
 // Handle OPTIONS requests for video files
 app.options('/uploads/:filename', (req, res) => {
@@ -97,5 +61,5 @@ app.get('/api/test', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
-  console.log(`📁 Video files served from: ${path.join(__dirname, '../uploads')}`)
+  console.log(`📁 Video files served from: ${path.join(__dirname, '../../uploads')}`)
 }) 

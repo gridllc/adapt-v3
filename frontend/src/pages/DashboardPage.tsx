@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useModules } from '../hooks/useModules'
 import { api } from '../config/api'
+import { FeedbackDashboard } from '../components/common/FeedbackDashboard'
 
 export const DashboardPage: React.FC = () => {
   const { modules, loading, error } = useModules()
@@ -55,6 +56,11 @@ export const DashboardPage: React.FC = () => {
 
       {loading && <p className="text-gray-500">Loading modules...</p>}
       {error && <p className="text-red-500">{error}</p>}
+
+s      {/* Feedback Dashboard */}
+      <div className="mb-6">
+        <FeedbackDashboard />
+      </div>
 
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}>
         {filteredModules.map(mod => (

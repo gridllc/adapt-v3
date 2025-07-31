@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useSignedVideoUrl } from '../hooks/useSignedVideoUrl'
 import { api, API_ENDPOINTS } from '../config/api'
+import { StepGenerationFeedback, TranscriptionFeedback } from '../components/common/FeedbackWidget'
 
 interface Step {
   timestamp: number
@@ -280,6 +281,23 @@ export const TrainingPage: React.FC = () => {
                   <div className="text-xs text-gray-400 mb-2">
                     Debug: Received {steps.length} steps from API
                   </div>
+                  
+                  {/* Feedback Widgets */}
+                  <div className="flex gap-2 mb-4">
+                    <StepGenerationFeedback 
+                      moduleId={moduleId}
+                      context={`${steps.length} steps generated`}
+                      showImmediately={true}
+                      className="text-xs"
+                    />
+                    <TranscriptionFeedback 
+                      moduleId={moduleId}
+                      context="Video transcription and step generation"
+                      showImmediately={true}
+                      className="text-xs"
+                    />
+                  </div>
+                  
                   <div className="bg-blue-50 p-3 rounded-lg mb-4">
                     <div className="text-xs text-blue-800">
                       <strong>Steps Summary:</strong> {steps.length} total steps

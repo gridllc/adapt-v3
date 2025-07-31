@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_CONFIG, API_ENDPOINTS } from '../config/api'
+import { VideoProcessingFeedback } from '../components/common/FeedbackWidget'
 
 export const UploadPage: React.FC = () => {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
@@ -142,6 +143,16 @@ export const UploadPage: React.FC = () => {
                   <span>▶️</span>
                   View Module
                 </button>
+              </div>
+              
+              {/* Feedback Widget */}
+              <div className="mt-4 flex justify-center">
+                <VideoProcessingFeedback 
+                  moduleId={moduleId}
+                  context="Video upload and processing"
+                  showImmediately={true}
+                  className="text-sm"
+                />
               </div>
             </div>
           </div>

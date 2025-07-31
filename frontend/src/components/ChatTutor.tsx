@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useModuleAsk } from '@/hooks/useModuleAsk'
+import { AISuggestionFeedback } from './common/FeedbackWidget'
 
 interface Props {
   moduleId: string
@@ -42,6 +43,17 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
           <p className="mt-2 text-xs text-gray-500">
             Answered by: {source?.toUpperCase()}
           </p>
+          
+          {/* AI Suggestion Feedback */}
+          <div className="mt-3">
+            <AISuggestionFeedback 
+              moduleId={moduleId}
+              userMessage={question}
+              aiResponse={answer}
+              context="AI tutor response"
+              className="text-xs"
+            />
+          </div>
         </div>
       )}
     </div>
