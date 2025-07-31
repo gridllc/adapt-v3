@@ -29,14 +29,26 @@ export const TrainingPage: React.FC = () => {
 
   // Fetch steps when video URL is ready
   useEffect(() => {
-    if (!moduleId || !url) return
+    if (!moduleId || !url) {
+      console.log('🔄 Skipping steps fetch:', { moduleId, url })
+      return
+    }
 
+    console.log('🔄 Fetching steps for module:', moduleId)
     setStepsLoading(true)
     setStepsError(null)
 
-    api(API_ENDPOINTS.STEPS(moduleId))
+    const stepsEndpoint = API_ENDPOINTS.STEPS(moduleId)
+    console.log('📡 Steps endpoint:', stepsEndpoint)
+
+    // Force fresh fetch with cache-busting
+    const freshUrl = `${stepsEndpoint}?t=${Date.now()}`
+    console.log('📡 Fresh URL:', freshUrl)
+
+    api(freshUrl)
       .then(data => {
-        console.log('📋 Steps data:', data)
+        console.log('📋 Steps data received:', data)
+        console.log('📋 Steps array:', data.steps)
         setSteps(data.steps || [])
       })
       .catch(err => {
@@ -44,19 +56,69 @@ export const TrainingPage: React.FC = () => {
         setStepsError('Failed to load steps')
         setSteps([])
       })
-      .finally(() => setStepsLoading(false))
+      .finally(() => {
+        console.log('✅ Steps loading finished')
+        setStepsLoading(false)
+      })
   }, [moduleId, url])
+
+  const handleRefreshSteps = async () => {
+    if (!moduleId) return
+    
+    console.log('🔄 Manually refreshing steps for module:', moduleId)
+    setStepsLoading(true)
+    setStepsError(null)
+
+    try {
+      const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
+      const data = await api(freshUrl)
+      console.log('📋 Refreshed steps data:', data)
+      setSteps(data.steps || [])
+    } catch (err) {
+      console.error('❌ Error refreshing steps:', err)
+      setStepsError('Failed to refresh steps')
+    } finally {
+      setStepsLoading(false)
+    }
+  }
+
+  const handleLoadSteps = async () => {
+    if (!moduleId) return
+    
+    console.log('🔄 Manually loading steps for module:', moduleId)
+    setStepsLoading(true)
+    setStepsError(null)
+
+    try {
+      const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
+      console.log('📡 Loading from URL:', freshUrl)
+      const data = await api(freshUrl)
+      console.log('📋 Loaded steps data:', data)
+      console.log('📋 Steps array length:', data.steps?.length || 0)
+      setSteps(data.steps || [])
+    } catch (err) {
+      console.error('❌ Error loading steps:', err)
+      setStepsError('Failed to load steps')
+      setSteps([])
+    } finally {
+      setStepsLoading(false)
+    }
+  }
 
   const handleProcessWithAI = async () => {
     if (!moduleId) return
     
+    console.log('🤖 Starting AI processing for module:', moduleId)
     setProcessingAI(true)
     try {
       const response = await api(`/api/ai/process-video/${moduleId}`, {
         method: 'POST',
       })
       
+      console.log('🤖 AI processing response:', response)
+      
       if (response.success && response.steps) {
+        console.log('🤖 Setting new steps:', response.steps)
         setSteps(response.steps)
         setStepsError(null)
       }
@@ -90,6 +152,17 @@ export const TrainingPage: React.FC = () => {
       handleSendMessage()
     }
   }
+
+  console.log('🎬 TrainingPage render state:', {
+    moduleId,
+    url,
+    loading,
+    error,
+    steps: steps.length,
+    stepsLoading,
+    stepsError,
+    processingAI
+  })
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
@@ -134,15 +207,24 @@ export const TrainingPage: React.FC = () => {
             <div className="mt-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-gray-900">📋 Training Steps</h2>
-                {steps.length === 0 && !stepsLoading && (
+                <div className="flex gap-2">
                   <button
-                    onClick={handleProcessWithAI}
-                    disabled={processingAI}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
+                    onClick={handleRefreshSteps}
+                    disabled={stepsLoading}
+                    className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg text-sm"
                   >
-                    {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
+                    {stepsLoading ? '⏳' : '🔄'}
                   </button>
-                )}
+                  {steps.length === 0 && !stepsLoading && (
+                    <button
+                      onClick={handleProcessWithAI}
+                      disabled={processingAI}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
+                    >
+                      {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
+                    </button>
+                  )}
+                </div>
               </div>
               
               {stepsLoading ? (
@@ -164,6 +246,9 @@ export const TrainingPage: React.FC = () => {
                 </div>
               ) : steps.length > 0 ? (
                 <div className="space-y-4">
+                  <div className="text-sm text-gray-500 mb-2">
+                    Found {steps.length} steps for this training
+                  </div>
                   {steps.map((step, index) => (
                     <div key={index} className="bg-white p-4 rounded-lg border shadow-sm">
                       <div className="flex items-center gap-3 mb-2">
@@ -183,13 +268,25 @@ export const TrainingPage: React.FC = () => {
                 <div className="text-center py-8">
                   <div className="text-gray-400 mb-2">📝</div>
                   <p className="text-gray-600">No steps available for this training</p>
-                  <button
-                    onClick={handleProcessWithAI}
-                    disabled={processingAI}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg"
-                  >
-                    {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
-                  </button>
+                  <div className="text-xs text-gray-400 mt-2">
+                    Debug: moduleId={moduleId}, url={url ? 'loaded' : 'not loaded'}, steps={steps.length}
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={handleLoadSteps}
+                      disabled={stepsLoading}
+                      className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm"
+                    >
+                      {stepsLoading ? '⏳ Loading...' : '📋 Load Steps'}
+                    </button>
+                    <button
+                      onClick={handleProcessWithAI}
+                      disabled={processingAI}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
+                    >
+                      {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
