@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import path from 'path'
-import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { audioProcessor, extractSpeechAudio, analyzeAudio } from './audioProcessor.js'
 
@@ -10,30 +9,33 @@ const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '../../../')
 
 // Initialize AI clients with proper error handling and GCP key file support
-let genAI: GoogleGenerativeAI | null = null
-let openai: OpenAI | null = null
+let genAI: GoogleGenerativeAI | undefined
+let openai: OpenAI | undefined
 
 // Initialize Google Generative AI with API key or GCP key file
-try {
-  if (process.env.GEMINI_API_KEY) {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    console.log('✅ Google Generative AI initialized with API key')
-  } else {
-    // Try to use GCP key file as fallback
-    const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
-    if (require('fs').existsSync(keyFilePath)) {
-      // For Google Generative AI, we still need an API key, but we can use the project ID from the key file
-      const keyData = JSON.parse(require('fs').readFileSync(keyFilePath, 'utf8'))
-      if (keyData.project_id) {
-        console.log(`🔑 Using GCP project: ${keyData.project_id}`)
-        // Note: Google Generative AI still requires an API key, not just service account
-        console.log('⚠️ Google Generative AI requires API key, not service account key file')
+(async () => {
+  try {
+    if (process.env.GEMINI_API_KEY) {
+      genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+      console.log('✅ Google Generative AI initialized with API key')
+    } else {
+      // Try to use GCP key file as fallback
+      const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
+      const fs = await import('fs')
+      if (fs.existsSync(keyFilePath)) {
+        // For Google Generative AI, we still need an API key, but we can use the project ID from the key file
+        const keyData = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'))
+        if (keyData.project_id) {
+          console.log(`🔑 Using GCP project: ${keyData.project_id}`)
+          // Note: Google Generative AI still requires an API key, not just service account
+          console.log('⚠️ Google Generative AI requires API key, not service account key file')
+        }
       }
     }
+  } catch (error) {
+    console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
-} catch (error) {
-  console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
-}
+})()
 
 // Initialize OpenAI
 try {
@@ -95,8 +97,10 @@ export class EnhancedVideoProcessor {
 
   private async ensureTempDir() {
     try {
+      const fs = await import('fs/promises')
       await fs.access(this.tempDir)
     } catch {
+      const fs = await import('fs/promises')
       await fs.mkdir(this.tempDir, { recursive: true })
     }
   }
@@ -228,9 +232,10 @@ export class EnhancedVideoProcessor {
   private async extractAndTranscribeAudioSimulated(videoPath: string): Promise<TranscriptSegment[]> {
     console.log(`🔄 Falling back to simulated audio transcription`)
     
-    const stats = await fs.stat(videoPath)
-    const fileSize = stats.size
-    const fileName = path.basename(videoPath)
+          const fs = await import('fs/promises')
+      const stats = await fs.stat(videoPath)
+      const fileSize = stats.size
+      const fileName = path.basename(videoPath)
     
     // Generate realistic transcript based on video characteristics
     const videoHash = this.generateVideoHash(fileSize, fileName)
@@ -703,6 +708,7 @@ export class EnhancedVideoProcessor {
    */
   private async getVideoMetadata(videoPath: string): Promise<VideoMetadata> {
     try {
+      const fs = await import('fs/promises')
       const stats = await fs.stat(videoPath)
       const fileSize = stats.size
       
@@ -739,6 +745,7 @@ export class EnhancedVideoProcessor {
    */
   private async cleanup(videoPath: string) {
     try {
+      const fs = await import('fs/promises')
       const files = await fs.readdir(this.tempDir)
       for (const file of files) {
         await fs.unlink(path.join(this.tempDir, file)).catch((error) => {

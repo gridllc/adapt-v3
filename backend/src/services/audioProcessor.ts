@@ -63,17 +63,20 @@ export class AudioProcessor {
   private speechClient: any
 
   constructor() {
-    this.initializeSpeechClient()
+    this.initializeSpeechClient().catch(error => {
+      console.error('Failed to initialize speech client:', error)
+    })
     this.ensureDirectories()
   }
 
-  private initializeSpeechClient() {
+  private async initializeSpeechClient() {
     try {
       const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
       console.log(`🔑 Initializing Google Cloud Speech client with key file: ${keyFilePath}`)
       
-      // Check if the key file exists
-      if (!require('fs').existsSync(keyFilePath)) {
+      // Check if the key file exists using ES modules
+      const fs = await import('fs')
+      if (!fs.existsSync(keyFilePath)) {
         console.warn(`⚠️ GCP key file not found at ${keyFilePath}, using default credentials`)
         this.speechClient = new speech.SpeechClient()
       } else {

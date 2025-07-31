@@ -1,6 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
-import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { enhancedAiService } from './enhancedVideoProcessor.js'
@@ -11,30 +10,33 @@ const projectRoot = path.resolve(__dirname, '../../../')
 const dataDir = path.join(projectRoot, 'backend', 'src', 'data')
 
 // Initialize clients with proper error handling and GCP key file support
-let genAI: GoogleGenerativeAI | null = null
-let openai: OpenAI | null = null
+let genAI: GoogleGenerativeAI | undefined
+let openai: OpenAI | undefined
 
 // Initialize Google Generative AI with API key or GCP key file
-try {
-  if (process.env.GEMINI_API_KEY) {
-    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    console.log('✅ Google Generative AI initialized with API key')
-  } else {
-    // Try to use GCP key file as fallback
-    const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
-    if (require('fs').existsSync(keyFilePath)) {
-      // For Google Generative AI, we still need an API key, but we can use the project ID from the key file
-      const keyData = JSON.parse(require('fs').readFileSync(keyFilePath, 'utf8'))
-      if (keyData.project_id) {
-        console.log(`🔑 Using GCP project: ${keyData.project_id}`)
-        // Note: Google Generative AI still requires an API key, not just service account
-        console.log('⚠️ Google Generative AI requires API key, not service account key file')
+(async () => {
+  try {
+    if (process.env.GEMINI_API_KEY) {
+      genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+      console.log('✅ Google Generative AI initialized with API key')
+    } else {
+      // Try to use GCP key file as fallback
+      const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
+      const fs = await import('fs')
+      if (fs.existsSync(keyFilePath)) {
+        // For Google Generative AI, we still need an API key, but we can use the project ID from the key file
+        const keyData = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'))
+        if (keyData.project_id) {
+          console.log(`🔑 Using GCP project: ${keyData.project_id}`)
+          // Note: Google Generative AI still requires an API key, not just service account
+          console.log('⚠️ Google Generative AI requires API key, not service account key file')
+        }
       }
     }
+  } catch (error) {
+    console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
-} catch (error) {
-  console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
-}
+})()
 
 // Initialize OpenAI
 try {
@@ -80,6 +82,7 @@ export const aiService = {
       const videoPath = path.join(projectRoot, 'backend', 'uploads', `${moduleId}.mp4`)
       
       // Check if video file exists
+      const fs = await import('fs')
       if (!fs.existsSync(videoPath)) {
         console.error(`❌ Video file not found: ${videoPath}`)
         return this.getDefaultSteps()
@@ -120,6 +123,7 @@ export const aiService = {
       const videoPath = path.join(projectRoot, 'backend', 'src', 'uploads', `${moduleId}.mp4`)
       
       // Check if video file exists
+      const fs = await import('fs')
       if (!fs.existsSync(videoPath)) {
         console.error(`❌ Video file not found: ${videoPath}`)
         return this.getDefaultSteps()
@@ -147,6 +151,7 @@ export const aiService = {
       console.log(`🔍 Starting REAL video analysis: ${videoPath}`)
       
       // Get video file stats
+      const fs = await import('fs')
       const stats = fs.statSync(videoPath)
       const fileSize = stats.size
       console.log(`📊 Video file size: ${fileSize} bytes`)
@@ -179,6 +184,7 @@ export const aiService = {
       console.log(`🎤 Starting REAL audio transcription: ${videoPath}`)
       
       // Get actual video file information
+      const fs = await import('fs')
       const stats = fs.statSync(videoPath)
       const fileSize = stats.size
       const fileName = path.basename(videoPath)
@@ -232,6 +238,7 @@ export const aiService = {
       console.log(`👁️ Starting REAL visual analysis: ${videoPath}`)
       
       // Get actual video file information
+      const fs = await import('fs')
       const stats = fs.statSync(videoPath)
       const fileSize = stats.size
       const fileName = path.basename(videoPath)
@@ -331,6 +338,7 @@ export const aiService = {
   async extractVideoMetadata(videoPath: string) {
     try {
       // Extract basic video information
+      const fs = await import('fs')
       const stats = fs.statSync(videoPath)
       const fileSize = stats.size
       
@@ -546,8 +554,9 @@ export const aiService = {
       const stepsPath = path.join(stepsDir, `${moduleId}.json`)
       
       console.log(`💾 Saving steps to: ${stepsPath}`)
-      await fs.promises.mkdir(stepsDir, { recursive: true })
-      await fs.promises.writeFile(stepsPath, JSON.stringify(videoData.steps, null, 2))
+      const fs = await import('fs/promises')
+      await fs.mkdir(stepsDir, { recursive: true })
+      await fs.writeFile(stepsPath, JSON.stringify(videoData.steps, null, 2))
       
       console.log(`✅ Steps generated and saved for module: ${moduleId}`)
       console.log(`📊 Final step count: ${videoData.steps?.length || 0}`)
