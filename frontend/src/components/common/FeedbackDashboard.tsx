@@ -32,17 +32,27 @@ export const FeedbackDashboard: React.FC<FeedbackDashboardProps> = ({ className 
       try {
         setLoading(true)
         const response = await fetch(API_ENDPOINTS.FEEDBACK_STATS)
-        const data = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        
+        const text = await response.text()
+        if (!text) {
+          throw new Error('Empty response from server')
+        }
+        
+        const data = JSON.parse(text)
         
         if (data.success) {
           setStats(data.stats)
           setRecentFeedback(data.recentFeedback || [])
         } else {
-          setError('Failed to load feedback stats')
+          setError(data.error || 'Failed to load feedback stats')
         }
       } catch (err) {
         console.error('Error fetching feedback stats:', err)
-        setError('Failed to load feedback stats')
+        setError(err instanceof Error ? err.message : 'Failed to load feedback stats')
       } finally {
         setLoading(false)
       }

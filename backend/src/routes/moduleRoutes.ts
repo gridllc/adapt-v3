@@ -16,12 +16,27 @@ const dataDir = path.resolve(__dirname, '../data')
 // Get all modules (JSON file-based)
 router.get('/', async (req, res) => {
   try {
+    console.log('📋 Fetching modules from:', modulesPath)
+    
+    // Check if file exists first
+    try {
+      await fs.access(modulesPath)
+    } catch {
+      console.log('📁 Modules file not found, creating empty array')
+      await fs.writeFile(modulesPath, JSON.stringify([], null, 2))
+    }
+    
     const raw = await fs.readFile(modulesPath, 'utf-8')
     const modules = JSON.parse(raw)
+    
+    console.log(`✅ Loaded ${modules.length} modules`)
     return res.json({ success: true, modules })
   } catch (err) {
-    console.error('Error loading modules:', err)
-    return res.status(500).json({ error: 'Could not load modules' })
+    console.error('❌ Error loading modules:', err)
+    return res.status(500).json({ 
+      error: 'Could not load modules',
+      details: err instanceof Error ? err.message : 'Unknown error'
+    })
   }
 })
 

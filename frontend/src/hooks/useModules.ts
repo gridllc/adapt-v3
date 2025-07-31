@@ -14,16 +14,39 @@ export function useModules() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES))
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load modules')
-        return res.json()
-      })
-      .then(data => {
-        setModules(data.modules || [])
-      })
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false))
+    const fetchModules = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const response = await fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES))
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        
+        const text = await response.text()
+        if (!text) {
+          throw new Error('Empty response from server')
+        }
+        
+        const data = JSON.parse(text)
+        
+        if (data.success) {
+          setModules(data.modules || [])
+        } else {
+          throw new Error(data.error || 'Failed to load modules')
+        }
+      } catch (err) {
+        console.error('Error fetching modules:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load modules')
+        setModules([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchModules()
   }, [])
 
   return { modules, loading, error }

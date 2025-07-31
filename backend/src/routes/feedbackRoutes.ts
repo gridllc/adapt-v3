@@ -21,9 +21,24 @@ async function ensureFeedbackData() {
 // Load existing feedback data
 async function loadFeedbackData() {
   try {
+    console.log('📊 Loading feedback data from:', feedbackDataPath)
+    
+    // Check if file exists first
+    try {
+      await fs.access(feedbackDataPath)
+    } catch {
+      console.log('📁 Feedback file not found, creating default structure')
+      const defaultData = { feedbacks: [], stats: { total: 0, positive: 0, negative: 0 } }
+      await saveFeedbackData(defaultData)
+      return defaultData
+    }
+    
     const data = await fs.readFile(feedbackDataPath, 'utf-8')
-    return JSON.parse(data)
-  } catch {
+    const parsed = JSON.parse(data)
+    console.log(`✅ Loaded feedback data: ${parsed.feedbacks.length} feedbacks, ${parsed.stats.total} total`)
+    return parsed
+  } catch (error) {
+    console.error('❌ Error loading feedback data:', error)
     return { feedbacks: [], stats: { total: 0, positive: 0, negative: 0 } }
   }
 }
@@ -113,8 +128,11 @@ router.post('/submit', async (req, res) => {
     })
 
   } catch (error) {
-    console.error('Feedback submission error:', error)
-    res.status(500).json({ error: 'Failed to submit feedback' })
+    console.error('❌ Feedback submission error:', error)
+    res.status(500).json({ 
+      error: 'Failed to submit feedback',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
 })
 
@@ -123,15 +141,23 @@ router.post('/submit', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
+    console.log('📊 Fetching feedback stats...')
     const feedbackData = await loadFeedbackData()
-    res.json({
+    
+    const response = {
       success: true,
       stats: feedbackData.stats,
       recentFeedback: feedbackData.feedbacks.slice(-5) // Last 5 feedbacks
-    })
+    }
+    
+    console.log(`✅ Returning feedback stats: ${feedbackData.stats.total} total, ${feedbackData.stats.positive} positive`)
+    res.json(response)
   } catch (error) {
-    console.error('Feedback stats error:', error)
-    res.status(500).json({ error: 'Failed to get feedback stats' })
+    console.error('❌ Feedback stats error:', error)
+    res.status(500).json({ 
+      error: 'Failed to get feedback stats',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
   }
 })
 
