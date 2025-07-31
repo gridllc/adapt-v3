@@ -28,22 +28,6 @@ function App() {
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route
-          path="/dashboard"
-          element={
-            <Layout>
-              <DashboardPage />
-            </Layout>
-          }
-        />
-        <Route
-          path="/training/:moduleId"
-          element={
-            <Layout>
-              <TrainingPage />
-            </Layout>
-          }
-        />
-        <Route
           path="/upload"
           element={
             <Layout>
@@ -60,6 +44,24 @@ function App() {
           }
         />
       </Route>
+      
+      {/* Public routes for development */}
+      <Route
+        path="/dashboard"
+        element={
+          <Layout>
+            <DashboardPage />
+          </Layout>
+        }
+      />
+      <Route
+        path="/training/:moduleId"
+        element={
+          <Layout>
+            <TrainingPage />
+          </Layout>
+        }
+      />
       
       {/* Catch-all route for unknown paths */}
       <Route path="*" element={<HomePage />} />

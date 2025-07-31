@@ -69,22 +69,26 @@ export const storageService = {
   },
 
   async getAllModules(): Promise<any[]> {
-    // This would typically fetch from S3 or database
-    // For now, return mock data
-    return [
-      {
-        id: '1',
-        title: 'Coffee Maker Training',
-        description: 'Learn how to use your coffee maker',
-        videoUrl: 'https://example.com/coffee.mp4',
-      },
-      {
-        id: '2',
-        title: 'Fire TV Remote',
-        description: 'Master your Fire TV remote controls',
-        videoUrl: 'https://example.com/firetv.mp4',
-      },
-    ]
+    try {
+      const dataDir = path.resolve(__dirname, '../data')
+      const modulesPath = path.join(dataDir, 'modules.json')
+      
+      // Check if modules.json exists
+      if (!fs.existsSync(modulesPath)) {
+        console.log('No modules.json found, returning empty array')
+        return []
+      }
+      
+      // Read and parse modules.json
+      const raw = await fs.promises.readFile(modulesPath, 'utf-8')
+      const modules = JSON.parse(raw)
+      
+      console.log('Loaded modules:', modules)
+      return modules
+    } catch (error) {
+      console.error('Error loading modules:', error)
+      return []
+    }
   },
 
   async deleteModule(moduleId: string): Promise<boolean> {

@@ -1,123 +1,97 @@
 import express from 'express'
 import cors from 'cors'
-import helmet from 'helmet'
-import dotenv from 'dotenv'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
+import { moduleRoutes } from './routes/moduleRoutes.js'
 import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
-import { moduleRoutes } from './routes/moduleRoutes.js'
-import videoRoutes from './routes/videoRoutes.js'
-import transcriptRoutes from './routes/transcriptRoutes.js'
-import stepsRoutes from './routes/stepsRoutes.js'
-import clerkWebhookRoutes from './routes/clerkWebhookRoutes.js'
 
-dotenv.config()
-
-console.log('Starting server...')
-console.log('Environment check:', {
-  hasClerk: !!process.env.CLERK_SECRET_KEY,
-  hasGemini: !!process.env.GEMINI_API_KEY,
-  port: process.env.PORT
-})
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 8000
 
-// Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-// Security Middleware
-app.use(helmet())
-
-// CORS configuration for both development and production
-const allowedOrigins: string[] = [
-  'http://localhost:3001', // Primary development port for Clerk
-  'http://localhost:3000',
-  'http://localhost:5173', // Vite default 
-  'http://localhost:3002',
-  'http://localhost:3003',
-  'http://localhost:3004',
-  'http://localhost:3005',
-  'http://localhost:3006',
-  'http://localhost:3007',
-  'http://localhost:3008',
-  process.env.FRONTEND_URL, // Add production frontend URL
-  'https://adapt-v3-frontend.vercel.app', // Common Vercel pattern
-  'https://adapt-v3.vercel.app', // Alternate pattern
-].filter((origin): origin is string => Boolean(origin)) // Remove undefined values and type as string[]
-
-console.log('CORS allowed origins:', allowedOrigins)
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true)
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true)
-    } else {
-      console.log('CORS blocked origin:', origin)
-      callback(new Error('Not allowed by CORS'))
-    }
-  },
-  credentials: true,
-}))
-
+// Basic middleware
+app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Routes (API routes must come before static file serving)
-console.log('Loading upload routes...')
+// Essential API routes
+app.use('/api/modules', moduleRoutes)
 app.use('/api/upload', uploadRoutes)
-
-console.log('Loading AI routes...')
 app.use('/api/ai', aiRoutes)
 
-console.log('Loading module routes...')
-app.use('/api/modules', moduleRoutes)
+// 🚀 Enhanced video serving with CORS and range support
+app.get('/uploads/:filename', (req, res) => {
+  const filePath = path.join(__dirname, '../uploads', req.params.filename)
 
-console.log('Loading video routes...')
-app.use('/api', videoRoutes)3
+  if (!fs.existsSync(filePath)) {
+    console.log(`Video not found: ${filePath}`)
+    return res.status(404).send('Video not found')
+  }
 
-// Serve uploaded files with proper video headers (must come AFTER API routes)
-app.use('/uploads', express.static(path.join(__dirname, '../src/uploads')))
+  const stat = fs.statSync(filePath)
+  const fileSize = stat.size
+  const range = req.headers.range
 
-console.log('Loading transcript routes...')
-app.use('/api', transcriptRoutes)
+  // CORS headers for video files
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Range')
 
-console.log('Loading steps routes...')
-app.use('/api', stepsRoutes)
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-')
+    const start = parseInt(parts[0], 10)
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
+    const chunkSize = end - start + 1
 
-// Temporarily disabled Clerk webhooks for debugging
-// console.log('Loading Clerk webhook routes...')
-// app.use('/api', express.json({ type: '*/*' }), clerkWebhookRoutes)
+    const file = fs.createReadStream(filePath, { start, end })
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunkSize,
+      'Content-Type': 'video/mp4',
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    })
+    file.pipe(res)
+  } else {
+    res.writeHead(200, {
+      'Content-Length': fileSize,
+      'Content-Type': 'video/mp4',
+      'Accept-Ranges': 'bytes',
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'cross-origin',
+    })
+    fs.createReadStream(filePath).pipe(res)
+  }
+})
 
-// Health check
-app.get('/api/health', (req, res) => {
+// Handle OPTIONS requests for video files
+app.options('/uploads/:filename', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Range')
+  res.status(200).end()
+})
+
+// 🧪 Health check
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Test endpoint for debugging
-app.get('/api/test', (req, res) => {
+// Test endpoint
+app.get('/api/test', (_req, res) => {
   res.json({ 
     message: 'Backend is working!',
-    timestamp: new Date().toISOString(),
-    environment: {
-      hasClerk: !!process.env.CLERK_SECRET_KEY,
-      hasGemini: !!process.env.GEMINI_API_KEY,
-      port: process.env.PORT
-    }
+    timestamp: new Date().toISOString()
   })
 })
 
-// Error handling
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Error:', err)
-  res.status(500).json({ error: 'Internal server error' })
-})
-
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`)
+  console.log(`🚀 Server running on http://localhost:${PORT}`)
+  console.log(`📁 Video files served from: ${path.join(__dirname, '../src/uploads')}`)
 }) 
