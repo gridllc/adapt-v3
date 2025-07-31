@@ -21,7 +21,9 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
       return
     }
 
+    let isMounted = true
     const controller = new AbortController()
+    
     setLoading(true)
     setError(null)
 
@@ -31,11 +33,13 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
     
     fetch(apiUrl, { signal: controller.signal })
       .then(res => {
+        if (!isMounted) return
         console.log('📡 Video URL response status:', res.status)
         if (!res.ok) throw new Error(`Failed to get video URL: ${res.status} ${res.statusText}`)
         return res.json()
       })
       .then(data => {
+        if (!isMounted) return
         console.log('📦 Video URL response data:', data)
         if (data?.url) {
           // Always use the absolute URL from the backend
@@ -48,15 +52,23 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
         }
       })
       .catch(err => {
+        if (!isMounted) return
         console.error('❌ Video URL error:', err)
         if (err.name !== 'AbortError') {
           setError(err.message || 'Unknown error')
           setUrl(null)
         }
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (isMounted) {
+          setLoading(false)
+        }
+      })
 
-    return () => controller.abort()
+    return () => {
+      isMounted = false
+      controller.abort()
+    }
   }, [filename])
 
   return { url, loading, error }

@@ -1,5 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRoot = path.resolve(__dirname, '../../../')
+const dataDir = path.join(projectRoot, 'backend', 'src', 'data')
 
 // Initialize clients only if API keys are available
 const genAI = process.env.GEMINI_API_KEY 
@@ -39,8 +47,26 @@ export const aiService = {
           description: 'Welcome to the training',
           duration: 30,
         },
+        {
+          timestamp: 30,
+          title: 'Getting Started',
+          description: 'Basic setup and preparation',
+          duration: 45,
+        },
+        {
+          timestamp: 75,
+          title: 'Main Process',
+          description: 'Core training content and procedures',
+          duration: 60,
+        },
+        {
+          timestamp: 135,
+          title: 'Conclusion',
+          description: 'Summary and next steps',
+          duration: 30,
+        },
       ],
-      totalDuration: 180,
+      totalDuration: 165,
     }
   },
 
@@ -89,6 +115,52 @@ export const aiService = {
 
     const content = completion.choices[0]?.message?.content
     return content ? JSON.parse(content) : null
+  },
+
+  async generateStepsForModule(moduleId: string, videoUrl: string) {
+    try {
+      // Process video to get steps
+      const videoData = await this.processVideo(videoUrl)
+      
+      // Save steps to file
+      const stepsDir = path.join(dataDir, 'steps')
+      const stepsPath = path.join(stepsDir, `${moduleId}.json`)
+      
+      await fs.promises.mkdir(stepsDir, { recursive: true })
+      await fs.promises.writeFile(stepsPath, JSON.stringify(videoData.steps, null, 2))
+      
+      console.log(`✅ Steps generated and saved for module: ${moduleId}`)
+      return videoData.steps
+    } catch (error) {
+      console.error('Error generating steps:', error)
+      // Return default steps if generation fails
+      return [
+        {
+          timestamp: 0,
+          title: 'Introduction',
+          description: 'Welcome to the training',
+          duration: 30,
+        },
+        {
+          timestamp: 30,
+          title: 'Getting Started',
+          description: 'Basic setup and preparation',
+          duration: 45,
+        },
+        {
+          timestamp: 75,
+          title: 'Main Process',
+          description: 'Core training content and procedures',
+          duration: 60,
+        },
+        {
+          timestamp: 135,
+          title: 'Conclusion',
+          description: 'Summary and next steps',
+          duration: 30,
+        },
+      ]
+    }
   },
 
   async chat(message: string, context: any) {
@@ -145,7 +217,7 @@ export const aiService = {
 
     return completion.choices[0]?.message?.content || 'Sorry, I could not process your request.'
   },
-} 
+}
 
 export async function askGemini(question: string, context: string): Promise<string> {
   if (!genAI) throw new Error('Gemini API key not configured')

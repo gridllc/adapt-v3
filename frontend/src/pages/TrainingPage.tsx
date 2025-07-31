@@ -1,12 +1,23 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useSignedVideoUrl } from '../hooks/useSignedVideoUrl'
+import { api, API_ENDPOINTS } from '../config/api'
+
+interface Step {
+  timestamp: number
+  title: string
+  description: string
+  duration?: number
+}
 
 export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
   const filename = moduleId ? `${moduleId}.mp4` : undefined
   const { url, loading, error } = useSignedVideoUrl(filename)
   
+  const [steps, setSteps] = useState<Step[]>([])
+  const [stepsLoading, setStepsLoading] = useState(false)
+  const [stepsError, setStepsError] = useState<string | null>(null)
   const [chatMessage, setChatMessage] = useState('')
   const [chatHistory, setChatHistory] = useState([
     {
@@ -14,6 +25,26 @@ export const TrainingPage: React.FC = () => {
       message: "Hi! I'm here to help you with this training. Ask me anything about the current step or the overall process."
     }
   ])
+
+  // Fetch steps when video URL is ready
+  useEffect(() => {
+    if (!moduleId || !url) return
+
+    setStepsLoading(true)
+    setStepsError(null)
+
+    api(API_ENDPOINTS.STEPS(moduleId))
+      .then(data => {
+        console.log('📋 Steps data:', data)
+        setSteps(data.steps || [])
+      })
+      .catch(err => {
+        console.error('❌ Error fetching steps:', err)
+        setStepsError('Failed to load steps')
+        setSteps([])
+      })
+      .finally(() => setStepsLoading(false))
+  }, [moduleId, url])
 
   const handleSendMessage = () => {
     if (!chatMessage.trim()) return
@@ -73,6 +104,47 @@ export const TrainingPage: React.FC = () => {
                   <p className="text-sm text-gray-400">Please check that the module exists and try again</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Steps Display */}
+          {url && (
+            <div className="mt-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">📋 Training Steps</h2>
+              
+              {stepsLoading ? (
+                <div className="text-center py-8">
+                  <div className="w-8 h-8 mx-auto animate-spin text-blue-600">⏳</div>
+                  <p className="text-gray-600 mt-2">Loading steps...</p>
+                </div>
+              ) : stepsError ? (
+                <div className="text-center py-8">
+                  <div className="text-red-500 mb-2">⚠️</div>
+                  <p className="text-red-600">{stepsError}</p>
+                </div>
+              ) : steps.length > 0 ? (
+                <div className="space-y-4">
+                  {steps.map((step, index) => (
+                    <div key={index} className="bg-white p-4 rounded-lg border shadow-sm">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
+                          Step {index + 1}
+                        </span>
+                        <span className="text-gray-500 text-sm">
+                          {Math.floor(step.timestamp / 60)}:{(step.timestamp % 60).toString().padStart(2, '0')}
+                        </span>
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-1">{step.title}</h3>
+                      <p className="text-gray-600 text-sm">{step.description}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-2">📝</div>
+                  <p className="text-gray-600">No steps available for this training</p>
+                </div>
+              )}
             </div>
           )}
         </div>

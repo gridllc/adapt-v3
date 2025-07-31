@@ -31,6 +31,9 @@ export const uploadController = {
       // Process with AI using the actual video URL
       const moduleData = await aiService.processVideo(videoUrl)
 
+      // Generate and save steps for the module
+      const steps = await aiService.generateStepsForModule(moduleId, videoUrl)
+
       // Save module data with the correct moduleId
       await storageService.saveModule({ ...moduleData, id: moduleId })
 
@@ -61,7 +64,7 @@ export const uploadController = {
         success: true,
         moduleId,
         videoUrl,
-        steps: moduleData.steps,
+        steps: steps,
       })
     } catch (error) {
       console.error('Upload error:', error)

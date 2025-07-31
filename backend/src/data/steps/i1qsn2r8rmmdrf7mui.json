@@ -1,0 +1,22 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Introduction",
+    "description": "Welcome to the training video"
+  },
+  {
+    "timestamp": 30,
+    "title": "Getting Started",
+    "description": "Basic setup and preparation"
+  },
+  {
+    "timestamp": 75,
+    "title": "Main Process",
+    "description": "Core training content and procedures"
+  },
+  {
+    "timestamp": 135,
+    "title": "Conclusion",
+    "description": "Summary and next steps"
+  }
+]
