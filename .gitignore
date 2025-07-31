@@ -31,4 +31,5 @@ coverage/"*.mp4"
 # Ignore uploaded video folders (if applicable)
 backend/src/uploads/
 uploads/
-public/videos/
+public/videos/"gcp-key.json" 
+"backend/gcp-key.json" 
