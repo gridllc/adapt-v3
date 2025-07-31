@@ -71,21 +71,28 @@ export class AudioProcessor {
 
   private async initializeSpeechClient() {
     try {
-      const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
-      console.log(`🔑 Initializing Google Cloud Speech client with key file: ${keyFilePath}`)
-      
-      // Check if the key file exists using ES modules
-      const fs = await import('fs')
-      if (!fs.existsSync(keyFilePath)) {
-        console.warn(`⚠️ GCP key file not found at ${keyFilePath}, using default credentials`)
-        this.speechClient = new speech.SpeechClient()
+      console.log('🔑 Initializing Google Cloud Speech client with environment variables')
+
+      if (
+        process.env.GOOGLE_CLIENT_EMAIL &&
+        process.env.GOOGLE_PRIVATE_KEY &&
+        process.env.GOOGLE_PROJECT_ID
+      ) {
+        console.log('✅ Using Google Cloud credentials from environment variables')
+        this.speechClient = new speech.SpeechClient({
+          credentials: {
+            client_email: process.env.GOOGLE_CLIENT_EMAIL,
+            private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+          },
+          projectId: process.env.GOOGLE_PROJECT_ID,
+        })
+        console.log('✅ Google Cloud Speech client initialized successfully with env vars')
       } else {
-        this.speechClient = new speech.SpeechClient({ keyFilename: keyFilePath })
-        console.log('✅ Google Cloud Speech client initialized successfully')
+        console.warn('⚠️ Missing Google Cloud environment variables, using default credentials')
+        this.speechClient = new speech.SpeechClient()
       }
     } catch (error) {
       console.error(`❌ Failed to initialize Google Cloud Speech client: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      // Fallback to default credentials
       this.speechClient = new speech.SpeechClient()
     }
   }

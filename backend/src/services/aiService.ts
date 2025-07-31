@@ -13,25 +13,24 @@ const dataDir = path.join(projectRoot, 'backend', 'src', 'data')
 let genAI: GoogleGenerativeAI | undefined
 let openai: OpenAI | undefined
 
-// Initialize Google Generative AI with API key or GCP key file
+// Initialize Google Generative AI with API key or environment variables
 (async () => {
   try {
+    // Debug: Check what environment variables are available
+    console.log('🧪 GEMINI_API_KEY =', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET')
+    console.log('🧪 GOOGLE_CLIENT_EMAIL =', process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'NOT SET')
+    console.log('🧪 GOOGLE_PROJECT_ID =', process.env.GOOGLE_PROJECT_ID ? 'SET' : 'NOT SET')
+    
     if (process.env.GEMINI_API_KEY) {
       genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
       console.log('✅ Google Generative AI initialized with API key')
+    } else if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY && process.env.GOOGLE_PROJECT_ID) {
+      console.log('✅ Using Google Cloud credentials from environment variables for project context')
+      console.log(`🔑 Using GCP project: ${process.env.GOOGLE_PROJECT_ID}`)
+      // Note: Google Generative AI still requires an API key, not just service account
+      console.log('⚠️ Google Generative AI requires API key, not just service account credentials')
     } else {
-      // Try to use GCP key file as fallback
-      const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
-      const fs = await import('fs')
-      if (fs.existsSync(keyFilePath)) {
-        // For Google Generative AI, we still need an API key, but we can use the project ID from the key file
-        const keyData = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'))
-        if (keyData.project_id) {
-          console.log(`🔑 Using GCP project: ${keyData.project_id}`)
-          // Note: Google Generative AI still requires an API key, not just service account
-          console.log('⚠️ Google Generative AI requires API key, not service account key file')
-        }
-      }
+      console.log('⚠️ No Google Generative AI API key found')
     }
   } catch (error) {
     console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)

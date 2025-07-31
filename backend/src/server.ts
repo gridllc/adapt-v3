@@ -3,12 +3,16 @@ import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import stepsRoutes from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
+
+// Load environment variables from .env file
+dotenv.config()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
