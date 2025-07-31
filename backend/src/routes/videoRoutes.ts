@@ -9,6 +9,14 @@ const paramSchema = z.object({
   filename: z.string().min(5).max(200),
 })
 
+// Handle CORS preflight requests for video files
+router.options('/:filename', (req: Request, res: Response) => {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Range')
+  res.status(200).end()
+})
+
 // Get signed URL for video (API endpoint)
 router.get('/video-url/:filename', async (req: Request, res: Response, next: NextFunction) => {
   try {

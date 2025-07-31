@@ -25,19 +25,19 @@ export const uploadController = {
         return res.status(400).json({ error: 'Only video files are allowed' })
       }
 
-      // Upload to storage
+      // Upload to storage and get the moduleId that was actually used
       const { moduleId, videoUrl } = await storageService.uploadVideo(file)
 
-      // Process with AI
+      // Process with AI using the actual video URL
       const moduleData = await aiService.processVideo(videoUrl)
 
-      // Save module data
+      // Save module data with the correct moduleId
       await storageService.saveModule({ ...moduleData, id: moduleId })
 
-      // Append to modules.json
+      // Append to modules.json with the correct moduleId
       const newModule = {
         id: moduleId,
-        filename: `${moduleId}.mp4`, // Consistent naming
+        filename: `${moduleId}.mp4`, // Use the moduleId from storageService
         title: originalname.replace(/\.[^/.]+$/, ''),
         createdAt: new Date().toISOString(),
       }
