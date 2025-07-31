@@ -1,22 +1,32 @@
 [
   {
     "timestamp": 0,
-    "title": "Introduction",
-    "description": "Welcome to the training video"
+    "title": "Introduction and Overview",
+    "description": "Welcome to the training module. This section covers the basics and sets the foundation for the rest of the course.",
+    "duration": 40
   },
   {
-    "timestamp": 30,
+    "timestamp": 40,
     "title": "Getting Started",
-    "description": "Basic setup and preparation"
+    "description": "Learn the essential setup and preparation steps needed before proceeding with the main content.",
+    "duration": 41
   },
   {
-    "timestamp": 75,
+    "timestamp": 81,
     "title": "Main Process",
-    "description": "Core training content and procedures"
+    "description": "This is the core training content where you'll learn the main processes and techniques.",
+    "duration": 36
   },
   {
-    "timestamp": 135,
-    "title": "Conclusion",
-    "description": "Summary and next steps"
+    "timestamp": 117,
+    "title": "Advanced Techniques",
+    "description": "Explore advanced methods and techniques to enhance your skills and understanding.",
+    "duration": 29
+  },
+  {
+    "timestamp": 146,
+    "title": "Troubleshooting",
+    "description": "Learn how to identify and resolve common issues that may arise during the process.",
+    "duration": 27
   }
 ]

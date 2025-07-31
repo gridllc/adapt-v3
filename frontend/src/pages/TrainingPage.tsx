@@ -18,6 +18,7 @@ export const TrainingPage: React.FC = () => {
   const [steps, setSteps] = useState<Step[]>([])
   const [stepsLoading, setStepsLoading] = useState(false)
   const [stepsError, setStepsError] = useState<string | null>(null)
+  const [processingAI, setProcessingAI] = useState(false)
   const [chatMessage, setChatMessage] = useState('')
   const [chatHistory, setChatHistory] = useState([
     {
@@ -45,6 +46,27 @@ export const TrainingPage: React.FC = () => {
       })
       .finally(() => setStepsLoading(false))
   }, [moduleId, url])
+
+  const handleProcessWithAI = async () => {
+    if (!moduleId) return
+    
+    setProcessingAI(true)
+    try {
+      const response = await api(`/api/ai/process-video/${moduleId}`, {
+        method: 'POST',
+      })
+      
+      if (response.success && response.steps) {
+        setSteps(response.steps)
+        setStepsError(null)
+      }
+    } catch (err) {
+      console.error('❌ AI processing error:', err)
+      setStepsError('Failed to process video with AI')
+    } finally {
+      setProcessingAI(false)
+    }
+  }
 
   const handleSendMessage = () => {
     if (!chatMessage.trim()) return
@@ -110,7 +132,18 @@ export const TrainingPage: React.FC = () => {
           {/* Steps Display */}
           {url && (
             <div className="mt-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">📋 Training Steps</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">📋 Training Steps</h2>
+                {steps.length === 0 && !stepsLoading && (
+                  <button
+                    onClick={handleProcessWithAI}
+                    disabled={processingAI}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
+                  >
+                    {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
+                  </button>
+                )}
+              </div>
               
               {stepsLoading ? (
                 <div className="text-center py-8">
@@ -121,6 +154,13 @@ export const TrainingPage: React.FC = () => {
                 <div className="text-center py-8">
                   <div className="text-red-500 mb-2">⚠️</div>
                   <p className="text-red-600">{stepsError}</p>
+                  <button
+                    onClick={handleProcessWithAI}
+                    disabled={processingAI}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg"
+                  >
+                    {processingAI ? '🤖 Processing...' : '🤖 Try AI Processing'}
+                  </button>
                 </div>
               ) : steps.length > 0 ? (
                 <div className="space-y-4">
@@ -143,6 +183,13 @@ export const TrainingPage: React.FC = () => {
                 <div className="text-center py-8">
                   <div className="text-gray-400 mb-2">📝</div>
                   <p className="text-gray-600">No steps available for this training</p>
+                  <button
+                    onClick={handleProcessWithAI}
+                    disabled={processingAI}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg"
+                  >
+                    {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
+                  </button>
                 </div>
               )}
             </div>
