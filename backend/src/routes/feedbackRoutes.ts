@@ -101,7 +101,7 @@ router.post('/submit', async (req, res) => {
       ]
     }
 
-    const response = responses[action]?.[Math.floor(Math.random() * responses[action].length)] || 
+    const response = responses[action as keyof typeof responses]?.[Math.floor(Math.random() * responses[action as keyof typeof responses].length)] || 
                     "Thanks for the feedback! I'm always learning!"
 
     console.log(`📊 Feedback received: ${type} - ${action} (${feedbackData.stats.positive}/${feedbackData.stats.total} positive)`)
@@ -144,7 +144,7 @@ router.get('/module/:moduleId', async (req, res) => {
     const feedbackData = await loadFeedbackData()
     
     const moduleFeedback = feedbackData.feedbacks.filter(
-      f => f.moduleId === moduleId
+      (f: any) => f.moduleId === moduleId
     )
 
     res.json({

@@ -60,10 +60,31 @@ export const AUDIO_CODECS = {
 export class AudioProcessor {
   private tempDir = path.join(projectRoot, 'backend', 'temp')
   private processedDir = path.join(projectRoot, 'backend', 'processed')
-  private speechClient = new speech.SpeechClient()
+  private speechClient: any
 
   constructor() {
+    this.initializeSpeechClient()
     this.ensureDirectories()
+  }
+
+  private initializeSpeechClient() {
+    try {
+      const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
+      console.log(`🔑 Initializing Google Cloud Speech client with key file: ${keyFilePath}`)
+      
+      // Check if the key file exists
+      if (!require('fs').existsSync(keyFilePath)) {
+        console.warn(`⚠️ GCP key file not found at ${keyFilePath}, using default credentials`)
+        this.speechClient = new speech.SpeechClient()
+      } else {
+        this.speechClient = new speech.SpeechClient({ keyFilename: keyFilePath })
+        console.log('✅ Google Cloud Speech client initialized successfully')
+      }
+    } catch (error) {
+      console.error(`❌ Failed to initialize Google Cloud Speech client: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      // Fallback to default credentials
+      this.speechClient = new speech.SpeechClient()
+    }
   }
 
   private async ensureDirectories() {
@@ -367,25 +388,25 @@ export class AudioProcessor {
       }
 
       const transcript = response.results
-        .map(result => result.alternatives?.[0]?.transcript)
+        .map((result: any) => result.alternatives?.[0]?.transcript)
         .filter(Boolean)
         .join(' ')
 
-      const segments = response.results.flatMap(result => {
+      const segments = response.results.flatMap((result: any) => {
         const alternative = result.alternatives?.[0]
         if (!alternative?.words) return []
 
-                 return alternative.words.map(word => ({
-           text: word.word || '',
-           startTime: parseFloat(String(word.startTime?.seconds || '0')),
-           endTime: parseFloat(String(word.endTime?.seconds || '0')),
-           confidence: alternative.confidence || 0
-         }))
+        return alternative.words.map((word: any) => ({
+          text: word.word || '',
+          startTime: parseFloat(String(word.startTime?.seconds || '0')),
+          endTime: parseFloat(String(word.endTime?.seconds || '0')),
+          confidence: alternative.confidence || 0
+        }))
       })
 
       const averageConfidence = response.results
-        .map(r => r.alternatives?.[0]?.confidence || 0)
-        .reduce((sum, conf) => sum + conf, 0) / response.results.length
+        .map((r: any) => r.alternatives?.[0]?.confidence || 0)
+        .reduce((sum: number, conf: number) => sum + conf, 0) / response.results.length
 
       console.log(`✅ Transcription completed: ${transcript.length} characters, ${segments.length} segments`)
       

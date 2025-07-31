@@ -9,14 +9,41 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '../../../')
 
-// Initialize AI clients with proper error handling
-const genAI = process.env.GEMINI_API_KEY 
-  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-  : null
+// Initialize AI clients with proper error handling and GCP key file support
+let genAI: GoogleGenerativeAI | null = null
+let openai: OpenAI | null = null
 
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null
+// Initialize Google Generative AI with API key or GCP key file
+try {
+  if (process.env.GEMINI_API_KEY) {
+    genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    console.log('✅ Google Generative AI initialized with API key')
+  } else {
+    // Try to use GCP key file as fallback
+    const keyFilePath = path.resolve(__dirname, '../../../secrets/gcp-key.json')
+    if (require('fs').existsSync(keyFilePath)) {
+      // For Google Generative AI, we still need an API key, but we can use the project ID from the key file
+      const keyData = JSON.parse(require('fs').readFileSync(keyFilePath, 'utf8'))
+      if (keyData.project_id) {
+        console.log(`🔑 Using GCP project: ${keyData.project_id}`)
+        // Note: Google Generative AI still requires an API key, not just service account
+        console.log('⚠️ Google Generative AI requires API key, not service account key file')
+      }
+    }
+  }
+} catch (error) {
+  console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
+}
+
+// Initialize OpenAI
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    console.log('✅ OpenAI initialized with API key')
+  }
+} catch (error) {
+  console.error(`❌ Failed to initialize OpenAI: ${error instanceof Error ? error.message : 'Unknown error'}`)
+}
 
 interface VideoFrame {
   timestamp: number

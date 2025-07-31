@@ -14,10 +14,17 @@ const __dirname = path.dirname(__filename)
 
 // ffmpeg.setFfmpegPath(ffmpegPath.path)
 
-// Initialize OpenAI client only if API key is available
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null
+// Initialize OpenAI client with proper error handling
+let openai: OpenAI | null = null
+
+try {
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    console.log('✅ OpenAI initialized with API key')
+  }
+} catch (error) {
+  console.error(`❌ Failed to initialize OpenAI: ${error instanceof Error ? error.message : 'Unknown error'}`)
+}
 
 // const s3 = new S3Client({
 //   region: process.env.S3_REGION!,
