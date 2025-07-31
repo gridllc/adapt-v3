@@ -110,17 +110,37 @@ export const TrainingPage: React.FC = () => {
     
     console.log('🤖 Starting AI processing for module:', moduleId)
     setProcessingAI(true)
+    setStepsError(null)
+    
     try {
       const response = await api(`/api/ai/process-video/${moduleId}`, {
         method: 'POST',
       })
       
       console.log('🤖 AI processing response:', response)
+      console.log('🤖 Response steps:', response.steps)
+      console.log('🤖 Steps length:', response.steps?.length || 0)
       
       if (response.success && response.steps) {
         console.log('🤖 Setting new steps:', response.steps)
         setSteps(response.steps)
         setStepsError(null)
+        
+        // Also refresh from the steps endpoint to ensure consistency
+        setTimeout(async () => {
+          try {
+            const freshSteps = await api(`${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`)
+            console.log('🔄 Refreshed steps after AI processing:', freshSteps)
+            if (freshSteps.steps) {
+              setSteps(freshSteps.steps)
+            }
+          } catch (err) {
+            console.error('❌ Error refreshing steps after AI processing:', err)
+          }
+        }, 1000)
+      } else {
+        console.error('❌ AI processing failed - no steps returned')
+        setStepsError('AI processing completed but no steps were generated')
       }
     } catch (err) {
       console.error('❌ AI processing error:', err)
@@ -215,15 +235,23 @@ export const TrainingPage: React.FC = () => {
                   >
                     {stepsLoading ? '⏳' : '🔄'}
                   </button>
-                  {steps.length === 0 && !stepsLoading && (
-                    <button
-                      onClick={handleProcessWithAI}
-                      disabled={processingAI}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
-                    >
-                      {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      console.log('🔍 Raw steps data:', steps)
+                      console.log('🔍 Steps length:', steps.length)
+                      console.log('🔍 Steps array:', JSON.stringify(steps, null, 2))
+                    }}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm"
+                  >
+                    🔍 Debug
+                  </button>
+                  <button
+                    onClick={handleProcessWithAI}
+                    disabled={processingAI}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
+                  >
+                    {processingAI ? '🤖 Processing...' : '🤖 AI Process'}
+                  </button>
                 </div>
               </div>
               
@@ -249,20 +277,50 @@ export const TrainingPage: React.FC = () => {
                   <div className="text-sm text-gray-500 mb-2">
                     Found {steps.length} steps for this training
                   </div>
-                  {steps.map((step, index) => (
-                    <div key={index} className="bg-white p-4 rounded-lg border shadow-sm">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
-                          Step {index + 1}
-                        </span>
-                        <span className="text-gray-500 text-sm">
-                          {Math.floor(step.timestamp / 60)}:{(step.timestamp % 60).toString().padStart(2, '0')}
-                        </span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-1">{step.title}</h3>
-                      <p className="text-gray-600 text-sm">{step.description}</p>
+                  <div className="text-xs text-gray-400 mb-2">
+                    Debug: Received {steps.length} steps from API
+                  </div>
+                  <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                    <div className="text-xs text-blue-800">
+                      <strong>Steps Summary:</strong> {steps.length} total steps
+                      {steps.map((step, index) => (
+                        <div key={index} className="ml-2 mt-1">
+                          • Step {index + 1}: {step.title} ({step.duration}s)
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={handleRefreshSteps}
+                      disabled={stepsLoading}
+                      className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-2 rounded-lg text-sm"
+                    >
+                      {stepsLoading ? '⏳ Loading...' : '🔄 Force Refresh'}
+                    </button>
+                    <span className="text-xs text-gray-500 self-center">
+                      Current: {steps.length} steps
+                    </span>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto space-y-4 border rounded-lg p-4">
+                    {steps.map((step, index) => (
+                      <div key={index} className="bg-white p-4 rounded-lg border shadow-sm">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm font-medium">
+                            Step {index + 1}
+                          </span>
+                          <span className="text-gray-500 text-sm">
+                            {Math.floor(step.timestamp / 60)}:{(step.timestamp % 60).toString().padStart(2, '0')}
+                          </span>
+                        </div>
+                        <h3 className="font-semibold text-gray-900 mb-1">{step.title}</h3>
+                        <p className="text-gray-600 text-sm">{step.description}</p>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Duration: {step.duration}s
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8">

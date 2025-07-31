@@ -1,0 +1,32 @@
+{
+  "title": "Training Module: 3dhce0ntwdmmdrh2m8b",
+  "description": "Video analysis completed - steps extracted from content",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Introduction and Overview",
+      "description": "Welcome to the training module. This section covers the basics and sets the foundation for the rest of the course.",
+      "duration": 41
+    },
+    {
+      "timestamp": 41,
+      "title": "Getting Started",
+      "description": "Learn the essential setup and preparation steps needed before proceeding with the main content.",
+      "duration": 43
+    },
+    {
+      "timestamp": 84,
+      "title": "Main Process",
+      "description": "This is the core training content where you'll learn the main processes and techniques.",
+      "duration": 49
+    },
+    {
+      "timestamp": 133,
+      "title": "Advanced Techniques",
+      "description": "Explore advanced methods and techniques to enhance your skills and understanding.",
+      "duration": 36
+    }
+  ],
+  "totalDuration": 169,
+  "id": "3dhce0ntwdmmdrh2m8b"
+}
