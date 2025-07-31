@@ -7,8 +7,6 @@ export const TrainingPage: React.FC = () => {
   const filename = moduleId ? `${moduleId}.mp4` : undefined
   const { url, loading, error } = useSignedVideoUrl(filename)
   
-  // Debug logging
-  console.log("VIDEO DEBUG:", { moduleId, filename, url, loading, error });
   const [chatMessage, setChatMessage] = useState('')
   const [chatHistory, setChatHistory] = useState([
     {

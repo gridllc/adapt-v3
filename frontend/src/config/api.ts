@@ -34,9 +34,9 @@ export const API_CONFIG = {
 
 export const API_ENDPOINTS = {
   MODULES: '/api/modules',
-  STEPS: (moduleId: string) => `/api/steps/${moduleId}`,
+  STEPS: (moduleId: string) => `/api/steps/steps/${moduleId}`,
   TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
-  VIDEO_URL: (filename: string) => `/api/video-url/${filename}`,
+  VIDEO_URL: (filename: string) => `/api/video-url/video-url/${filename}`,
   AI_ASK: '/api/ai/ask',
   UPLOAD: '/api/upload',
   health: '/api/health',

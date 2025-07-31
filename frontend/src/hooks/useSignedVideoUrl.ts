@@ -27,15 +27,20 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
 
     const apiUrl = API_CONFIG.getApiUrl(API_ENDPOINTS.VIDEO_URL(filename))
     
+    console.log('🔗 Fetching video URL:', apiUrl)
+    
     fetch(apiUrl, { signal: controller.signal })
       .then(res => {
+        console.log('📡 Video URL response status:', res.status)
         if (!res.ok) throw new Error(`Failed to get video URL: ${res.status} ${res.statusText}`)
         return res.json()
       })
       .then(data => {
+        console.log('📦 Video URL response data:', data)
         if (data?.url) {
-          // Convert relative URL to absolute URL for video player
-          const videoUrl = data.url.startsWith('http') ? data.url : `http://localhost:8000${data.url}`
+          // Always use the absolute URL from the backend
+          const videoUrl = data.url
+          console.log('🎥 Final video URL:', videoUrl)
           setUrl(videoUrl)
         } else {
           setUrl(null)
@@ -43,6 +48,7 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
         }
       })
       .catch(err => {
+        console.error('❌ Video URL error:', err)
         if (err.name !== 'AbortError') {
           setError(err.message || 'Unknown error')
           setUrl(null)
