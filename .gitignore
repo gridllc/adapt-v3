@@ -33,4 +33,6 @@ backend/src/uploads/
 uploads/
 public/videos/"gcp-key.json" 
 
-/secrets/
+# Google credentials
+**/gcp-key.json
+**/secrets/*.json
