@@ -1,0 +1,96 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Introduction and Overview",
+    "description": "Welcome to this comprehensive training. This section covers the fundamental concepts and objectives.",
+    "duration": 3,
+    "confidence": 0.9500000000000001,
+    "visualCues": [
+      "User interface showing main dashboard with navigation menu visible",
+      "User interface showing main dashboard with navigation menu visible"
+    ],
+    "spokenInstructions": "Welcome to this comprehensive training",
+    "userActions": [
+      "navigation"
+    ],
+    "context": "Audio: \"Welcome to this comprehensive training\" | Visual: User interface showing main dashboard with navigation menu visible; User interface showing main dashboard with navigation menu visible"
+  },
+  {
+    "timestamp": 3,
+    "title": "Setup and Preparation",
+    "description": "Essential preparation steps and safety measures demonstrated in the video content.",
+    "duration": 3,
+    "confidence": 1,
+    "visualCues": [
+      "User interface showing main dashboard with navigation menu visible"
+    ],
+    "spokenInstructions": "session. Today we'll be covering",
+    "userActions": [
+      "navigation"
+    ],
+    "context": "Audio: \"session. Today we'll be covering\" | Visual: User interface showing main dashboard with navigation menu visible"
+  },
+  {
+    "timestamp": 6,
+    "title": "Main Demonstration",
+    "description": "User interface showing main dashboard with navigation menu visible with detailed explanations and practical examples.",
+    "duration": 3,
+    "confidence": 1,
+    "visualCues": [
+      "User interface showing main dashboard with navigation menu visible"
+    ],
+    "spokenInstructions": "essential safety protocols and operational",
+    "userActions": [
+      "navigation"
+    ],
+    "context": "Audio: \"essential safety protocols and operational\" | Visual: User interface showing main dashboard with navigation menu visible"
+  },
+  {
+    "timestamp": 9,
+    "title": "Key Techniques and Best Practices",
+    "description": "Advanced techniques and industry best practices demonstrated in the video.",
+    "duration": 3,
+    "confidence": 1,
+    "visualCues": [
+      "Demonstration of clicking on the settings button in the top right corner"
+    ],
+    "spokenInstructions": "procedures. Let's begin with the",
+    "userActions": [
+      "mouse_click",
+      "configuration"
+    ],
+    "context": "Audio: \"procedures. Let's begin with the\" | Visual: Demonstration of clicking on the settings button in the top right corner"
+  },
+  {
+    "timestamp": 12,
+    "title": "Summary and Implementation",
+    "description": "Review of key points and practical guidance for applying the training content.",
+    "duration": 3,
+    "confidence": 1,
+    "visualCues": [
+      "Demonstration of clicking on the settings button in the top right corner"
+    ],
+    "spokenInstructions": "fundamental setup and preparation steps",
+    "userActions": [
+      "mouse_click",
+      "configuration"
+    ],
+    "context": "Audio: \"fundamental setup and preparation steps\" | Visual: Demonstration of clicking on the settings button in the top right corner"
+  },
+  {
+    "timestamp": 15,
+    "title": "Step 6",
+    "description": "This step covers important content from the video.",
+    "duration": 3,
+    "confidence": 1,
+    "visualCues": [
+      "Demonstration of clicking on the settings button in the top right corner"
+    ],
+    "spokenInstructions": "required for this process.",
+    "userActions": [
+      "mouse_click",
+      "configuration"
+    ],
+    "context": "Audio: \"required for this process.\" | Visual: Demonstration of clicking on the settings button in the top right corner"
+  }
+]
