@@ -188,40 +188,74 @@ export class AudioProcessor {
     speechSegments: Array<{ start: number; end: number; confidence: number }>
   }> {
     console.log(`🔍 Analyzing audio characteristics: ${audioPath}`)
-    
+
+    // Pre-check: Verify file exists and has content
     try {
-      return new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(audioPath, (error, metadata) => {
-          if (error) {
-            console.error(`❌ Audio analysis failed: ${error.message}`)
-            reject(error)
-            return
-          }
-
-          const audioStream = metadata.streams.find(s => s.codec_type === 'audio')
-          if (!audioStream) {
-            reject(new Error('No audio stream found'))
-            return
-          }
-
-          const analysis = {
-            duration: metadata.format.duration || 0,
-            channels: audioStream.channels || 1,
-            sampleRate: audioStream.sample_rate || 16000,
-            bitrate: metadata.format.bit_rate ? parseInt(String(metadata.format.bit_rate)) : 0,
-            hasSpeech: this.detectSpeech(audioStream),
-            hasMusic: this.detectMusic(audioStream),
-            speechSegments: this.estimateSpeechSegments(metadata.format.duration || 0)
-          }
-
-          console.log(`📊 Audio analysis completed:`, analysis)
-          resolve(analysis)
-        })
-      })
-    } catch (error) {
-      console.error(`❌ Audio analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-      throw error
+      const stats = await fs.stat(audioPath)
+      if (stats.size === 0) {
+        throw new Error('Audio file is empty')
+      }
+      console.log(`📁 Audio file size: ${stats.size} bytes`)
+    } catch (e) {
+      console.error(`⚠️ Audio file check failed:`, e)
+      // Clean up empty or corrupted files
+      await this.cleanupAudio(audioPath).catch(() => {})
+      throw e
     }
+
+    // Add retry logic for flaky file access
+    const maxRetries = 2
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await new Promise((resolve, reject) => {
+          ffmpeg.ffprobe(audioPath, (error, metadata) => {
+            if (error) {
+              console.error(`❌ Audio analysis failed (attempt ${attempt + 1}): ${error.message}`)
+              
+              // Clean up corrupted files on final attempt
+              if (attempt === maxRetries - 1) {
+                this.cleanupAudio(audioPath).catch(() => {})
+              }
+              
+              reject(error)
+              return
+            }
+
+            const audioStream = metadata.streams.find(s => s.codec_type === 'audio')
+            if (!audioStream) {
+              console.error(`❌ No audio stream found in file`)
+              this.cleanupAudio(audioPath).catch(() => {})
+              reject(new Error('No audio stream found'))
+              return
+            }
+
+            const analysis = {
+              duration: metadata.format.duration || 0,
+              channels: audioStream.channels || 1,
+              sampleRate: audioStream.sample_rate || 16000,
+              bitrate: metadata.format.bit_rate ? parseInt(String(metadata.format.bit_rate)) : 0,
+              hasSpeech: this.detectSpeech(audioStream),
+              hasMusic: this.detectMusic(audioStream),
+              speechSegments: this.estimateSpeechSegments(metadata.format.duration || 0)
+            }
+
+            console.log(`📊 Audio analysis completed:`, analysis)
+            resolve(analysis)
+          })
+        })
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          console.error(`❌ Audio analysis failed after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`)
+          throw error
+        }
+        
+        // Wait before retry
+        console.log(`🔄 Retrying audio analysis in 500ms...`)
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
+    
+    throw new Error('Audio analysis failed after all retry attempts')
   }
 
   /**
@@ -326,7 +360,7 @@ export class AudioProcessor {
   }
 
   /**
-   * Get audio metadata
+   * Get audio metadata with enhanced error handling
    */
   async getAudioMetadata(audioPath: string): Promise<{
     duration: number
@@ -335,22 +369,49 @@ export class AudioProcessor {
     channels: number
     sampleRate: number
   }> {
+    console.log(`📊 Getting audio metadata: ${audioPath}`)
+    
+    // Pre-check: Verify file exists and has content
+    try {
+      const stats = await fs.stat(audioPath)
+      if (stats.size === 0) {
+        throw new Error('Audio file is empty')
+      }
+    } catch (e) {
+      console.error(`⚠️ Audio file check failed:`, e)
+      await this.cleanupAudio(audioPath).catch(() => {})
+      throw e
+    }
+
     try {
       return new Promise((resolve, reject) => {
         ffmpeg.ffprobe(audioPath, (error, metadata) => {
           if (error) {
+            console.error(`❌ Audio metadata extraction failed: ${error.message}`)
+            // Clean up corrupted files
+            this.cleanupAudio(audioPath).catch(() => {})
             reject(error)
             return
           }
 
           const audioStream = metadata.streams.find(s => s.codec_type === 'audio')
-          resolve({
+          if (!audioStream) {
+            console.error(`❌ No audio stream found in metadata`)
+            this.cleanupAudio(audioPath).catch(() => {})
+            reject(new Error('No audio stream found'))
+            return
+          }
+
+          const result = {
             duration: metadata.format.duration || 0,
             format: metadata.format.format_name || 'unknown',
             bitrate: metadata.format.bit_rate ? parseInt(String(metadata.format.bit_rate)) : 0,
             channels: audioStream?.channels || 1,
             sampleRate: audioStream?.sample_rate || 16000
-          })
+          }
+
+          console.log(`📊 Audio metadata extracted:`, result)
+          resolve(result)
         })
       })
     } catch (error) {
@@ -450,9 +511,14 @@ export class AudioProcessor {
   }> {
     console.log(`🎭 Generating simulated transcription for: ${audioPath}`)
     
-    // Get audio metadata to determine duration
-    const metadata = await this.getAudioMetadata(audioPath)
-    const duration = metadata.duration
+    // Get audio metadata to determine duration, with fallback
+    let duration = 60 // Default 1 minute if metadata extraction fails
+    try {
+      const metadata = await this.getAudioMetadata(audioPath)
+      duration = metadata.duration || 60
+    } catch (error) {
+      console.warn(`⚠️ Failed to get audio metadata, using default duration: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
     
     // Generate realistic simulated transcript based on video characteristics
     const simulatedTranscript = this.generateRealisticTranscript(duration, audioPath)
