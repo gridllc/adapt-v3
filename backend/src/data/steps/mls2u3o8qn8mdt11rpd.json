@@ -1,0 +1,36 @@
+[
+  {
+    "id": "step-0",
+    "text": "Enter the house, close the door, and lock it.",
+    "start": 0,
+    "end": 15,
+    "aliases": [
+      "front door"
+    ],
+    "notes": "lock it by key"
+  },
+  {
+    "id": "step-1",
+    "text": "Turn on the TV",
+    "start": 15,
+    "end": 45,
+    "aliases": [],
+    "notes": ""
+  },
+  {
+    "id": "step-2",
+    "text": "Turn on the Lights",
+    "start": 45,
+    "end": 90,
+    "aliases": [],
+    "notes": ""
+  },
+  {
+    "id": "step-3",
+    "text": "Check the Refrigerator",
+    "start": 90,
+    "end": 180,
+    "aliases": [],
+    "notes": ""
+  }
+]

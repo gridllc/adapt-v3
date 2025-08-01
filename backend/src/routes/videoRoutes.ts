@@ -18,7 +18,7 @@ router.options('/:filename', (req: Request, res: Response) => {
 })
 
 // Get signed URL for video (API endpoint)
-router.get('/video-url/:filename', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/url/:filename', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { filename } = paramSchema.parse(req.params)
     const signedUrl = await getSignedS3Url(filename)

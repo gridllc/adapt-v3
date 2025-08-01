@@ -36,7 +36,7 @@ export const API_ENDPOINTS = {
   MODULES: '/api/modules',
   STEPS: (moduleId: string) => `/api/steps/${moduleId}`,
   TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
-  VIDEO_URL: (filename: string) => `/api/video-url/${filename}`,
+  VIDEO_URL: (filename: string) => `/api/video-url/url/${filename}`,
   AI_ASK: '/api/ai/ask',
   UPLOAD: '/api/upload',
   health: '/api/health',
@@ -52,18 +52,24 @@ export function apiUrl(endpoint: string): string {
 export async function api(endpoint: string, options?: RequestInit) {
   const url = apiUrl(endpoint)
   
+  console.log('🔗 API call to:', url)
+  
   const response = await fetch(url, {
     ...options,
-    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
     },
   })
   
+  console.log('📡 API response status:', response.status, response.statusText)
+  
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`)
   }
   
-  return response.json()
+  const data = await response.json()
+  console.log('📦 API response data:', data)
+  
+  return data
 }

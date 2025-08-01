@@ -8,11 +8,20 @@
       "context": "4 steps generated",
       "timestamp": "2025-08-01T05:30:02.252Z",
       "sessionId": "unknown"
+    },
+    {
+      "id": "feedback_1754066164979_x1pad8myy",
+      "type": "step_generation",
+      "action": "worked",
+      "moduleId": "nl7wv6y3trmdt1m3hz",
+      "context": "4 steps generated",
+      "timestamp": "2025-08-01T16:36:04.939Z",
+      "sessionId": "unknown"
     }
   ],
   "stats": {
-    "total": 1,
-    "positive": 0,
+    "total": 2,
+    "positive": 1,
     "negative": 1
   }
 }

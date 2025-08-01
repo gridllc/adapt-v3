@@ -1,0 +1,240 @@
+{
+  "moduleId": "u2352beow4dmdt23uv2",
+  "originalSteps": [
+    {
+      "timestamp": 0,
+      "title": "Enter the House and Open the Door",
+      "description": "Open the door and enter the house.",
+      "duration": 5
+    },
+    {
+      "timestamp": 5,
+      "title": "Turn on the TV",
+      "description": "Locate the remote control and press the power button to turn on the TV.",
+      "duration": 10
+    },
+    {
+      "timestamp": 15,
+      "title": "Turn on the Lights",
+      "description": "Go to the designated light switch(es) and turn on all the lights.",
+      "duration": 15
+    },
+    {
+      "timestamp": 30,
+      "title": "Check the Refrigerator",
+      "description": "Walk to the refrigerator and open it to check for food.",
+      "duration": 10
+    }
+  ],
+  "structuredSteps": [
+    {
+      "id": "step_1",
+      "text": "Okay, so here's my process for entering my house.",
+      "start": 1,
+      "end": 3,
+      "confidence": 0.97,
+      "duration": 2,
+      "wordCount": 9,
+      "type": "introduction"
+    },
+    {
+      "id": "step_2",
+      "text": "I open the door.",
+      "start": 4,
+      "end": 6,
+      "confidence": 0.97,
+      "duration": 2,
+      "wordCount": 4,
+      "type": "general"
+    },
+    {
+      "id": "step_3",
+      "text": "I get the remote control and hit the power button on here.",
+      "start": 9,
+      "end": 13,
+      "confidence": 0.99,
+      "duration": 4,
+      "wordCount": 12,
+      "type": "general"
+    },
+    {
+      "id": "step_4",
+      "text": "To start up TV.",
+      "start": 14,
+      "end": 16,
+      "confidence": 0.92,
+      "duration": 2,
+      "wordCount": 4,
+      "type": "general"
+    },
+    {
+      "id": "step_5",
+      "text": "Then I come over to my place here and I turn on all the lights.",
+      "start": 17,
+      "end": 20,
+      "confidence": 0.88,
+      "duration": 3,
+      "wordCount": 15,
+      "type": "general"
+    },
+    {
+      "id": "step_6",
+      "text": "And then, once I'm done with that, I come over here and open your driver to see if there's any food.",
+      "start": 22,
+      "end": 27,
+      "confidence": 0.89,
+      "duration": 5,
+      "wordCount": 21,
+      "type": "general"
+    }
+  ],
+  "enhancedSteps": [
+    {
+      "id": "step_1",
+      "title": "Okay, so here's my process for entering my house",
+      "description": "Okay, so here's my process for entering my house.",
+      "start": 1,
+      "end": 3,
+      "confidence": 0.97,
+      "duration": 2,
+      "type": "introduction",
+      "rewrittenDescription": "1. Enter the house."
+    },
+    {
+      "id": "step_2",
+      "title": "I open the door",
+      "description": "I open the door.",
+      "start": 4,
+      "end": 6,
+      "confidence": 0.97,
+      "duration": 2,
+      "type": "general",
+      "rewrittenDescription": "2. Open the door."
+    },
+    {
+      "id": "step_3",
+      "title": "I get the remote control and hit the power button on here",
+      "description": "I get the remote control and hit the power button on here.",
+      "start": 9,
+      "end": 13,
+      "confidence": 0.99,
+      "duration": 4,
+      "type": "general",
+      "rewrittenDescription": "3. Grab the remote control."
+    },
+    {
+      "id": "step_4",
+      "title": "To start up TV",
+      "description": "To start up TV.",
+      "start": 14,
+      "end": 16,
+      "confidence": 0.92,
+      "duration": 2,
+      "type": "general",
+      "rewrittenDescription": "4. Press the power button to turn on the TV."
+    },
+    {
+      "id": "step_5",
+      "title": "Then I come over to my place here and I turn on all the lights",
+      "description": "Then I come over to my place here and I turn on all the lights.",
+      "start": 17,
+      "end": 20,
+      "confidence": 0.88,
+      "duration": 3,
+      "type": "general",
+      "rewrittenDescription": "5. Turn on all the lights."
+    },
+    {
+      "id": "step_6",
+      "title": "And then, once I'm done with that, I come over here and open your driver to see if there's any food",
+      "description": "And then, once I'm done with that, I come over here and open your driver to see if there's any food.",
+      "start": 22,
+      "end": 27,
+      "confidence": 0.89,
+      "duration": 5,
+      "type": "general",
+      "rewrittenDescription": "6. Check the fridge for food."
+    }
+  ],
+  "stepGroups": [
+    {
+      "title": "Introduction",
+      "steps": [
+        {
+          "id": "step_1",
+          "text": "Okay, so here's my process for entering my house.",
+          "start": 1,
+          "end": 3,
+          "confidence": 0.97,
+          "duration": 2,
+          "wordCount": 9,
+          "type": "introduction"
+        },
+        {
+          "id": "step_2",
+          "text": "I open the door.",
+          "start": 4,
+          "end": 6,
+          "confidence": 0.97,
+          "duration": 2,
+          "wordCount": 4,
+          "type": "general"
+        },
+        {
+          "id": "step_3",
+          "text": "I get the remote control and hit the power button on here.",
+          "start": 9,
+          "end": 13,
+          "confidence": 0.99,
+          "duration": 4,
+          "wordCount": 12,
+          "type": "general"
+        },
+        {
+          "id": "step_4",
+          "text": "To start up TV.",
+          "start": 14,
+          "end": 16,
+          "confidence": 0.92,
+          "duration": 2,
+          "wordCount": 4,
+          "type": "general"
+        },
+        {
+          "id": "step_5",
+          "text": "Then I come over to my place here and I turn on all the lights.",
+          "start": 17,
+          "end": 20,
+          "confidence": 0.88,
+          "duration": 3,
+          "wordCount": 15,
+          "type": "general"
+        },
+        {
+          "id": "step_6",
+          "text": "And then, once I'm done with that, I come over here and open your driver to see if there's any food.",
+          "start": 22,
+          "end": 27,
+          "confidence": 0.89,
+          "duration": 5,
+          "wordCount": 21,
+          "type": "general"
+        }
+      ],
+      "totalDuration": 18,
+      "averageConfidence": 0.9025000000000001
+    }
+  ],
+  "stats": {
+    "totalDuration": 18,
+    "averageConfidence": 0.94,
+    "totalWords": 65,
+    "stepCount": 6,
+    "typeDistribution": {
+      "introduction": 1,
+      "general": 5
+    }
+  },
+  "transcript": "Okay, so here's my process for entering my house. Come in. I open the door.  I get the remote control and hit the power button on here.  To start up TV.  Then I come over to my place here and I turn on all the lights.  And then, once I'm done with that, I come over here and open your driver to see if there's any food.",
+  "createdAt": "2025-08-01T16:48:50.510Z"
+}

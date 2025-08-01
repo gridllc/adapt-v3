@@ -1,0 +1,34 @@
+[
+  {
+    "id": "step-0",
+    "text": "Enter the House",
+    "start": 0,
+    "end": 5,
+    "aliases": [],
+    "notes": ""
+  },
+  {
+    "id": "step-1",
+    "text": "Turn on the TV",
+    "start": 5,
+    "end": 20,
+    "aliases": [],
+    "notes": ""
+  },
+  {
+    "id": "step-2",
+    "text": "Turn on the Lights",
+    "start": 20,
+    "end": 30,
+    "aliases": [],
+    "notes": ""
+  },
+  {
+    "id": "step-3",
+    "text": "Check the Refrigerator",
+    "start": 30,
+    "end": 35,
+    "aliases": [],
+    "notes": ""
+  }
+]

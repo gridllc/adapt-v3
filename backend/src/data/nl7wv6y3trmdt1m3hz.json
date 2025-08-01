@@ -1,0 +1,33 @@
+{
+  "title": "Entering the House Procedure",
+  "description": "This training module outlines the standard procedure for entering the house, including turning on the TV, lights, and checking the refrigerator.",
+  "transcript": "Ok, so here's my process for entering my house. I come in, I open the door, I get the remote control and hit the power button on here to start up the TV. Then I come over to my place here and I turn on all the lights. Then once I'm done with that I come over here and open the refrigerator to see if there's any food.",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Enter the House",
+      "description": "Open the door and enter the house.",
+      "duration": 5
+    },
+    {
+      "timestamp": 5,
+      "title": "Turn on the TV",
+      "description": "Locate the remote control and press the power button to turn on the TV.",
+      "duration": 10
+    },
+    {
+      "timestamp": 15,
+      "title": "Turn on the Lights",
+      "description": "Go to the light switch and turn on all the lights in the area.",
+      "duration": 15
+    },
+    {
+      "timestamp": 30,
+      "title": "Check the Refrigerator",
+      "description": "Walk to the refrigerator and open it to check for food.",
+      "duration": 10
+    }
+  ],
+  "totalDuration": 180,
+  "id": "nl7wv6y3trmdt1m3hz"
+}

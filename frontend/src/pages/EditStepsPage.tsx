@@ -1,6 +1,6 @@
 // ✅ EditStepsPage.tsx with Enhanced EditableStep Component
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api, API_ENDPOINTS } from '../config/api'
 import { EditableStep } from '../components/EditableStep'
 
@@ -14,19 +14,41 @@ interface Step {
 }
 
 export default function EditStepsPage() {
-  const { id: moduleId } = useParams()
+  const { moduleId } = useParams()
   const navigate = useNavigate()
   const [steps, setSteps] = useState<Step[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  console.log('🔧 EditStepsPage: moduleId =', moduleId)
+
+  // Transform backend data to expected format
+  const transformSteps = (backendSteps: any[]): Step[] => {
+    return backendSteps.map((step, index) => ({
+      id: step.id || `step-${index}`,
+      text: step.title || step.text || step.description || '',
+      start: step.timestamp || step.start || 0,
+      end: (step.timestamp || step.start || 0) + (step.duration || 30),
+      aliases: step.aliases || [],
+      notes: step.notes || ''
+    }))
+  }
+
   useEffect(() => {
     if (!moduleId) return
     setLoading(true)
     api(API_ENDPOINTS.STEPS(moduleId))
-      .then(data => setSteps(data.steps || []))
-      .catch(() => setError('Failed to load steps'))
+      .then(data => {
+        console.log('📋 Backend steps data:', data.steps)
+        const transformedSteps = transformSteps(data.steps || [])
+        console.log('🔄 Transformed steps:', transformedSteps)
+        setSteps(transformedSteps)
+      })
+      .catch((err) => {
+        console.error('❌ Error loading steps:', err)
+        setError('Failed to load steps')
+      })
       .finally(() => setLoading(false))
   }, [moduleId])
 
@@ -67,9 +89,9 @@ export default function EditStepsPage() {
   }
 
   const handleSeek = (time: number) => {
-    // This would integrate with video player
+    // Navigate back to training page with seek parameter
     console.log('Seeking to:', time)
-    // TODO: Implement video seeking functionality
+    navigate(`/training/${moduleId}?seek=${time}`)
   }
 
   const addStep = () => {
@@ -111,12 +133,38 @@ export default function EditStepsPage() {
     }
   }
 
-  if (loading) return <p>Loading steps...</p>
-  if (error) return <p className="text-red-600">{error}</p>
+  if (loading) return (
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Edit Steps</h1>
+      <div className="text-center py-8">
+        <div className="w-8 h-8 mx-auto animate-spin text-blue-600">⏳</div>
+        <p className="text-gray-600 mt-2">Loading steps...</p>
+        <p className="text-xs text-gray-400 mt-1">Module ID: {moduleId}</p>
+      </div>
+    </div>
+  )
+  if (error) return (
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Edit Steps</h1>
+      <div className="text-center py-8">
+        <div className="text-red-500 mb-2">⚠️</div>
+        <p className="text-red-600">{error}</p>
+        <p className="text-xs text-gray-400 mt-1">Module ID: {moduleId}</p>
+      </div>
+    </div>
+  )
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Edit Steps</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Edit Steps</h1>
+        <Link
+          to={`/training/${moduleId}`}
+          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm"
+        >
+          ← Back to Training
+        </Link>
+      </div>
 
       <div className="flex justify-between items-center mb-4 gap-3">
         <button
