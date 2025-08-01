@@ -112,25 +112,25 @@ export const HomePage: React.FC = () => {
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Adapt
               </span>
-            </h1>
+          </h1>
             <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
               AI-powered interactive training platform where you learn real-world tasks through videos, 
               step-by-step guidance, and intelligent assistance.
-            </p>
-            
-            {!clerkConfigured && (
+          </p>
+          
+          {!clerkConfigured && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 mb-8 max-w-md mx-auto">
                 <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-                  ⚠️ Authentication not configured. Set VITE_CLERK_PUBLISHABLE_KEY to enable sign-in.
-                </p>
-              </div>
-            )}
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              {clerkConfigured ? (
-                <>
-                  <Link
-                    to="/sign-up"
+                ⚠️ Authentication not configured. Set VITE_CLERK_PUBLISHABLE_KEY to enable sign-in.
+              </p>
+            </div>
+          )}
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            {clerkConfigured ? (
+              <>
+                <Link
+                  to="/sign-up"
                     className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
                   >
                     Get Started

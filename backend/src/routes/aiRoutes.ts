@@ -54,7 +54,6 @@ router.post('/process-video/:moduleId', async (req, res) => {
       steps: videoData.steps,
       totalDuration: videoData.totalDuration,
       transcript: videoData.transcript,
-      keyFrames: videoData.keyFrames,
       message: 'Enhanced video analysis completed successfully'
     })
   } catch (error) {
@@ -90,8 +89,7 @@ router.get('/test/:moduleId', async (req, res) => {
       moduleId,
       testResults: {
         stepsGenerated: videoData.steps?.length || 0,
-        transcriptSegments: videoData.transcript?.length || 0,
-        keyFramesAnalyzed: videoData.keyFrames?.length || 0,
+        transcriptLength: videoData.transcript?.length || 0,
         totalDuration: videoData.totalDuration,
         title: videoData.title,
         description: videoData.description
