@@ -1,0 +1,32 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Introduction",
+    "description": "Welcome and introduction to the training module.  Emphasis on following along and noting important details.",
+    "duration": 15
+  },
+  {
+    "timestamp": 15,
+    "title": "Process Overview",
+    "description": "High-level explanation of the process that will be covered in the training.",
+    "duration": 30
+  },
+  {
+    "timestamp": 45,
+    "title": "Key Concept 1",
+    "description": "Detailed explanation and examples of the first key concept.",
+    "duration": 45
+  },
+  {
+    "timestamp": 90,
+    "title": "Key Concept 2",
+    "description": "Detailed explanation and examples of the second key concept.",
+    "duration": 45
+  },
+  {
+    "timestamp": 135,
+    "title": "Applying the Concepts",
+    "description": "Guidance on how to effectively apply the learned concepts in practical scenarios.",
+    "duration": 45
+  }
+]

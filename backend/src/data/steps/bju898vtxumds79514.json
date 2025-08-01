@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Introduction",
+    "description": "Welcome and introduction to the training module.  Emphasis on the importance of following along and noting important details.",
+    "duration": 15
+  },
+  {
+    "timestamp": 15,
+    "title": "Process Overview",
+    "description": "High-level explanation of the process that will be covered in the training. Preparation for the step-by-step guide.",
+    "duration": 15
+  },
+  {
+    "timestamp": 30,
+    "title": "Step-by-Step Guide - Part 1",
+    "description": "Detailed explanation of the first part of the process.  This section might cover initial setup or foundational concepts.",
+    "duration": 45
+  },
+  {
+    "timestamp": 75,
+    "title": "Step-by-Step Guide - Part 2",
+    "description": "Continuation of the step-by-step guide, focusing on the next stage of the process. This could involve applying the learned concepts or practical exercises.",
+    "duration": 45
+  },
+  {
+    "timestamp": 120,
+    "title": "Step-by-Step Guide - Part 3",
+    "description": "Final part of the step-by-step guide, covering the remaining aspects of the process. This might include advanced techniques or troubleshooting.",
+    "duration": 45
+  },
+  {
+    "timestamp": 165,
+    "title": "Summary and Review",
+    "description": "Brief recap of the key concepts and steps covered in the training.  Opportunity to ask questions and reinforce learning.",
+    "duration": 15
+  }
+]

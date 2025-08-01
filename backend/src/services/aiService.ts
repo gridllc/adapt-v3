@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import ffmpegStatic from 'ffmpeg-static'
+import fs from 'fs'
 
 const execAsync = promisify(exec)
 
@@ -17,32 +18,32 @@ const __dirname = path.dirname(__filename)
 const projectRoot = path.resolve(__dirname, '../../../')
 const dataDir = path.join(projectRoot, 'backend', 'src', 'data')
 
-// Initialize clients
+// Initialize clients lazily
 let genAI: GoogleGenerativeAI | undefined
 let openai: OpenAI | undefined
 
-// Initialize Google Generative AI
-(async () => {
-  try {
-    if (process.env.GEMINI_API_KEY) {
+// Initialize clients when first needed
+function initializeClients() {
+  // Initialize Google Generative AI
+  if (!genAI && process.env.GEMINI_API_KEY) {
+    try {
       genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
       console.log('✅ Google Generative AI initialized with API key')
-    } else {
-      console.log('⚠️ No Google Generative AI API key found')
+    } catch (error) {
+      console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-  } catch (error) {
-    console.error(`❌ Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
-})()
 
-// Initialize OpenAI
-try {
-  if (process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    console.log('✅ OpenAI initialized with API key')
+  // Initialize OpenAI
+  if (!openai && process.env.OPENAI_API_KEY) {
+    try {
+      console.log('🔍 Checking OpenAI API key:', process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET')
+      openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      console.log('✅ OpenAI initialized with API key')
+    } catch (error) {
+      console.error(`❌ Failed to initialize OpenAI: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
-} catch (error) {
-  console.error(`❌ Failed to initialize OpenAI: ${error instanceof Error ? error.message : 'Unknown error'}`)
 }
 
 interface VideoProcessingResult {
@@ -151,13 +152,16 @@ export const aiService = {
    */
   async getVideoMetadata(videoPath: string): Promise<{ duration: number; fps: number }> {
     if (!ffmpegStatic) {
+      console.warn('FFmpeg not available, using default metadata')
       return { duration: 180, fps: 30 } // Fallback values
     }
 
+    console.log('📊 Extracting video metadata from:', videoPath)
     const command = `"${ffmpegStatic}" -i "${videoPath}" 2>&1`
     
     try {
       const { stderr } = await execAsync(command)
+      console.log('📊 FFmpeg stderr output length:', stderr.length)
       
       // Parse duration
       const durationMatch = stderr.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})/)
@@ -165,11 +169,15 @@ export const aiService = {
       if (durationMatch) {
         const [, hours, minutes, seconds, centiseconds] = durationMatch
         duration = parseInt(hours) * 3600 + parseInt(minutes) * 60 + parseInt(seconds) + parseInt(centiseconds) / 100
+        console.log('📊 Parsed duration:', duration, 'seconds')
+      } else {
+        console.warn('📊 Could not parse duration from FFmpeg output')
       }
 
       // Parse FPS
       const fpsMatch = stderr.match(/(\d+(?:\.\d+)?) fps/)
       const fps = fpsMatch ? parseFloat(fpsMatch[1]) : 30
+      console.log('📊 Parsed FPS:', fps)
 
       return { duration, fps }
     } catch (error) {
@@ -183,22 +191,26 @@ export const aiService = {
    */
   async transcribeAudio(audioPath: string): Promise<string> {
     try {
+      // Initialize clients if needed
+      initializeClients()
+      
+      console.log('🔍 OpenAI client status:', openai ? 'INITIALIZED' : 'NOT INITIALIZED')
+      console.log('🔍 OpenAI API key status:', process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET')
+      
       if (!openai) {
         throw new Error('OpenAI not initialized')
       }
 
-      const audioFile = await readFile(audioPath)
+      console.log('🎤 Starting Whisper transcription...')
       
-      // Create a Blob for OpenAI (Node.js compatible)
-      const audioBlob = new Blob([audioFile], { type: 'audio/wav' }) as any
-      audioBlob.name = 'audio.wav'
-      
+      // Use fs.createReadStream for OpenAI (this is the recommended approach)
       const transcription = await openai.audio.transcriptions.create({
-        file: audioBlob,
+        file: fs.createReadStream(audioPath),
         model: 'whisper-1',
         response_format: 'text'
       })
 
+      console.log('✅ Whisper transcription successful:', transcription.length, 'characters')
       return transcription
     } catch (error) {
       console.error('Whisper transcription failed, using fallback:', error instanceof Error ? error.message : 'Unknown error')
@@ -245,6 +257,9 @@ export const aiService = {
     keyFrames: Array<{ timestamp: number; path: string }>, 
     metadata: { duration: number }
   ): Promise<VideoProcessingResult> {
+    // Initialize clients if needed
+    initializeClients()
+    
     try {
       // Try Gemini first
       if (genAI) {
@@ -514,6 +529,86 @@ export const aiService = {
     })
 
     return completion.choices[0]?.message?.content || 'Sorry, I could not process your request.'
+  },
+
+  /**
+   * Rewrite a training step with AI
+   */
+  async rewriteStep(text: string): Promise<string> {
+    try {
+      // Initialize clients if needed
+      initializeClients()
+      
+      if (genAI) {
+        return await this.rewriteWithGemini(text)
+      } else if (openai) {
+        return await this.rewriteWithOpenAI(text)
+      } else {
+        throw new Error('No AI service available')
+      }
+    } catch (error) {
+      console.error('AI rewrite error:', error)
+      // Return a slightly improved version as fallback
+      return this.improveStepText(text)
+    }
+  },
+
+  async rewriteWithGemini(text: string): Promise<string> {
+    const model = genAI!.getGenerativeModel({ model: 'gemini-1.5-pro' })
+    
+    const prompt = `
+      You are an expert at writing clear, concise training step descriptions.
+      
+      Please rewrite this training step to make it more clear, actionable, and professional:
+      "${text}"
+      
+      Requirements:
+      - Keep it concise but informative
+      - Make it actionable (use action verbs)
+      - Ensure it's easy to follow
+      - Maintain the same level of detail
+      - Return only the rewritten text, no explanations
+    `
+
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    return response.text().trim()
+  },
+
+  async rewriteWithOpenAI(text: string): Promise<string> {
+    const completion = await openai!.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert at writing clear, concise training step descriptions. Rewrite the given text to make it more clear, actionable, and professional while maintaining the same level of detail.'
+        },
+        {
+          role: 'user',
+          content: `Please rewrite this training step: "${text}"`
+        }
+      ],
+      temperature: 0.3
+    })
+
+    return completion.choices[0]?.message?.content?.trim() || text
+  },
+
+  improveStepText(text: string): string {
+    // Simple text improvements as fallback
+    let improved = text.trim()
+    
+    // Capitalize first letter
+    if (improved.length > 0) {
+      improved = improved.charAt(0).toUpperCase() + improved.slice(1)
+    }
+    
+    // Add period if missing
+    if (!improved.endsWith('.') && !improved.endsWith('!') && !improved.endsWith('?')) {
+      improved += '.'
+    }
+    
+    return improved
   },
 
   /**

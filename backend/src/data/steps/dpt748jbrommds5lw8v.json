@@ -1,0 +1,32 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Introduction",
+    "description": "Welcome and introduction to the training module.  Emphasis on following along and noting important details.",
+    "duration": 30
+  },
+  {
+    "timestamp": 30,
+    "title": "Step-by-Step Guidance (Part 1)",
+    "description": "First part of the guided process.  Details not provided in the transcript, so this section covers a general overview of the process beginning.",
+    "duration": 45
+  },
+  {
+    "timestamp": 75,
+    "title": "Step-by-Step Guidance (Part 2)",
+    "description": "Second part of the guided process. Continues the explanation and demonstration. More specific steps would be added here based on the actual video content if it were available.",
+    "duration": 45
+  },
+  {
+    "timestamp": 120,
+    "title": "Key Concepts and Application",
+    "description": "Focus on explaining the core concepts being taught and demonstrating their practical application.  This section would cover the 'how-to' based on what was taught earlier in the video.",
+    "duration": 45
+  },
+  {
+    "timestamp": 165,
+    "title": "Conclusion and Review",
+    "description": "Summary of the key takeaways from the training.  Encourages further practice and application of the concepts learned.",
+    "duration": 15
+  }
+]

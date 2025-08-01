@@ -19,7 +19,7 @@ export const TrainingPage: React.FC = () => {
   const [steps, setSteps] = useState<Step[]>([])
   const [stepsLoading, setStepsLoading] = useState(false)
   const [stepsError, setStepsError] = useState<string | null>(null)
-  const [processingAI, setProcessingAI] = useState(false)
+
   const [chatMessage, setChatMessage] = useState('')
   const [chatHistory, setChatHistory] = useState([
     {
@@ -27,6 +27,8 @@ export const TrainingPage: React.FC = () => {
       message: "Hi! I'm here to help you with this training. Ask me anything about the current step or the overall process."
     }
   ])
+
+  const [processingAI, setProcessingAI] = useState(false)
 
   // Fetch steps when video URL is ready
   useEffect(() => {
@@ -63,93 +65,7 @@ export const TrainingPage: React.FC = () => {
       })
   }, [moduleId, url])
 
-  const handleRefreshSteps = async () => {
-    if (!moduleId) return
-    
-    console.log('🔄 Manually refreshing steps for module:', moduleId)
-    setStepsLoading(true)
-    setStepsError(null)
 
-    try {
-      const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
-      const data = await api(freshUrl)
-      console.log('📋 Refreshed steps data:', data)
-      setSteps(data.steps || [])
-    } catch (err) {
-      console.error('❌ Error refreshing steps:', err)
-      setStepsError('Failed to refresh steps')
-    } finally {
-      setStepsLoading(false)
-    }
-  }
-
-  const handleLoadSteps = async () => {
-    if (!moduleId) return
-    
-    console.log('🔄 Manually loading steps for module:', moduleId)
-    setStepsLoading(true)
-    setStepsError(null)
-
-    try {
-      const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
-      console.log('📡 Loading from URL:', freshUrl)
-      const data = await api(freshUrl)
-      console.log('📋 Loaded steps data:', data)
-      console.log('📋 Steps array length:', data.steps?.length || 0)
-      setSteps(data.steps || [])
-    } catch (err) {
-      console.error('❌ Error loading steps:', err)
-      setStepsError('Failed to load steps')
-      setSteps([])
-    } finally {
-      setStepsLoading(false)
-    }
-  }
-
-  const handleProcessWithAI = async () => {
-    if (!moduleId) return
-    
-    console.log('🤖 Starting AI processing for module:', moduleId)
-    setProcessingAI(true)
-    setStepsError(null)
-    
-    try {
-      const response = await api(`/api/ai/process-video/${moduleId}`, {
-        method: 'POST',
-      })
-      
-      console.log('🤖 AI processing response:', response)
-      console.log('🤖 Response steps:', response.steps)
-      console.log('🤖 Steps length:', response.steps?.length || 0)
-      
-      if (response.success && response.steps) {
-        console.log('🤖 Setting new steps:', response.steps)
-        setSteps(response.steps)
-        setStepsError(null)
-        
-        // Also refresh from the steps endpoint to ensure consistency
-        setTimeout(async () => {
-          try {
-            const freshSteps = await api(`${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`)
-            console.log('🔄 Refreshed steps after AI processing:', freshSteps)
-            if (freshSteps.steps) {
-              setSteps(freshSteps.steps)
-            }
-          } catch (err) {
-            console.error('❌ Error refreshing steps after AI processing:', err)
-          }
-        }, 1000)
-      } else {
-        console.error('❌ AI processing failed - no steps returned')
-        setStepsError('AI processing completed but no steps were generated')
-      }
-    } catch (err) {
-      console.error('❌ AI processing error:', err)
-      setStepsError('Failed to process video with AI')
-    } finally {
-      setProcessingAI(false)
-    }
-  }
 
   const handleSendMessage = () => {
     if (!chatMessage.trim()) return
@@ -174,6 +90,40 @@ export const TrainingPage: React.FC = () => {
     }
   }
 
+  const handleLoadSteps = async () => {
+    if (!moduleId) return
+    
+    setStepsLoading(true)
+    setStepsError(null)
+    
+    try {
+      const data = await api(API_ENDPOINTS.STEPS(moduleId))
+      setSteps(data.steps || [])
+    } catch (err) {
+      console.error('Error loading steps:', err)
+      setStepsError('Failed to load steps')
+    } finally {
+      setStepsLoading(false)
+    }
+  }
+
+  const handleProcessWithAI = async () => {
+    if (!moduleId) return
+    
+    setProcessingAI(true)
+    try {
+      // This would call the AI processing endpoint
+      console.log('🤖 AI processing requested for module:', moduleId)
+      // TODO: Implement actual AI processing
+      setTimeout(() => {
+        setProcessingAI(false)
+      }, 2000)
+    } catch (err) {
+      console.error('AI processing error:', err)
+      setProcessingAI(false)
+    }
+  }
+
   console.log('🎬 TrainingPage render state:', {
     moduleId,
     url,
@@ -181,8 +131,7 @@ export const TrainingPage: React.FC = () => {
     error,
     steps: steps.length,
     stepsLoading,
-    stepsError,
-    processingAI
+    stepsError
   })
 
   return (
@@ -228,32 +177,6 @@ export const TrainingPage: React.FC = () => {
             <div className="mt-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-gray-900">📋 Training Steps</h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleRefreshSteps}
-                    disabled={stepsLoading}
-                    className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg text-sm"
-                  >
-                    {stepsLoading ? '⏳' : '🔄'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      console.log('🔍 Raw steps data:', steps)
-                      console.log('🔍 Steps length:', steps.length)
-                      console.log('🔍 Steps array:', JSON.stringify(steps, null, 2))
-                    }}
-                    className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm"
-                  >
-                    🔍 Debug
-                  </button>
-                  <button
-                    onClick={handleProcessWithAI}
-                    disabled={processingAI}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
-                  >
-                    {processingAI ? '🤖 Processing...' : '🤖 AI Process'}
-                  </button>
-                </div>
               </div>
               
               {stepsLoading ? (
@@ -278,9 +201,7 @@ export const TrainingPage: React.FC = () => {
                   <div className="text-sm text-gray-500 mb-2">
                     Found {steps.length} steps for this training
                   </div>
-                  <div className="text-xs text-gray-400 mb-2">
-                    Debug: Received {steps.length} steps from API
-                  </div>
+
                   
                   {/* Feedback Widgets */}
                   <div className="flex gap-2 mb-4">
@@ -309,13 +230,6 @@ export const TrainingPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex gap-2 mb-4">
-                    <button
-                      onClick={handleRefreshSteps}
-                      disabled={stepsLoading}
-                      className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-3 py-2 rounded-lg text-sm"
-                    >
-                      {stepsLoading ? '⏳ Loading...' : '🔄 Force Refresh'}
-                    </button>
                     <span className="text-xs text-gray-500 self-center">
                       Current: {steps.length} steps
                     </span>

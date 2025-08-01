@@ -1,13 +1,16 @@
-// ✅ EditStepsPage.tsx with Add Step + Delete All + Save
+// ✅ EditStepsPage.tsx with Enhanced EditableStep Component
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api, API_ENDPOINTS } from '../config/api'
+import { EditableStep } from '../components/EditableStep'
 
 interface Step {
-  timestamp: number
-  title: string
-  description: string
-  duration?: number
+  id: string
+  text: string
+  start: number
+  end: number
+  aliases?: string[]
+  notes?: string
 }
 
 export default function EditStepsPage() {
@@ -27,17 +30,58 @@ export default function EditStepsPage() {
       .finally(() => setLoading(false))
   }, [moduleId])
 
-  const updateStep = (index: number, key: keyof Step, value: string | number) => {
-    const updated = [...steps]
-    updated[index] = { ...updated[index], [key]: value }
-    setSteps(updated)
+  const handleSaveStep = async (updatedStep: Step, index: number) => {
+    const newSteps = [...steps]
+    newSteps[index] = updatedStep
+    setSteps(newSteps)
+
+    try {
+      const res = await fetch(`/api/steps/${moduleId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ steps: newSteps }),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      console.log(`✅ Step ${index + 1} saved`)
+    } catch (err) {
+      console.error('❌ Save error:', err)
+    }
+  }
+
+  const handleAIRewrite = async (text: string): Promise<string> => {
+    try {
+      const res = await fetch(`/api/steps/${moduleId}/rewrite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+      
+      if (!res.ok) throw new Error('AI rewrite failed')
+      
+      const data = await res.json()
+      return data.text
+    } catch (err) {
+      console.error('AI rewrite error:', err)
+      throw new Error('Failed to rewrite with AI')
+    }
+  }
+
+  const handleSeek = (time: number) => {
+    // This would integrate with video player
+    console.log('Seeking to:', time)
+    // TODO: Implement video seeking functionality
   }
 
   const addStep = () => {
-    setSteps(prev => [
-      ...prev,
-      { timestamp: 0, title: 'New Step', description: '' },
-    ])
+    const newStep: Step = {
+      id: `step-${Date.now()}`,
+      text: 'New Step',
+      start: 0,
+      end: 30,
+      aliases: [],
+      notes: ''
+    }
+    setSteps(prev => [...prev, newStep])
   }
 
   const saveChanges = async () => {
@@ -97,34 +141,14 @@ export default function EditStepsPage() {
       </div>
 
       {steps.map((step, i) => (
-        <div key={i} className="mb-6 border rounded-lg p-4 bg-white shadow-sm">
-          <div className="mb-2">
-            <label className="block text-sm font-medium">Timestamp (sec)</label>
-            <input
-              type="number"
-              value={step.timestamp}
-              onChange={e => updateStep(i, 'timestamp', Number(e.target.value))}
-              className="w-full border px-3 py-2 rounded mt-1"
-            />
-          </div>
-          <div className="mb-2">
-            <label className="block text-sm font-medium">Title</label>
-            <input
-              type="text"
-              value={step.title}
-              onChange={e => updateStep(i, 'title', e.target.value)}
-              className="w-full border px-3 py-2 rounded mt-1"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium">Description</label>
-            <textarea
-              value={step.description}
-              onChange={e => updateStep(i, 'description', e.target.value)}
-              className="w-full border px-3 py-2 rounded mt-1"
-            />
-          </div>
-        </div>
+        <EditableStep
+          key={step.id || i}
+          step={step}
+          index={i}
+          onSeek={handleSeek}
+          onSave={(updatedStep) => handleSaveStep(updatedStep, i)}
+          onAIRewrite={handleAIRewrite}
+        />
       ))}
     </div>
   )

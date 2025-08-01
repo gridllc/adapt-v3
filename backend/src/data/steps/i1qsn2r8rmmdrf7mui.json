@@ -1,26 +1,26 @@
 [
   {
     "timestamp": 0,
-    "title": "Introduction",
-    "description": "Welcome to the training",
-    "duration": 30
+    "title": "Enter House and Open the Door",
+    "description": "Open the door and step inside the house.",
+    "duration": 5
+  },
+  {
+    "timestamp": 5,
+    "title": "Turn on the TV",
+    "description": "Locate the remote control and press the power button to turn on the TV.",
+    "duration": 10
+  },
+  {
+    "timestamp": 15,
+    "title": "Turn on the Lights",
+    "description": "Go to the designated area and turn on all the lights.",
+    "duration": 15
   },
   {
     "timestamp": 30,
-    "title": "Getting Started",
-    "description": "Basic setup and preparation",
-    "duration": 45
-  },
-  {
-    "timestamp": 75,
-    "title": "Main Process",
-    "description": "Core training content and procedures",
-    "duration": 60
-  },
-  {
-    "timestamp": 135,
-    "title": "Conclusion",
-    "description": "Summary and next steps",
-    "duration": 30
+    "title": "Check the Refrigerator",
+    "description": "Walk to the refrigerator and open it to check for food.",
+    "duration": 10
   }
 ]

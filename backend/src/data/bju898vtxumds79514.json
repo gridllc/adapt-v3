@@ -1,0 +1,45 @@
+{
+  "title": "Introduction and Key Concepts Training",
+  "description": "This training module provides a step-by-step guide to understanding and applying key concepts related to an unspecified process.",
+  "transcript": "Welcome to this training module. In this video, I will guide you through the process step by step. Please follow along carefully and take note of the important details. This training will help you understand the key concepts and apply them effectively.",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Introduction",
+      "description": "Welcome and introduction to the training module.  Emphasis on the importance of following along and taking notes.",
+      "duration": 30
+    },
+    {
+      "timestamp": 30,
+      "title": "Process Overview",
+      "description": "High-level overview of the process that will be covered in detail throughout the training.",
+      "duration": 30
+    },
+    {
+      "timestamp": 60,
+      "title": "Key Concept 1 Explanation",
+      "description": "Explanation and discussion of the first key concept, with examples and practical application.",
+      "duration": 30
+    },
+    {
+      "timestamp": 90,
+      "title": "Key Concept 2 Explanation",
+      "description": "Explanation and discussion of the second key concept, with examples and practical application.",
+      "duration": 30
+    },
+    {
+      "timestamp": 120,
+      "title": "Key Concept 3 Explanation",
+      "description": "Explanation and discussion of the third key concept, with examples and practical application.",
+      "duration": 30
+    },
+    {
+      "timestamp": 150,
+      "title": "Conclusion and Review",
+      "description": "Summary of the key concepts covered in the training and a review of important details.",
+      "duration": 30
+    }
+  ],
+  "totalDuration": 180,
+  "id": "bju898vtxumds79514"
+}

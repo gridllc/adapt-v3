@@ -1,0 +1,18 @@
+{
+  "feedbacks": [
+    {
+      "id": "feedback_1754026202290_sxs74brz7",
+      "type": "step_generation",
+      "action": "not_working",
+      "moduleId": "i1qsn2r8rmmdrf7mui",
+      "context": "4 steps generated",
+      "timestamp": "2025-08-01T05:30:02.252Z",
+      "sessionId": "unknown"
+    }
+  ],
+  "stats": {
+    "total": 1,
+    "positive": 0,
+    "negative": 1
+  }
+}

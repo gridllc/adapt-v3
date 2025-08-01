@@ -1,0 +1,45 @@
+{
+  "title": "Training Module",
+  "description": "Video training module with step-by-step instructions",
+  "transcript": "Welcome to this training module. In this video, I will guide you through the process step by step. Please follow along carefully and take note of the important details. This training will help you understand the key concepts and apply them effectively.",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Step 1: Training Process",
+      "description": "This step covers part 1 of the training process. Welcome to this training module. In this video, I will guide you through the process step by step. P",
+      "duration": 30
+    },
+    {
+      "timestamp": 30,
+      "title": "Step 2: Training Process",
+      "description": "This step covers part 2 of the training process. lease follow along carefully and take note of the important details. This training will help you und",
+      "duration": 30
+    },
+    {
+      "timestamp": 60,
+      "title": "Step 3: Training Process",
+      "description": "This step covers part 3 of the training process. erstand the key concepts and apply them effectively.",
+      "duration": 30
+    },
+    {
+      "timestamp": 90,
+      "title": "Step 4: Training Process",
+      "description": "This step covers part 4 of the training process. ",
+      "duration": 30
+    },
+    {
+      "timestamp": 120,
+      "title": "Step 5: Training Process",
+      "description": "This step covers part 5 of the training process. ",
+      "duration": 30
+    },
+    {
+      "timestamp": 150,
+      "title": "Step 6: Training Process",
+      "description": "This step covers part 6 of the training process. ",
+      "duration": 30
+    }
+  ],
+  "totalDuration": 180,
+  "id": "dpt748jbrommds5lw8v"
+}

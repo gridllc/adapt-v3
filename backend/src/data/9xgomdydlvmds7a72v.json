@@ -1,0 +1,39 @@
+{
+  "title": "Introduction and Process Overview",
+  "description": "This training module provides a step-by-step guide to a key process, covering important concepts and practical application.",
+  "transcript": "Welcome to this training module. In this video, I will guide you through the process step by step. Please follow along carefully and take note of the important details. This training will help you understand the key concepts and apply them effectively.",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Introduction",
+      "description": "Welcome and introduction to the training module.  Emphasis on following along and noting important details for effective learning and application.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Process Overview",
+      "description": "High-level overview of the process that will be covered in the training.  Likely includes a roadmap or general steps involved.",
+      "duration": 30
+    },
+    {
+      "timestamp": 45,
+      "title": "Step-by-Step Guidance (Part 1)",
+      "description": "Detailed explanation and demonstration of the first part of the process.  Likely includes specific instructions and examples.",
+      "duration": 45
+    },
+    {
+      "timestamp": 90,
+      "title": "Step-by-Step Guidance (Part 2)",
+      "description": "Continuation of the detailed guidance, covering the subsequent steps of the process. Further instructions and examples provided.",
+      "duration": 45
+    },
+    {
+      "timestamp": 135,
+      "title": "Key Concepts and Application",
+      "description": "Review of key concepts learned and how they can be applied effectively in real-world scenarios. Q&A or practice scenarios may be included.",
+      "duration": 45
+    }
+  ],
+  "totalDuration": 180,
+  "id": "9xgomdydlvmds7a72v"
+}
