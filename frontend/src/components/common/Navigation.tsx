@@ -34,7 +34,7 @@ export const Navigation: React.FC = () => {
 
           {/* Desktop Links */}
           <div className="hidden sm:flex items-center space-x-4">
-            {navLink(isSignedIn ? '/dashboard' : '/', '🏠 Home')}
+            {navLink('/', '🏠 Home')}
             {navLink('/dashboard', '📊 Dashboard')}
             {navLink('/upload', '📤 Upload')}
             <UserButton afterSignOutUrl="/" />
@@ -54,7 +54,7 @@ export const Navigation: React.FC = () => {
       {/* Mobile Dropdown */}
       {mobileOpen && (
         <div className="sm:hidden px-4 pb-4 space-y-2 border-t bg-white shadow-md">
-          {navLink(isSignedIn ? '/dashboard' : '/', '🏠 Home')}
+          {navLink('/', '🏠 Home')}
           {navLink('/dashboard', '📊 Dashboard')}
           {navLink('/upload', '📤 Upload')}
           <UserButton afterSignOutUrl="/" />
