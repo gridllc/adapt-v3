@@ -20,7 +20,11 @@ const upload = multer({
   },
 })
 
-// Upload endpoint
+// Original upload endpoint
 router.post('/', upload.single('file'), uploadController.uploadVideo)
+
+// New chunked upload endpoints
+router.post('/chunk', upload.single('chunk'), uploadController.uploadChunk)
+router.post('/finalize', uploadController.finalizeUpload)
 
 export { router as uploadRoutes } 
