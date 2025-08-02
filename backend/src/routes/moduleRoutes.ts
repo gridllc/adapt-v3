@@ -9,9 +9,13 @@ const router = express.Router()
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const modulesPath = path.resolve(__dirname, '../data/modules.json')
-const uploadsDir = path.resolve(__dirname, '../uploads')
-const dataDir = path.resolve(__dirname, '../data')
+
+// Handle both development and production paths
+const isProduction = process.env.NODE_ENV === 'production'
+const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
+const modulesPath = path.join(baseDir, 'data', 'modules.json')
+const uploadsDir = path.join(baseDir, 'uploads')
+const dataDir = path.join(baseDir, 'data')
 
 // Get all modules (JSON file-based)
 router.get('/', async (req, res) => {

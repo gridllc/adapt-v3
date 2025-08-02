@@ -7,11 +7,13 @@ import { aiService } from '../services/aiService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const projectRoot = path.resolve(__dirname, '../../../')
+// Handle both development and production paths
+const isProduction = process.env.NODE_ENV === 'production'
+const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
 
 // Support both data directory structures
-const legacyDataDir = path.join(projectRoot, 'backend', 'src', 'data')
-const newDataDir = path.resolve(__dirname, '../data/training')
+const legacyDataDir = path.join(baseDir, 'data')
+const newDataDir = path.join(baseDir, 'data', 'training')
 
 // Helper function to find the correct data file
 const findDataFile = async (moduleId: string) => {

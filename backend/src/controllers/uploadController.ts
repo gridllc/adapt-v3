@@ -126,7 +126,10 @@ export const uploadController = {
         title: originalname.replace(/\.[^/.]+$/, ''),
         createdAt: new Date().toISOString(),
       }
-      const dataPath = path.resolve(__dirname, '../data/modules.json')
+      // Handle both development and production paths
+    const isProduction = process.env.NODE_ENV === 'production'
+    const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
+    const dataPath = path.join(baseDir, 'data', 'modules.json')
       let existingModules = []
       try {
         const raw = await fs.promises.readFile(dataPath, 'utf-8')
