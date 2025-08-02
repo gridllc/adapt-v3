@@ -52,8 +52,8 @@ function App() {
       {/* <ApiDebug /> */}
       
       <Routes>
-      {/* Conditional home route */}
-      <Route path="/" element={<ConditionalHome />} />
+      {/* Always show home page at root */}
+      <Route path="/" element={<HomePage />} />
       
       {/* Clerk authentication routes */}
       <Route path="/sign-in/*" element={<SignIn routing="path" path="/sign-in" redirectUrl="/dashboard" />} />
@@ -99,7 +99,7 @@ function App() {
        />
       
       {/* Catch-all route for unknown paths */}
-      <Route path="*" element={<ConditionalHome />} />
+      <Route path="*" element={<HomePage />} />
     </Routes>
     </>
   )
