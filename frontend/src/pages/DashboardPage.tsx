@@ -17,38 +17,12 @@ export const DashboardPage: React.FC = () => {
       setLoading(true)
       try {
         const [modulesResponse, feedbackResponse] = await Promise.all([
-          fetch('/api/modules'),
-          fetch('/api/feedback/stats')
+          api('modules'),
+          api('feedback/stats')
         ])
 
-        if (modulesResponse.ok) {
-          const modulesData = await modulesResponse.json()
-          setModules(modulesData.modules || [])
-        } else {
-          console.warn('Modules API failed, using fallback data')
-          setModules([
-            {
-              id: 'sample-1',
-              title: 'Sample Training Module',
-              description: 'This is a sample module for testing',
-              createdAt: new Date().toISOString(),
-              videoUrl: null
-            }
-          ])
-        }
-
-        if (feedbackResponse.ok) {
-          const feedbackData = await feedbackResponse.json()
-          setFeedbackStats(feedbackData)
-        } else {
-          console.warn('Feedback API failed, using fallback data')
-          setFeedbackStats({
-            total: 0,
-            positive: 0,
-            negative: 0,
-            recentFeedback: []
-          })
-        }
+        setModules(modulesResponse.modules || [])
+        setFeedbackStats(feedbackResponse)
       } catch (error) {
         console.error('Error fetching data:', error)
         // Set fallback data

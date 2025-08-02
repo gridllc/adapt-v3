@@ -2,9 +2,9 @@
 const isDevelopment = import.meta.env.MODE === 'development'
 const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
 
-// Always use Railway URL in production, or env var if set
+// Force Railway URL in production, or env var if set
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (isDevelopment ? '' : RAILWAY_URL)
+  (isDevelopment ? RAILWAY_URL : RAILWAY_URL)
 
 // Force Railway URL in production if no env var is set
 if (!isDevelopment && !import.meta.env.VITE_API_BASE_URL) {

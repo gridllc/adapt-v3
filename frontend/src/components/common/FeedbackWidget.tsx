@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { CheckCircle, XCircle, HelpCircle, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { api } from '../../config/api'
 
 interface FeedbackWidgetProps {
   type: 'video_processing' | 'step_generation' | 'ai_suggestion' | 'transcription'
@@ -30,7 +31,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
 
   const handleFeedback = async (action: 'worked' | 'not_working' | 'partially_working') => {
     try {
-      const response = await fetch('/api/feedback/submit', {
+              const response = await api('feedback/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
