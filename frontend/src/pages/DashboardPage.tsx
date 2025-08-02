@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useModules } from '../hooks/useModules'
+import { ApiTest } from '../components/ApiTest'
 import { api } from '../config/api'
 import { FeedbackDashboard } from '../components/common/FeedbackDashboard'
 
@@ -147,6 +148,11 @@ s      {/* Feedback Dashboard */}
           </div>
         ))}
       </div>
-    </div>
-  )
-}
+          </div>
+      
+      {/* Temporary API Test */}
+      <div className="mt-8">
+        <ApiTest />
+      </div>
+    )
+  }

@@ -1,55 +1,36 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import { API_BASE_URL, api } from '../config/api'
 
 export const ApiTest: React.FC = () => {
-  const [result, setResult] = useState<string>('')
+  const [testResult, setTestResult] = useState<string>('')
 
-  const testLocalhost = async () => {
-    try {
-      const response = await fetch('http://localhost:8000/api/health')
-      const data = await response.json()
-      setResult(`Localhost: ${JSON.stringify(data)}`)
-    } catch (error) {
-      setResult(`Localhost Error: ${error}`)
+  useEffect(() => {
+    const runTest = async () => {
+      try {
+        console.log('🧪 API Test Starting...')
+        console.log('🔍 API_BASE_URL:', API_BASE_URL)
+        console.log('🔍 Environment:', import.meta.env.MODE)
+        console.log('🔍 VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL)
+        
+        const result = await api('modules')
+        setTestResult(JSON.stringify(result, null, 2))
+        console.log('✅ API Test Success:', result)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        setTestResult(`Error: ${errorMessage}`)
+        console.error('❌ API Test Failed:', error)
+      }
     }
-  }
 
-  const testRailway = async () => {
-    try {
-      const response = await fetch('https://adapt-v3-production.up.railway.app/api/health')
-      const data = await response.json()
-      setResult(`Railway: ${JSON.stringify(data)}`)
-    } catch (error) {
-      setResult(`Railway Error: ${error}`)
-    }
-  }
-
-  const testCurrent = async () => {
-    try {
-      const response = await fetch('/api/health')
-      const data = await response.json()
-      setResult(`Current: ${JSON.stringify(data)}`)
-    } catch (error) {
-      setResult(`Current Error: ${error}`)
-    }
-  }
+    runTest()
+  }, [])
 
   return (
-    <div className="fixed bottom-4 left-4 bg-white p-4 border rounded shadow">
-      <h3 className="font-bold mb-2">API Test</h3>
-      <div className="space-x-2 mb-2">
-        <button onClick={testLocalhost} className="bg-blue-500 text-white px-2 py-1 rounded text-sm">
-          Test Localhost
-        </button>
-        <button onClick={testRailway} className="bg-green-500 text-white px-2 py-1 rounded text-sm">
-          Test Railway
-        </button>
-        <button onClick={testCurrent} className="bg-red-500 text-white px-2 py-1 rounded text-sm">
-          Test Current
-        </button>
-      </div>
-      <div className="text-xs max-w-xs">
-        {result}
-      </div>
+    <div className="p-4 bg-gray-100 rounded-lg">
+      <h3 className="text-lg font-bold mb-2">API Test Results</h3>
+      <pre className="text-sm bg-white p-2 rounded border overflow-auto max-h-40">
+        {testResult || 'Running test...'}
+      </pre>
     </div>
   )
 }

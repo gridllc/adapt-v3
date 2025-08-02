@@ -6,6 +6,11 @@ const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
   (isDevelopment ? '' : RAILWAY_URL)
 
+// Force Railway URL in production if no env var is set
+if (!isDevelopment && !import.meta.env.VITE_API_BASE_URL) {
+  console.log('🚀 Production mode detected, using Railway URL')
+}
+
 // Fallback: if no env var and in production, force Railway URL
 if (!import.meta.env.VITE_API_BASE_URL && !isDevelopment && !API_BASE_URL) {
   console.warn('No VITE_API_BASE_URL found, using Railway URL')
@@ -49,6 +54,12 @@ export async function api(endpoint: string, options?: RequestInit) {
   const url = apiUrl(endpoint)
   
   console.log('🔗 API call to:', url)
+  console.log('🔍 Environment check:', {
+    mode: import.meta.env.MODE,
+    isDevelopment: import.meta.env.MODE === 'development',
+    API_BASE_URL,
+    endpoint
+  })
   
   const response = await fetch(url, {
     ...options,
@@ -61,6 +72,9 @@ export async function api(endpoint: string, options?: RequestInit) {
   console.log('📡 API response status:', response.status, response.statusText)
   
   if (!response.ok) {
+    console.error('❌ API Error:', response.status, response.statusText)
+    const errorText = await response.text()
+    console.error('❌ Response body:', errorText)
     throw new Error(`API Error: ${response.status} ${response.statusText}`)
   }
   
