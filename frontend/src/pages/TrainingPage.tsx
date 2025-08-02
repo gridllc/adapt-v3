@@ -15,6 +15,12 @@ interface Step {
   notes?: string
 }
 
+interface ChatMessage {
+  type: 'user' | 'assistant'
+  message: string
+  isTyping?: boolean
+}
+
 export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
   const [searchParams] = useSearchParams()
@@ -28,7 +34,7 @@ export const TrainingPage: React.FC = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
 
   const [chatMessage, setChatMessage] = useState('')
-  const [chatHistory, setChatHistory] = useState([
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       type: 'assistant',
       message: "Hi! I'm here to help you with this training. Ask me anything about the current step or the overall process."
@@ -38,6 +44,13 @@ export const TrainingPage: React.FC = () => {
   const [processingAI, setProcessingAI] = useState(false)
   const [editingStepIndex, setEditingStepIndex] = useState<number | null>(null)
   const [editedSteps, setEditedSteps] = useState<Step[]>([])
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [selectedSteps, setSelectedSteps] = useState<Set<number>>(new Set())
+  const [bulkEditMode, setBulkEditMode] = useState(false)
+  const chatHistoryRef = useRef<HTMLDivElement>(null)
+  const [videoTime, setVideoTime] = useState(0)
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false)
+  const stepsContainerRef = useRef<HTMLDivElement>(null)
 
   // Video seeking function
   const seekToTime = (timeInSeconds: number) => {
@@ -46,6 +59,60 @@ export const TrainingPage: React.FC = () => {
       videoRef.current.play()
       console.log(`🎬 Seeking to ${timeInSeconds}s`)
     }
+  }
+
+  // Video event handlers for smart sync
+  const handleVideoTimeUpdate = () => {
+    if (videoRef.current) {
+      setVideoTime(videoRef.current.currentTime)
+    }
+  }
+
+  const handleVideoPlay = () => {
+    setIsVideoPlaying(true)
+  }
+
+  const handleVideoPause = () => {
+    setIsVideoPlaying(false)
+  }
+
+  // Auto-highlight current step based on video time
+  const getCurrentStepIndex = (): number | null => {
+    if (steps.length === 0) return null
+    
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i]
+      const stepStart = step.timestamp
+      const stepEnd = step.timestamp + (step.duration || 30)
+      
+      if (videoTime >= stepStart && videoTime < stepEnd) {
+        return i
+      }
+    }
+    
+    return null
+  }
+
+  // Calculate training progress
+  const getTrainingProgress = (): number => {
+    if (steps.length === 0) return 0
+    
+    const totalDuration = steps.reduce((sum, step) => sum + (step.duration || 30), 0)
+    const currentStepIndex = getCurrentStepIndex()
+    
+    if (currentStepIndex === null) return 0
+    
+    let completedDuration = 0
+    for (let i = 0; i < currentStepIndex; i++) {
+      completedDuration += steps[i].duration || 30
+    }
+    
+    // Add progress within current step
+    const currentStep = steps[currentStepIndex]
+    const stepProgress = Math.min(videoTime - currentStep.timestamp, currentStep.duration || 30)
+    completedDuration += Math.max(0, stepProgress)
+    
+    return Math.min((completedDuration / totalDuration) * 100, 100)
   }
 
   // Handle step click for seeking
@@ -79,6 +146,88 @@ export const TrainingPage: React.FC = () => {
     }
   }
 
+  const handleAutoSave = async (updatedStep: StepData) => {
+    if (!moduleId) return
+    
+    try {
+      setAutoSaveStatus('saving')
+      
+      // Convert StepData back to Step format
+      const updatedStepForBackend = {
+        ...editedSteps[editingStepIndex!],
+        title: updatedStep.title,
+        description: updatedStep.description,
+        timestamp: updatedStep.start,
+        duration: updatedStep.end - updatedStep.start,
+        aliases: updatedStep.aliases,
+        notes: updatedStep.notes
+      }
+      
+      const newEditedSteps = [...editedSteps]
+      newEditedSteps[editingStepIndex!] = updatedStepForBackend
+      setEditedSteps(newEditedSteps)
+      
+      // Auto-save to backend
+      await api(API_ENDPOINTS.STEPS(moduleId), {
+        method: 'POST',
+        body: JSON.stringify({ steps: newEditedSteps }),
+      })
+      
+      setAutoSaveStatus('saved')
+      console.log(`💾 Auto-saved step ${editingStepIndex! + 1}`)
+      
+      // Clear saved status after 3 seconds
+      setTimeout(() => setAutoSaveStatus('idle'), 3000)
+    } catch (err) {
+      console.error('❌ Auto-save error:', err)
+      setAutoSaveStatus('error')
+      throw err // Re-throw so the component can show error state
+    }
+  }
+
+  // Bulk operations
+  const handleSelectStep = (index: number) => {
+    const newSelected = new Set(selectedSteps)
+    if (newSelected.has(index)) {
+      newSelected.delete(index)
+    } else {
+      newSelected.add(index)
+    }
+    setSelectedSteps(newSelected)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedSteps.size === steps.length) {
+      setSelectedSteps(new Set())
+    } else {
+      setSelectedSteps(new Set(steps.map((_, index) => index)))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (!moduleId || selectedSteps.size === 0) return
+    
+    if (!confirm(`Are you sure you want to delete ${selectedSteps.size} step(s)?`)) return
+    
+    try {
+      const newSteps = steps.filter((_, index) => !selectedSteps.has(index))
+      await api(API_ENDPOINTS.STEPS(moduleId), {
+        method: 'POST',
+        body: JSON.stringify({ steps: newSteps }),
+      })
+      setSteps(newSteps)
+      setSelectedSteps(new Set())
+      console.log(`🗑️ Deleted ${selectedSteps.size} steps`)
+    } catch (err) {
+      console.error('❌ Bulk delete error:', err)
+      alert('Failed to delete steps')
+    }
+  }
+
+  const handleBulkEdit = () => {
+    setBulkEditMode(true)
+  }
+
   const handleCancelEdit = () => {
     setEditingStepIndex(null)
     setEditedSteps([...steps])
@@ -90,14 +239,17 @@ export const TrainingPage: React.FC = () => {
     setEditedSteps(newEditedSteps)
   }
 
-  const handleAIRewrite = async (index: number) => {
+  const handleAIRewrite = async (index: number, style: string = 'polished') => {
     if (!moduleId) return
     
     try {
       const res = await fetch(`/api/steps/${moduleId}/rewrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: editedSteps[index].title }),
+        body: JSON.stringify({ 
+          text: editedSteps[index].title,
+          style: style
+        }),
       })
       
       if (!res.ok) throw new Error('AI rewrite failed')
@@ -187,21 +339,138 @@ export const TrainingPage: React.FC = () => {
       })
   }, [moduleId])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!chatMessage.trim()) return
     
-    // Add user message
-    setChatHistory(prev => [...prev, { type: 'user', message: chatMessage }])
+    const userMessage = chatMessage.trim()
     
-    // Simulate AI response (replace with real API call)
-    setTimeout(() => {
+    // Add user message
+    setChatHistory(prev => [...prev, { type: 'user', message: userMessage }])
+    setChatMessage('')
+    
+    // Show typing indicator
+    setChatHistory(prev => [...prev, { type: 'assistant', message: '...', isTyping: true }])
+    
+    try {
+      // Get current step context
+      const currentStep = currentStepIndex !== null ? steps[currentStepIndex] : null
+      const stepContext = currentStep ? {
+        stepNumber: currentStepIndex! + 1,
+        title: currentStep.title,
+        description: currentStep.description,
+        timestamp: currentStep.timestamp,
+        duration: currentStep.duration,
+        aliases: currentStep.aliases,
+        notes: currentStep.notes
+      } : null
+      
+      // Generate AI response based on context
+      const aiResponse = await generateAIResponse(userMessage, stepContext, steps)
+      
+      // Remove typing indicator and add real response
+      setChatHistory(prev => prev.filter(msg => !msg.isTyping))
+      setChatHistory(prev => [...prev, { type: 'assistant', message: aiResponse }])
+    } catch (error) {
+      console.error('AI response error:', error)
+      // Remove typing indicator and add error response
+      setChatHistory(prev => prev.filter(msg => !msg.isTyping))
       setChatHistory(prev => [...prev, { 
         type: 'assistant', 
-        message: "I understand your question. This feature is coming soon - for now, you can watch the video and follow along with the training steps."
+        message: "I'm having trouble processing your request right now. Please try again in a moment." 
       }])
-    }, 1000)
+    }
+  }
+
+  const generateAIResponse = async (userMessage: string, currentStep: any, allSteps: Step[]) => {
+    // Use the enhanced contextual AI service
+    try {
+      const response = await fetch(API_ENDPOINTS.AI_CONTEXTUAL_RESPONSE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userMessage,
+          currentStep,
+          allSteps,
+          videoTime,
+          moduleId
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('AI service unavailable')
+      }
+
+      const data = await response.json()
+      return data.response || 'I apologize, but I\'m having trouble processing your request right now.'
+    } catch (error) {
+      console.error('AI response error:', error)
+      // Fallback to simple keyword-based responses
+      return generateFallbackResponse(userMessage, currentStep, allSteps)
+    }
+  }
+
+  const generateFallbackResponse = (userMessage: string, currentStep: any, allSteps: Step[]) => {
+    // Simple AI response logic based on keywords and context
+    const message = userMessage.toLowerCase()
     
-    setChatMessage('')
+    // Current step questions
+    if (currentStep && (message.includes('current step') || message.includes('this step') || message.includes('what step'))) {
+      return `You're currently on **Step ${currentStep.stepNumber}**: "${currentStep.title}". ${currentStep.description}`
+    }
+    
+    // Step navigation
+    if (message.includes('next step') || message.includes('previous step')) {
+      const totalSteps = allSteps.length
+      if (currentStep) {
+        if (message.includes('next') && currentStep.stepNumber < totalSteps) {
+          return `The next step is **Step ${currentStep.stepNumber + 1}**: "${allSteps[currentStep.stepNumber].title}". Click the "▶️ Seek" button to jump to it!`
+        } else if (message.includes('previous') && currentStep.stepNumber > 1) {
+          return `The previous step was **Step ${currentStep.stepNumber - 1}**: "${allSteps[currentStep.stepNumber - 2].title}". You can click "▶️ Seek" on any step to navigate.`
+        }
+      }
+      return "You can click the '▶️ Seek' button on any step to navigate to it, or use the video controls to move around."
+    }
+    
+    // Step count and overview
+    if (message.includes('how many steps') || message.includes('total steps') || message.includes('overview')) {
+      return `This training has **${allSteps.length} steps** total. You can see all steps listed below the video. Each step is clickable and will seek to that part of the video.`
+    }
+    
+    // Editing help
+    if (message.includes('edit') || message.includes('change') || message.includes('modify')) {
+      return `To edit a step, click the "✏️ Edit" button on any step. You can modify the title, description, timing, aliases, and AI teaching notes. Changes auto-save as you type!`
+    }
+    
+    // AI rewrite help
+    if (message.includes('ai rewrite') || message.includes('rewrite') || message.includes('improve')) {
+      return `Use the "✨ AI Rewrite" button in the editor to get different versions of your step title. Choose from polished, casual, detailed, or concise styles!`
+    }
+    
+    // Timing questions
+    if (message.includes('time') || message.includes('duration') || message.includes('how long')) {
+      if (currentStep) {
+        const minutes = Math.floor(currentStep.timestamp / 60)
+        const seconds = currentStep.timestamp % 60
+        return `Step ${currentStep.stepNumber} starts at ${minutes}:${seconds.toString().padStart(2, '0')} and lasts ${currentStep.duration} seconds.`
+      }
+      return "Each step has specific timing. You can see the timestamp on each step, and click '▶️ Seek' to jump to that exact moment in the video."
+    }
+    
+    // General help
+    if (message.includes('help') || message.includes('how to') || message.includes('what can')) {
+      return `I can help you with:
+• **Navigation**: Ask about current, next, or previous steps
+• **Editing**: Learn how to modify steps and use AI rewrite
+• **Overview**: Get information about the training structure
+• **Timing**: Find out when steps occur in the video
+
+Just ask me anything about the training!`
+    }
+    
+    // Default response
+    return `I understand you're asking about "${userMessage}". I can help with step navigation, editing, timing, and general questions about this training. What would you like to know?`
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -209,6 +478,29 @@ export const TrainingPage: React.FC = () => {
       handleSendMessage()
     }
   }
+
+  // Auto-scroll to bottom of chat
+  const scrollToBottom = () => {
+    if (chatHistoryRef.current) {
+      chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight
+    }
+  }
+
+  // Auto-scroll when chat history changes
+  useEffect(() => {
+    scrollToBottom()
+  }, [chatHistory])
+
+  // Auto-scroll to current step when it changes
+  useEffect(() => {
+    const currentStepIndex = getCurrentStepIndex()
+    if (stepsContainerRef.current && currentStepIndex !== null) {
+      const currentStepElement = stepsContainerRef.current.children[currentStepIndex] as HTMLElement;
+      if (currentStepElement) {
+        currentStepElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [videoTime, steps]);
 
   const handleLoadSteps = async () => {
     if (!moduleId) return
@@ -256,7 +548,42 @@ export const TrainingPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
-      <h1 className="text-3xl font-bold text-gray-900">Training: {moduleId}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Training: {moduleId}</h1>
+        <div className="flex items-center gap-4">
+          {/* Training Progress */}
+          {steps.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-32 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${getTrainingProgress()}%` }}
+                />
+              </div>
+              <span className="text-sm text-gray-600">
+                {Math.round(getTrainingProgress())}% complete
+              </span>
+            </div>
+          )}
+          {/* Auto-save Status */}
+          {autoSaveStatus !== 'idle' && (
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+              autoSaveStatus === 'saved' ? 'bg-green-100 text-green-700' :
+              autoSaveStatus === 'error' ? 'bg-red-100 text-red-700' :
+              'bg-yellow-100 text-yellow-700'
+            }`}>
+              {autoSaveStatus === 'saving' && '⏳'}
+              {autoSaveStatus === 'saved' && '✅'}
+              {autoSaveStatus === 'error' && '❌'}
+              <span>
+                {autoSaveStatus === 'saving' && 'Auto-saving...'}
+                {autoSaveStatus === 'saved' && 'Auto-saved!'}
+                {autoSaveStatus === 'error' && 'Auto-save failed'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
@@ -279,7 +606,15 @@ export const TrainingPage: React.FC = () => {
               </div>
             </div>
           ) : url ? (
-            <video controls src={url} className="w-full rounded-2xl shadow-sm" ref={videoRef} />
+            <video 
+              controls 
+              src={url} 
+              className="w-full rounded-2xl shadow-sm" 
+              ref={videoRef} 
+              onTimeUpdate={handleVideoTimeUpdate}
+              onPlay={handleVideoPlay}
+              onPause={handleVideoPause}
+            />
           ) : (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
               <div className="text-center space-y-4">
@@ -352,25 +687,65 @@ export const TrainingPage: React.FC = () => {
                   <span className="text-xs text-gray-500 self-center">
                     Current: {steps.length} steps
                   </span>
+                  <button
+                    onClick={handleSelectAll}
+                    className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded border hover:bg-blue-50 transition"
+                  >
+                    {selectedSteps.size === steps.length ? 'Deselect All' : 'Select All'}
+                  </button>
                 </div>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                   <div className="text-xs text-yellow-800">
                     <strong>💡 Inline Editing Available:</strong> Click "✏️ Edit" on any step to edit it directly while watching the video. Add aliases and AI hints to improve the training experience.
                   </div>
                 </div>
-                <div className="max-h-96 overflow-y-auto space-y-4 border rounded-lg p-4">
+                
+                {/* Bulk Operations */}
+                {selectedSteps.size > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-blue-800">
+                        <strong>Bulk Operations:</strong> {selectedSteps.size} step(s) selected
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleBulkDelete}
+                          className="text-red-600 hover:text-red-800 text-xs px-3 py-1 rounded border hover:bg-red-50 transition"
+                        >
+                          🗑️ Delete Selected
+                        </button>
+                        <button
+                          onClick={handleBulkEdit}
+                          className="text-blue-600 hover:text-blue-800 text-xs px-3 py-1 rounded border hover:bg-blue-50 transition"
+                        >
+                          ✏️ Edit Selected
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="max-h-96 overflow-y-auto space-y-4 border rounded-lg p-4" ref={stepsContainerRef}>
                   {steps.map((step, index) => (
                     <div 
                       key={index} 
                       className={`bg-white p-4 rounded-lg border shadow-sm transition-all hover:shadow-md ${
-                        currentStepIndex === index 
+                        getCurrentStepIndex() === index 
                           ? 'ring-2 ring-blue-500 bg-blue-50' 
+                          : selectedSteps.has(index)
+                          ? 'ring-2 ring-green-500 bg-green-50'
                           : 'hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-center gap-3 mb-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedSteps.has(index)}
+                          onChange={() => handleSelectStep(index)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
                         <span className={`px-2 py-1 rounded-full text-sm font-medium ${
-                          currentStepIndex === index 
+                          getCurrentStepIndex() === index 
                             ? 'bg-blue-600 text-white' 
                             : 'bg-blue-100 text-blue-800'
                         }`}>
@@ -379,8 +754,10 @@ export const TrainingPage: React.FC = () => {
                         <span className="text-gray-500 text-sm">
                           {Math.floor(step.timestamp / 60)}:{(step.timestamp % 60).toString().padStart(2, '0')}
                         </span>
-                        {currentStepIndex === index && (
-                          <span className="text-blue-600 text-xs">▶️ Playing</span>
+                        {getCurrentStepIndex() === index && (
+                          <span className="text-blue-600 text-xs flex items-center gap-1">
+                            {isVideoPlaying ? '▶️ Playing' : '⏸️ Paused'}
+                          </span>
                         )}
                         <div className="ml-auto flex gap-2">
                           <button
@@ -416,7 +793,8 @@ export const TrainingPage: React.FC = () => {
                             handleSaveStep(index)
                           }}
                           onCancel={handleCancelEdit}
-                          onAIRewrite={() => handleAIRewrite(index)}
+                          onAIRewrite={(style) => handleAIRewrite(index, style)}
+                          onAutoSave={handleAutoSave}
                         />
                       ) : (
                         <div>
@@ -469,8 +847,33 @@ export const TrainingPage: React.FC = () => {
         <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col h-[500px]">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">🤖 AI Assistant</h3>
           
+          {/* Suggested Questions */}
+          <div className="mb-4">
+            <p className="text-xs text-gray-500 mb-2">Try asking:</p>
+            <div className="flex flex-wrap gap-1">
+              {[
+                "What step am I on?",
+                "How many steps?",
+                "How to edit?",
+                "Next step?"
+              ].map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => setChatMessage(suggestion)}
+                  className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+          
           {/* Chat History */}
-          <div className="flex-1 space-y-4 overflow-y-auto mb-4">
+          <div 
+            className="flex-1 space-y-4 overflow-y-auto mb-4 scroll-smooth" 
+            ref={chatHistoryRef}
+            style={{ scrollBehavior: 'smooth' }}
+          >
             {chatHistory.map((chat, index) => (
               <div key={index} className={`flex ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-xs p-3 rounded-lg ${
@@ -478,7 +881,16 @@ export const TrainingPage: React.FC = () => {
                     ? 'bg-blue-600 text-white' 
                     : 'bg-gray-100 text-gray-700'
                 }`}>
-                  <p className="text-sm">{chat.message}</p>
+                  <p className="text-sm">
+                    {chat.isTyping ? (
+                      <span className="flex items-center gap-1">
+                        <span className="animate-pulse">...</span>
+                        <span className="text-xs">AI is typing</span>
+                      </span>
+                    ) : (
+                      chat.message
+                    )}
+                  </p>
                 </div>
               </div>
             ))}

@@ -1,11 +1,12 @@
 // ✅ Responsive sticky Navigation using emoji instead of lucide icons
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { UserButton } from '@clerk/clerk-react'
+import { UserButton, useAuth } from '@clerk/clerk-react'
 
 export const Navigation: React.FC = () => {
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { isSignedIn } = useAuth()
 
   const navLink = (to: string, label: string) => (
     <Link
@@ -33,7 +34,7 @@ export const Navigation: React.FC = () => {
 
           {/* Desktop Links */}
           <div className="hidden sm:flex items-center space-x-4">
-            {navLink('/', '🏠 Home')}
+            {navLink(isSignedIn ? '/dashboard' : '/', '🏠 Home')}
             {navLink('/dashboard', '📊 Dashboard')}
             {navLink('/upload', '📤 Upload')}
             <UserButton afterSignOutUrl="/" />
@@ -53,7 +54,7 @@ export const Navigation: React.FC = () => {
       {/* Mobile Dropdown */}
       {mobileOpen && (
         <div className="sm:hidden px-4 pb-4 space-y-2 border-t bg-white shadow-md">
-          {navLink('/', '🏠 Home')}
+          {navLink(isSignedIn ? '/dashboard' : '/', '🏠 Home')}
           {navLink('/dashboard', '📊 Dashboard')}
           {navLink('/upload', '📤 Upload')}
           <UserButton afterSignOutUrl="/" />

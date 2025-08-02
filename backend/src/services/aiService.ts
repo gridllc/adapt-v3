@@ -12,6 +12,9 @@ import fs from 'fs'
 
 const execAsync = promisify(exec)
 
+// Development video length limit (90 seconds)
+const DEV_VIDEO_LIMIT_SECONDS = 90
+
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -81,18 +84,40 @@ export const aiService = {
         console.log('📁 Using local video file:', videoUrl)
       }
 
-      const actualVideoPath = videoUrl.startsWith('http') ? videoPath : videoUrl
+      let actualVideoPath = videoUrl.startsWith('http') ? videoPath : videoUrl
+      let currentAudioPath = audioPath
 
       // 2. Extract audio
-      await this.extractAudio(actualVideoPath, audioPath)
+      await this.extractAudio(actualVideoPath, currentAudioPath)
       console.log('🎵 Audio extracted')
 
       // 3. Get video metadata
       const metadata = await this.getVideoMetadata(actualVideoPath)
       console.log('📊 Metadata extracted:', metadata)
 
+      // 3.5. Check development video length limit
+      if (metadata.duration > DEV_VIDEO_LIMIT_SECONDS) {
+        console.log(`⚠️ Video is ${metadata.duration}s long, limiting to ${DEV_VIDEO_LIMIT_SECONDS}s for development`)
+        console.log(`💡 For production, increase DEV_VIDEO_LIMIT_SECONDS or remove this check`)
+        
+        // Truncate video to 90 seconds for development
+        const truncatedPath = join(tempDir, `${videoId}_truncated.mp4`)
+        await this.truncateVideo(actualVideoPath, truncatedPath, DEV_VIDEO_LIMIT_SECONDS)
+        
+        // Update paths to use truncated video
+        actualVideoPath = truncatedPath
+        currentAudioPath = join(tempDir, `${videoId}_truncated.wav`)
+        
+        // Re-extract audio from truncated video
+        await this.extractAudio(actualVideoPath, currentAudioPath)
+        console.log('🎵 Audio re-extracted from truncated video')
+        
+        // Update metadata
+        metadata.duration = DEV_VIDEO_LIMIT_SECONDS
+      }
+
       // 4. Transcribe audio
-      const transcript = await this.transcribeAudio(audioPath)
+      const transcript = await this.transcribeAudio(currentAudioPath)
       console.log('📝 Audio transcribed')
 
       // 5. Extract key frames
@@ -104,7 +129,7 @@ export const aiService = {
       console.log('🤖 AI analysis complete')
 
       // 7. Cleanup
-      await this.cleanup([videoPath, audioPath, ...keyFrames.map(f => f.path)].filter(Boolean))
+      await this.cleanup([videoPath, currentAudioPath, ...keyFrames.map(f => f.path)].filter(Boolean))
       console.log('🧹 Cleanup complete')
 
       return result
@@ -144,6 +169,25 @@ export const aiService = {
       await execAsync(command)
     } catch (error) {
       throw new Error(`Audio extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  },
+
+  /**
+   * Truncate video to specified duration
+   */
+  async truncateVideo(inputPath: string, outputPath: string, duration: number): Promise<void> {
+    if (!ffmpegStatic) {
+      throw new Error('FFmpeg not available')
+    }
+
+    console.log(`✂️ Truncating video to ${duration} seconds`)
+    const command = `"${ffmpegStatic}" -i "${inputPath}" -t ${duration} -c copy "${outputPath}"`
+    
+    try {
+      await execAsync(command)
+      console.log('✅ Video truncated successfully')
+    } catch (error) {
+      throw new Error(`Video truncation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   },
 
@@ -534,81 +578,283 @@ export const aiService = {
   /**
    * Rewrite a training step with AI
    */
-  async rewriteStep(text: string): Promise<string> {
+  async rewriteStep(text: string, style: string = 'polished'): Promise<string> {
+    console.log(`🤖 Rewriting text with style: ${style}`)
+    
     try {
-      // Initialize clients if needed
-      initializeClients()
+      // Try Gemini first
+      const geminiResult = await this.rewriteWithGemini(text, style)
+      if (geminiResult) return geminiResult
       
-      if (genAI) {
-        return await this.rewriteWithGemini(text)
-      } else if (openai) {
-        return await this.rewriteWithOpenAI(text)
-      } else {
-        throw new Error('No AI service available')
+      // Fallback to OpenAI
+      const openaiResult = await this.rewriteWithOpenAI(text, style)
+      if (openaiResult) return openaiResult
+      
+      // Final fallback
+      return this.improveStepText(text, style)
+    } catch (error) {
+      console.error('❌ AI rewrite failed:', error)
+      return this.improveStepText(text, style)
+    }
+  },
+
+  async rewriteWithGemini(text: string, style: string): Promise<string> {
+    if (!genAI) { // Changed from this.geminiModel to genAI
+      console.log('⚠️ Gemini not available, skipping')
+      return ''
+    }
+
+    const stylePrompts = {
+      polished: 'Rewrite this training step in a polished, professional tone. Make it clear and authoritative:',
+      casual: 'Rewrite this training step in a casual, friendly tone. Make it approachable and conversational:',
+      detailed: 'Rewrite this training step with more detail and explanation. Make it comprehensive and educational:',
+      concise: 'Rewrite this training step to be short and clear. Make it direct and to the point:'
+    }
+
+    const prompt = `${stylePrompts[style as keyof typeof stylePrompts] || stylePrompts.polished}
+
+Original: "${text}"
+
+Rewrite:`
+
+    try {
+      const result = await genAI!.getGenerativeModel({ model: 'gemini-1.5-pro' }).generateContent(prompt) // Changed from this.geminiModel to genAI
+      const response = await result.response
+      const rewrittenText = response.text().trim()
+      
+      if (rewrittenText && rewrittenText !== text) {
+        console.log(`✅ Gemini rewrite successful (${style}):`, rewrittenText)
+        return rewrittenText
       }
     } catch (error) {
-      console.error('AI rewrite error:', error)
-      // Return a slightly improved version as fallback
-      return this.improveStepText(text)
+      console.error('❌ Gemini rewrite failed:', error)
     }
+    
+    return ''
   },
 
-  async rewriteWithGemini(text: string): Promise<string> {
-    const model = genAI!.getGenerativeModel({ model: 'gemini-1.5-pro' })
-    
-    const prompt = `
-      You are an expert at writing clear, concise training step descriptions.
+  async rewriteWithOpenAI(text: string, style: string): Promise<string> {
+    if (!openai) { // Changed from this.openaiClient to openai
+      console.log('⚠️ OpenAI not available, skipping')
+      return ''
+    }
+
+    const stylePrompts = {
+      polished: 'Rewrite this training step in a polished, professional tone. Make it clear and authoritative:',
+      casual: 'Rewrite this training step in a casual, friendly tone. Make it approachable and conversational:',
+      detailed: 'Rewrite this training step with more detail and explanation. Make it comprehensive and educational:',
+      concise: 'Rewrite this training step to be short and clear. Make it direct and to the point:'
+    }
+
+    const prompt = `${stylePrompts[style as keyof typeof stylePrompts] || stylePrompts.polished}
+
+Original: "${text}"
+
+Rewrite:`
+
+    try {
+      const response = await openai!.chat.completions.create({ // Changed from this.openaiClient to openai
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 150,
+        temperature: 0.7
+      })
+
+      const rewrittenText = response.choices[0]?.message?.content?.trim()
       
-      Please rewrite this training step to make it more clear, actionable, and professional:
-      "${text}"
+      if (rewrittenText && rewrittenText !== text) {
+        console.log(`✅ OpenAI rewrite successful (${style}):`, rewrittenText)
+        return rewrittenText
+      }
+    } catch (error) {
+      console.error('❌ OpenAI rewrite failed:', error)
+    }
+    
+    return ''
+  },
+
+  improveStepText(text: string, style: string = 'polished'): string {
+    console.log(`🔄 Using fallback text improvement for style: ${style}`)
+    
+    const improvements = {
+      polished: (t: string) => t.charAt(0).toUpperCase() + t.slice(1).replace(/\.$/, '') + '.',
+      casual: (t: string) => t.replace(/\.$/, '') + ' - easy peasy!',
+      detailed: (t: string) => t.charAt(0).toUpperCase() + t.slice(1).replace(/\.$/, '') + ' (this step is important for the process).',
+      concise: (t: string) => t.split(' ').slice(0, 5).join(' ') + '.'
+    }
+    
+    const improve = improvements[style as keyof typeof improvements] || improvements.polished
+    return improve(text)
+  },
+
+  /**
+   * Enhanced context-aware AI response generation
+   */
+  async generateContextualResponse(
+    userMessage: string,
+    currentStep: any,
+    allSteps: any[],
+    videoTime: number = 0
+  ): Promise<string> {
+    console.log(`🤖 Generating contextual response for step: ${currentStep?.title}`)
+    
+    try {
+      // Build rich context for the AI
+      const context = this.buildStepContext(userMessage, currentStep, allSteps, videoTime)
       
-      Requirements:
-      - Keep it concise but informative
-      - Make it actionable (use action verbs)
-      - Ensure it's easy to follow
-      - Maintain the same level of detail
-      - Return only the rewritten text, no explanations
-    `
-
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    return response.text().trim()
+      // Try Gemini first (cheaper)
+      const geminiResponse = await this.generateWithGemini(userMessage, context)
+      if (geminiResponse) return geminiResponse
+      
+      // Fallback to OpenAI
+      const openaiResponse = await this.generateWithOpenAI(userMessage, context)
+      if (openaiResponse) return openaiResponse
+      
+      // Final fallback to keyword-based response
+      return this.generateFallbackResponse(userMessage, currentStep, allSteps)
+    } catch (error) {
+      console.error('❌ Contextual AI response failed:', error)
+      return this.generateFallbackResponse(userMessage, currentStep, allSteps)
+    }
   },
 
-  async rewriteWithOpenAI(text: string): Promise<string> {
-    const completion = await openai!.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert at writing clear, concise training step descriptions. Rewrite the given text to make it more clear, actionable, and professional while maintaining the same level of detail.'
-        },
-        {
-          role: 'user',
-          content: `Please rewrite this training step: "${text}"`
-        }
-      ],
-      temperature: 0.3
-    })
+  buildStepContext(userMessage: string, currentStep: any, allSteps: any[], videoTime: number): string {
+    if (!currentStep) {
+      return `You are an AI training assistant. The user is asking: "${userMessage}". Provide a helpful response about the training.`
+    }
 
-    return completion.choices[0]?.message?.content?.trim() || text
+    const stepIndex = allSteps.findIndex(s => s.id === currentStep.id) + 1
+    const totalSteps = allSteps.length
+    const progress = Math.round((stepIndex / totalSteps) * 100)
+    
+    const aliases = currentStep.aliases?.join(', ') || 'None'
+    const notes = currentStep.notes || 'None'
+    
+    const minutes = Math.floor(currentStep.timestamp / 60)
+    const seconds = currentStep.timestamp % 60
+    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`
+    
+    return `You are an AI training assistant helping with a video tutorial.
+
+CURRENT STEP CONTEXT:
+- Step ${stepIndex} of ${totalSteps} (${progress}% complete)
+- Title: "${currentStep.title}"
+- Description: "${currentStep.description}"
+- Video Time: ${timeString} (${currentStep.duration}s duration)
+- Key Terms/Aliases: ${aliases}
+- Training Notes: ${notes}
+
+TRAINING OVERVIEW:
+${allSteps.map((step, idx) => 
+  `${idx + 1}. ${step.title} (${Math.floor(step.timestamp / 60)}:${(step.timestamp % 60).toString().padStart(2, '0')})`
+).join('\n')}
+
+GUIDELINES:
+- Reference the current step naturally in your response
+- Use step-specific terms and aliases when relevant
+- Provide helpful, actionable advice
+- Keep responses concise but informative
+- If the user seems stuck, suggest next steps or clarification
+
+User Question: "${userMessage}"`
   },
 
-  improveStepText(text: string): string {
-    // Simple text improvements as fallback
-    let improved = text.trim()
+  async generateWithGemini(userMessage: string, context: string): Promise<string> {
+    if (!genAI) {
+      console.log('⚠️ Gemini not available, skipping')
+      return ''
+    }
+
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-pro' })
+      
+      const prompt = `${context}\n\nPlease provide a helpful response to the user's question.`
+      
+      const result = await model.generateContent(prompt)
+      const response = result.response.text()
+      
+      console.log('✅ Gemini response generated')
+      return response
+    } catch (error) {
+      console.error('❌ Gemini generation failed:', error)
+      return ''
+    }
+  },
+
+  async generateWithOpenAI(userMessage: string, context: string): Promise<string> {
+    if (!openai) {
+      console.log('⚠️ OpenAI not available, skipping')
+      return ''
+    }
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: context
+          },
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ],
+        max_tokens: 200,
+        temperature: 0.7
+      })
+      
+      const response = completion.choices[0]?.message?.content || ''
+      console.log('✅ OpenAI response generated')
+      return response
+    } catch (error) {
+      console.error('❌ OpenAI generation failed:', error)
+      return ''
+    }
+  },
+
+  generateFallbackResponse(userMessage: string, currentStep: any, allSteps: any[]): string {
+    console.log('🔄 Using fallback response')
     
-    // Capitalize first letter
-    if (improved.length > 0) {
-      improved = improved.charAt(0).toUpperCase() + improved.slice(1)
+    const message = userMessage.toLowerCase()
+    
+    // Enhanced keyword-based responses with step context
+    if (currentStep && (message.includes('current step') || message.includes('this step') || message.includes('what step'))) {
+      const stepIndex = allSteps.findIndex(s => s.id === currentStep.id) + 1
+      const minutes = Math.floor(currentStep.timestamp / 60)
+      const seconds = currentStep.timestamp % 60
+      return `You're currently on **Step ${stepIndex}**: "${currentStep.title}" at ${minutes}:${seconds.toString().padStart(2, '0')}. ${currentStep.description}`
     }
     
-    // Add period if missing
-    if (!improved.endsWith('.') && !improved.endsWith('!') && !improved.endsWith('?')) {
-      improved += '.'
+    if (message.includes('next step') || message.includes('previous step')) {
+      const currentIndex = allSteps.findIndex(s => s.id === currentStep?.id)
+      if (message.includes('next') && currentIndex < allSteps.length - 1) {
+        const nextStep = allSteps[currentIndex + 1]
+        return `The next step is **Step ${currentIndex + 2}**: "${nextStep.title}". Click the "▶️ Seek" button to jump to it!`
+      } else if (message.includes('previous') && currentIndex > 0) {
+        const prevStep = allSteps[currentIndex - 1]
+        return `The previous step was **Step ${currentIndex}**: "${prevStep.title}". You can click "▶️ Seek" on any step to navigate.`
+      }
     }
     
-    return improved
+    if (message.includes('how many steps') || message.includes('total steps')) {
+      return `This training has **${allSteps.length} steps** total. You can see all steps listed below the video. Each step is clickable and will seek to that part of the video.`
+    }
+    
+    if (message.includes('edit') || message.includes('change') || message.includes('modify')) {
+      return `To edit a step, click the "✏️ Edit" button on any step. You can modify the title, description, timing, aliases, and AI teaching notes. Changes auto-save as you type!`
+    }
+    
+    if (message.includes('time') || message.includes('duration') || message.includes('how long')) {
+      if (currentStep) {
+        const minutes = Math.floor(currentStep.timestamp / 60)
+        const seconds = currentStep.timestamp % 60
+        return `Step ${allSteps.findIndex(s => s.id === currentStep.id) + 1} starts at ${minutes}:${seconds.toString().padStart(2, '0')} and lasts ${currentStep.duration} seconds.`
+      }
+      return "Each step has specific timing. You can see the timestamp on each step, and click '▶️ Seek' to jump to that exact moment in the video."
+    }
+    
+    return `I understand you're asking about "${userMessage}". I can help with step navigation, editing, timing, and general questions about this training. What would you like to know?`
   },
 
   /**

@@ -14,6 +14,14 @@ import feedbackRoutes from './routes/feedbackRoutes.js'
 // Load environment variables from .env file
 dotenv.config()
 
+// Debug: Check if environment variables are loaded
+console.log('🔍 Environment Variables Check:')
+console.log('📧 GOOGLE_CLIENT_EMAIL:', process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'NOT SET')
+console.log('🔑 GOOGLE_PRIVATE_KEY:', process.env.GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET')
+console.log('🏢 GOOGLE_PROJECT_ID:', process.env.GOOGLE_PROJECT_ID ? 'SET' : 'NOT SET')
+console.log('🤖 OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET')
+console.log('🔮 GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET')
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -53,6 +61,25 @@ app.options('/uploads/:filename', (req, res) => {
 // 🧪 Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+// Test Google Cloud Speech initialization
+app.get('/api/test-speech', async (_req, res) => {
+  try {
+    const { audioProcessor } = await import('./services/audioProcessor.js')
+    await audioProcessor.ensureSpeechClient()
+    res.json({ 
+      status: 'success', 
+      message: 'Google Cloud Speech client initialized successfully',
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    res.json({ 
+      status: 'error', 
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    })
+  }
 })
 
 // Test endpoint

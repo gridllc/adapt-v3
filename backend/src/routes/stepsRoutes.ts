@@ -123,16 +123,30 @@ router.delete('/:moduleId', async (req: Request, res: Response) => {
 // AI rewrite endpoint
 router.post('/:moduleId/rewrite', async (req: Request, res: Response) => {
   try {
-    const { text } = req.body
-    if (!text || typeof text !== 'string') {
-      return res.status(400).json({ error: 'Text is required' })
+    const { moduleId } = req.params
+    const { text, style = 'polished' } = req.body
+    
+    if (!text) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Text is required' 
+      })
     }
 
-    const rewrittenText = await aiService.rewriteStep(text)
-    return res.status(200).json({ success: true, text: rewrittenText })
-  } catch (err: any) {
-    console.error('AI rewrite error:', err)
-    return res.status(500).json({ error: err.message || 'Failed to rewrite step' })
+    console.log(`🤖 AI rewrite request for module ${moduleId}, style: ${style}`)
+    
+    const rewrittenText = await aiService.rewriteStep(text, style)
+    
+    res.json({ 
+      success: true, 
+      text: rewrittenText 
+    })
+  } catch (error) {
+    console.error('❌ AI rewrite error:', error)
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to rewrite with AI' 
+    })
   }
 })
 

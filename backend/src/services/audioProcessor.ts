@@ -45,6 +45,9 @@ export const AUDIO_CONFIG = {
   }
 }
 
+// Development video length limit (90 seconds)
+const DEV_VIDEO_LIMIT_SECONDS = 90
+
 // Supported audio formats and their processing strategies
 export const AUDIO_FORMATS = {
   primary: ['audio/wav', 'audio/mp3', 'audio/aac'],
@@ -61,17 +64,26 @@ export class AudioProcessor {
   private tempDir = path.join(projectRoot, 'backend', 'temp')
   private processedDir = path.join(projectRoot, 'backend', 'processed')
   private speechClient: any
+  private speechClientInitialized = false
 
   constructor() {
-    this.initializeSpeechClient().catch(error => {
-      console.error('Failed to initialize speech client:', error)
-    })
     this.ensureDirectories()
+  }
+
+  async ensureSpeechClient() {
+    if (!this.speechClientInitialized) {
+      await this.initializeSpeechClient()
+      this.speechClientInitialized = true
+    }
+    return this.speechClient
   }
 
   private async initializeSpeechClient() {
     try {
       console.log('🔑 Initializing Google Cloud Speech client with environment variables')
+      console.log('📧 Client Email:', process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'NOT SET')
+      console.log('🔑 Private Key:', process.env.GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET')
+      console.log('🏢 Project ID:', process.env.GOOGLE_PROJECT_ID ? 'SET' : 'NOT SET')
 
       if (
         process.env.GOOGLE_CLIENT_EMAIL &&
@@ -436,8 +448,11 @@ export class AudioProcessor {
     console.log(`🗣️ Transcribing audio with Google Speech-to-Text: ${audioPath}`)
     
     try {
+      // Ensure Google Cloud Speech client is initialized
+      const speechClient = await this.ensureSpeechClient()
+      
       // Check if Google Cloud Speech client is available
-      if (!this.speechClient) {
+      if (!speechClient) {
         console.log('⚠️ Google Cloud Speech client not available, using simulated transcription')
         return this.generateSimulatedTranscription(audioPath)
       }
@@ -458,7 +473,7 @@ export class AudioProcessor {
         }
       }
 
-      const [response] = await this.speechClient.recognize(request)
+      const [response] = await speechClient.recognize(request)
       
       if (!response.results || response.results.length === 0) {
         throw new Error('No transcription results returned')

@@ -22,6 +22,48 @@ try {
 
 const router = express.Router()
 
+/**
+ * Enhanced contextual AI response endpoint
+ */
+router.post('/contextual-response', async (req: any, res: any) => {
+  try {
+    const { userMessage, currentStep, allSteps, videoTime, moduleId } = req.body
+
+    if (!userMessage) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User message is required' 
+      })
+    }
+
+    console.log(`🤖 Contextual AI request for module ${moduleId}`)
+    console.log(`📝 User message: "${userMessage}"`)
+    console.log(`🎬 Current step: ${currentStep?.title || 'None'}`)
+    console.log(`⏰ Video time: ${videoTime}s`)
+
+    // Generate contextual response using the enhanced AI service
+    const response = await aiService.generateContextualResponse(
+      userMessage,
+      currentStep,
+      allSteps,
+      videoTime
+    )
+
+    console.log(`✅ AI response generated: ${response.substring(0, 100)}...`)
+
+    res.json({ 
+      success: true, 
+      response: response 
+    })
+  } catch (error) {
+    console.error('❌ Contextual AI response error:', error)
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate AI response' 
+    })
+  }
+})
+
 // Process video with enhanced AI analysis
 router.post('/process-video/:moduleId', async (req, res) => {
   try {
