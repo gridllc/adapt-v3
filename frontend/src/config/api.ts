@@ -2,9 +2,9 @@
 const isDevelopment = import.meta.env.MODE === 'development'
 const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
 
-// Priority: env var > production URL > empty (for dev proxy)
+// Always use Railway URL in production, or env var if set
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (!isDevelopment ? RAILWAY_URL : '')
+  (isDevelopment ? '' : RAILWAY_URL)
 
 // Fallback: if no env var and in production, force Railway URL
 if (!import.meta.env.VITE_API_BASE_URL && !isDevelopment && !API_BASE_URL) {
@@ -18,15 +18,15 @@ export const API_CONFIG = {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
     const fullUrl = API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint
     
-    // Debug logging in development
-    if (isDevelopment) {
-      console.log('🔗 API Call:', {
-        endpoint,
-        cleanEndpoint,
-        API_BASE_URL,
-        fullUrl
-      })
-    }
+    // Debug logging
+    console.log('🔗 API Call:', {
+      endpoint,
+      cleanEndpoint,
+      API_BASE_URL,
+      fullUrl,
+      isDevelopment,
+      mode: import.meta.env.MODE
+    })
     
     return fullUrl
   }
