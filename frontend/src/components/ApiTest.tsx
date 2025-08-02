@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { API_BASE_URL, api } from '../config/api'
+import { API_BASE_URL, api, API_ENDPOINTS } from '../config/api'
 
 export const ApiTest: React.FC = () => {
   const [testResult, setTestResult] = useState<string>('')
@@ -12,7 +12,7 @@ export const ApiTest: React.FC = () => {
         console.log('🔍 Environment:', import.meta.env.MODE)
         console.log('🔍 VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL)
         
-        const result = await api('modules')
+        const result = await api(API_ENDPOINTS.MODULES)
         setTestResult(JSON.stringify(result, null, 2))
         console.log('✅ API Test Success:', result)
       } catch (error) {

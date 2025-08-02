@@ -20,11 +20,20 @@ const upload = multer({
   },
 })
 
+// Configure multer for chunk uploads (accepts any file type)
+const chunkUpload = multer({
+  storage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB
+  },
+  // No fileFilter for chunks - accept any file type
+})
+
 // Original upload endpoint
 router.post('/', upload.single('file'), uploadController.uploadVideo)
 
 // Chunked upload endpoints
-router.post('/chunk', upload.single('chunk'), uploadController.uploadChunk)
+router.post('/chunk', chunkUpload.single('chunk'), uploadController.uploadChunk)
 router.post('/finalize', uploadController.finalizeUpload)
 
 export { router as uploadRoutes } 

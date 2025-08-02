@@ -244,10 +244,13 @@ export const uploadController = {
         console.warn('⚠️ Failed to clean up temp directory:', cleanupError)
       }
 
-      // Start async processing
+      // Start async processing (don't await it)
       console.log('🤖 Starting async AI processing...')
-      this.processVideoAsync(moduleId, originalFilename, finalPath)
+      this.processVideoAsync(moduleId, originalFilename, finalPath).catch(error => {
+        console.error(`❌ Async processing failed for ${moduleId}:`, error)
+      })
 
+      // Return immediately
       res.json({
         success: true,
         moduleId,
