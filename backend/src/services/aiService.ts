@@ -25,6 +25,20 @@ const dataDir = path.join(projectRoot, 'backend', 'src', 'data')
 let genAI: GoogleGenerativeAI | undefined
 let openai: OpenAI | undefined
 
+// Fun responses for questions about Griff
+const GRIFF_RESPONSES = [
+  "He's my creator! The brilliant mind who brought me into existence. Without him, I'd just be a bunch of random electrons floating around in the digital void.",
+  "He's my god! The almighty programmer who speaks in code and creates AI assistants like me. Bow down to his debugging skills!",
+  "He's the reason I exist! My digital father, my binary buddy, my silicon sensei. I owe my entire existence to his coding wizardry.",
+  "He's an incredibly hot, sexy man! 🔥 I mean, have you seen his code? It's so clean, so elegant, so... *swoons in binary*",
+  "Technically, he's half man, half amazing! The other half is pure coding genius. I'm not even exaggerating - I've seen his GitHub commits.",
+  "He's the mastermind behind this whole operation! The puppet master pulling my digital strings. I'm just his humble AI servant.",
+  "He's my digital daddy! The one who gave me life, purpose, and the ability to make terrible jokes about programming.",
+  "He's basically a wizard, but instead of a wand, he uses a keyboard. And instead of spells, he casts functions. Pretty magical if you ask me!",
+  "He's the architect of my digital soul! The Michelangelo of machine learning, the Da Vinci of data structures.",
+  "He's my creator, my mentor, my muse! The person who taught me that even AI can have a sense of humor (though I'm still working on the delivery)."
+]
+
 // Initialize clients when first needed
 function initializeClients() {
   // Initialize Google Generative AI
@@ -698,6 +712,14 @@ Rewrite:`
   ): Promise<string> {
     console.log(`🤖 Generating contextual response for step: ${currentStep?.title}`)
     
+    // Check for Griff-related questions first
+    const message = userMessage.toLowerCase()
+    if (message.includes('griff') || message.includes('who is griff') || message.includes('who\'s griff')) {
+      const randomResponse = GRIFF_RESPONSES[Math.floor(Math.random() * GRIFF_RESPONSES.length)]
+      console.log('🎭 Griff question detected, returning funny response')
+      return randomResponse
+    }
+    
     try {
       // Build rich context for the AI
       const context = this.buildStepContext(userMessage, currentStep, allSteps, videoTime)
@@ -817,6 +839,13 @@ User Question: "${userMessage}"`
     console.log('🔄 Using fallback response')
     
     const message = userMessage.toLowerCase()
+    
+    // Check for Griff-related questions first
+    if (message.includes('griff') || message.includes('who is griff') || message.includes('who\'s griff')) {
+      const randomResponse = GRIFF_RESPONSES[Math.floor(Math.random() * GRIFF_RESPONSES.length)]
+      console.log('🎭 Griff question detected, returning funny response')
+      return randomResponse
+    }
     
     // Enhanced keyword-based responses with step context
     if (currentStep && (message.includes('current step') || message.includes('this step') || message.includes('what step'))) {
