@@ -19,6 +19,8 @@ export const HomePage: React.FC = () => {
   console.log('🔍 HomePage Debug:')
   console.log('📧 VITE_CLERK_PUBLISHABLE_KEY:', import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? 'SET' : 'NOT SET')
   console.log('🔧 clerkConfigured:', clerkConfigured)
+  console.log('🌐 Current URL:', window.location.href)
+  console.log('🔗 Current domain:', window.location.hostname)
 
   const features = [
     {
@@ -109,6 +111,15 @@ export const HomePage: React.FC = () => {
                     >
                       Get Started (Dev)
                     </Link>
+                    <button
+                      onClick={() => {
+                        console.log('🔧 Testing direct navigation...')
+                        window.location.href = '/dashboard'
+                      }}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium ml-2"
+                    >
+                      Test Direct
+                    </button>
                   </>
                 )}
               </div>

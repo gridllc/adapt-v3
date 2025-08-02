@@ -14,8 +14,24 @@ import { ApiDebug } from '@components/ApiDebug'
 const ConditionalHome = () => {
   const { isSignedIn, isLoaded } = useAuth()
   
+  // Debug logging
+  console.log('🔍 ConditionalHome Debug:')
+  console.log('🔐 isSignedIn:', isSignedIn)
+  console.log('📦 isLoaded:', isLoaded)
+  console.log('🌐 Current URL:', window.location.href)
+  
   if (!isLoaded) {
     return <div>Loading...</div>
+  }
+  
+  // For testing: allow direct access to dashboard if URL contains 'test'
+  if (window.location.search.includes('test=true')) {
+    console.log('🔧 Test mode enabled, bypassing auth')
+    return (
+      <Layout>
+        <DashboardPage />
+      </Layout>
+    )
   }
   
   if (isSignedIn) {
