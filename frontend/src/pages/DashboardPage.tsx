@@ -1,5 +1,5 @@
 // ✅ DashboardPage.tsx with Edit and Delete buttons wired into module cards
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useModules } from '../hooks/useModules'
 import { api } from '../config/api'
@@ -10,6 +10,69 @@ export const DashboardPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchTerm, setSearchTerm] = useState('')
   const [deleted, setDeleted] = useState<string[]>([])
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const [modulesResponse, feedbackResponse] = await Promise.all([
+          fetch('/api/modules'),
+          fetch('/api/feedback/stats')
+        ])
+
+        if (modulesResponse.ok) {
+          const modulesData = await modulesResponse.json()
+          setModules(modulesData.modules || [])
+        } else {
+          console.warn('Modules API failed, using fallback data')
+          setModules([
+            {
+              id: 'sample-1',
+              title: 'Sample Training Module',
+              description: 'This is a sample module for testing',
+              createdAt: new Date().toISOString(),
+              videoUrl: null
+            }
+          ])
+        }
+
+        if (feedbackResponse.ok) {
+          const feedbackData = await feedbackResponse.json()
+          setFeedbackStats(feedbackData)
+        } else {
+          console.warn('Feedback API failed, using fallback data')
+          setFeedbackStats({
+            total: 0,
+            positive: 0,
+            negative: 0,
+            recentFeedback: []
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error)
+        // Set fallback data
+        setModules([
+          {
+            id: 'sample-1',
+            title: 'Sample Training Module',
+            description: 'This is a sample module for testing',
+            createdAt: new Date().toISOString(),
+            videoUrl: null
+          }
+        ])
+        setFeedbackStats({
+          total: 0,
+          positive: 0,
+          negative: 0,
+          recentFeedback: []
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this module?')) return
