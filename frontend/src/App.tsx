@@ -25,7 +25,7 @@ const ConditionalHome = () => {
   }
   
   // For testing: allow direct access to dashboard if URL contains 'test'
-  if (window.location.search.includes('test=true')) {
+  if (window.location.search.includes('test=true') || window.location.search.includes('bypass=true')) {
     console.log('🔧 Test mode enabled, bypassing auth')
     return (
       <Layout>
@@ -60,43 +60,43 @@ function App() {
       <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" redirectUrl="/dashboard" />} />
       <Route path="/sso-callback" element={<div>Loading...</div>} />
 
-      {/* Protected routes */}
-      <Route element={<ProtectedRoute />}>
-        <Route
-          path="/upload"
-          element={
-            <Layout>
-              <UploadPage />
-            </Layout>
-          }
-        />
-        <Route
-          path="/edit-steps/:moduleId"
-          element={
-            <Layout>
-              <EditStepsPage />
-            </Layout>
-          }
-        />
-      </Route>
+             {/* Protected routes */}
+       <Route element={<ProtectedRoute />}>
+         <Route
+           path="/edit-steps/:moduleId"
+           element={
+             <Layout>
+               <EditStepsPage />
+             </Layout>
+           }
+         />
+       </Route>
       
-      {/* Public routes for development */}
-      <Route
-        path="/dashboard"
-        element={
-          <Layout>
-            <DashboardPage />
-          </Layout>
-        }
-      />
-      <Route
-        path="/training/:moduleId"
-        element={
-          <Layout>
-            <TrainingPage />
-          </Layout>
-        }
-      />
+             {/* Public routes for development - NO AUTH REQUIRED */}
+       <Route
+         path="/dashboard"
+         element={
+           <Layout>
+             <DashboardPage />
+           </Layout>
+         }
+       />
+       <Route
+         path="/upload"
+         element={
+           <Layout>
+             <UploadPage />
+           </Layout>
+         }
+       />
+       <Route
+         path="/training/:moduleId"
+         element={
+           <Layout>
+             <TrainingPage />
+           </Layout>
+         }
+       />
       
       {/* Catch-all route for unknown paths */}
       <Route path="*" element={<ConditionalHome />} />
