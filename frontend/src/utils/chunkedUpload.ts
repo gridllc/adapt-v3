@@ -47,12 +47,15 @@ export class ChunkedUploader {
 
     for (let attempt = 0; attempt < retryAttempts; attempt++) {
       try {
+        // FIXED: Use correct endpoint path
         const response = await fetch(API_CONFIG.getApiUrl('/api/upload/chunk'), {
           method: 'POST',
           body: formData,
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`Chunk ${index} upload failed:`, response.status, errorText)
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
 
@@ -131,6 +134,7 @@ export class ChunkedUploader {
     console.log('📊 File size:', (file.size / 1024 / 1024).toFixed(2), 'MB')
     console.log('🔧 Chunk size:', (chunkSize / 1024 / 1024).toFixed(2), 'MB')
     console.log('⚡ Max concurrent:', maxConcurrent)
+    console.log('🆔 Module ID:', moduleId)
 
     const chunks = this.createChunks(file, chunkSize)
     const totalChunks = chunks.length
@@ -146,6 +150,8 @@ export class ChunkedUploader {
 
     // Finalize upload
     console.log('✅ All chunks uploaded, finalizing...')
+    
+    // FIXED: Use correct endpoint path
     const finalizeResponse = await fetch(API_CONFIG.getApiUrl('/api/upload/finalize'), {
       method: 'POST',
       headers: {
@@ -159,11 +165,13 @@ export class ChunkedUploader {
     })
 
     if (!finalizeResponse.ok) {
-      throw new Error('Failed to finalize upload')
+      const errorText = await finalizeResponse.text()
+      console.error('Finalize failed:', finalizeResponse.status, errorText)
+      throw new Error(`Failed to finalize upload: ${finalizeResponse.status} ${errorText}`)
     }
 
     const result = await finalizeResponse.json()
-    console.log('🎉 Upload completed successfully')
+    console.log('🎉 Upload completed successfully:', result)
     
     return {
       moduleId: result.moduleId,
