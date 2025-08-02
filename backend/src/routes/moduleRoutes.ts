@@ -21,12 +21,17 @@ const dataDir = path.join(baseDir, 'data')
 router.get('/', async (req, res) => {
   try {
     console.log('📋 Fetching modules from:', modulesPath)
+    console.log('🔍 Environment:', process.env.NODE_ENV)
+    console.log('🔍 Base directory:', baseDir)
+    console.log('🔍 Current directory:', process.cwd())
     
     // Check if file exists first
     try {
       await fs.access(modulesPath)
     } catch {
       console.log('📁 Modules file not found, creating empty array')
+      // Ensure data directory exists
+      await fs.mkdir(path.dirname(modulesPath), { recursive: true })
       await fs.writeFile(modulesPath, JSON.stringify([], null, 2))
     }
     
