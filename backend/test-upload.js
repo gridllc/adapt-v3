@@ -1,6 +1,6 @@
 // Simple test script to verify upload endpoints
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
 
 async function testUploadEndpoints() {
   console.log('🧪 Testing upload endpoints...')
@@ -77,8 +77,4 @@ async function testUploadEndpoints() {
 }
 
 // Run the test if this file is executed directly
-if (require.main === module) {
-  testUploadEndpoints()
-}
-
-module.exports = { testUploadEndpoints } 
+testUploadEndpoints() 
