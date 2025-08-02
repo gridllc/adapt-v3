@@ -2,19 +2,18 @@
 const isDevelopment = import.meta.env.MODE === 'development'
 const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
 
-// Force Railway URL in production, or env var if set
+// Use localhost in development, Railway URL in production
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (isDevelopment ? RAILWAY_URL : RAILWAY_URL)
+  (isDevelopment ? '' : RAILWAY_URL)
 
-// Force Railway URL in production if no env var is set
-if (!isDevelopment && !import.meta.env.VITE_API_BASE_URL) {
-  console.log('🚀 Production mode detected, using Railway URL')
-}
-
-// Fallback: if no env var and in production, force Railway URL
-if (!import.meta.env.VITE_API_BASE_URL && !isDevelopment && !API_BASE_URL) {
-  console.warn('No VITE_API_BASE_URL found, using Railway URL')
-}
+// Debug logging
+console.log('🔧 API Configuration:', {
+  mode: import.meta.env.MODE,
+  isDevelopment,
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  API_BASE_URL,
+  RAILWAY_URL
+})
 
 export const API_CONFIG = {
   baseURL: API_BASE_URL,

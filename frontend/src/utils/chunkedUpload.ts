@@ -1,6 +1,8 @@
 // Chunked upload utility with concurrent processing
 // This splits large files into chunks and uploads them in parallel
 
+import { API_CONFIG } from '../config/api'
+
 export interface ChunkUploadOptions {
   chunkSize?: number // Default 2MB
   maxConcurrent?: number // Default 3
@@ -45,7 +47,7 @@ export class ChunkedUploader {
 
     for (let attempt = 0; attempt < retryAttempts; attempt++) {
       try {
-        const response = await fetch('/api/upload-chunk', {
+        const response = await fetch(API_CONFIG.getApiUrl('/api/upload/chunk'), {
           method: 'POST',
           body: formData,
         })
@@ -144,7 +146,7 @@ export class ChunkedUploader {
 
     // Finalize upload
     console.log('✅ All chunks uploaded, finalizing...')
-    const finalizeResponse = await fetch('/api/upload-finalize', {
+    const finalizeResponse = await fetch(API_CONFIG.getApiUrl('/api/upload/finalize'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
