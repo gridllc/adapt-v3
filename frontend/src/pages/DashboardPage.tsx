@@ -127,5 +127,6 @@ export const DashboardPage: React.FC = () => {
       <div className="mt-8">
         <ApiTest />
       </div>
-    )
-  }
+    </div>
+  )
+}
