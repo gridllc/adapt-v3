@@ -95,7 +95,7 @@ export const DashboardPage: React.FC = () => {
       {loading && <p className="text-gray-500">Loading modules...</p>}
       {error && <p className="text-red-500">{error}</p>}
 
-s      {/* Feedback Dashboard */}
+      {/* Feedback Dashboard */}
       <div className="mb-6">
         <FeedbackDashboard />
       </div>
@@ -122,7 +122,6 @@ s      {/* Feedback Dashboard */}
           </div>
         ))}
       </div>
-          </div>
       
       {/* Temporary API Test */}
       <div className="mt-8">
