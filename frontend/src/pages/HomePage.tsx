@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@clerk/clerk-react'
 import { 
   Play, 
   Bot, 
@@ -14,11 +15,14 @@ import {
 
 export const HomePage: React.FC = () => {
   const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+  const { isSignedIn, isLoaded } = useAuth()
   
   // Debug logging
   console.log('🔍 HomePage Debug:')
   console.log('📧 VITE_CLERK_PUBLISHABLE_KEY:', import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? 'SET' : 'NOT SET')
   console.log('🔧 clerkConfigured:', clerkConfigured)
+  console.log('🔐 isSignedIn:', isSignedIn)
+  console.log('📦 isLoaded:', isLoaded)
   console.log('🌐 Current URL:', window.location.href)
   console.log('🔗 Current domain:', window.location.hostname)
 
@@ -82,7 +86,24 @@ export const HomePage: React.FC = () => {
               <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">Adapt</span>
             </div>
                           <div className="flex items-center space-x-4">
-                {clerkConfigured ? (
+                {isLoaded && isSignedIn ? (
+                  // Signed in user - show app navigation
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-3 py-2 text-sm font-medium"
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/upload"
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                    >
+                      Upload Video
+                    </Link>
+                  </>
+                ) : clerkConfigured ? (
+                  // Not signed in, Clerk configured - show auth buttons
                   <>
                     <Link
                       to="/sign-in"
@@ -98,6 +119,7 @@ export const HomePage: React.FC = () => {
                     </Link>
                   </>
                 ) : (
+                  // Development mode - show test buttons
                   <>
                     <Link
                       to="/dashboard"
@@ -160,7 +182,25 @@ export const HomePage: React.FC = () => {
           )}
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            {clerkConfigured ? (
+            {isLoaded && isSignedIn ? (
+              // Signed in user - show app actions
+              <>
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
+                >
+                  Go to Dashboard
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+                <Link
+                  to="/upload"
+                  className="inline-flex items-center px-8 py-4 bg-white text-blue-600 font-medium rounded-lg border-2 border-blue-600 hover:bg-blue-50 transition-colors"
+                >
+                  Upload Video
+                </Link>
+              </>
+            ) : clerkConfigured ? (
+              // Not signed in, Clerk configured - show auth buttons
               <>
                 <Link
                   to="/sign-up"
@@ -177,6 +217,7 @@ export const HomePage: React.FC = () => {
                   </Link>
                 </>
               ) : (
+                // Development mode - show test button
                 <Link
                   to="/dashboard"
                   className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
