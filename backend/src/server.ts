@@ -10,6 +10,7 @@ import { aiRoutes } from './routes/aiRoutes.js'
 import stepsRoutes from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
+import transcriptRoutes from './routes/transcriptRoutes.js'
 
 // Load environment variables from .env file
 dotenv.config()
@@ -40,6 +41,7 @@ app.use('/api/ai', aiRoutes)
 app.use('/api/steps', stepsRoutes)
 app.use('/api/video-url', videoRoutes)
 app.use('/api/feedback', feedbackRoutes)
+app.use('/api', transcriptRoutes) // Add transcript routes
 
 // Add CORS headers for video files
 app.use('/uploads', (req, res, next) => {

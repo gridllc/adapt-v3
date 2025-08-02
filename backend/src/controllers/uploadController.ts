@@ -176,8 +176,36 @@ export const uploadController = {
 
       const { chunkIndex, totalChunks, moduleId } = req.body
       
-      if (!chunkIndex || !totalChunks || !moduleId) {
-        return res.status(400).json({ error: 'Missing required fields: chunkIndex, totalChunks, moduleId' })
+      // Enhanced validation with detailed error messages
+      const missingFields = []
+      if (!chunkIndex) missingFields.push('chunkIndex')
+      if (!totalChunks) missingFields.push('totalChunks')
+      if (!moduleId) missingFields.push('moduleId')
+      
+      if (missingFields.length > 0) {
+        console.error(`❌ Missing required fields: ${missingFields.join(', ')}`)
+        return res.status(400).json({ 
+          error: `Missing required fields: ${missingFields.join(', ')}`,
+          received: { chunkIndex, totalChunks, moduleId }
+        })
+      }
+
+      // Validate chunk index
+      const chunkIndexNum = parseInt(chunkIndex)
+      const totalChunksNum = parseInt(totalChunks)
+      
+      if (isNaN(chunkIndexNum) || isNaN(totalChunksNum)) {
+        return res.status(400).json({ 
+          error: 'Invalid chunk index or total chunks - must be numbers',
+          received: { chunkIndex, totalChunks }
+        })
+      }
+
+      if (chunkIndexNum < 0 || chunkIndexNum >= totalChunksNum) {
+        return res.status(400).json({ 
+          error: `Invalid chunk index: ${chunkIndexNum} (must be 0 to ${totalChunksNum - 1})`,
+          received: { chunkIndex: chunkIndexNum, totalChunks: totalChunksNum }
+        })
       }
 
       console.log(`📦 Chunk ${chunkIndex}/${totalChunks} uploaded for module ${moduleId}`)
@@ -195,7 +223,9 @@ export const uploadController = {
 
       res.json({ 
         success: true, 
-        chunkIndex: parseInt(chunkIndex),
+        chunkIndex: chunkIndexNum,
+        totalChunks: totalChunksNum,
+        moduleId,
         message: `Chunk ${chunkIndex} uploaded successfully` 
       })
 
@@ -207,12 +237,32 @@ export const uploadController = {
 
   async finalizeUpload(req: Request, res: Response) {
     console.log('🔁 Finalize upload handler triggered')
+    console.log('📦 Request body:', req.body)
     
     try {
       const { moduleId, originalFilename, totalChunks } = req.body
       
-      if (!moduleId || !originalFilename || !totalChunks) {
-        return res.status(400).json({ error: 'Missing required fields: moduleId, originalFilename, totalChunks' })
+      // Enhanced validation with detailed error messages
+      const missingFields = []
+      if (!moduleId) missingFields.push('moduleId')
+      if (!originalFilename) missingFields.push('originalFilename')
+      if (!totalChunks) missingFields.push('totalChunks')
+      
+      if (missingFields.length > 0) {
+        console.error(`❌ Missing required fields: ${missingFields.join(', ')}`)
+        return res.status(400).json({ 
+          error: `Missing required fields: ${missingFields.join(', ')}`,
+          received: { moduleId, originalFilename, totalChunks }
+        })
+      }
+
+      // Validate totalChunks is a number
+      const totalChunksNum = parseInt(totalChunks)
+      if (isNaN(totalChunksNum) || totalChunksNum <= 0) {
+        return res.status(400).json({ 
+          error: 'Invalid totalChunks - must be a positive number',
+          received: { totalChunks }
+        })
       }
 
       console.log(`📦 Finalizing upload for module ${moduleId} with ${totalChunks} chunks`)
@@ -221,12 +271,34 @@ export const uploadController = {
       const tempDir = path.join(process.cwd(), 'uploads', 'temp', moduleId)
       const finalPath = path.join(process.cwd(), 'uploads', `${moduleId}.mp4`)
       
+      // Check if temp directory exists
+      if (!fs.existsSync(tempDir)) {
+        console.error(`❌ Temp directory not found: ${tempDir}`)
+        return res.status(400).json({ 
+          error: 'No chunks found for this module. Please upload chunks first.',
+          moduleId,
+          tempDir
+        })
+      }
+      
       const fileBuffers: Buffer[] = []
       
-      for (let i = 0; i < totalChunks; i++) {
+      for (let i = 0; i < totalChunksNum; i++) {
         const chunkPath = path.join(tempDir, `chunk-${i}`)
+        
+        if (!fs.existsSync(chunkPath)) {
+          console.error(`❌ Missing chunk file: ${chunkPath}`)
+          return res.status(400).json({ 
+            error: `Missing chunk ${i}. Expected ${totalChunksNum} chunks but chunk ${i} is missing.`,
+            moduleId,
+            missingChunk: i,
+            totalChunks: totalChunksNum
+          })
+        }
+        
         const chunkBuffer = await fs.promises.readFile(chunkPath)
         fileBuffers.push(chunkBuffer)
+        console.log(`📦 Loaded chunk ${i}: ${(chunkBuffer.length / 1024).toFixed(2)} KB`)
       }
 
       // Combine all chunks
@@ -255,7 +327,8 @@ export const uploadController = {
         success: true,
         moduleId,
         videoUrl: `http://localhost:8000/uploads/${moduleId}.mp4`,
-        message: 'Upload finalized successfully. Processing started in background.'
+        message: 'Upload finalized successfully. Processing started in background.',
+        fileSize: fullFile.length
       })
 
     } catch (error) {
