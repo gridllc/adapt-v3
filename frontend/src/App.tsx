@@ -1,8 +1,10 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { SignUp, SignIn, useAuth } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/clerk-react'
 import { ProtectedRoute } from '@components/common/ProtectedRoute'
 import { Layout } from '@components/common/Layout'
+import { CenteredSignIn } from '@components/common/CenteredSignIn'
+import { CenteredSignUp } from '@components/common/CenteredSignUp'
 import { HomePage } from '@pages/HomePage'
 import { DashboardPage } from '@pages/DashboardPage'
 import { TrainingPage } from '@pages/TrainingPage'
@@ -56,8 +58,8 @@ function App() {
       <Route path="/" element={<HomePage />} />
       
       {/* Clerk authentication routes */}
-      <Route path="/sign-in/*" element={<SignIn routing="path" path="/sign-in" redirectUrl="/dashboard" />} />
-      <Route path="/sign-up/*" element={<SignUp routing="path" path="/sign-up" redirectUrl="/dashboard" />} />
+      <Route path="/sign-in/*" element={<CenteredSignIn />} />
+      <Route path="/sign-up/*" element={<CenteredSignUp />} />
       <Route path="/sso-callback" element={<div>Loading...</div>} />
 
              {/* Protected routes */}
