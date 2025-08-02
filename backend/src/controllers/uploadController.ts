@@ -268,8 +268,11 @@ export const uploadController = {
       console.log(`📦 Finalizing upload for module ${moduleId} with ${totalChunks} chunks`)
 
       // Reassemble chunks
-      const tempDir = path.join(process.cwd(), 'uploads', 'temp', moduleId)
-      const finalPath = path.join(process.cwd(), 'uploads', `${moduleId}.mp4`)
+      const tempDir = path.join(process.cwd(), 'backend', 'uploads', 'temp', moduleId)
+      const finalPath = path.join(process.cwd(), 'backend', 'uploads', `${moduleId}.mp4`)
+      
+      console.log(`📁 Temp directory: ${tempDir}`)
+      console.log(`📁 Final path: ${finalPath}`)
       
       // Check if temp directory exists
       if (!fs.existsSync(tempDir)) {
@@ -285,6 +288,7 @@ export const uploadController = {
       
       for (let i = 0; i < totalChunksNum; i++) {
         const chunkPath = path.join(tempDir, `chunk-${i}`)
+        console.log(`📦 Looking for chunk ${i} at: ${chunkPath}`)
         
         if (!fs.existsSync(chunkPath)) {
           console.error(`❌ Missing chunk file: ${chunkPath}`)
@@ -303,6 +307,25 @@ export const uploadController = {
 
       // Combine all chunks
       const fullFile = Buffer.concat(fileBuffers)
+      
+      // Validate the final file size
+      if (fullFile.length === 0) {
+        console.error('❌ Final file is empty')
+        return res.status(400).json({ 
+          error: 'Final file is empty. Upload may have failed.',
+          moduleId,
+          totalChunks: totalChunksNum,
+          finalFileSize: fullFile.length
+        })
+      }
+      
+      // Ensure uploads directory exists
+      const uploadsDir = path.dirname(finalPath)
+      if (!fs.existsSync(uploadsDir)) {
+        await fs.promises.mkdir(uploadsDir, { recursive: true })
+        console.log(`📁 Created uploads directory: ${uploadsDir}`)
+      }
+      
       await fs.promises.writeFile(finalPath, fullFile)
 
       console.log(`✅ File reassembled: ${finalPath}`)
@@ -318,9 +341,10 @@ export const uploadController = {
 
       // Start async processing (don't await it)
       console.log('🤖 Starting async AI processing...')
-      this.processVideoAsync(moduleId, originalFilename, finalPath).catch(error => {
-        console.error(`❌ Async processing failed for ${moduleId}:`, error)
-      })
+      // Temporarily disable async processing to isolate the issue
+      // this.processVideoAsync(moduleId, originalFilename, finalPath).catch(error => {
+      //   console.error(`❌ Async processing failed for ${moduleId}:`, error)
+      // })
 
       // Return immediately
       res.json({
@@ -333,7 +357,15 @@ export const uploadController = {
 
     } catch (error) {
       console.error('❌ Finalize upload error:', error)
-      res.status(500).json({ error: 'Failed to finalize upload' })
+      console.error('📋 Full error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      
+      // Return more detailed error information
+      res.status(500).json({ 
+        error: 'Failed to finalize upload',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        moduleId: req.body?.moduleId || 'unknown',
+        totalChunks: req.body?.totalChunks || 'unknown'
+      })
     }
   },
 
@@ -341,55 +373,20 @@ export const uploadController = {
     try {
       console.log(`🤖 Starting async processing for module ${moduleId}`)
       
-      // Process with AI
-      const videoUrl = `http://localhost:8000/uploads/${moduleId}.mp4`
-      const moduleData = await aiService.processVideo(videoUrl)
+      // For now, skip AI processing to avoid potential errors
+      console.log(`📁 Video file saved at: ${videoPath}`)
       
-      // Generate steps
-      const steps = await aiService.generateStepsForModule(moduleId, videoUrl)
-      
-      // Transcription processing
-      let trainingData: any = null
-      let enhancedSteps: any = null
-      
-      try {
-        const audioProcessor = new AudioProcessor()
-        
-        trainingData = await audioProcessor.createTrainingStepsFromVideo(videoPath, {
-          maxWordsPerStep: 25,
-          minStepDuration: 2,
-          maxStepDuration: 30,
-          confidenceThreshold: 0.6
-        })
-        
-        enhancedSteps = await audioProcessor.generateGPTEnhancedSteps(videoPath, {
-          useWordLevelSegmentation: false,
-          enableGPTRewriting: true
-        })
-        
-        // Save training data
-        const trainingDataPath = path.join(__dirname, '../data/training', `${moduleId}.json`)
-        await fs.promises.mkdir(path.dirname(trainingDataPath), { recursive: true })
-        await fs.promises.writeFile(
-          trainingDataPath, 
-          JSON.stringify({
-            moduleId,
-            originalSteps: steps,
-            structuredSteps: trainingData.steps,
-            enhancedSteps: enhancedSteps.steps,
-            stepGroups: trainingData.stepGroups,
-            stats: trainingData.stats,
-            transcript: trainingData.transcript,
-            createdAt: new Date().toISOString()
-          }, null, 2)
-        )
-        
-      } catch (transcriptionError) {
-        console.error(`⚠️ Async transcription failed for ${moduleId}:`, transcriptionError)
+      // Save basic module data without AI processing
+      const basicModuleData = {
+        id: moduleId,
+        filename: `${moduleId}.mp4`,
+        title: originalFilename.replace(/\.[^/.]+$/, ''),
+        createdAt: new Date().toISOString(),
+        status: 'uploaded'
       }
-
+      
       // Save module data
-      await storageService.saveModule({ ...moduleData, id: moduleId })
+      await storageService.saveModule(basicModuleData)
       
       // Update modules.json
       const isProduction = process.env.NODE_ENV === 'production'
@@ -404,25 +401,14 @@ export const uploadController = {
         existingModules = []
       }
       
-      const newModule = {
-        id: moduleId,
-        filename: `${moduleId}.mp4`,
-        title: originalFilename.replace(/\.[^/.]+$/, ''),
-        createdAt: new Date().toISOString(),
-      }
-      
-      existingModules.push(newModule)
+      existingModules.push(basicModuleData)
       await fs.promises.writeFile(dataPath, JSON.stringify(existingModules, null, 2))
       
-      // Start background transcription
-      transcribeS3Video(moduleId, `${moduleId}.mp4`)
-        .then(() => console.log(`Async transcript generated for ${moduleId}`))
-        .catch(err => console.error(`Async transcript generation failed for ${moduleId}:`, err))
-      
-      console.log(`✅ Async processing completed for module ${moduleId}`)
+      console.log(`✅ Basic processing completed for module ${moduleId}`)
       
     } catch (error) {
       console.error(`❌ Async processing failed for module ${moduleId}:`, error)
+      // Don't throw - this is background processing
     }
   }
 } 

@@ -23,11 +23,26 @@ export class ChunkedUploader {
     const chunks: Blob[] = []
     let offset = 0
     
-    while (offset < file.size) {
-      chunks.push(file.slice(offset, offset + chunkSize))
-      offset += chunkSize
+    // Ensure we always have at least one chunk, even for small files
+    if (file.size === 0) {
+      // Handle empty files by creating a single empty chunk
+      chunks.push(new Blob([], { type: file.type }))
+      console.log(`📦 Created 1 chunk for empty file`)
+    } else {
+      while (offset < file.size) {
+        const end = Math.min(offset + chunkSize, file.size)
+        chunks.push(file.slice(offset, end))
+        offset += chunkSize
+      }
+      
+      // If no chunks were created (shouldn't happen with the while loop), create one
+      if (chunks.length === 0) {
+        chunks.push(file.slice(0, file.size))
+        console.log(`📦 Created 1 chunk for small file (${file.size} bytes)`)
+      }
     }
     
+    console.log(`📦 Created ${chunks.length} chunks from file of size ${file.size} bytes`)
     return chunks
   }
 
@@ -161,9 +176,25 @@ export class ChunkedUploader {
     
     console.log('📦 Total chunks:', totalChunks)
 
+    // Validate that we have chunks to upload
+    if (totalChunks === 0) {
+      throw new Error('No chunks created from file. File may be empty or corrupted.')
+    }
+
+    // Ensure we have at least 1 chunk (fallback)
+    const finalTotalChunks = Math.max(1, totalChunks)
+    if (finalTotalChunks !== totalChunks) {
+      console.log(`⚠️ Adjusted total chunks from ${totalChunks} to ${finalTotalChunks}`)
+    }
+
+    // For very small files, we might want to use a different approach
+    if (finalTotalChunks === 1 && file.size < chunkSize) {
+      console.log('📦 Small file detected, using single chunk upload')
+    }
+
     // Upload all chunks
     const uploadTasks = chunks.map((chunk, index) => 
-      this.uploadChunk(chunk, index, totalChunks, moduleId, retryAttempts, retryDelay)
+      this.uploadChunk(chunk, index, finalTotalChunks, moduleId, retryAttempts, retryDelay)
     )
     
     await this.processChunksConcurrently(uploadTasks, maxConcurrent, onProgress)
@@ -174,7 +205,7 @@ export class ChunkedUploader {
     const finalizeData = {
       moduleId,
       originalFilename: file.name,
-      totalChunks
+      totalChunks: finalTotalChunks
     }
     console.log('📤 Finalize data:', finalizeData)
     

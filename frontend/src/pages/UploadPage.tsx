@@ -32,6 +32,7 @@ export const UploadPage: React.FC = () => {
     try {
       // Step 1: Compress video
       console.log('🎬 Starting video compression...')
+      console.log('📊 Original file size:', (file.size / 1024 / 1024).toFixed(2), 'MB')
       const compressedFile = await VideoCompressor.compressVideo(file, {
         quality: 0.7,
         maxWidth: 1280,
@@ -42,10 +43,16 @@ export const UploadPage: React.FC = () => {
       setCompressedFileSize(compressedFile.size)
       const compressionRatio = ((1 - compressedFile.size / file.size) * 100).toFixed(1)
       console.log(`📊 Compression complete: ${compressionRatio}% reduction`)
+      console.log(`📊 Compressed file size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`)
 
       // Step 2: Upload using chunked uploader
       setUploadStatus('uploading')
       const newModuleId = generateModuleId()
+      
+      console.log('🚀 Starting chunked upload...')
+      console.log(`📦 Compressed file size: ${compressedFile.size} bytes`)
+      console.log(`📦 Chunk size: ${2 * 1024 * 1024} bytes (2MB)`)
+      console.log(`📦 Expected chunks: ${Math.ceil(compressedFile.size / (2 * 1024 * 1024))}`)
       
       const uploadResult = await ChunkedUploader.uploadVideoInChunks(
         compressedFile,
@@ -163,108 +170,4 @@ export const UploadPage: React.FC = () => {
               <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
                 <div
                   className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${compressionProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-blue-600">Optimizing video for faster upload</p>
-              <p className="text-xs text-gray-500 mt-1">Original: {formatFileSize(originalFileSize)}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {uploadStatus === 'uploading' && (
-        <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-8 text-center">
-          <div className="space-y-4">
-            <div className="w-12 h-12 mx-auto animate-spin text-green-600 text-2xl flex items-center justify-center">📤</div>
-            <div>
-              <p className="text-lg font-semibold text-green-700 mb-3">Uploading {fileName}...</p>
-              <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                <div
-                  className="bg-green-600 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-sm text-green-600">{uploadProgress.toFixed(1)}% complete</p>
-              {compressedFileSize > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Compressed: {formatFileSize(compressedFileSize)} 
-                  ({((1 - compressedFileSize / originalFileSize) * 100).toFixed(1)}% smaller)
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {uploadStatus === 'success' && (
-        <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-8 text-center">
-          <div className="space-y-4">
-            <div className="w-12 h-12 mx-auto text-green-600 text-2xl flex items-center justify-center">✅</div>
-            <div>
-              <p className="text-lg font-semibold text-green-800 mb-3">Upload Complete!</p>
-              <p className="text-green-700 mb-4">
-                Your training module has been processed successfully.
-              </p>
-              {compressedFileSize > 0 && (
-                <div className="bg-white rounded-lg p-3 mb-4 text-sm">
-                  <p className="text-gray-600">
-                    📊 <strong>Upload Stats:</strong>
-                  </p>
-                  <p className="text-gray-500">
-                    Original: {formatFileSize(originalFileSize)} → 
-                    Compressed: {formatFileSize(compressedFileSize)} 
-                    ({((1 - compressedFileSize / originalFileSize) * 100).toFixed(1)}% smaller)
-                  </p>
-                </div>
-              )}
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={resetUpload}
-                  className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Upload Another
-                </button>
-                <button
-                  onClick={() => navigate(`/training/${moduleId}`)}
-                  className="px-6 py-3 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                >
-                  <span>▶️</span>
-                  View Module
-                </button>
-              </div>
-              
-              {/* Feedback Widget */}
-              <div className="mt-4 flex justify-center">
-                <VideoProcessingFeedback 
-                  moduleId={moduleId}
-                  context="Video upload and processing"
-                  showImmediately={true}
-                  className="text-sm"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {uploadStatus === 'error' && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-8 text-center">
-          <div className="space-y-4">
-            <div className="w-12 h-12 mx-auto text-red-600 text-2xl flex items-center justify-center">⚠️</div>
-            <div>
-              <p className="text-lg font-semibold text-red-800 mb-3">Upload Failed</p>
-              <p className="text-red-600 mb-4">{errorMessage}</p>
-              <button
-                onClick={resetUpload}
-                className="px-6 py-3 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Try Again
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-} 
+                  style={{ width: `${compressionProgress}%`
