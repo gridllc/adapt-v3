@@ -13,9 +13,9 @@ const __dirname = path.dirname(__filename)
 // Handle both development and production paths
 const isProduction = process.env.NODE_ENV === 'production'
 const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
-const modulesPath = path.join(baseDir, 'data', 'modules.json')
-const uploadsDir = path.join(baseDir, 'uploads')
-const dataDir = path.join(baseDir, 'data')
+const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
+const uploadsDir = path.join(process.cwd(), 'uploads')
+const dataDir = path.join(process.cwd(), 'data')
 
 // Get all modules (JSON file-based)
 router.get('/', async (req, res) => {
