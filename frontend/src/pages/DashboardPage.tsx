@@ -1,5 +1,5 @@
 // ✅ DashboardPage.tsx with Edit and Delete buttons wired into module cards
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useModules } from '../hooks/useModules'
 import { ApiTest } from '../components/ApiTest'
@@ -12,47 +12,14 @@ export const DashboardPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [deleted, setDeleted] = useState<string[]>([])
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        const [modulesResponse, feedbackResponse] = await Promise.all([
-          api('modules'),
-          api('feedback/stats')
-        ])
-
-        setModules(modulesResponse.modules || [])
-        setFeedbackStats(feedbackResponse)
-      } catch (error) {
-        console.error('Error fetching data:', error)
-        // Set fallback data
-        setModules([
-          {
-            id: 'sample-1',
-            title: 'Sample Training Module',
-            description: 'This is a sample module for testing',
-            createdAt: new Date().toISOString(),
-            videoUrl: null
-          }
-        ])
-        setFeedbackStats({
-          total: 0,
-          positive: 0,
-          negative: 0,
-          recentFeedback: []
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this module?')) return
-    await api(`/api/modules/${id}`, { method: 'DELETE' })
-    setDeleted(prev => [...prev, id])
+    try {
+      await api(`/api/modules/${id}`, { method: 'DELETE' })
+      setDeleted(prev => [...prev, id])
+    } catch (error) {
+      console.error('Error deleting module:', error)
+    }
   }
 
   const filteredModules = modules.filter(m => {

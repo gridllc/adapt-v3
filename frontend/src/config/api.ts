@@ -43,7 +43,10 @@ export const API_ENDPOINTS = {
   STEPS: (moduleId: string) => `/api/steps/${moduleId}`,
   VIDEO_URL: (filename: string) => `/api/video-url/url/${filename}`,
   FEEDBACK_STATS: '/api/feedback/stats',
-  AI_CONTEXTUAL_RESPONSE: '/api/ai/contextual-response'
+  AI_CONTEXTUAL_RESPONSE: '/api/ai/contextual-response',
+  HEALTH: '/api/health',
+  AI_ASK: '/api/ai/ask',
+  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`
 }
 
 export function apiUrl(endpoint: string): string {

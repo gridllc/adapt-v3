@@ -15,7 +15,7 @@ export const ApiDebug: React.FC = () => {
       baseURL: API_CONFIG.baseURL,
       envVar: import.meta.env.VITE_API_BASE_URL,
       modulesUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES),
-      healthUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.health),
+      healthUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.HEALTH),
       origin: window.location.origin,
       clerkKey: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
       clerkKeyPrefix: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY?.substring(0, 20) + '...',
@@ -38,7 +38,7 @@ export const ApiDebug: React.FC = () => {
 
   const testViaConfig = async () => {
     try {
-      const data = await api(API_ENDPOINTS.health)
+      const data = await api(API_ENDPOINTS.HEALTH)
       setTestResults(prev => ({ ...prev, config: { success: true, data } }))
     } catch (error) {
       setTestResults(prev => ({ ...prev, config: { success: false, error: error.message } }))

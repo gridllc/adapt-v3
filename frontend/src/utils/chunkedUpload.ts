@@ -100,7 +100,11 @@ export class ChunkedUploader {
 
       if (executing.length >= maxConcurrent) {
         await Promise.race(executing)
-        executing.splice(executing.findIndex(p => p === task), 1)
+        // Remove the completed task from executing array
+        const completedTaskIndex = executing.findIndex(promise => promise === p)
+        if (completedTaskIndex !== -1) {
+          executing.splice(completedTaskIndex, 1)
+        }
       }
     }
 
