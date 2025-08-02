@@ -268,8 +268,8 @@ export const uploadController = {
       console.log(`📦 Finalizing upload for module ${moduleId} with ${totalChunks} chunks`)
 
       // Reassemble chunks
-      const tempDir = path.join(process.cwd(), 'backend', 'uploads', 'temp', moduleId)
-      const finalPath = path.join(process.cwd(), 'backend', 'uploads', `${moduleId}.mp4`)
+      const tempDir = path.join(process.cwd(), 'uploads', 'temp', moduleId)
+      const finalPath = path.join(process.cwd(), 'uploads', `${moduleId}.mp4`)
       
       console.log(`📁 Temp directory: ${tempDir}`)
       console.log(`📁 Final path: ${finalPath}`)

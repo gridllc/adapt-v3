@@ -170,4 +170,112 @@ export const UploadPage: React.FC = () => {
               <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
                 <div
                   className="bg-blue-600 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${compressionProgress}%`
+                  style={{ width: `${compressionProgress}%` }}
+                />
+              </div>
+              <p className="text-sm text-blue-600">
+                Original: {formatFileSize(originalFileSize)} → Compressing...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uploadStatus === 'uploading' && (
+        <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-8 text-center">
+          <div className="space-y-4">
+            <div className="w-12 h-12 mx-auto animate-spin text-green-600 text-2xl flex items-center justify-center">📤</div>
+            <div>
+              <p className="text-lg font-semibold text-green-700 mb-3">Uploading {fileName}...</p>
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                <div
+                  className="bg-green-600 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <p className="text-sm text-green-600">
+                Compressed: {formatFileSize(compressedFileSize)} • {uploadProgress.toFixed(1)}% complete
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uploadStatus === 'success' && (
+        <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-8 text-center">
+          <div className="space-y-4">
+            <div className="text-5xl mb-4">🎉</div>
+            <div>
+              <h3 className="text-xl font-bold text-green-800 mb-2">Upload Successful!</h3>
+              <p className="text-green-600 mb-4">
+                Your video has been processed and is ready for training.
+              </p>
+              <div className="grid grid-cols-2 gap-4 text-sm text-green-700 mb-6">
+                <div>
+                  <span className="font-medium">Original:</span> {formatFileSize(originalFileSize)}
+                </div>
+                <div>
+                  <span className="font-medium">Compressed:</span> {formatFileSize(compressedFileSize)}
+                </div>
+              </div>
+              <div className="space-x-4">
+                <button
+                  onClick={() => navigate(`/training/${moduleId}`)}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Start Training
+                </button>
+                <button
+                  onClick={resetUpload}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Upload Another
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uploadStatus === 'error' && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-8 text-center">
+          <div className="space-y-4">
+            <div className="text-5xl mb-4">⚠️</div>
+            <div>
+              <h3 className="text-xl font-bold text-red-800 mb-2">Upload Failed</h3>
+              <p className="text-red-600 mb-4">{errorMessage}</p>
+              <button
+                onClick={resetUpload}
+                className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Requirements */}
+      <div className="bg-gray-50 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">📋 File Requirements</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+          <div>
+            <h4 className="font-medium text-gray-800 mb-2">Supported Formats</h4>
+            <ul className="space-y-1">
+              <li>• MP4 (H.264 codec)</li>
+              <li>• WebM (VP8/VP9 codec)</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-medium text-gray-800 mb-2">Size Limits</h4>
+            <ul className="space-y-1">
+              <li>• Maximum file size: 100MB</li>
+              <li>• Maximum duration: 3 minutes</li>
+              <li>• Recommended: Clear audio</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

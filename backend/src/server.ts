@@ -50,7 +50,7 @@ app.use('/uploads', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Range')
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
   next()
-}, express.static('C:/Users/pgrif/AI_Projects/adapt-v3/backend/uploads'))
+}, express.static(path.join(__dirname, '../uploads')))
 
 // Handle OPTIONS requests for video files
 app.options('/uploads/:filename', (req, res) => {
@@ -94,5 +94,5 @@ app.get('/api/test', (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
-  console.log(`📁 Video files served from: ${path.join(__dirname, '../../uploads')}`)
+  console.log(`📁 Video files served from: ${path.join(__dirname, '../uploads')}`)
 }) 
