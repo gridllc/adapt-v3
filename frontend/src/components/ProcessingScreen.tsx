@@ -3,9 +3,10 @@ import React from 'react'
 interface ProcessingScreenProps {
   progress: number
   message?: string
+  stuckAtZero?: boolean
 }
 
-export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, message }) => {
+export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, message, stuckAtZero = false }) => {
   const getProgressMessage = (progress: number) => {
     if (progress < 10) return "Starting AI analysis..."
     if (progress < 30) return "Analyzing video content..."
@@ -22,14 +23,46 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, me
     return 'from-green-500 to-green-600'
   }
 
+  const getStuckMessage = () => {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-4">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="text-yellow-400 text-xl">⚠️</div>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-yellow-800">
+              Processing seems to be taking longer than usual
+            </h3>
+            <div className="mt-2 text-sm text-yellow-700">
+              <p>This could be due to:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Large video file size</li>
+                <li>High server load</li>
+                <li>Network connectivity issues</li>
+                <li>AI service temporarily unavailable</li>
+              </ul>
+              <p className="mt-2">
+                <strong>Don't worry!</strong> Your video is still being processed in the background. 
+                You can close this page and check back in a few minutes.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-br from-blue-50 to-indigo-50">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           {/* Spinning brain emoji */}
-          <div className="text-6xl mb-6 animate-spin">🧠</div>
+          <div className={`text-6xl mb-6 ${stuckAtZero ? 'animate-pulse' : 'animate-spin'}`}>
+            {stuckAtZero ? '🤔' : '🧠'}
+          </div>
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            AI is Processing Your Video
+            {stuckAtZero ? 'AI is Thinking Hard' : 'AI is Processing Your Video'}
           </h2>
           <p className="text-lg text-gray-600 mb-6">
             {message || getProgressMessage(progress)}
@@ -37,7 +70,10 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, me
           
           {/* Funny message about birthing AI */}
           <p className="text-sm text-gray-600 italic mt-2">
-            Birthing your AI... this can take up to 3 minutes. Please be patient while it grows a brain 🧠
+            {stuckAtZero 
+              ? "Your AI is taking its time to grow a proper brain... 🧠 Sometimes it needs a moment to think!"
+              : "Birthing your AI... this can take up to 3 minutes. Please be patient while it grows a brain 🧠"
+            }
           </p>
         </div>
 
@@ -51,15 +87,15 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, me
           
           <div className="text-center">
             <p className="text-sm text-gray-500">
-              {progress}% complete • This usually takes 30-60 seconds
+              {progress}% complete • {stuckAtZero ? 'Taking longer than usual' : 'This usually takes 30-60 seconds'}
             </p>
           </div>
         </div>
 
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            <span>Processing in background</span>
+            <div className={`w-2 h-2 ${stuckAtZero ? 'bg-yellow-500' : 'bg-blue-500'} rounded-full animate-pulse`}></div>
+            <span>{stuckAtZero ? 'Processing taking longer than expected' : 'Processing in background'}</span>
           </div>
           <p className="text-xs text-gray-400">
             You can close this page and come back later
@@ -92,6 +128,9 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, me
             </div>
           </div>
         </div>
+
+        {/* Show stuck message if processing is stuck */}
+        {stuckAtZero && getStuckMessage()}
       </div>
     </div>
   )

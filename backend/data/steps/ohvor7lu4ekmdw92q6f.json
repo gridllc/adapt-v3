@@ -1,0 +1,29 @@
+{
+  "moduleId": "ohvor7lu4ekmdw92q6f",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Keypad Entry",
+      "description": "Enter the four-digit code on the keypad. The order of entry does not matter.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Troubleshooting: Frozen Screen",
+      "description": "If the screen freezes or locks up after entering the code (often indicated by displayed numbers and no response), repeatedly press any key on the keypad until the screen goes blank and a red light blinks. This resets the keypad.",
+      "duration": 45
+    },
+    {
+      "timestamp": 60,
+      "title": "Keypad Reset and Re-entry",
+      "description": "After the screen resets (blank with a red blink), re-enter the four-digit code on the keypad.",
+      "duration": 15
+    },
+    {
+      "timestamp": 75,
+      "title": "System Access Confirmation",
+      "description": "The system should unlock and grant access upon successful code entry.",
+      "duration": 15
+    }
+  ]
+}

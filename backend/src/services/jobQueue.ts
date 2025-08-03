@@ -1,6 +1,7 @@
 import Bull from 'bull'
 import { aiService } from './aiService.js'
 import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
+import { saveModuleStatus, updateModuleProgress } from './statusService.js'
 
 // Redis configuration
 const redisConfig = {
@@ -40,12 +41,29 @@ function initializeJobQueueSync() {
           },
         },
       })
+      
+      // Enhanced error logging
       jobQueue.on('error', (error: Error) => {
         console.error('❌ Job queue error:', error)
+        console.error('   ↳ Stack:', error.stack)
       })
+      
+      jobQueue.on('active', (job: Bull.Job) => {
+        console.log(`📥 Job started: ${job.id} (moduleId=${job.data?.moduleId})`)
+      })
+      
+      jobQueue.on('completed', (job: Bull.Job, result: any) => {
+        console.log(`✅ Job completed: ${job.id} (moduleId=${job.data?.moduleId})`)
+        console.log(`   ↳ Result:`, result)
+      })
+      
       jobQueue.on('failed', (job: Bull.Job, err: Error) => {
-        console.error(`❌ Job ${job.id} failed:`, err)
+        console.error(`❌ Job failed: ${job.id} (moduleId=${job.data?.moduleId})`)
+        console.error('   ↳ Error:', err.message)
+        console.error('   ↳ Stack:', err.stack)
+        console.error('   ↳ Job data:', job.data)
       })
+      
       console.log('✅ Job queue initialized with Redis')
     } else {
       throw new Error('Redis not available')
@@ -56,6 +74,7 @@ function initializeJobQueueSync() {
     jobQueue = {
       add: async (name: string, data: any) => {
         console.log(`📝 [MOCK] Adding job: ${name}`)
+        console.log(`📝 [MOCK] Job data:`, data)
         if (name === 'process-video') {
           setTimeout(() => processVideoJob(data), 100)
         }
@@ -146,8 +165,14 @@ export const perfLogger = new PerformanceLogger()
 async function processVideoJob(jobData: any) {
   const { moduleId, videoUrl } = jobData
   
+  console.log(`🧠 Job received for moduleId=${moduleId}, videoUrl=${videoUrl}`)
+  
   try {
     console.log(`🎬 [${moduleId}] Starting async video processing...`)
+    console.log(`🎬 [${moduleId}] Video URL: ${videoUrl}`)
+    
+    // Update status to processing
+    await saveModuleStatus(moduleId, 'processing', 'Starting AI processing...', 0)
     
     // Update progress: starting AI processing
     await updateTrainingData(moduleId, { 
@@ -160,8 +185,18 @@ async function processVideoJob(jobData: any) {
 
     // Step 1: AI processing
     console.log(`🧠 [${moduleId}] Starting AI processing...`)
+    await updateModuleProgress(moduleId, 10, 'Starting AI analysis...')
+    
     const moduleData = await aiService.processVideo(videoUrl)
     
+    if (!moduleData) {
+      throw new Error('AI processing returned null/undefined result')
+    }
+    
+    console.log(`🧠 [${moduleId}] AI processing completed successfully`)
+    console.log(`🧠 [${moduleId}] Result:`, moduleData)
+    
+    await updateModuleProgress(moduleId, 30, 'AI analysis complete, extracting steps...')
     await updateTrainingData(moduleId, { 
       progress: 30,
       message: 'AI analysis complete, extracting steps...'
@@ -171,8 +206,17 @@ async function processVideoJob(jobData: any) {
 
     // Step 2: Generate steps
     console.log(`📋 [${moduleId}] Generating steps...`)
+    await updateModuleProgress(moduleId, 50, 'Generating steps...')
+    
     const steps = await aiService.generateStepsForModule(moduleId, videoUrl)
     
+    if (!steps || !Array.isArray(steps)) {
+      throw new Error('Step generation returned invalid result')
+    }
+    
+    console.log(`📋 [${moduleId}] Generated ${steps.length} steps`)
+    
+    await updateModuleProgress(moduleId, 60, 'Steps extracted, enhancing with AI...')
     await updateTrainingData(moduleId, { 
       progress: 60,
       message: 'Steps extracted, enhancing with AI...'
@@ -182,8 +226,11 @@ async function processVideoJob(jobData: any) {
 
     // Step 3: Save final results
     console.log(`💾 [${moduleId}] Saving final results...`)
+    await updateModuleProgress(moduleId, 80, 'Saving final results...')
+    
     await updateStepsData(moduleId, steps)
     
+    await updateModuleProgress(moduleId, 100, 'Processing complete! Your training module is ready.')
     await updateTrainingData(moduleId, { 
       status: 'ready',
       progress: 100,
@@ -191,19 +238,27 @@ async function processVideoJob(jobData: any) {
       steps: steps
     })
 
+    // Mark as complete
+    await saveModuleStatus(moduleId, 'complete', 'Processing complete!', 100)
+
     perfLogger.logGPTComplete(moduleId)
     perfLogger.logTotalComplete(moduleId)
     
-    console.log(`✅ [${moduleId}] Processing complete!`)
+    console.log(`✅ Job complete for moduleId=${moduleId}`)
     
   } catch (error) {
+    console.error(`❌ Job failed for moduleId=${moduleId}`, error)
     console.error(`❌ [${moduleId}] Processing failed:`, error)
+    console.error(`❌ [${moduleId}] Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
     
     // Update status to failed
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    await saveModuleStatus(moduleId, 'error', `Processing failed: ${errorMessage}`, 0, errorMessage)
+    
     try {
       await updateTrainingData(moduleId, {
         status: 'failed',
-        message: `Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `Processing failed: ${errorMessage}`,
         progress: 0
       })
     } catch (updateError) {

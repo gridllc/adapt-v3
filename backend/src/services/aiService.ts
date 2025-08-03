@@ -87,32 +87,37 @@ export const aiService = {
     const audioPath = join(tempDir, `${videoId}.wav`)
 
     try {
-      console.log('🎬 Starting video processing for:', videoUrl)
+      console.log('🧠 [AI Service] Starting video processing for:', videoUrl)
+      console.log('🧠 [AI Service] Temp video path:', videoPath)
+      console.log('🧠 [AI Service] Temp audio path:', audioPath)
 
       // 1. Download video if it's a URL, or use local path
       if (videoUrl.startsWith('http')) {
+        console.log('📥 [AI Service] Downloading video from URL...')
         await this.downloadVideo(videoUrl, videoPath)
-        console.log('✅ Video downloaded')
+        console.log('✅ [AI Service] Video downloaded successfully')
       } else {
         // For local files, use the provided path directly
-        console.log('📁 Using local video file:', videoUrl)
+        console.log('📁 [AI Service] Using local video file:', videoUrl)
       }
 
       let actualVideoPath = videoUrl.startsWith('http') ? videoPath : videoUrl
       let currentAudioPath = audioPath
 
       // 2. Extract audio
+      console.log('🎵 [AI Service] Extracting audio from video...')
       await this.extractAudio(actualVideoPath, currentAudioPath)
-      console.log('🎵 Audio extracted')
+      console.log('✅ [AI Service] Audio extracted successfully')
 
       // 3. Get video metadata
+      console.log('📊 [AI Service] Extracting video metadata...')
       const metadata = await this.getVideoMetadata(actualVideoPath)
-      console.log('📊 Metadata extracted:', metadata)
+      console.log('✅ [AI Service] Metadata extracted:', metadata)
 
       // 3.5. Check development video length limit
       if (metadata.duration > DEV_VIDEO_LIMIT_SECONDS) {
-        console.log(`⚠️ Video is ${metadata.duration}s long, limiting to ${DEV_VIDEO_LIMIT_SECONDS}s for development`)
-        console.log(`💡 For production, increase DEV_VIDEO_LIMIT_SECONDS or remove this check`)
+        console.log(`⚠️ [AI Service] Video is ${metadata.duration}s long, limiting to ${DEV_VIDEO_LIMIT_SECONDS}s for development`)
+        console.log(`💡 [AI Service] For production, increase DEV_VIDEO_LIMIT_SECONDS or remove this check`)
         
         // Truncate video to 90 seconds for development
         const truncatedPath = join(tempDir, `${videoId}_truncated.mp4`)
@@ -124,36 +129,67 @@ export const aiService = {
         
         // Re-extract audio from truncated video
         await this.extractAudio(actualVideoPath, currentAudioPath)
-        console.log('🎵 Audio re-extracted from truncated video')
+        console.log('🎵 [AI Service] Audio re-extracted from truncated video')
         
         // Update metadata
         metadata.duration = DEV_VIDEO_LIMIT_SECONDS
       }
 
-      // 4. Transcribe audio
+      // 4. Transcribe audio - CRITICAL STEP
+      console.log('📝 [AI Service] Starting audio transcription...')
       const transcript = await this.transcribeAudio(currentAudioPath)
-      console.log('📝 Audio transcribed')
+      
+      // CRITICAL VALIDATION: Check if transcription returned valid result
+      if (!transcript || transcript.trim().length === 0) {
+        throw new Error('Transcription returned empty result - this is likely a silent failure in OpenAI Whisper or FFmpeg')
+      }
+      
+      console.log('✅ [AI Service] Audio transcribed successfully')
+      console.log('📝 [AI Service] Transcript length:', transcript.length, 'characters')
+      console.log('📝 [AI Service] Transcript preview:', transcript.substring(0, 200))
 
       // 5. Extract key frames
+      console.log('🖼️ [AI Service] Extracting key frames...')
       const keyFrames = await this.extractKeyFrames(actualVideoPath, metadata.duration)
-      console.log('🖼️ Key frames extracted')
+      console.log('✅ [AI Service] Key frames extracted:', keyFrames.length, 'frames')
 
-      // 6. Analyze with AI
+      // 6. Analyze with AI - CRITICAL STEP
+      console.log('🤖 [AI Service] Starting AI content analysis...')
       const result = await this.analyzeVideoContent(transcript, keyFrames, metadata)
-      console.log('🤖 AI analysis complete')
+      
+      // CRITICAL VALIDATION: Check if AI analysis returned valid result
+      if (!result || !result.steps || !Array.isArray(result.steps)) {
+        throw new Error('AI analysis returned invalid result structure - this indicates a silent failure in OpenAI/Gemini API')
+      }
+      
+      if (result.steps.length === 0) {
+        throw new Error('AI analysis returned empty steps array - this indicates the AI failed to generate steps')
+      }
+      
+      console.log('✅ [AI Service] AI analysis completed successfully')
+      console.log('🤖 [AI Service] Generated steps:', result.steps.length)
+      console.log('🤖 [AI Service] Steps preview:', result.steps.slice(0, 2).map(s => ({ title: s.title, duration: s.duration })))
 
       // 7. Cleanup
+      console.log('🧹 [AI Service] Starting cleanup...')
       await this.cleanup([videoPath, currentAudioPath, ...keyFrames.map(f => f.path)].filter(Boolean))
-      console.log('🧹 Cleanup complete')
+      console.log('✅ [AI Service] Cleanup completed')
 
+      console.log('🎯 [AI Service] Video processing completed successfully!')
       return result
     } catch (error) {
-      console.error('❌ Video processing error:', error instanceof Error ? error.message : 'Unknown error')
-      // Cleanup on error
-      await this.cleanup([videoPath, audioPath]).catch(console.error)
+      console.error('❌ [AI Service] Video processing error:', error instanceof Error ? error.message : 'Unknown error')
+      console.error('❌ [AI Service] Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      console.error('❌ [AI Service] This error indicates a silent failure in the processing pipeline')
       
-      // Return fallback result instead of throwing
-      return this.getFallbackResult(videoUrl)
+      // Cleanup on error
+      console.log('🧹 [AI Service] Cleaning up on error...')
+      await this.cleanup([videoPath, audioPath]).catch(cleanupError => {
+        console.error('❌ [AI Service] Cleanup failed:', cleanupError)
+      })
+      
+      // Re-throw the error instead of returning fallback to expose the failure
+      throw error
     }
   },
 

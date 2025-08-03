@@ -34,7 +34,7 @@ export const TrainingPage: React.FC = () => {
   const { url, loading, error } = useSignedVideoUrl(filename)
   
   // Use module status hook for processing state - ensure moduleId is always defined
-  const { status, loading: statusLoading, error: statusError } = useModuleStatus(moduleId || '', isProcessing)
+  const { status, loading: statusLoading, error: statusError, stuckAtZero } = useModuleStatus(moduleId || '', isProcessing)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const chatHistoryRef = useRef<HTMLDivElement>(null)
@@ -442,6 +442,7 @@ Just ask me anything about the training!`
       <ProcessingScreen 
         progress={status?.progress || 0} 
         message={status?.message}
+        stuckAtZero={stuckAtZero}
       />
     )
   }

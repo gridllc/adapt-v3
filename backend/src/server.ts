@@ -120,6 +120,39 @@ const configureRoutes = () => {
   // Public Share Routes (no auth required)
   app.use('/api/share', shareRoutes)
 
+  // Status endpoint for debugging stuck jobs
+  app.get('/api/status/:moduleId', async (req, res) => {
+    try {
+      const { moduleId } = req.params
+      
+      // Import status service
+      const { getModuleStatus } = await import('./services/statusService.js')
+      
+      const status = getModuleStatus(moduleId)
+      
+      if (!status) {
+        return res.status(404).json({ 
+          error: 'Module status not found',
+          moduleId,
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      res.json({
+        ...status,
+        moduleId,
+        timestamp: new Date().toISOString()
+      })
+    } catch (error) {
+      console.error('❌ Status endpoint error:', error)
+      res.status(500).json({ 
+        error: 'Failed to get module status',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      })
+    }
+  })
+
   // Static file serving for uploads with CORS
   app.use('/uploads', (req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*')

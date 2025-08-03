@@ -57,8 +57,38 @@ export const createBasicSteps = async (moduleId: string, filename?: string): Pro
     const trainingPath = path.join(TRAINING_DIR, `${moduleId}.json`)
     const stepsPath = path.join(STEPS_DIR, `${moduleId}.json`)
     
+    console.log(`📝 Writing training file to: ${trainingPath}`)
     await fs.writeFile(trainingPath, JSON.stringify(trainingData, null, 2))
+    
+    console.log(`📝 Writing steps file to: ${stepsPath}`)
     await fs.writeFile(stepsPath, JSON.stringify(stepsData, null, 2))
+    
+    // CRITICAL VALIDATION: Verify files were actually written
+    const trainingExists = await fs.access(trainingPath).then(() => true).catch(() => false)
+    const stepsExists = await fs.access(stepsPath).then(() => true).catch(() => false)
+    
+    if (!trainingExists) {
+      throw new Error(`Training file was not created: ${trainingPath}`)
+    }
+    
+    if (!stepsExists) {
+      throw new Error(`Steps file was not created: ${stepsPath}`)
+    }
+    
+    // Get file sizes to verify content
+    const trainingStats = await fs.stat(trainingPath)
+    const stepsStats = await fs.stat(stepsPath)
+    
+    console.log(`📊 Training file size: ${trainingStats.size} bytes`)
+    console.log(`📊 Steps file size: ${stepsStats.size} bytes`)
+    
+    if (trainingStats.size === 0) {
+      throw new Error(`Training file is empty: ${trainingPath}`)
+    }
+    
+    if (stepsStats.size === 0) {
+      throw new Error(`Steps file is empty: ${stepsPath}`)
+    }
     
     console.log(`✅ Basic step files created for module: ${moduleId}`)
     console.log(`📁 Training file: ${trainingPath}`)
@@ -68,6 +98,7 @@ export const createBasicSteps = async (moduleId: string, filename?: string): Pro
     
   } catch (error) {
     console.error(`❌ Failed to create basic step files for module ${moduleId}:`, error)
+    console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
     throw error
   }
 }
@@ -99,13 +130,23 @@ export const updateTrainingData = async (moduleId: string, updates: Partial<Basi
     // Update with new data
     const updatedData = { ...trainingData, ...updates }
     
-    // Write back to file
+    console.log(`📝 Updating training data for ${moduleId}:`, updates)
+    console.log(`📝 Writing to: ${trainingPath}`)
+    
     await fs.writeFile(trainingPath, JSON.stringify(updatedData, null, 2))
     
-    console.log(`✅ Updated training data for module ${moduleId}:`, updates)
+    // CRITICAL VALIDATION: Verify file was updated
+    const stats = await fs.stat(trainingPath)
+    console.log(`📊 Updated training file size: ${stats.size} bytes`)
     
+    if (stats.size === 0) {
+      throw new Error(`Training file is empty after update: ${trainingPath}`)
+    }
+    
+    console.log(`✅ Training data updated for ${moduleId}`)
   } catch (error) {
-    console.error(`❌ Failed to update training data for module ${moduleId}:`, error)
+    console.error(`❌ Failed to update training data for ${moduleId}:`, error)
+    console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
     throw error
   }
 }
@@ -117,17 +158,40 @@ export const updateStepsData = async (moduleId: string, steps: any[]): Promise<v
   try {
     const stepsPath = path.join(STEPS_DIR, `${moduleId}.json`)
     
+    console.log(`📝 Updating steps data for ${moduleId} with ${steps.length} steps`)
+    console.log(`📝 Writing to: ${stepsPath}`)
+    
     const stepsData: BasicStepsData = {
       moduleId,
-      steps
+      steps: steps
     }
     
     await fs.writeFile(stepsPath, JSON.stringify(stepsData, null, 2))
     
-    console.log(`✅ Updated steps data for module ${moduleId}: ${steps.length} steps`)
+    // CRITICAL VALIDATION: Verify file was written
+    const stats = await fs.stat(stepsPath)
+    console.log(`📊 Updated steps file size: ${stats.size} bytes`)
     
+    if (stats.size === 0) {
+      throw new Error(`Steps file is empty after update: ${stepsPath}`)
+    }
+    
+    // Verify the file contains the expected data
+    const writtenData = await fs.readFile(stepsPath, 'utf-8')
+    const parsedData = JSON.parse(writtenData)
+    
+    if (!parsedData.steps || !Array.isArray(parsedData.steps)) {
+      throw new Error(`Steps file contains invalid data structure: ${stepsPath}`)
+    }
+    
+    if (parsedData.steps.length !== steps.length) {
+      throw new Error(`Steps file contains wrong number of steps: expected ${steps.length}, got ${parsedData.steps.length}`)
+    }
+    
+    console.log(`✅ Steps data updated for ${moduleId}`)
   } catch (error) {
-    console.error(`❌ Failed to update steps data for module ${moduleId}:`, error)
+    console.error(`❌ Failed to update steps data for ${moduleId}:`, error)
+    console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
     throw error
   }
 } 
