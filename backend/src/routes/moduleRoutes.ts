@@ -86,6 +86,94 @@ router.delete('/:id', async (req, res) => {
 
 // Get module by ID
 router.get('/:id', moduleController.getModuleById)
+
+// Get steps for a specific module
+router.get('/:id/steps', async (req, res) => {
+  const moduleId = req.params.id
+  
+  try {
+    console.log(`📖 Getting steps for module: ${moduleId}`)
+    
+    // Define possible paths where steps might be stored
+    const projectRoot = path.resolve(__dirname, '../../')
+    const possiblePaths = [
+      path.join(projectRoot, 'data', 'training', `${moduleId}.json`),
+      path.join(projectRoot, 'data', 'steps', `${moduleId}.json`),
+      path.join(projectRoot, 'data', 'modules', `${moduleId}.json`),
+      path.join(process.cwd(), 'data', 'training', `${moduleId}.json`),
+      path.join(process.cwd(), 'data', 'steps', `${moduleId}.json`)
+    ]
+
+    console.log('🔍 Searching in paths:', possiblePaths)
+
+    let stepsData = null
+    let foundPath = null
+
+    // Try each path until we find the file
+    for (const filePath of possiblePaths) {
+      try {
+        await fs.access(filePath)
+        console.log(`✅ Found steps file at: ${filePath}`)
+        const rawData = await fs.readFile(filePath, 'utf-8')
+        stepsData = JSON.parse(rawData)
+        foundPath = filePath
+        break
+      } catch (error) {
+        console.log(`❌ Not found: ${filePath}`)
+      }
+    }
+
+    if (!stepsData) {
+      console.error(`❌ Steps not found for module ${moduleId}`)
+      return res.status(404).json({
+        error: 'Steps not found',
+        moduleId,
+        searchedPaths: possiblePaths,
+        message: 'Check server logs for detailed debugging info'
+      })
+    }
+
+    console.log(`✅ Successfully loaded steps from: ${foundPath}`)
+    
+    // Return the steps based on the file structure
+    let steps = []
+    if (stepsData.steps) {
+      steps = stepsData.steps
+    } else if (stepsData.enhancedSteps) {
+      steps = stepsData.enhancedSteps
+    } else if (stepsData.structuredSteps) {
+      steps = stepsData.structuredSteps
+    } else if (Array.isArray(stepsData)) {
+      steps = stepsData
+    } else {
+      // If it's a module data object, extract steps
+      steps = stepsData.originalSteps || stepsData.moduleSteps || []
+    }
+
+    console.log(`📦 Returning ${steps.length} steps for module ${moduleId}`)
+
+    res.json({
+      success: true,
+      moduleId,
+      steps,
+      metadata: {
+        totalSteps: steps.length,
+        sourceFile: foundPath,
+        hasEnhancedSteps: !!stepsData.enhancedSteps,
+        hasStructuredSteps: !!stepsData.structuredSteps,
+        stats: stepsData.stats || null
+      }
+    })
+
+  } catch (error) {
+    console.error('❌ Get steps error:', error)
+    res.status(500).json({ 
+      error: 'Failed to get steps',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
 // Update module
 router.put('/:id', moduleController.updateModule)
 

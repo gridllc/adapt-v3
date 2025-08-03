@@ -56,7 +56,7 @@ export const uploadController = {
         console.log(`🎯 Creating structured training steps for module: ${moduleId}`)
         
         // Get the actual video file path - use the same path as storageService
-        const videoPath = path.join(path.resolve(__dirname, '../../..'), 'backend', 'uploads', `${moduleId}.mp4`)
+        const videoPath = path.join(path.resolve(__dirname, '../../'), 'uploads', `${moduleId}.mp4`)
         
         // Debug: Check if file exists
         const fs = await import('fs')
@@ -89,7 +89,7 @@ export const uploadController = {
         console.log(`📊 GPT enhancement: ${enhancedSteps.summary.gptEnhanced ? 'Applied' : 'Not applied'}`)
         
         // Save the enhanced training data
-        const trainingDataPath = path.join(__dirname, '../data/training', `${moduleId}.json`)
+        const trainingDataPath = path.join(path.resolve(__dirname, '../../'), 'data', 'training', `${moduleId}.json`)
         await fs.promises.mkdir(path.dirname(trainingDataPath), { recursive: true })
         await fs.promises.writeFile(
           trainingDataPath, 
@@ -349,14 +349,14 @@ export const uploadController = {
               console.warn('⚠️ Failed to clean up temp directory:', cleanupError)
             }
             
-            // Start async processing
-            console.log('🤖 Starting AI processing...')
+            // Create basic steps immediately (no AI dependency)
+            console.log('📝 Creating basic steps data...')
             try {
-              await this.processVideoAsync(moduleId, originalFilename, finalPath)
-              console.log('✅ AI processing completed successfully')
-            } catch (processingError) {
-              console.error('❌ AI processing failed:', processingError)
-              // Continue with response but log the error
+              await this.createBasicSteps(moduleId, originalFilename, finalPath)
+              console.log('✅ Basic steps created successfully')
+            } catch (stepsError) {
+              console.error('❌ Failed to create basic steps:', stepsError)
+              // Continue anyway - steps can be generated later
             }
             
             resolve()
@@ -541,6 +541,92 @@ export const uploadController = {
       } catch (writeError) {
         console.error('❌ Failed to write error steps file:', writeError)
       }
+    }
+  },
+
+  async createBasicSteps(moduleId: string, originalFilename: string, videoPath: string) {
+    try {
+      console.log(`📝 Creating basic steps for module ${moduleId}`)
+      
+      // Create basic steps data (no AI dependency)
+      const basicSteps = [
+        {
+          id: 1,
+          timestamp: 0,
+          title: "Getting Started",
+          description: "Begin following this training video",
+          duration: 60
+        },
+        {
+          id: 2,
+          timestamp: 60,
+          title: "Main Process",
+          description: "Follow the main steps demonstrated in the video",
+          duration: 120
+        },
+        {
+          id: 3,
+          timestamp: 180,
+          title: "Completion",
+          description: "Complete the process as shown",
+          duration: 60
+        }
+      ]
+
+      const stepsData = {
+        moduleId,
+        originalSteps: basicSteps,
+        enhancedSteps: basicSteps,
+        stats: {
+          totalSteps: basicSteps.length,
+          totalDuration: 300,
+          averageStepLength: 100
+        },
+        videoFile: videoPath,
+        originalFilename,
+        createdAt: new Date().toISOString(),
+        status: 'basic' // Indicates these are basic steps, not AI-enhanced
+      }
+
+      // Save steps to training directory
+      const trainingDir = path.join(path.resolve(__dirname, '../../'), 'data', 'training')
+      await fs.promises.mkdir(trainingDir, { recursive: true })
+      const stepsPath = path.join(trainingDir, `${moduleId}.json`)
+      await fs.promises.writeFile(stepsPath, JSON.stringify(stepsData, null, 2))
+      
+      console.log(`✅ Basic steps saved to: ${stepsPath}`)
+
+      // Update modules.json
+      const modulesPath = path.join(path.resolve(__dirname, '../../'), 'data', 'modules.json')
+      let existingModules = []
+      try {
+        const raw = await fs.promises.readFile(modulesPath, 'utf-8')
+        existingModules = JSON.parse(raw)
+      } catch {
+        existingModules = []
+      }
+      
+      const newModule = {
+        id: moduleId,
+        filename: `${moduleId}.mp4`,
+        title: originalFilename.replace(/\.[^/.]+$/, ''),
+        createdAt: new Date().toISOString(),
+        status: 'ready',
+        hasSteps: true,
+        stepType: 'basic'
+      }
+      
+      // Remove existing module if it exists
+      existingModules = existingModules.filter((m: any) => m.id !== moduleId)
+      existingModules.push(newModule)
+      
+      await fs.promises.writeFile(modulesPath, JSON.stringify(existingModules, null, 2))
+      
+      console.log('✅ Module added to modules.json')
+      
+    } catch (error) {
+      console.error(`❌ Failed to create basic steps for ${moduleId}:`, error)
+      throw error
     }
   }
 } 
