@@ -1,0 +1,33 @@
+{
+  "title": "Accessing the System with a Keypad",
+  "description": "This training module demonstrates how to use the keypad to access the system, including troubleshooting steps for when the screen locks up.",
+  "transcript": "then open. That's it. Any problems? The problem that you'll have when you do this is that sometimes when you hit this to do the screen, it just, you'll hear it right now, it just locked again because we're outside. So now we hit the screen. I'll hit the four, these numbers again. Now if I go too fast or I don't exactly hit the numbers right, it stays locked with all those numbers up there. So what does that mean? How do I reset it? I just have to keep hitting things until the screen finally goes blank with that red blink. The screen is then blank. So again, I'm starting from the beginning, four numbers. See, I didn't have to do any order and then the code again, and then we're back in.",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Access",
+      "description": "Enter the four-digit code on the keypad. The order of the digits does not matter.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Troubleshooting: Screen Lock",
+      "description": "If the screen locks up (numbers displayed and unresponsive), repeatedly press any key on the keypad until the screen goes blank with a red blinking light. This resets the keypad.",
+      "duration": 30
+    },
+    {
+      "timestamp": 45,
+      "title": "Accessing After Reset",
+      "description": "Once the screen is blank and the red light is blinking, re-enter the four-digit code to access the system.",
+      "duration": 15
+    },
+    {
+      "timestamp": 60,
+      "title": "Successful Entry Confirmation",
+      "description": "Confirm that the system has been accessed successfully (e.g., the door unlocks, a new screen appears).",
+      "duration": 30
+    }
+  ],
+  "totalDuration": 90,
+  "id": "j22jmhv8bjhmdw14tou"
+}

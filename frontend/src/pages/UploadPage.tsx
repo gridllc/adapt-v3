@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { API_CONFIG, API_ENDPOINTS } from '../config/api'
 import { VideoProcessingFeedback } from '../components/common/FeedbackWidget'
 import { VideoCompressor } from '../utils/videoCompression'
 
 export const UploadPage: React.FC = () => {
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'success' | 'error'>('idle')
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'processing' | 'success' | 'error'>('idle')
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [processingProgress, setProcessingProgress] = useState(0)
   const [fileName, setFileName] = useState('')
   const [moduleId, setModuleId] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
@@ -16,6 +17,30 @@ export const UploadPage: React.FC = () => {
   const [compressedFileSize, setCompressedFileSize] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+
+  // AI Processing Progress Simulation
+  useEffect(() => {
+    if (uploadStatus === 'processing') {
+      setProcessingProgress(0)
+      const interval = setInterval(() => {
+        setProcessingProgress(prev => {
+          if (prev >= 95) return prev
+          return prev + Math.random() * 3 + 2 // Random increment between 2-5%
+        })
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [uploadStatus])
+
+  // Fun messages based on progress
+  const getProcessingMessage = (percent: number) => {
+    if (percent < 20) return 'Analyzing video structure...'
+    if (percent < 40) return 'Transcribing audio content...'
+    if (percent < 60) return 'Extracting key moments...'
+    if (percent < 80) return 'Teaching the AI...'
+    if (percent < 95) return 'Almost there...'
+    return 'Finalizing your training module...'
+  }
 
   const generateModuleId = () => {
     return `module_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -89,14 +114,21 @@ export const UploadPage: React.FC = () => {
       const result = await response.json()
       setModuleId(result.moduleId)
       setUploadProgress(100)
-      setUploadStatus('success')
       
-      console.log('✅ Upload completed successfully')
+      // Start AI processing phase
+      setUploadStatus('processing')
+      console.log('✅ Upload completed successfully, starting AI processing...')
       console.log(`📊 Upload stats:`)
       console.log(`   Original size: ${(file.size / 1024 / 1024).toFixed(2)} MB`)
       console.log(`   Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`)
       console.log(`   Compression ratio: ${compressionRatio}%`)
       console.log(`   Module ID: ${result.moduleId}`)
+      
+      // Simulate AI processing completion after 5-8 seconds
+      setTimeout(() => {
+        setProcessingProgress(100)
+        setUploadStatus('success')
+      }, 5000 + Math.random() * 3000)
 
     } catch (err: any) {
       setUploadStatus('error')
@@ -223,6 +255,29 @@ export const UploadPage: React.FC = () => {
               </div>
               <p className="text-sm text-green-600">
                 Compressed: {formatFileSize(compressedFileSize)} • {uploadProgress.toFixed(1)}% complete
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uploadStatus === 'processing' && (
+        <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-8 text-center">
+          <div className="space-y-4">
+            <div className="w-12 h-12 mx-auto animate-pulse text-indigo-600 text-2xl flex items-center justify-center">🧠</div>
+            <div>
+              <p className="text-lg font-semibold text-indigo-700 mb-3">AI Processing in Progress</p>
+              <p className="text-sm text-indigo-600 mb-4">
+                Give it a sec... your AI is being born. It can take up to 2 minutes to grow a brain.
+              </p>
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                <div
+                  className="bg-indigo-600 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${processingProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-indigo-600">
+                {getProcessingMessage(processingProgress)} • {processingProgress.toFixed(1)}% complete
               </p>
             </div>
           </div>

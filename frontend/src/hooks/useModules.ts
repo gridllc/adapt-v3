@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { API_CONFIG, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 
 export interface Module {
   id: string
   title: string
-  description: string
+  filename: string
   createdAt: string
+  status?: string
 }
 
 export function useModules() {
@@ -15,30 +16,47 @@ export function useModules() {
 
   useEffect(() => {
     const fetchModules = async () => {
+      const maxRetries = 3
+      let retryCount = 0
+      
+      const attemptFetch = async (): Promise<any> => {
+        try {
+          console.log(`🔍 Fetching modules... (attempt ${retryCount + 1}/${maxRetries})`)
+          const data = await api('/api/modules')
+          
+          console.log('📦 Modules response:', data)
+          
+          if (data.success) {
+            setModules(data.modules || [])
+            console.log(`✅ Loaded ${data.modules?.length || 0} modules`)
+            return data
+          } else {
+            throw new Error(data.error || 'Failed to load modules')
+          }
+        } catch (err) {
+          console.error(`❌ Error fetching modules (attempt ${retryCount + 1}):`, err)
+          
+          if (retryCount < maxRetries - 1) {
+            retryCount++
+            console.log(`🔄 Retrying in 1 second... (${retryCount}/${maxRetries})`)
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            return attemptFetch()
+          } else {
+            throw err
+          }
+        }
+      }
+
       try {
         setLoading(true)
         setError(null)
         
-        const response = await fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES))
+        // Small delay to ensure backend is ready
+        await new Promise(resolve => setTimeout(resolve, 500))
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        }
-        
-        const text = await response.text()
-        if (!text) {
-          throw new Error('Empty response from server')
-        }
-        
-        const data = JSON.parse(text)
-        
-        if (data.success) {
-          setModules(data.modules || [])
-        } else {
-          throw new Error(data.error || 'Failed to load modules')
-        }
+        await attemptFetch()
       } catch (err) {
-        console.error('Error fetching modules:', err)
+        console.error('❌ Final error fetching modules:', err)
         setError(err instanceof Error ? err.message : 'Failed to load modules')
         setModules([])
       } finally {

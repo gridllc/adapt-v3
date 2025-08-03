@@ -65,7 +65,22 @@ const configureMiddleware = () => {
 
   // CORS configuration
   const corsOptions = {
-    origin: process.env.FRONTEND_URL || ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'],
+    origin: process.env.FRONTEND_URL || [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:5174', 
+      'http://localhost:5175',
+      'http://localhost:5176',
+      'http://localhost:5177',
+      'http://localhost:5178',
+      'http://localhost:5179',
+      'http://localhost:5180',
+      'http://localhost:5181',
+      'http://localhost:5182',
+      'http://localhost:5183',
+      'http://localhost:5184',
+      'http://localhost:5185'
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Range'],

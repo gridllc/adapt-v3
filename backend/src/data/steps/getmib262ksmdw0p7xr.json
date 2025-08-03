@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Initial Entry",
+    "description": "Enter the four-digit code on the keypad.",
+    "duration": 15
+  },
+  {
+    "timestamp": 15,
+    "title": "Troubleshooting: Frozen Screen",
+    "description": "If the screen freezes or the numbers don't register correctly, repeatedly press any key on the keypad until the screen goes blank and the red light blinks. This will reset the keypad.",
+    "duration": 30
+  },
+  {
+    "timestamp": 45,
+    "title": "Re-Entry After Reset",
+    "description": "Once the screen is blank and the red light is blinking, enter the four-digit code again to access the system.",
+    "duration": 15
+  },
+  {
+    "timestamp": 60,
+    "title": "Confirmation",
+    "description": "Verify access has been granted and the system is ready for use. If issues persist, consult the manual or contact support.",
+    "duration": 30
+  }
+]

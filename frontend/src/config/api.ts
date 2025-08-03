@@ -63,32 +63,51 @@ export async function api(endpoint: string, options?: RequestInit) {
     endpoint
   })
   
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  })
-  
-  console.log('📡 API response status:', response.status, response.statusText)
-  
-  if (!response.ok) {
-    console.error('❌ API Error:', response.status, response.statusText)
-    const errorText = await response.text()
-    console.error('❌ Response body:', errorText)
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
     
-    // Special handling for 404 errors - return empty data instead of throwing
-    if (response.status === 404 && endpoint.includes('/api/steps/')) {
-      console.warn('⚠️ Steps not found, returning empty steps array')
-      return { steps: [], success: false, error: 'Steps not found' }
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    })
+    
+    clearTimeout(timeoutId)
+    console.log('📡 API response status:', response.status, response.statusText)
+    
+    if (!response.ok) {
+      console.error('❌ API Error:', response.status, response.statusText)
+      const errorText = await response.text()
+      console.error('❌ Response body:', errorText)
+      
+      // Special handling for 404 errors - return empty data instead of throwing
+      if (response.status === 404 && endpoint.includes('/api/steps/')) {
+        console.warn('⚠️ Steps not found, returning empty steps array')
+        return { steps: [], success: false, error: 'Steps not found' }
+      }
+      
+      throw new Error(`API Error: ${response.status} ${response.statusText}`)
     }
     
-    throw new Error(`API Error: ${response.status} ${response.statusText}`)
+    const data = await response.json()
+    console.log('📦 API response data:', data)
+    
+    return data
+  } catch (error) {
+    console.error('❌ Network error:', error)
+    
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Request timeout - server may be unavailable')
+      } else if (error.message.includes('ECONNREFUSED') || error.message.includes('Failed to fetch')) {
+        throw new Error('Connection refused - backend server may not be running')
+      }
+    }
+    
+    throw error
   }
-  
-  const data = await response.json()
-  console.log('📦 API response data:', data)
-  
-  return data
 }
