@@ -96,18 +96,15 @@ export const stepsController = {
       const currentDir = process.cwd()
       console.log(`🔍 Current directory: ${currentDir}`)
       
-      // Define project root
-      const projectRoot = path.resolve(__dirname, '..', '..')
+      // Define project root - use process.cwd() for consistent path resolution
+      const projectRoot = process.cwd()
       console.log(`📁 Project root: ${projectRoot}`)
       
-      // Define possible paths where steps might be stored
+      // Define possible paths where steps might be stored - simplified and consistent
       const STEPS_PATHS = [
         path.join(projectRoot, 'data', 'steps'),
         path.join(projectRoot, 'data', 'training'),
-        path.join(projectRoot, 'data', 'modules'),
-        path.join(projectRoot, 'backend', 'data', 'steps'),
-        path.join(projectRoot, 'backend', 'data', 'training'),
-        path.join(projectRoot, 'backend', 'data', 'modules')
+        path.join(projectRoot, 'data', 'modules')
       ]
       
       console.log(`🔍 STEPS_PATHS:`, STEPS_PATHS)

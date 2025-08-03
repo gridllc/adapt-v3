@@ -225,7 +225,13 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
     handleChange('title', '✨ AI is rewriting...')
     
     try {
+      // Call the AI rewrite function
       await onAIRewrite() // No style parameter needed
+      
+      // The onAIRewrite function should update the step data
+      // If it doesn't, we'll need to handle the response here
+      console.log('✅ AI rewrite completed')
+      
     } catch (error) {
       // Restore original title on error
       handleChange('title', originalTitle)

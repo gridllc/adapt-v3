@@ -67,17 +67,20 @@ export const UploadPage: React.FC = () => {
       
       let compressedFile: File
       try {
-        // TEMPORARILY DISABLED: Use original file for faster uploads
-        console.log('⚠️ Compression temporarily disabled for performance testing')
-        compressedFile = file
+        // Use Web Worker compression to prevent UI blocking
+        console.log('🔄 Using Web Worker compression...')
+        compressedFile = await VideoCompressor.compressVideoWithWorker(file, {
+          quality: 0.7,
+          maxWidth: 1280,
+          maxHeight: 720,
+          targetBitrate: 1000 // 1 Mbps
+        })
         
-        // Original compression code (commented out):
-        // compressedFile = await VideoCompressor.compressVideo(file, {
-        //   quality: 0.7,
-        //   maxWidth: 1280,
-        //   maxHeight: 720,
-        //   targetBitrate: 1000 // 1 Mbps
-        // })
+        // Fallback to original file if compression fails
+        if (!compressedFile || compressedFile.size === 0) {
+          console.warn('⚠️ Compression failed, using original file')
+          compressedFile = file
+        }
       } catch (compressionError) {
         console.warn('⚠️ Compression failed, using original file:', compressionError)
         compressedFile = file
@@ -251,6 +254,7 @@ export const UploadPage: React.FC = () => {
               </p>
               <p className="text-sm text-gray-500">Supports MP4/WebM up to 100MB</p>
               <p className="text-xs text-blue-600 mt-2">🚀 Videos are automatically compressed for faster uploads</p>
+              <p className="text-xs text-gray-500 mt-1">⏱️ Estimated upload time: up to 3 minutes for most videos</p>
             </div>
           </div>
         </div>

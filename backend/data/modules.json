@@ -312,5 +312,23 @@
     ],
     "description": "This training module demonstrates how to unlock the device, including troubleshooting steps for when the screen locks up.",
     "totalDuration": 90
+  },
+  {
+    "id": "2kpbxbgr27vmdw6tsy8",
+    "filename": "2kpbxbgr27vmdw6tsy8.mp4",
+    "title": "20250802_170050",
+    "createdAt": "2025-08-03T21:22:46.394Z",
+    "status": "processing",
+    "progress": 0,
+    "message": "Upload complete, starting AI processing..."
+  },
+  {
+    "id": "udjkbu6cupmdw71kog",
+    "filename": "udjkbu6cupmdw71kog.mp4",
+    "title": "20250802_170050",
+    "createdAt": "2025-08-03T21:28:48.939Z",
+    "status": "processing",
+    "progress": 0,
+    "message": "Upload complete, starting AI processing..."
   }
 ]

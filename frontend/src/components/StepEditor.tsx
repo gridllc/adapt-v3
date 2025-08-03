@@ -162,7 +162,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         title: data.text
       }
       
-      // Call the update function
+      // Call the update function to save the changes
       onUpdate(updatedStep)
       
       console.log('✅ Step updated with AI rewrite')

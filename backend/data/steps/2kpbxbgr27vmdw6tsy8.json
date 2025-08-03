@@ -1,0 +1,35 @@
+{
+  "moduleId": "2kpbxbgr27vmdw6tsy8",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Access",
+      "description": "Enter the four-digit code on the keypad.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Troubleshooting: Screen Lock",
+      "description": "If the screen locks up (numbers displayed and unresponsive), repeatedly press buttons on the keypad until the screen goes blank with a red blinking light. This resets the keypad.",
+      "duration": 30
+    },
+    {
+      "timestamp": 45,
+      "title": "Reaccessing After Lockup",
+      "description": "After the screen resets (blank with red blinking light), enter the four-digit code again to access the system.",
+      "duration": 15
+    },
+    {
+      "timestamp": 60,
+      "title": "Important Note: Code Entry",
+      "description": "The four-digit code does not need to be entered in any specific order.",
+      "duration": 15
+    },
+    {
+      "timestamp": 75,
+      "title": "Confirmation",
+      "description": "The system should unlock and grant access.",
+      "duration": 15
+    }
+  ]
+}

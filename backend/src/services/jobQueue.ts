@@ -1,45 +1,34 @@
 import Bull from 'bull'
 import { aiService } from './aiService.js'
-import { storageService } from './storageService.js'
-import path from 'path'
-import fs from 'fs'
+import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
 
-// Create Redis connection with better error handling
+// Redis configuration
 const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
-  maxRetriesPerRequest: 0, // Disable retries to prevent continuous errors
-  retryDelayOnFailover: 0, // Disable retry delay
-  enableReadyCheck: false, // Disable ready check for better error handling
+  maxRetriesPerRequest: 0,
+  retryDelayOnFailover: 0
 }
 
-// Create job queue with error handling
-let jobQueue: Bull.Queue | any
-let useMockQueue = false
-
-// Check if Redis is available before creating Bull queue
+// Check if Redis is available
 function checkRedisConnectionSync() {
-  // Skip Redis check if explicitly disabled
   if (process.env.DISABLE_REDIS === 'true') {
     console.log('⚠️ Redis disabled via DISABLE_REDIS environment variable')
     return false
   }
-  
-  try {
-    // For now, assume Redis is not available in development
-    console.log('⚠️ Redis not available, using mock queue')
-    return false
-  } catch (error) {
-    console.log('⚠️ Redis not available, using mock queue')
-    return false
-  }
+  // For now, assume Redis is not available in development
+  console.log('⚠️ Redis not available, using mock queue')
+  return false
 }
 
-// Initialize job queue synchronously
+// Initialize job queue
+let jobQueue: Bull.Queue | any
+let useMockQueue = false
+
 function initializeJobQueueSync() {
   try {
     const redisAvailable = checkRedisConnectionSync()
-    
+
     if (redisAvailable) {
       jobQueue = new Bull('video-processing', {
         redis: redisConfig,
@@ -51,16 +40,12 @@ function initializeJobQueueSync() {
           },
         },
       })
-
-      // Add error handlers for the Bull queue
       jobQueue.on('error', (error: Error) => {
         console.error('❌ Job queue error:', error)
       })
-
       jobQueue.on('failed', (job: Bull.Job, err: Error) => {
         console.error(`❌ Job ${job.id} failed:`, err)
       })
-
       console.log('✅ Job queue initialized with Redis')
     } else {
       throw new Error('Redis not available')
@@ -68,12 +53,9 @@ function initializeJobQueueSync() {
   } catch (error) {
     console.log('⚠️ Using mock job queue - Redis not available')
     useMockQueue = true
-    
-    // Create mock queue
     jobQueue = {
       add: async (name: string, data: any) => {
         console.log(`📝 [MOCK] Adding job: ${name}`)
-        // Process immediately in development
         if (name === 'process-video') {
           setTimeout(() => processVideoJob(data), 100)
         }
@@ -86,18 +68,14 @@ function initializeJobQueueSync() {
   }
 }
 
-// Initialize the job queue synchronously
 initializeJobQueueSync()
 
-// Performance logger for tracking processing times
+// Performance logging
 class PerformanceLogger {
   private metrics = new Map<string, any>()
 
   startUpload(moduleId: string) {
-    this.metrics.set(moduleId, {
-      moduleId,
-      uploadStart: Date.now()
-    })
+    this.metrics.set(moduleId, { moduleId, uploadStart: Date.now() })
     console.log(`🚀 [${moduleId}] Upload started`)
   }
 
@@ -172,7 +150,7 @@ async function processVideoJob(jobData: any) {
     console.log(`🎬 [${moduleId}] Starting async video processing...`)
     
     // Update progress: starting AI processing
-    await updateModuleProgress(moduleId, { 
+    await updateTrainingData(moduleId, { 
       status: 'processing', 
       progress: 10,
       message: 'Starting AI analysis...'
@@ -184,7 +162,7 @@ async function processVideoJob(jobData: any) {
     console.log(`🧠 [${moduleId}] Starting AI processing...`)
     const moduleData = await aiService.processVideo(videoUrl)
     
-    await updateModuleProgress(moduleId, { 
+    await updateTrainingData(moduleId, { 
       progress: 30,
       message: 'AI analysis complete, extracting steps...'
     })
@@ -195,131 +173,52 @@ async function processVideoJob(jobData: any) {
     console.log(`📋 [${moduleId}] Generating steps...`)
     const steps = await aiService.generateStepsForModule(moduleId, videoUrl)
     
-    await updateModuleProgress(moduleId, { 
+    await updateTrainingData(moduleId, { 
       progress: 60,
       message: 'Steps extracted, enhancing with AI...'
     })
 
     perfLogger.logStepsComplete(moduleId)
 
-    // Step 3: Transcription and GPT enhancement (if available)
-    let trainingData = null
-    let enhancedSteps = null
+    // Step 3: Save final results
+    console.log(`💾 [${moduleId}] Saving final results...`)
+    await updateStepsData(moduleId, steps)
     
-    try {
-      console.log(`🎯 [${moduleId}] Starting transcription processing...`)
-      
-      // Get the video file path
-      const videoPath = path.join(process.cwd(), 'uploads', `${moduleId}.mp4`)
-      
-      if (fs.existsSync(videoPath)) {
-        const { AudioProcessor } = await import('./audioProcessor.js')
-        const audioProcessor = new AudioProcessor()
-        
-        // Create structured training steps
-        trainingData = await audioProcessor.createTrainingStepsFromVideo(videoPath, {
-          maxWordsPerStep: 25,
-          minStepDuration: 2,
-          maxStepDuration: 30,
-          confidenceThreshold: 0.6
-        })
-        
-        // Generate GPT-enhanced steps
-        enhancedSteps = await audioProcessor.generateGPTEnhancedSteps(videoPath, {
-          useWordLevelSegmentation: false,
-          enableGPTRewriting: true
-        })
-        
-        perfLogger.logGPTComplete(moduleId)
-      }
-    } catch (transcriptionError) {
-      console.error(`⚠️ [${moduleId}] Transcription processing failed:`, transcriptionError)
-      // Continue without transcription
-    }
-
-    // Step 4: Save final results
-    await updateModuleProgress(moduleId, { 
-      progress: 90,
-      message: 'Saving training data...'
-    })
-
-    // Save the enhanced training data
-    const trainingDataPath = path.join(process.cwd(), 'data', 'training', `${moduleId}.json`)
-    await fs.promises.mkdir(path.dirname(trainingDataPath), { recursive: true })
-    await fs.promises.writeFile(
-      trainingDataPath, 
-      JSON.stringify({
-        moduleId,
-        originalSteps: steps,
-        structuredSteps: trainingData?.steps || [],
-        enhancedSteps: enhancedSteps?.steps || [],
-        stepGroups: trainingData?.stepGroups || [],
-        stats: trainingData?.stats || {},
-        transcript: trainingData?.transcript || '',
-        createdAt: new Date().toISOString()
-      }, null, 2)
-    )
-
-    // Final update: mark as ready
-    await updateModuleProgress(moduleId, {
+    await updateTrainingData(moduleId, { 
       status: 'ready',
       progress: 100,
-      message: 'Training module ready!',
-      steps: enhancedSteps?.steps || steps,
-      title: moduleData?.title || 'Training Module',
-      description: moduleData?.description || '',
-      totalDuration: moduleData?.totalDuration || 0
+      message: 'Processing complete! Your training module is ready.',
+      steps: steps
     })
 
+    perfLogger.logGPTComplete(moduleId)
     perfLogger.logTotalComplete(moduleId)
+    
     console.log(`✅ [${moduleId}] Processing complete!`)
     
   } catch (error) {
     console.error(`❌ [${moduleId}] Processing failed:`, error)
     
-    await updateModuleProgress(moduleId, {
-      status: 'failed',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    })
+    // Update status to failed
+    try {
+      await updateTrainingData(moduleId, {
+        status: 'failed',
+        message: `Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        progress: 0
+      })
+    } catch (updateError) {
+      console.error(`❌ [${moduleId}] Failed to update status to failed:`, updateError)
+    }
     
     throw error
   }
 }
 
-// Process video analysis jobs
+// Register job processor
 if (jobQueue && typeof jobQueue.process === 'function') {
   jobQueue.process('process-video', processVideoJob)
 } else {
   console.log('⚠️ Job queue not properly initialized, using mock processing')
-}
-
-// Helper function to update module progress
-async function updateModuleProgress(moduleId: string, updates: any) {
-  try {
-    // Update modules.json
-    const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
-    let modules = []
-    
-    try {
-      const raw = await fs.promises.readFile(modulesPath, 'utf-8')
-      modules = JSON.parse(raw)
-    } catch {
-      modules = []
-    }
-    
-    const moduleIndex = modules.findIndex((m: any) => m.id === moduleId)
-    if (moduleIndex >= 0) {
-      modules[moduleIndex] = { ...modules[moduleIndex], ...updates }
-    } else {
-      modules.push({ id: moduleId, ...updates })
-    }
-    
-    await fs.promises.writeFile(modulesPath, JSON.stringify(modules, null, 2))
-    
-    console.log(`📊 [${moduleId}] Progress updated: ${updates.progress || 0}%`)
-  } catch (error) {
-    console.error(`❌ [${moduleId}] Failed to update progress:`, error)
-  }
 }
 
 export { jobQueue } 

@@ -33,8 +33,8 @@ export const TrainingPage: React.FC = () => {
   const filename = moduleId ? `${moduleId}.mp4` : undefined
   const { url, loading, error } = useSignedVideoUrl(filename)
   
-  // Use module status hook for processing state
-  const { status, loading: statusLoading, error: statusError } = useModuleStatus(moduleId!, isProcessing)
+  // Use module status hook for processing state - ensure moduleId is always defined
+  const { status, loading: statusLoading, error: statusError } = useModuleStatus(moduleId || '', isProcessing)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const chatHistoryRef = useRef<HTMLDivElement>(null)
@@ -188,9 +188,15 @@ export const TrainingPage: React.FC = () => {
     }
   }, [url, searchParams])
 
-  // Fetch steps when video URL is ready
+  // Fetch steps when video URL is ready AND module is ready
   useEffect(() => {
     if (!moduleId) return
+
+    // Don't fetch steps if module is still processing
+    if (status && status.status === 'processing') {
+      console.log(`⏳ Module ${moduleId} still processing, waiting for completion...`)
+      return
+    }
 
     const fetchSteps = async () => {
       setStepsLoading(true)
@@ -199,7 +205,16 @@ export const TrainingPage: React.FC = () => {
         const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 10000))
         const data = await Promise.race([api(freshUrl), timeoutPromise])
-        if (!data.steps || data.steps.length === 0) throw new Error('Steps not found')
+        
+        if (!data.steps || data.steps.length === 0) {
+          // If no steps and module is ready, this might be an error
+          if (status && status.status === 'ready') {
+            throw new Error('Steps not found - module processing may have failed')
+          } else {
+            throw new Error('Steps not ready yet - module still processing')
+          }
+        }
+        
         setSteps(data.steps)
         setRetryCount(0)
       } catch (err: any) {
@@ -216,7 +231,7 @@ export const TrainingPage: React.FC = () => {
     }
 
     fetchSteps()
-  }, [moduleId, retryCount])
+  }, [moduleId, retryCount, status?.status]) // Added status.status as dependency
 
   const handleProcessWithAI = async () => {
     if (!moduleId) return

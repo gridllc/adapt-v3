@@ -3,6 +3,7 @@ import { aiService } from '../services/aiService.js'
 import { storageService } from '../services/storageService.js'
 import { AudioProcessor } from '../services/audioProcessor.js'
 import { jobQueue, perfLogger } from '../services/jobQueue.js'
+import { createBasicSteps, updateTrainingData } from '../services/createBasicSteps.js'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -70,13 +71,37 @@ export const uploadController = {
       await fs.promises.writeFile(modulesPath, JSON.stringify(existingModules, null, 2))
       console.log('✅ Module entry created with processing status')
 
+      // 🔴 CRITICAL FIX: Create basic step files immediately using new service
+      console.log('📝 Creating basic step files...')
+      try {
+        await createBasicSteps(moduleId, originalname)
+        console.log('✅ Basic step files created')
+      } catch (error) {
+        console.error('❌ Failed to create basic step files:', error)
+        // Continue anyway - the background processing will handle this
+      }
+
       // Queue AI processing job (async - don't wait!)
       console.log('🚀 Queuing AI processing job...')
-      await jobQueue.add('process-video', {
-        moduleId,
-        videoUrl,
-      })
-      console.log('✅ AI processing job queued successfully')
+      try {
+        await jobQueue.add('process-video', {
+          moduleId,
+          videoUrl,
+        })
+        console.log('✅ AI processing job queued successfully')
+      } catch (error) {
+        console.error('❌ Failed to queue AI processing job:', error)
+        // Update status to indicate failure
+        try {
+          await updateTrainingData(moduleId, {
+            status: 'failed',
+            message: 'Failed to start AI processing',
+            progress: 0
+          })
+        } catch (updateError) {
+          console.error('❌ Failed to update training data:', updateError)
+        }
+      }
 
       // Return immediately - don't wait for AI processing!
       console.log('📤 Sending immediate response to client...')
