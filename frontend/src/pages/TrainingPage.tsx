@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useSignedVideoUrl } from '../hooks/useSignedVideoUrl'
+import { useModuleStatus } from '../hooks/useModuleStatus'
 import { api, API_ENDPOINTS } from '../config/api'
 import { AddStepForm } from '../components/AddStepForm'
 import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
+import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
 
 interface Step {
@@ -27,8 +29,13 @@ interface ChatMessage {
 export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
   const [searchParams] = useSearchParams()
+  const isProcessing = searchParams.get('processing') === 'true'
   const filename = moduleId ? `${moduleId}.mp4` : undefined
   const { url, loading, error } = useSignedVideoUrl(filename)
+  
+  // Use module status hook for processing state
+  const { status, loading: statusLoading, error: statusError } = useModuleStatus(moduleId!, isProcessing)
+  
   const videoRef = useRef<HTMLVideoElement>(null)
   
   const [steps, setSteps] = useState<Step[]>([])
@@ -51,6 +58,37 @@ export const TrainingPage: React.FC = () => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false)
   const chatHistoryRef = useRef<HTMLDivElement>(null)
+
+  // Show processing screen if module is still being processed
+  if (isProcessing && (statusLoading || (status && status.status === 'processing'))) {
+    return (
+      <ProcessingScreen 
+        progress={status?.progress || 0} 
+        message={status?.message}
+      />
+    )
+  }
+
+  // Show error screen if processing failed
+  if (status && status.status === 'failed') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-8">
+        <div className="max-w-md w-full space-y-6 text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">
+            Processing Failed
+          </h2>
+          <p className="text-gray-600 mb-4">{status.error || 'An error occurred during processing'}</p>
+          <button 
+            onClick={() => window.location.href = '/upload'}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // Video seeking function
   const seekToTime = (timeInSeconds: number) => {

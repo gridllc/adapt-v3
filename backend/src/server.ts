@@ -14,6 +14,9 @@ import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
 
+// Import job queue to ensure it's initialized
+import './services/jobQueue.js'
+
 // Load environment variables
 dotenv.config()
 

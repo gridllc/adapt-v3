@@ -28,7 +28,10 @@ const upload = multer({
   },
 })
 
-// Single upload endpoint only
+// Single upload endpoint
 router.post('/', upload.single('file'), uploadController.uploadVideo)
+
+// Module status endpoint
+router.get('/status/:moduleId', uploadController.getModuleStatus)
 
 export { router as uploadRoutes } 

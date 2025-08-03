@@ -61,18 +61,23 @@ export const UploadPage: React.FC = () => {
         return
       }
 
-      // Step 1: Compress video
+      // Step 1: Compress video (TEMPORARILY DISABLED FOR PERFORMANCE TESTING)
       console.log('🎬 Starting video compression...')
       console.log('📊 Original file size:', (file.size / 1024 / 1024).toFixed(2), 'MB')
       
       let compressedFile: File
       try {
-        compressedFile = await VideoCompressor.compressVideo(file, {
-          quality: 0.7,
-          maxWidth: 1280,
-          maxHeight: 720,
-          targetBitrate: 1000 // 1 Mbps
-        })
+        // TEMPORARILY DISABLED: Use original file for faster uploads
+        console.log('⚠️ Compression temporarily disabled for performance testing')
+        compressedFile = file
+        
+        // Original compression code (commented out):
+        // compressedFile = await VideoCompressor.compressVideo(file, {
+        //   quality: 0.7,
+        //   maxWidth: 1280,
+        //   maxHeight: 720,
+        //   targetBitrate: 1000 // 1 Mbps
+        // })
       } catch (compressionError) {
         console.warn('⚠️ Compression failed, using original file:', compressionError)
         compressedFile = file
@@ -90,28 +95,51 @@ export const UploadPage: React.FC = () => {
         return
       }
 
-      // Step 2: Upload using simple FormData
+      // Step 2: Upload using simple FormData with progress tracking
       setUploadStatus('uploading')
       const newModuleId = generateModuleId()
       
       console.log('🚀 Starting simple upload...')
       console.log(`📦 Compressed file size: ${compressedFile.size} bytes`)
       
-      // Create FormData and upload
+      // Create FormData and upload with progress tracking
       const formData = new FormData()
       formData.append('file', compressedFile)
       
-      const response = await fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.UPLOAD), {
-        method: 'POST',
-        body: formData,
+      // Use XMLHttpRequest for progress tracking
+      const uploadPromise = new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100
+            setUploadProgress(percentComplete)
+            console.log(`📤 Upload progress: ${percentComplete.toFixed(1)}%`)
+          }
+        })
+        
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const result = JSON.parse(xhr.responseText)
+              resolve(result)
+            } catch (error) {
+              reject(new Error('Invalid response format'))
+            }
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`))
+          }
+        })
+        
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'))
+        })
+        
+        xhr.open('POST', API_CONFIG.getApiUrl(API_ENDPOINTS.UPLOAD))
+        xhr.send(formData)
       })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`)
-      }
-
-      const result = await response.json()
+      
+      const result = await uploadPromise as any
       setModuleId(result.moduleId)
       setUploadProgress(100)
       
@@ -124,11 +152,15 @@ export const UploadPage: React.FC = () => {
       console.log(`   Compression ratio: ${compressionRatio}%`)
       console.log(`   Module ID: ${result.moduleId}`)
       
-      // Simulate AI processing completion after 5-8 seconds
-      setTimeout(() => {
-        setProcessingProgress(100)
-        setUploadStatus('success')
-      }, 5000 + Math.random() * 3000)
+      // Navigate immediately to training page with processing status
+      console.log('🚀 Navigating to training page for real-time progress...')
+      navigate(`/training/${result.moduleId}?processing=true`)
+      
+      // Don't simulate completion - let the real processing handle it
+      // setTimeout(() => {
+      //   setProcessingProgress(100)
+      //   setUploadStatus('success')
+      // }, 5000 + Math.random() * 3000)
 
     } catch (err: any) {
       setUploadStatus('error')
@@ -156,6 +188,7 @@ export const UploadPage: React.FC = () => {
   const resetUpload = () => {
     setUploadStatus('idle')
     setUploadProgress(0)
+    setProcessingProgress(0)
     setFileName('')
     setModuleId('')
     setErrorMessage('')
@@ -173,20 +206,22 @@ export const UploadPage: React.FC = () => {
       <div className="text-center">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">Uploading Training Module</h1>
         
-        {/* Prominent AI Processing Message */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mb-6 shadow-sm">
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <div className="text-3xl animate-pulse">⏳</div>
-            <h2 className="text-xl font-bold text-blue-800">AI Processing in Progress</h2>
+        {/* Prominent AI Processing Message - Only show during processing */}
+        {uploadStatus === 'processing' && (
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-6 mb-6 shadow-sm">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <div className="text-3xl animate-pulse">🧠</div>
+              <h2 className="text-xl font-bold text-indigo-800">AI Processing in Progress</h2>
+            </div>
+            <p className="text-lg text-indigo-700 font-medium">
+              Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
+            </p>
+            <div className="mt-3 flex items-center justify-center gap-2 text-sm text-indigo-600">
+              <span className="animate-spin">🔄</span>
+              <span>{getProcessingMessage(processingProgress)}</span>
+            </div>
           </div>
-          <p className="text-lg text-blue-700 font-medium">
-            Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
-          </p>
-          <div className="mt-3 flex items-center justify-center gap-2 text-sm text-blue-600">
-            <span className="animate-spin">🔄</span>
-            <span>Processing video, transcribing audio, and generating training steps...</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {uploadStatus === 'idle' && (
