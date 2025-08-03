@@ -2,7 +2,8 @@ import express, { Request, Response } from 'express'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
-import { uploadController } from '../controllers/uploadController.js'
+import { aiService } from '../services/aiService.js'
+import { transcribeS3Video } from '../services/transcriptionService.js'
 
 const router = express.Router()
 
@@ -40,7 +41,21 @@ router.post('/:moduleId', async (req: Request, res: Response) => {
     console.log(`📝 Original filename: ${originalFilename}`)
 
     // Trigger the AI processing
-    await uploadController.processVideoAsync(moduleId, originalFilename, videoPath)
+    console.log('🤖 Starting AI processing for reprocess...')
+    
+    // Process with AI
+    const videoUrl = `http://localhost:8000/uploads/${moduleId}.mp4`
+    const moduleData = await aiService.processVideo(videoUrl)
+    console.log('✅ AI processing completed')
+    
+    // Generate steps
+    const steps = await aiService.generateStepsForModule(moduleId, videoUrl)
+    console.log('✅ Steps generation completed:', steps.length, 'steps')
+    
+    // Start transcription in background
+    transcribeS3Video(moduleId, `${moduleId}.mp4`)
+      .then(() => console.log(`Transcript generated for ${moduleId}`))
+      .catch(err => console.error(`Transcript generation failed for ${moduleId}:`, err))
 
     console.log(`✅ Reprocessing completed for module: ${moduleId}`)
 

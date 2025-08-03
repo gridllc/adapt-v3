@@ -14,7 +14,7 @@ export const stepsController = {
       console.log(`🔍 Looking for steps for module: ${moduleId}`)
 
       // Define possible paths where steps might be stored
-s      const possiblePaths = [
+      const possiblePaths = [
         path.join(process.cwd(), 'data', 'training', `${moduleId}.json`),
         path.join(process.cwd(), 'data', 'steps', `${moduleId}.json`),
         path.join(process.cwd(), 'data', 'modules', `${moduleId}.json`),
