@@ -51,6 +51,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
 
   const handleSave = async (updatedStepData: StepData) => {
     try {
+      // Convert frontend format back to backend format
       const updatedStep: Step = {
         ...step,
         title: updatedStepData.title,
@@ -102,10 +103,23 @@ export const StepEditor: React.FC<StepEditorProps> = ({
   }
 
   const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return '00:00'
+    if (isNaN(seconds) || seconds < 0 || seconds === undefined || seconds === null) return '00:00'
     const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
+    const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // Convert backend step to frontend format for InlineStepEditor
+  const convertStepToFrontend = (backendStep: Step): StepData => {
+    return {
+      id: backendStep.id,
+      title: backendStep.title,
+      description: backendStep.description,
+      start: backendStep.timestamp,
+      end: backendStep.timestamp + (backendStep.duration || 30),
+      aliases: backendStep.aliases || [],
+      notes: backendStep.notes || ''
+    }
   }
 
   // Stub functions for AI rewrite and auto-save (disabled for now)
@@ -123,15 +137,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
         <InlineStepEditor
-          step={{
-            id: step.id,
-            title: step.title,
-            description: step.description,
-            start: step.timestamp,
-            end: step.timestamp + (step.duration || 30),
-            aliases: step.aliases || [],
-            notes: step.notes || ''
-          }}
+          step={convertStepToFrontend(step)}
           onSave={handleSave}
           onCancel={() => setIsEditing(false)}
           onAIRewrite={handleAIRewrite}

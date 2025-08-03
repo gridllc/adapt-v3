@@ -33,7 +33,34 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
   onAIRewrite,
   onAutoSave
 }) => {
-  const [editedStep, setEditedStep] = useState<StepData>(step)
+  // Convert backend step format to frontend format
+  const convertStepToFrontend = (backendStep: any): StepData => {
+    if (backendStep.timestamp !== undefined) {
+      // Backend format: { timestamp, duration, title, description }
+      return {
+        id: backendStep.id || step.id,
+        title: backendStep.title || '',
+        description: backendStep.description || '',
+        start: backendStep.timestamp || 0,
+        end: (backendStep.timestamp || 0) + (backendStep.duration || 30),
+        aliases: backendStep.aliases || [],
+        notes: backendStep.notes || ''
+      }
+    } else {
+      // Already in frontend format
+      return {
+        id: backendStep.id || step.id,
+        title: backendStep.title || '',
+        description: backendStep.description || '',
+        start: backendStep.start || 0,
+        end: backendStep.end || 30,
+        aliases: backendStep.aliases || [],
+        notes: backendStep.notes || ''
+      }
+    }
+  }
+
+  const [editedStep, setEditedStep] = useState<StepData>(convertStepToFrontend(step))
   const [isRewriting, setIsRewriting] = useState(false)
   const [showRewriteOptions, setShowRewriteOptions] = useState(false)
   const [lastUsedStyle, setLastUsedStyle] = useState<string>('')
@@ -42,6 +69,11 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout>()
+
+  // Update editedStep when step prop changes
+  useEffect(() => {
+    setEditedStep(convertStepToFrontend(step))
+  }, [step])
 
   // Validation function
   const validateStep = (step: StepData): string[] => {

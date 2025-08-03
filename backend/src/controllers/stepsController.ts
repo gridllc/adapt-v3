@@ -7,6 +7,48 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Helper function to normalize step format
+const normalizeStep = (step: any, index: number) => {
+  // Handle different step formats from backend
+  if (step.timestamp !== undefined) {
+    // originalSteps format
+    return {
+      id: step.id || `step_${index + 1}`,
+      timestamp: step.timestamp,
+      title: step.title || '',
+      description: step.description || '',
+      duration: step.duration || 30,
+      aliases: step.aliases || [],
+      notes: step.notes || '',
+      isManual: step.isManual || false
+    }
+  } else if (step.start !== undefined && step.end !== undefined) {
+    // structuredSteps or enhancedSteps format
+    return {
+      id: step.id || `step_${index + 1}`,
+      timestamp: step.start,
+      title: step.title || step.text || '',
+      description: step.description || step.text || '',
+      duration: step.end - step.start,
+      aliases: step.aliases || [],
+      notes: step.notes || '',
+      isManual: step.isManual || false
+    }
+  } else {
+    // Fallback for unknown format
+    return {
+      id: step.id || `step_${index + 1}`,
+      timestamp: step.timestamp || step.start || 0,
+      title: step.title || step.text || '',
+      description: step.description || step.text || '',
+      duration: step.duration || (step.end - step.start) || 30,
+      aliases: step.aliases || [],
+      notes: step.notes || '',
+      isManual: step.isManual || false
+    }
+  }
+}
+
 export const stepsController = {
   async getSteps(req: Request, res: Response) {
     try {
@@ -68,23 +110,29 @@ export const stepsController = {
       
       console.log(`📄 Reading steps from: ${foundPath}`)
       
-      // Extract steps from the data structure
-      let steps = []
+      // Extract and normalize steps from the data structure
+      let rawSteps = []
       if (stepsData.steps) {
-        steps = stepsData.steps
+        rawSteps = stepsData.steps
       } else if (stepsData.enhancedSteps) {
-        steps = stepsData.enhancedSteps
+        rawSteps = stepsData.enhancedSteps
       } else if (stepsData.structuredSteps) {
-        steps = stepsData.structuredSteps
+        rawSteps = stepsData.structuredSteps
+      } else if (stepsData.originalSteps) {
+        rawSteps = stepsData.originalSteps
       } else if (Array.isArray(stepsData)) {
-        steps = stepsData
+        rawSteps = stepsData
       } else {
         // If it's a module data object, extract steps
-        steps = stepsData.originalSteps || stepsData.moduleSteps || []
+        rawSteps = stepsData.originalSteps || stepsData.moduleSteps || []
       }
+      
+      // Normalize all steps to consistent format
+      const steps = rawSteps.map((step: any, index: number) => normalizeStep(step, index))
       
       console.log(`✅ Found ${steps.length} steps for moduleId: ${moduleId}`)
       console.log(`📊 File content keys:`, Object.keys(stepsData))
+      console.log(`🔧 Normalized step example:`, steps[0])
       
       res.json({
         success: true,
@@ -95,6 +143,7 @@ export const stepsController = {
           sourceFile: foundPath,
           hasEnhancedSteps: !!stepsData.enhancedSteps,
           hasStructuredSteps: !!stepsData.structuredSteps,
+          hasOriginalSteps: !!stepsData.originalSteps,
           stats: stepsData.stats || null
         }
       })
@@ -150,16 +199,29 @@ export const stepsController = {
         }
       }
 
+      // Convert frontend step format to backend format
+      const convertToBackendFormat = (step: any) => ({
+        id: step.id,
+        timestamp: step.timestamp,
+        title: step.title,
+        description: step.description,
+        duration: step.duration,
+        aliases: step.aliases || [],
+        notes: step.notes || '',
+        isManual: step.isManual || false
+      })
+
       // Handle different actions
       if (action === 'add' && Array.isArray(steps)) {
         // Add new steps to existing steps
-        existingData.steps = [...(existingData.steps || []), ...steps]
+        const backendSteps = steps.map(convertToBackendFormat)
+        existingData.steps = [...(existingData.steps || []), ...backendSteps]
         console.log(`➕ Added ${steps.length} new steps`)
       } else if (action === 'update' && Array.isArray(steps) && typeof stepIndex === 'number') {
         // Update specific step
         if (!existingData.steps) existingData.steps = []
         if (stepIndex >= 0 && stepIndex < existingData.steps.length) {
-          existingData.steps[stepIndex] = { ...existingData.steps[stepIndex], ...steps[0] }
+          existingData.steps[stepIndex] = convertToBackendFormat(steps[0])
           console.log(`✏️ Updated step at index ${stepIndex}`)
         } else {
           return res.status(400).json({ error: 'Invalid step index' })
@@ -175,11 +237,11 @@ export const stepsController = {
         }
       } else if (action === 'reorder' && Array.isArray(steps)) {
         // Replace all steps with reordered array
-        existingData.steps = steps
+        existingData.steps = steps.map(convertToBackendFormat)
         console.log(`🔄 Reordered ${steps.length} steps`)
       } else if (Array.isArray(steps)) {
         // Replace all steps (default behavior)
-        existingData.steps = steps
+        existingData.steps = steps.map(convertToBackendFormat)
         console.log(`🔄 Replaced all steps with ${steps.length} new steps`)
       } else {
         return res.status(400).json({ error: 'Invalid request data' })
@@ -244,8 +306,20 @@ export const stepsController = {
       const rawData = await fs.promises.readFile(foundPath, 'utf-8')
       const existingData = JSON.parse(rawData)
 
+      // Convert frontend format to backend format
+      const convertToBackendFormat = (step: any) => ({
+        id: step.id,
+        timestamp: step.timestamp,
+        title: step.title,
+        description: step.description,
+        duration: step.duration,
+        aliases: step.aliases || [],
+        notes: step.notes || '',
+        isManual: step.isManual || false
+      })
+
       // Update steps
-      existingData.steps = steps
+      existingData.steps = steps.map(convertToBackendFormat)
       existingData.updatedAt = new Date().toISOString()
 
       // Write back to file
