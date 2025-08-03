@@ -1,0 +1,20 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Initial Entry",
+    "description": "Enter the four-digit code on the screen.  The order of entry does not matter.",
+    "duration": 15
+  },
+  {
+    "timestamp": 15,
+    "title": "Troubleshooting: Screen Lock",
+    "description": "If the screen locks up (numbers remain displayed and the device doesn't unlock), repeatedly tap the screen until it goes blank with a red blinking light.",
+    "duration": 30
+  },
+  {
+    "timestamp": 45,
+    "title": "Reset and Re-entry",
+    "description": "Once the screen is blank with a red blink, re-enter the four-digit code to unlock the device.",
+    "duration": 45
+  }
+]

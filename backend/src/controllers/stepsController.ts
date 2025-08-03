@@ -57,11 +57,10 @@ export const stepsController = {
   async rewriteStep(req: Request, res: Response) {
     try {
       const { moduleId } = req.params
-      const { text, style = 'polished' } = req.body
+      const { text, instruction } = req.body
       
       console.log(`🤖 AI Rewrite requested for module: ${moduleId}`)
       console.log(`📝 Original text: ${text}`)
-      console.log(`🎨 Style: ${style}`)
       
       if (!text) {
         return res.status(400).json({ error: 'Text is required' })
@@ -70,8 +69,11 @@ export const stepsController = {
       // Import AI service
       const { aiService } = await import('../services/aiService.js')
       
-      // Call AI rewrite
-      const rewrittenText = await aiService.rewriteStep(text, style)
+      // Use universal prompt if no instruction provided
+      const universalPrompt = instruction || "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."
+      
+      // Call AI rewrite with universal prompt
+      const rewrittenText = await aiService.rewriteStep(text, universalPrompt)
       
       console.log(`✅ AI rewrite successful:`, rewrittenText)
       

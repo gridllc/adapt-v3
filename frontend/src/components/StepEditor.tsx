@@ -123,10 +123,10 @@ export const StepEditor: React.FC<StepEditorProps> = ({
     }
   }
 
-  // AI rewrite functionality
-  const handleAIRewrite = async (style: string): Promise<void> => {
+  // AI rewrite functionality - simplified without style parameter
+  const handleAIRewrite = async (): Promise<void> => {
     try {
-      console.log('🤖 AI rewrite requested with style:', style)
+      console.log('🤖 AI rewrite requested')
       
       // Get current step title for rewriting
       const currentTitle = step.title
@@ -136,7 +136,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         return
       }
       
-      // Call the AI rewrite API
+      // Call the AI rewrite API with universal prompt
       const response = await fetch(`/api/steps/${moduleId}/rewrite`, {
         method: 'POST',
         headers: {
@@ -144,7 +144,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         },
         body: JSON.stringify({
           text: currentTitle,
-          style: style
+          instruction: "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."
         }),
       })
       

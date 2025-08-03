@@ -75,7 +75,10 @@ export default function EditStepsPage() {
       const res = await fetch(`/api/steps/${moduleId}/rewrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ 
+          text,
+          instruction: "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."
+        }),
       })
       
       if (!res.ok) throw new Error('AI rewrite failed')

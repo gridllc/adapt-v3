@@ -26,12 +26,18 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, me
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gradient-to-br from-blue-50 to-indigo-50">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <div className="text-6xl mb-6 animate-pulse">🧠</div>
+          {/* Spinning brain emoji */}
+          <div className="text-6xl mb-6 animate-spin">🧠</div>
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
             AI is Processing Your Video
           </h2>
           <p className="text-lg text-gray-600 mb-6">
             {message || getProgressMessage(progress)}
+          </p>
+          
+          {/* Funny message about birthing AI */}
+          <p className="text-sm text-gray-600 italic mt-2">
+            Birthing your AI... this can take up to 3 minutes. Please be patient while it grows a brain 🧠
           </p>
         </div>
 

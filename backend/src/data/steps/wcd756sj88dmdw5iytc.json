@@ -1,0 +1,20 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Initial Access",
+    "description": "Enter the four-digit code on the keypad followed by the access code. The order of the four digits doesn't matter.",
+    "duration": 30
+  },
+  {
+    "timestamp": 30,
+    "title": "Troubleshooting: Frozen Screen",
+    "description": "If the screen freezes or locks up after entering the code, repeatedly press any key on the keypad until the screen goes blank and the red light blinks. This will reset the system.",
+    "duration": 30
+  },
+  {
+    "timestamp": 60,
+    "title": "Reaccessing After Reset",
+    "description": "Once the screen is blank and the red light is blinking, re-enter the four-digit code followed by the access code to regain access.",
+    "duration": 30
+  }
+]

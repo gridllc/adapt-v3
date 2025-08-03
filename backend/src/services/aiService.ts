@@ -592,52 +592,45 @@ export const aiService = {
   /**
    * Rewrite a training step with AI
    */
-  async rewriteStep(text: string, style: string = 'polished'): Promise<string> {
-    console.log(`🤖 Rewriting text with style: ${style}`)
+  async rewriteStep(text: string, instruction: string = "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."): Promise<string> {
+    console.log(`🤖 Rewriting text with universal instruction`)
     
     try {
       // Try Gemini first
-      const geminiResult = await this.rewriteWithGemini(text, style)
+      const geminiResult = await this.rewriteWithGemini(text, instruction)
       if (geminiResult) return geminiResult
       
       // Fallback to OpenAI
-      const openaiResult = await this.rewriteWithOpenAI(text, style)
+      const openaiResult = await this.rewriteWithOpenAI(text, instruction)
       if (openaiResult) return openaiResult
       
       // Final fallback
-      return this.improveStepText(text, style)
+      return this.improveStepText(text)
     } catch (error) {
       console.error('❌ AI rewrite failed:', error)
-      return this.improveStepText(text, style)
+      return this.improveStepText(text)
     }
   },
 
-  async rewriteWithGemini(text: string, style: string): Promise<string> {
-    if (!genAI) { // Changed from this.geminiModel to genAI
+  async rewriteWithGemini(text: string, instruction: string): Promise<string> {
+    if (!genAI) {
       console.log('⚠️ Gemini not available, skipping')
       return ''
     }
 
-    const stylePrompts = {
-      polished: 'Rewrite this training step in a polished, professional tone. Make it clear and authoritative:',
-      casual: 'Rewrite this training step in a casual, friendly tone. Make it approachable and conversational:',
-      detailed: 'Rewrite this training step with more detail and explanation. Make it comprehensive and educational:',
-      concise: 'Rewrite this training step to be short and clear. Make it direct and to the point:'
-    }
-
-    const prompt = `${stylePrompts[style as keyof typeof stylePrompts] || stylePrompts.polished}
+    const prompt = `${instruction}
 
 Original: "${text}"
 
 Rewrite:`
 
     try {
-      const result = await genAI!.getGenerativeModel({ model: 'gemini-1.5-pro' }).generateContent(prompt) // Changed from this.geminiModel to genAI
+      const result = await genAI!.getGenerativeModel({ model: 'gemini-1.5-pro' }).generateContent(prompt)
       const response = await result.response
       const rewrittenText = response.text().trim()
       
       if (rewrittenText && rewrittenText !== text) {
-        console.log(`✅ Gemini rewrite successful (${style}):`, rewrittenText)
+        console.log(`✅ Gemini rewrite successful:`, rewrittenText)
         return rewrittenText
       }
     } catch (error) {
@@ -647,27 +640,20 @@ Rewrite:`
     return ''
   },
 
-  async rewriteWithOpenAI(text: string, style: string): Promise<string> {
-    if (!openai) { // Changed from this.openaiClient to openai
+  async rewriteWithOpenAI(text: string, instruction: string): Promise<string> {
+    if (!openai) {
       console.log('⚠️ OpenAI not available, skipping')
       return ''
     }
 
-    const stylePrompts = {
-      polished: 'Rewrite this training step in a polished, professional tone. Make it clear and authoritative:',
-      casual: 'Rewrite this training step in a casual, friendly tone. Make it approachable and conversational:',
-      detailed: 'Rewrite this training step with more detail and explanation. Make it comprehensive and educational:',
-      concise: 'Rewrite this training step to be short and clear. Make it direct and to the point:'
-    }
-
-    const prompt = `${stylePrompts[style as keyof typeof stylePrompts] || stylePrompts.polished}
+    const prompt = `${instruction}
 
 Original: "${text}"
 
 Rewrite:`
 
     try {
-      const response = await openai!.chat.completions.create({ // Changed from this.openaiClient to openai
+      const response = await openai!.chat.completions.create({
         model: 'gpt-4',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 150,
@@ -677,7 +663,7 @@ Rewrite:`
       const rewrittenText = response.choices[0]?.message?.content?.trim()
       
       if (rewrittenText && rewrittenText !== text) {
-        console.log(`✅ OpenAI rewrite successful (${style}):`, rewrittenText)
+        console.log(`✅ OpenAI rewrite successful:`, rewrittenText)
         return rewrittenText
       }
     } catch (error) {
@@ -687,18 +673,26 @@ Rewrite:`
     return ''
   },
 
-  improveStepText(text: string, style: string = 'polished'): string {
-    console.log(`🔄 Using fallback text improvement for style: ${style}`)
+  improveStepText(text: string): string {
+    console.log(`🔄 Using fallback text improvement`)
     
-    const improvements = {
-      polished: (t: string) => t.charAt(0).toUpperCase() + t.slice(1).replace(/\.$/, '') + '.',
-      casual: (t: string) => t.replace(/\.$/, '') + ' - easy peasy!',
-      detailed: (t: string) => t.charAt(0).toUpperCase() + t.slice(1).replace(/\.$/, '') + ' (this step is important for the process).',
-      concise: (t: string) => t.split(' ').slice(0, 5).join(' ') + '.'
+    // Simple fallback improvements
+    let improved = text.trim()
+    
+    // Capitalize first letter
+    if (improved.length > 0) {
+      improved = improved.charAt(0).toUpperCase() + improved.slice(1)
     }
     
-    const improve = improvements[style as keyof typeof improvements] || improvements.polished
-    return improve(text)
+    // Ensure it ends with a period
+    if (!improved.endsWith('.') && !improved.endsWith('!') && !improved.endsWith('?')) {
+      improved += '.'
+    }
+    
+    // Remove extra spaces
+    improved = improved.replace(/\s+/g, ' ')
+    
+    return improved
   },
 
   /**

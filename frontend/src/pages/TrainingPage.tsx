@@ -37,6 +37,7 @@ export const TrainingPage: React.FC = () => {
   const { status, loading: statusLoading, error: statusError } = useModuleStatus(moduleId!, isProcessing)
   
   const videoRef = useRef<HTMLVideoElement>(null)
+  const chatHistoryRef = useRef<HTMLDivElement>(null)
   
   const [steps, setSteps] = useState<Step[]>([])
   const [stepsLoading, setStepsLoading] = useState(false)
@@ -57,38 +58,6 @@ export const TrainingPage: React.FC = () => {
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false)
-  const chatHistoryRef = useRef<HTMLDivElement>(null)
-
-  // Show processing screen if module is still being processed
-  if (isProcessing && (statusLoading || (status && status.status === 'processing'))) {
-    return (
-      <ProcessingScreen 
-        progress={status?.progress || 0} 
-        message={status?.message}
-      />
-    )
-  }
-
-  // Show error screen if processing failed
-  if (status && status.status === 'failed') {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-8">
-        <div className="max-w-md w-full space-y-6 text-center">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-red-600 mb-2">
-            Processing Failed
-          </h2>
-          <p className="text-gray-600 mb-4">{status.error || 'An error occurred during processing'}</p>
-          <button 
-            onClick={() => window.location.href = '/upload'}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   // Video seeking function
   const seekToTime = (timeInSeconds: number) => {
@@ -391,7 +360,7 @@ export const TrainingPage: React.FC = () => {
     
     // AI rewrite help
     if (message.includes('ai rewrite') || message.includes('rewrite') || message.includes('improve')) {
-      return `Use the "✨ AI Rewrite" button in the editor to get different versions of your step title. Choose from polished, casual, detailed, or concise styles!`
+      return `Use the "✨ Rewrite" button in the editor to improve your step title. It will make it clearer, fix grammar, and add helpful details when needed - all while keeping it human and easy to understand!`
     }
     
     // Timing questions
@@ -451,6 +420,37 @@ Just ask me anything about the training!`
     stepsLoading,
     stepsError
   })
+
+  // Show processing screen if module is still being processed
+  if (isProcessing && (statusLoading || (status && status.status === 'processing'))) {
+    return (
+      <ProcessingScreen 
+        progress={status?.progress || 0} 
+        message={status?.message}
+      />
+    )
+  }
+
+  // Show error screen if processing failed
+  if (status && status.status === 'failed') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-8">
+        <div className="max-w-md w-full space-y-6 text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">
+            Processing Failed
+          </h2>
+          <p className="text-gray-600 mb-4">{status.error || 'An error occurred during processing'}</p>
+          <button 
+            onClick={() => window.location.href = '/upload'}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">

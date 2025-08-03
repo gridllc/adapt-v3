@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { formatSeconds, parseTime, isValidTimeFormat } from '../utils/timeUtils'
 
 export interface StepData {
@@ -15,16 +15,9 @@ interface InlineStepEditorProps {
   step: StepData
   onSave: (updated: StepData) => void
   onCancel: () => void
-  onAIRewrite: (style: string) => Promise<void>
+  onAIRewrite: () => Promise<void> // Simplified - no style parameter
   onAutoSave?: (updated: StepData) => Promise<void>
 }
-
-const AI_REWRITE_STYLES = [
-  { value: 'polished', label: '✨ Polished and formal', description: 'Professional, clear instructions' },
-  { value: 'casual', label: '😎 Casual and friendly', description: 'Relaxed, approachable tone' },
-  { value: 'detailed', label: '🧠 More detailed', description: 'Comprehensive explanations' },
-  { value: 'concise', label: '⚡ Short and clear', description: 'Brief, direct instructions' }
-]
 
 export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({ 
   step, 
@@ -70,12 +63,9 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
 
   const [editedStep, setEditedStep] = useState<StepData>(convertStepToFrontend(step))
   const [isRewriting, setIsRewriting] = useState(false)
-  const [showRewriteOptions, setShowRewriteOptions] = useState(false)
-  const [lastUsedStyle, setLastUsedStyle] = useState<string>('')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  const dropdownRef = useRef<HTMLDivElement>(null)
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout>()
 
   // Update editedStep when step prop changes
@@ -130,29 +120,20 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
       errors.push('Description should be less than 500 characters')
     }
     
-    // Alias validation
-    if (step.aliases && step.aliases.length > 10) {
-      errors.push('Too many aliases (max 10)')
-    }
-    
     return errors
   }
 
-  // Auto-save with debouncing
-  const debouncedAutoSave = useCallback(
-    (updatedStep: StepData) => {
-      if (!onAutoSave) return
-      
-      // Clear existing timeout
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current)
-      }
-      
-      // Set new timeout
+  // Auto-save functionality
+  useEffect(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current)
+    }
+    
+    if (hasUnsavedChanges && onAutoSave) {
       autoSaveTimeoutRef.current = setTimeout(async () => {
-        setSaveStatus('saving')
         try {
-          await onAutoSave(updatedStep)
+          setSaveStatus('saving')
+          await onAutoSave(editedStep)
           setSaveStatus('saved')
           setHasUnsavedChanges(false)
           
@@ -163,89 +144,63 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
           setSaveStatus('error')
         }
       }, 1000) // 1 second delay
-    },
-    [onAutoSave]
-  )
-
-  // Handle clicking outside dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowRewriteOptions(false)
-      }
     }
-
-    if (showRewriteOptions) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showRewriteOptions])
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
+    
     return () => {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current)
       }
     }
+  }, [editedStep, hasUnsavedChanges, onAutoSave])
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Removed dropdown logic since we no longer have a dropdown
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
   }, [])
 
   const handleChange = (field: keyof StepData, value: string | number) => {
-    const updatedStep = {
-      ...editedStep,
-      [field]: value,
-    }
-    setEditedStep(updatedStep)
+    setEditedStep(prev => ({ ...prev, [field]: value }))
     setHasUnsavedChanges(true)
-    
-    // Run validation
-    const errors = validateStep(updatedStep)
-    setValidationErrors(errors)
-    
-    // Trigger auto-save only if no validation errors
-    if (errors.length === 0) {
-      debouncedAutoSave(updatedStep)
-    }
+    setSaveStatus('idle')
   }
 
   const handleAliasChange = (value: string) => {
-    const aliases = value.split(',').map(s => s.trim()).filter(Boolean)
-    const updatedStep = { ...editedStep, aliases }
-    setEditedStep(updatedStep)
+    const aliases = value.split(',').map(alias => alias.trim()).filter(alias => alias.length > 0)
+    setEditedStep(prev => ({ ...prev, aliases }))
     setHasUnsavedChanges(true)
-    
-    // Run validation
-    const errors = validateStep(updatedStep)
-    setValidationErrors(errors)
-    
-    // Trigger auto-save only if no validation errors
-    if (errors.length === 0) {
-      debouncedAutoSave(updatedStep)
-    }
+    setSaveStatus('idle')
   }
 
   const handleTimeChange = (field: 'start' | 'end', value: string) => {
-    if (isValidTimeFormat(value)) {
-      const seconds = parseTime(value)
-      const updatedStep = {
-        ...editedStep,
-        [field]: seconds,
-      }
-      setEditedStep(updatedStep)
+    const seconds = parseTimeToSeconds(value)
+    if (seconds !== null) {
+      setEditedStep(prev => ({ ...prev, [field]: seconds }))
       setHasUnsavedChanges(true)
-      
-      // Run validation
-      const errors = validateStep(updatedStep)
-      setValidationErrors(errors)
-      
-      // Trigger auto-save only if no validation errors
-      if (errors.length === 0) {
-        debouncedAutoSave(updatedStep)
-      }
+      setSaveStatus('idle')
     }
+  }
+
+  const parseTimeToSeconds = (timeString: string): number | null => {
+    const match = timeString.match(/^(\d+):(\d{2})$/)
+    if (match) {
+      const minutes = parseInt(match[1])
+      const seconds = parseInt(match[2])
+      return minutes * 60 + seconds
+    }
+    return null
+  }
+
+  const formatSeconds = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
   }
 
   const handleSave = () => {
@@ -255,23 +210,22 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
       return
     }
     
+    setValidationErrors([])
     onSave(editedStep)
     setHasUnsavedChanges(false)
     setSaveStatus('idle')
-    setValidationErrors([])
   }
 
-  const handleAIRewriteClick = async (style: string) => {
+  // Simplified AI rewrite handler - no style parameter
+  const handleAIRewriteClick = async () => {
     setIsRewriting(true)
-    setShowRewriteOptions(false)
-    setLastUsedStyle(style)
     
     // Show temporary placeholder
     const originalTitle = editedStep.title
     handleChange('title', '✨ AI is rewriting...')
     
     try {
-      await onAIRewrite(style)
+      await onAIRewrite() // No style parameter needed
     } catch (error) {
       // Restore original title on error
       handleChange('title', originalTitle)
@@ -279,11 +233,6 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
     } finally {
       setIsRewriting(false)
     }
-  }
-
-  const getStyleLabel = (style: string) => {
-    const styleOption = AI_REWRITE_STYLES.find(s => s.value === style)
-    return styleOption ? styleOption.label.split(' ')[0] : '✨'
   }
 
   const getSaveStatusIcon = () => {
@@ -320,31 +269,15 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
           )}
         </div>
         <div className="flex gap-2">
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowRewriteOptions(!showRewriteOptions)}
-              disabled={isRewriting}
-              className="text-purple-600 hover:text-purple-800 text-xs px-3 py-1 rounded border disabled:opacity-50 flex items-center gap-1"
-            >
-              {isRewriting ? '✨ Rewriting...' : lastUsedStyle ? `${getStyleLabel(lastUsedStyle)} AI Rewrite` : '✨ AI Rewrite'}
-              <span className="text-xs">▼</span>
-            </button>
-            
-            {showRewriteOptions && (
-              <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg z-10 min-w-48">
-                {AI_REWRITE_STYLES.map((style) => (
-                  <button
-                    key={style.value}
-                    onClick={() => handleAIRewriteClick(style.value)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b last:border-b-0 text-xs"
-                  >
-                    <div className="font-medium">{style.label}</div>
-                    <div className="text-gray-500">{style.description}</div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Simplified single rewrite button */}
+          <button
+            onClick={handleAIRewriteClick}
+            disabled={isRewriting}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded flex items-center gap-2 text-xs disabled:opacity-50"
+            title="Refines your step to be clear, helpful, and well-written — without sounding robotic."
+          >
+            {isRewriting ? '✨ Rewriting...' : '✨ Rewrite'}
+          </button>
         </div>
       </div>
 

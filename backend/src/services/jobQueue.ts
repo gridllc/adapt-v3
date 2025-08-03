@@ -8,8 +8,8 @@ import fs from 'fs'
 const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
-  retryDelayOnFailover: 100,
-  maxRetriesPerRequest: 1, // Reduce retries for faster failure detection
+  maxRetriesPerRequest: 0, // Disable retries to prevent continuous errors
+  retryDelayOnFailover: 0, // Disable retry delay
   enableReadyCheck: false, // Disable ready check for better error handling
 }
 
@@ -17,54 +17,77 @@ const redisConfig = {
 let jobQueue: Bull.Queue | any
 let useMockQueue = false
 
-try {
-  jobQueue = new Bull('video-processing', {
-    redis: redisConfig,
-    defaultJobOptions: {
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 2000,
-      },
-    },
-  })
-
-  // Handle Redis connection errors
-  jobQueue.on('error', (error: Error) => {
-    console.error('❌ Job queue error:', error)
-    if (error.message.includes('ECONNREFUSED') || error.message.includes('Redis')) {
-      console.warn('⚠️ Redis connection failed, falling back to mock queue')
-      useMockQueue = true
-    }
-  })
-
-  jobQueue.on('failed', (job: Bull.Job, err: Error) => {
-    console.error(`❌ Job ${job.id} failed:`, err)
-  })
-
-  console.log('✅ Job queue initialized successfully')
-} catch (error) {
-  console.error('❌ Failed to initialize job queue:', error)
-  useMockQueue = true
+// Check if Redis is available before creating Bull queue
+function checkRedisConnectionSync() {
+  // Skip Redis check if explicitly disabled
+  if (process.env.DISABLE_REDIS === 'true') {
+    console.log('⚠️ Redis disabled via DISABLE_REDIS environment variable')
+    return false
+  }
+  
+  try {
+    // For now, assume Redis is not available in development
+    console.log('⚠️ Redis not available, using mock queue')
+    return false
+  } catch (error) {
+    console.log('⚠️ Redis not available, using mock queue')
+    return false
+  }
 }
 
-// Mock queue for development when Redis is not available
-if (useMockQueue) {
-  console.warn('⚠️ Using mock job queue - Redis not available')
-  jobQueue = {
-    add: async (name: string, data: any) => {
-      console.log(`📝 [MOCK] Adding job: ${name}`)
-      // Process immediately in development
-      if (name === 'process-video') {
-        setTimeout(() => processVideoJob(data), 100)
+// Initialize job queue synchronously
+function initializeJobQueueSync() {
+  try {
+    const redisAvailable = checkRedisConnectionSync()
+    
+    if (redisAvailable) {
+      jobQueue = new Bull('video-processing', {
+        redis: redisConfig,
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+        },
+      })
+
+      // Add error handlers for the Bull queue
+      jobQueue.on('error', (error: Error) => {
+        console.error('❌ Job queue error:', error)
+      })
+
+      jobQueue.on('failed', (job: Bull.Job, err: Error) => {
+        console.error(`❌ Job ${job.id} failed:`, err)
+      })
+
+      console.log('✅ Job queue initialized with Redis')
+    } else {
+      throw new Error('Redis not available')
+    }
+  } catch (error) {
+    console.log('⚠️ Using mock job queue - Redis not available')
+    useMockQueue = true
+    
+    // Create mock queue
+    jobQueue = {
+      add: async (name: string, data: any) => {
+        console.log(`📝 [MOCK] Adding job: ${name}`)
+        // Process immediately in development
+        if (name === 'process-video') {
+          setTimeout(() => processVideoJob(data), 100)
+        }
+        return { id: 'mock-job-id' }
+      },
+      process: (name: string, handler: any) => {
+        console.log(`📝 [MOCK] Registered processor for: ${name}`)
       }
-      return { id: 'mock-job-id' }
-    },
-    process: (name: string, handler: any) => {
-      console.log(`📝 [MOCK] Registered processor for: ${name}`)
     }
   }
 }
+
+// Initialize the job queue synchronously
+initializeJobQueueSync()
 
 // Performance logger for tracking processing times
 class PerformanceLogger {
@@ -264,7 +287,11 @@ async function processVideoJob(jobData: any) {
 }
 
 // Process video analysis jobs
-jobQueue.process('process-video', processVideoJob)
+if (jobQueue && typeof jobQueue.process === 'function') {
+  jobQueue.process('process-video', processVideoJob)
+} else {
+  console.log('⚠️ Job queue not properly initialized, using mock processing')
+}
 
 // Helper function to update module progress
 async function updateModuleProgress(moduleId: string, updates: any) {

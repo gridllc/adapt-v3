@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Initial Access",
+    "description": "Enter the four-digit code on the keypad. The order of entry does not matter.",
+    "duration": 15
+  },
+  {
+    "timestamp": 15,
+    "title": "Troubleshooting: Locked Screen",
+    "description": "If the screen locks up or the numbers are entered incorrectly, repeatedly press any key on the keypad until the screen goes blank and a red light blinks. This indicates the system has reset.",
+    "duration": 30
+  },
+  {
+    "timestamp": 45,
+    "title": "Reaccessing after Reset",
+    "description": "Once the screen is blank and the red light is blinking, re-enter the four-digit code to access the system.",
+    "duration": 15
+  },
+  {
+    "timestamp": 60,
+    "title": "Successful Entry Confirmation",
+    "description": "The system should now be unlocked and grant you access.",
+    "duration": 30
+  }
+]
