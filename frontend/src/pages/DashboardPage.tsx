@@ -101,6 +101,15 @@ export const DashboardPage: React.FC = () => {
       <div className="mt-8">
         <ApiTest />
       </div>
+      
+      {/* QR Code Modal */}
+      {showQRCode && (
+        <QRCodeGenerator
+          moduleId={showQRCode}
+          moduleTitle={modules.find(m => m.id === showQRCode)?.title || 'Training Module'}
+          onClose={() => setShowQRCode(null)}
+        />
+      )}
     </div>
   )
 }

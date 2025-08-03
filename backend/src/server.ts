@@ -208,6 +208,7 @@ const startServer = () => {
     console.log('   GET  /api/modules/:id')
     console.log('   GET  /api/modules/:id/steps')
     console.log('   GET  /api/steps/:moduleId')
+    console.log('   GET  /api/share/:moduleId')
     console.log('   GET  /api/health')
     
     if (NODE_ENV === 'development') {

@@ -10,38 +10,42 @@ const __dirname = path.dirname(__filename)
 // Helper function to normalize step format
 const normalizeStep = (step: any, index: number) => {
   // Handle different step formats from backend
-  if (step.timestamp !== undefined) {
-    // originalSteps format
+  if (step.start !== undefined && step.end !== undefined) {
+    // enhancedSteps format - preserve start/end for frontend compatibility
     return {
       id: step.id || `step_${index + 1}`,
-      timestamp: step.timestamp,
-      title: step.title || '',
-      description: step.description || '',
-      duration: step.duration || 30,
+      start: step.start,
+      end: step.end,
+      title: step.title || step.text || '',
+      description: step.description || step.text || '',
       aliases: step.aliases || [],
       notes: step.notes || '',
       isManual: step.isManual || false
     }
-  } else if (step.start !== undefined && step.end !== undefined) {
-    // structuredSteps or enhancedSteps format
+  } else if (step.timestamp !== undefined) {
+    // originalSteps format - convert to start/end for frontend compatibility
+    const start = step.timestamp
+    const end = start + (step.duration || 30)
     return {
       id: step.id || `step_${index + 1}`,
-      timestamp: step.start,
-      title: step.title || step.text || '',
-      description: step.description || step.text || '',
-      duration: step.end - step.start,
+      start: start,
+      end: end,
+      title: step.title || '',
+      description: step.description || '',
       aliases: step.aliases || [],
       notes: step.notes || '',
       isManual: step.isManual || false
     }
   } else {
     // Fallback for unknown format
+    const start = step.timestamp || step.start || 0
+    const end = start + (step.duration || 30)
     return {
       id: step.id || `step_${index + 1}`,
-      timestamp: step.timestamp || step.start || 0,
+      start: start,
+      end: end,
       title: step.title || step.text || '',
       description: step.description || step.text || '',
-      duration: step.duration || (step.end - step.start) || 30,
       aliases: step.aliases || [],
       notes: step.notes || '',
       isManual: step.isManual || false
@@ -201,34 +205,34 @@ export const stepsController = {
 
       // Convert frontend step format to backend format
       const convertToBackendFormat = (step: any) => {
-        // Handle different input formats
-        let timestamp = 0
-        let duration = 30
+        // Handle different input formats - now we save in start/end format
+        let start = 0
+        let end = 30
         
-        if (step.timestamp !== undefined) {
-          // Already in backend format
-          timestamp = step.timestamp
-          duration = step.duration || 30
-        } else if (step.start !== undefined && step.end !== undefined) {
-          // Frontend format: convert start/end to timestamp/duration
-          timestamp = step.start
-          duration = step.end - step.start
+        if (step.start !== undefined && step.end !== undefined) {
+          // Already in start/end format
+          start = step.start
+          end = step.end
+        } else if (step.timestamp !== undefined) {
+          // Old backend format: convert timestamp/duration to start/end
+          start = step.timestamp
+          end = start + (step.duration || 30)
         } else if (step.startTime !== undefined && step.endTime !== undefined) {
           // Alternative frontend format
-          timestamp = step.startTime
-          duration = step.endTime - step.startTime
+          start = step.startTime
+          end = step.endTime
         } else {
           // Fallback
-          timestamp = step.timestamp || step.start || step.startTime || 0
-          duration = step.duration || (step.end - step.start) || 30
+          start = step.timestamp || step.start || step.startTime || 0
+          end = start + (step.duration || 30)
         }
         
         return {
           id: step.id,
-          timestamp: timestamp,
+          start: start,
+          end: end,
           title: step.title,
           description: step.description,
-          duration: duration,
           aliases: step.aliases || [],
           notes: step.notes || '',
           isManual: step.isManual || false
@@ -332,34 +336,34 @@ export const stepsController = {
 
       // Convert frontend format to backend format
       const convertToBackendFormat = (step: any) => {
-        // Handle different input formats
-        let timestamp = 0
-        let duration = 30
+        // Handle different input formats - now we save in start/end format
+        let start = 0
+        let end = 30
         
-        if (step.timestamp !== undefined) {
-          // Already in backend format
-          timestamp = step.timestamp
-          duration = step.duration || 30
-        } else if (step.start !== undefined && step.end !== undefined) {
-          // Frontend format: convert start/end to timestamp/duration
-          timestamp = step.start
-          duration = step.end - step.start
+        if (step.start !== undefined && step.end !== undefined) {
+          // Already in start/end format
+          start = step.start
+          end = step.end
+        } else if (step.timestamp !== undefined) {
+          // Old backend format: convert timestamp/duration to start/end
+          start = step.timestamp
+          end = start + (step.duration || 30)
         } else if (step.startTime !== undefined && step.endTime !== undefined) {
           // Alternative frontend format
-          timestamp = step.startTime
-          duration = step.endTime - step.startTime
+          start = step.startTime
+          end = step.endTime
         } else {
           // Fallback
-          timestamp = step.timestamp || step.start || step.startTime || 0
-          duration = step.duration || (step.end - step.start) || 30
+          start = step.timestamp || step.start || step.startTime || 0
+          end = start + (step.duration || 30)
         }
         
         return {
           id: step.id,
-          timestamp: timestamp,
+          start: start,
+          end: end,
           title: step.title,
           description: step.description,
-          duration: duration,
           aliases: step.aliases || [],
           notes: step.notes || '',
           isManual: step.isManual || false

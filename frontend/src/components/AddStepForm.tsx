@@ -29,13 +29,13 @@ export const AddStepForm: React.FC<AddStepFormProps> = ({ moduleId, onAdd, curre
 
     setIsSubmitting(true)
     try {
-      // Create new step in backend format (timestamp + duration)
+      // Create new step in backend format (start + end)
       const newStep = {
         id: `step_${Date.now()}`,
         title: title.trim(),
         description: description.trim(),
-        timestamp: startTime, // Backend expects timestamp
-        duration: endTime - startTime, // Backend expects duration
+        start: startTime, // Backend expects start
+        end: endTime, // Backend expects end
         isManual: isManual
       }
 

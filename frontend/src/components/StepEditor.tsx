@@ -4,10 +4,10 @@ import { api, API_ENDPOINTS } from '../config/api'
 
 interface Step {
   id: string
-  timestamp: number
+  start: number
+  end: number
   title: string
   description: string
-  duration?: number
   aliases?: string[]
   notes?: string
   isManual?: boolean
@@ -56,8 +56,8 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         ...step,
         title: updatedStepData.title,
         description: updatedStepData.description,
-        timestamp: updatedStepData.start,
-        duration: updatedStepData.end - updatedStepData.start,
+        start: updatedStepData.start,
+        end: updatedStepData.end,
         aliases: updatedStepData.aliases,
         notes: updatedStepData.notes
       }
@@ -111,16 +111,13 @@ export const StepEditor: React.FC<StepEditorProps> = ({
 
   // Convert backend step to frontend format for InlineStepEditor
   const convertStepToFrontend = (backendStep: Step): StepData => {
-    // Compute start and end times from backend timestamp and duration
-    const startTime = backendStep.timestamp || 0
-    const endTime = startTime + (backendStep.duration || 30)
-    
+    // Backend now provides start/end directly
     return {
       id: backendStep.id,
       title: backendStep.title,
       description: backendStep.description,
-      start: startTime,
-      end: endTime,
+      start: backendStep.start,
+      end: backendStep.end,
       aliases: backendStep.aliases || [],
       notes: backendStep.notes || ''
     }
@@ -168,7 +165,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
           </span>
           
           <span className="text-gray-500 text-sm">
-            {formatTime(step.timestamp)}
+            {formatTime(step.start)}
           </span>
           
           {step.isManual && (
@@ -209,7 +206,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
           )}
           
           <button
-            onClick={() => onSeek(step.timestamp)}
+            onClick={() => onSeek(step.start)}
             className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-50 transition-colors"
             title="Seek to this step"
           >
@@ -252,7 +249,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         )}
         
         <div className="text-xs text-gray-400">
-          Duration: {step.duration || 30}s
+          Duration: {step.end - step.start}s
         </div>
       </div>
     </div>
