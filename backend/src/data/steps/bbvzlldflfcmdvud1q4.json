@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Enter the House",
+    "description": "Open the door and enter the house.",
+    "duration": 5
+  },
+  {
+    "timestamp": 5,
+    "title": "Turn on the TV",
+    "description": "Locate the remote control and press the power button to turn on the TV.",
+    "duration": 15
+  },
+  {
+    "timestamp": 20,
+    "title": "Turn on the Lights",
+    "description": "Go to the light switch and turn on all the lights in the area.",
+    "duration": 15
+  },
+  {
+    "timestamp": 35,
+    "title": "Check the Refrigerator",
+    "description": "Walk to the refrigerator and open it to check for food.",
+    "duration": 15
+  }
+]

@@ -139,12 +139,8 @@ export const UploadPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">Upload Training Module</h1>
-        <p className="text-gray-600 max-w-xl mx-auto">
-          Upload your video and let AI turn it into a fully interactive learning experience.
-          <br />
-          <span className="text-sm text-blue-600">✨ Now with smart compression and faster uploads!</span>
-        </p>
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">Uploading Training Module</h1>
+        <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
       </div>
 
       {uploadStatus === 'idle' && (

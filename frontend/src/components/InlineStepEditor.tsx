@@ -375,18 +375,18 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
       </div>
 
       <div>
-        <label className="block font-semibold text-sm text-gray-700 mb-1">Aliases (comma-separated)</label>
+        <label className="block font-semibold text-sm text-gray-700 mb-1">Aliases (how else someone might say this)</label>
         <input
           type="text"
           value={editedStep.aliases?.join(', ') || ''}
           onChange={(e) => handleAliasChange(e.target.value)}
           className="w-full p-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          placeholder="power button, turn on, switch on"
+          placeholder="Example: remote, clicker, controller"
         />
         {validationErrors.includes('Too many aliases (max 10)') && (
           <p className="text-xs text-red-500 mt-1">Too many aliases (max 10)</p>
         )}
-        <p className="text-xs text-gray-500 mt-1">Other ways users might refer to this step</p>
+        <p className="text-xs text-gray-500 mt-1">Separate multiple aliases with commas</p>
       </div>
 
       <div>

@@ -11,52 +11,64 @@ export const stepsController = {
   async getSteps(req: Request, res: Response) {
     try {
       const { moduleId } = req.params
-      console.log(`🔍 Looking for steps for module: ${moduleId}`)
-
+      console.log(`📖 Getting steps for moduleId: ${moduleId}`)
+      
+      // Get current directory for debugging
+      const currentDir = process.cwd()
+      console.log(`🔍 Current directory: ${currentDir}`)
+      
+      // Define project root
+      const projectRoot = path.resolve(__dirname, '..', '..')
+      console.log(`📁 Project root: ${projectRoot}`)
+      
       // Define possible paths where steps might be stored
-      const possiblePaths = [
-        path.join(process.cwd(), 'data', 'training', `${moduleId}.json`),
-        path.join(process.cwd(), 'data', 'steps', `${moduleId}.json`),
-        path.join(process.cwd(), 'data', 'modules', `${moduleId}.json`),
-        // Also check in uploads directory
-        path.join(process.cwd(), 'uploads', 'training', `${moduleId}.json`)
+      const STEPS_PATHS = [
+        path.join(projectRoot, 'data', 'steps'),
+        path.join(projectRoot, 'data', 'training'),
+        path.join(projectRoot, 'data', 'modules'),
+        path.join(projectRoot, 'backend', 'data', 'steps'),
+        path.join(projectRoot, 'backend', 'data', 'training'),
+        path.join(projectRoot, 'backend', 'data', 'modules')
       ]
-
-      console.log('🔍 Searching in paths:', possiblePaths)
-
+      
+      console.log(`🔍 STEPS_PATHS:`, STEPS_PATHS)
+      console.log(`🔍 Searching for steps file for moduleId: ${moduleId}`)
+      
       let stepsData = null
       let foundPath = null
-
-      // Try each path until we find the file
-      for (const filePath of possiblePaths) {
-        try {
-          if (fs.existsSync(filePath)) {
-            console.log(`✅ Found steps file at: ${filePath}`)
+      
+      // Search for the steps file
+      for (const basePath of STEPS_PATHS) {
+        const filePath = path.join(basePath, `${moduleId}.json`)
+        console.log(`📁 Checking path: ${filePath}`)
+        
+        if (fs.existsSync(filePath)) {
+          console.log(`✅ Found steps file at: ${filePath}`)
+          try {
             const rawData = await fs.promises.readFile(filePath, 'utf-8')
             stepsData = JSON.parse(rawData)
             foundPath = filePath
             break
-          } else {
-            console.log(`❌ Not found: ${filePath}`)
+          } catch (error) {
+            console.error(`❌ Error reading file ${filePath}:`, error)
           }
-        } catch (error) {
-          console.log(`❌ Error reading ${filePath}:`, error)
+        } else {
+          console.log(`❌ File not found at: ${filePath}`)
         }
       }
-
+      
       if (!stepsData) {
-        console.error(`❌ Steps not found for module ${moduleId}`)
+        console.error(`❌ Steps not found for moduleId: ${moduleId}`)
         return res.status(404).json({
           error: 'Steps not found',
           moduleId,
-          searchedPaths: possiblePaths,
-          message: 'Check server logs for detailed debugging info'
+          searchedPaths: STEPS_PATHS.map(basePath => path.join(basePath, `${moduleId}.json`))
         })
       }
-
-      console.log(`✅ Successfully loaded steps from: ${foundPath}`)
       
-      // Return the steps based on the file structure
+      console.log(`📄 Reading steps from: ${foundPath}`)
+      
+      // Extract steps from the data structure
       let steps = []
       if (stepsData.steps) {
         steps = stepsData.steps
@@ -70,9 +82,10 @@ export const stepsController = {
         // If it's a module data object, extract steps
         steps = stepsData.originalSteps || stepsData.moduleSteps || []
       }
-
-      console.log(`📦 Returning ${steps.length} steps for module ${moduleId}`)
-
+      
+      console.log(`✅ Found ${steps.length} steps for moduleId: ${moduleId}`)
+      console.log(`📊 File content keys:`, Object.keys(stepsData))
+      
       res.json({
         success: true,
         moduleId,
@@ -85,7 +98,7 @@ export const stepsController = {
           stats: stepsData.stats || null
         }
       })
-
+      
     } catch (error) {
       console.error('❌ Get steps error:', error)
       res.status(500).json({ 
@@ -98,42 +111,101 @@ export const stepsController = {
   async createSteps(req: Request, res: Response) {
     try {
       const { moduleId } = req.params
-      const { steps } = req.body
+      const { steps, action, stepIndex } = req.body
 
-      if (!steps || !Array.isArray(steps)) {
-        return res.status(400).json({ error: 'Invalid steps data' })
+      console.log(`📝 Creating/updating steps for module: ${moduleId}`, { action, stepIndex })
+
+      // Find existing steps file
+      const projectRoot = path.resolve(__dirname, '..', '..')
+      const possiblePaths = [
+        path.join(projectRoot, 'data', 'steps', `${moduleId}.json`),
+        path.join(projectRoot, 'data', 'training', `${moduleId}.json`),
+        path.join(projectRoot, 'backend', 'data', 'steps', `${moduleId}.json`),
+        path.join(projectRoot, 'backend', 'data', 'training', `${moduleId}.json`)
+      ]
+
+      let existingData = null
+      let targetPath = null
+
+      // Try to find existing file
+      for (const filePath of possiblePaths) {
+        if (fs.existsSync(filePath)) {
+          console.log(`📄 Found existing file: ${filePath}`)
+          const rawData = await fs.promises.readFile(filePath, 'utf-8')
+          existingData = JSON.parse(rawData)
+          targetPath = filePath
+          break
+        }
       }
 
-      // Save steps to file
-      const isProduction = process.env.NODE_ENV === 'production'
-      const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
-      const stepsDir = path.join(baseDir, 'data', 'steps')
-      
-      // Ensure directory exists
-      await fs.promises.mkdir(stepsDir, { recursive: true })
-      
-      const filePath = path.join(stepsDir, `${moduleId}.json`)
-      const stepsData = {
-        moduleId,
-        steps,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+      // If no existing file, create new one
+      if (!targetPath) {
+        targetPath = path.join(projectRoot, 'data', 'steps', `${moduleId}.json`)
+        await fs.promises.mkdir(path.dirname(targetPath), { recursive: true })
+        existingData = {
+          moduleId,
+          steps: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
       }
 
-      await fs.promises.writeFile(filePath, JSON.stringify(stepsData, null, 2))
+      // Handle different actions
+      if (action === 'add' && Array.isArray(steps)) {
+        // Add new steps to existing steps
+        existingData.steps = [...(existingData.steps || []), ...steps]
+        console.log(`➕ Added ${steps.length} new steps`)
+      } else if (action === 'update' && Array.isArray(steps) && typeof stepIndex === 'number') {
+        // Update specific step
+        if (!existingData.steps) existingData.steps = []
+        if (stepIndex >= 0 && stepIndex < existingData.steps.length) {
+          existingData.steps[stepIndex] = { ...existingData.steps[stepIndex], ...steps[0] }
+          console.log(`✏️ Updated step at index ${stepIndex}`)
+        } else {
+          return res.status(400).json({ error: 'Invalid step index' })
+        }
+      } else if (action === 'delete' && typeof stepIndex === 'number') {
+        // Delete specific step
+        if (!existingData.steps) existingData.steps = []
+        if (stepIndex >= 0 && stepIndex < existingData.steps.length) {
+          existingData.steps.splice(stepIndex, 1)
+          console.log(`🗑️ Deleted step at index ${stepIndex}`)
+        } else {
+          return res.status(400).json({ error: 'Invalid step index' })
+        }
+      } else if (action === 'reorder' && Array.isArray(steps)) {
+        // Replace all steps with reordered array
+        existingData.steps = steps
+        console.log(`🔄 Reordered ${steps.length} steps`)
+      } else if (Array.isArray(steps)) {
+        // Replace all steps (default behavior)
+        existingData.steps = steps
+        console.log(`🔄 Replaced all steps with ${steps.length} new steps`)
+      } else {
+        return res.status(400).json({ error: 'Invalid request data' })
+      }
 
-      console.log(`✅ Steps created for module ${moduleId}: ${filePath}`)
+      existingData.updatedAt = new Date().toISOString()
+
+      // Write back to file
+      await fs.promises.writeFile(targetPath, JSON.stringify(existingData, null, 2))
+
+      console.log(`✅ Steps saved to: ${targetPath}`)
 
       res.json({
         success: true,
         moduleId,
-        stepsCount: steps.length,
-        filePath
+        stepsCount: existingData.steps.length,
+        filePath: targetPath,
+        action: action || 'replace'
       })
 
     } catch (error) {
-      console.error('❌ Create steps error:', error)
-      res.status(500).json({ error: 'Failed to create steps' })
+      console.error('❌ Create/update steps error:', error)
+      res.status(500).json({ 
+        error: 'Failed to create/update steps',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      })
     }
   },
 
@@ -147,12 +219,13 @@ export const stepsController = {
       }
 
       // Find and update existing steps file
-      const isProduction = process.env.NODE_ENV === 'production'
-      const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
+      const projectRoot = path.resolve(__dirname, '..', '..')
       
       const possiblePaths = [
-        path.join(baseDir, 'data', 'steps', `${moduleId}.json`),
-        path.join(baseDir, 'data', 'training', `${moduleId}.json`),
+        path.join(projectRoot, 'data', 'steps', `${moduleId}.json`),
+        path.join(projectRoot, 'data', 'training', `${moduleId}.json`),
+        path.join(projectRoot, 'backend', 'data', 'steps', `${moduleId}.json`),
+        path.join(projectRoot, 'backend', 'data', 'training', `${moduleId}.json`)
       ]
 
       let foundPath = null
