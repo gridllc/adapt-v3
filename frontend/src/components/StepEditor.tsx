@@ -111,12 +111,16 @@ export const StepEditor: React.FC<StepEditorProps> = ({
 
   // Convert backend step to frontend format for InlineStepEditor
   const convertStepToFrontend = (backendStep: Step): StepData => {
+    // Compute start and end times from backend timestamp and duration
+    const startTime = backendStep.timestamp || 0
+    const endTime = startTime + (backendStep.duration || 30)
+    
     return {
       id: backendStep.id,
       title: backendStep.title,
       description: backendStep.description,
-      start: backendStep.timestamp,
-      end: backendStep.timestamp + (backendStep.duration || 30),
+      start: startTime,
+      end: endTime,
       aliases: backendStep.aliases || [],
       notes: backendStep.notes || ''
     }

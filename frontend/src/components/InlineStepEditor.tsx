@@ -35,28 +35,36 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
 }) => {
   // Convert backend step format to frontend format
   const convertStepToFrontend = (backendStep: any): StepData => {
+    // Handle different backend formats
+    let startTime = 0
+    let endTime = 30
+    
     if (backendStep.timestamp !== undefined) {
       // Backend format: { timestamp, duration, title, description }
-      return {
-        id: backendStep.id || step.id,
-        title: backendStep.title || '',
-        description: backendStep.description || '',
-        start: backendStep.timestamp || 0,
-        end: (backendStep.timestamp || 0) + (backendStep.duration || 30),
-        aliases: backendStep.aliases || [],
-        notes: backendStep.notes || ''
-      }
-    } else {
+      startTime = backendStep.timestamp || 0
+      endTime = startTime + (backendStep.duration || 30)
+    } else if (backendStep.start !== undefined && backendStep.end !== undefined) {
       // Already in frontend format
-      return {
-        id: backendStep.id || step.id,
-        title: backendStep.title || '',
-        description: backendStep.description || '',
-        start: backendStep.start || 0,
-        end: backendStep.end || 30,
-        aliases: backendStep.aliases || [],
-        notes: backendStep.notes || ''
-      }
+      startTime = backendStep.start || 0
+      endTime = backendStep.end || 30
+    } else if (backendStep.startTime !== undefined && backendStep.endTime !== undefined) {
+      // Alternative frontend format
+      startTime = backendStep.startTime || 0
+      endTime = backendStep.endTime || 30
+    } else {
+      // Fallback with computed values
+      startTime = backendStep.timestamp || backendStep.start || backendStep.startTime || 0
+      endTime = startTime + (backendStep.duration || 30)
+    }
+    
+    return {
+      id: backendStep.id || step.id,
+      title: backendStep.title || '',
+      description: backendStep.description || '',
+      start: startTime,
+      end: endTime,
+      aliases: backendStep.aliases || [],
+      notes: backendStep.notes || ''
     }
   }
 

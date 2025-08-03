@@ -200,16 +200,40 @@ export const stepsController = {
       }
 
       // Convert frontend step format to backend format
-      const convertToBackendFormat = (step: any) => ({
-        id: step.id,
-        timestamp: step.timestamp,
-        title: step.title,
-        description: step.description,
-        duration: step.duration,
-        aliases: step.aliases || [],
-        notes: step.notes || '',
-        isManual: step.isManual || false
-      })
+      const convertToBackendFormat = (step: any) => {
+        // Handle different input formats
+        let timestamp = 0
+        let duration = 30
+        
+        if (step.timestamp !== undefined) {
+          // Already in backend format
+          timestamp = step.timestamp
+          duration = step.duration || 30
+        } else if (step.start !== undefined && step.end !== undefined) {
+          // Frontend format: convert start/end to timestamp/duration
+          timestamp = step.start
+          duration = step.end - step.start
+        } else if (step.startTime !== undefined && step.endTime !== undefined) {
+          // Alternative frontend format
+          timestamp = step.startTime
+          duration = step.endTime - step.startTime
+        } else {
+          // Fallback
+          timestamp = step.timestamp || step.start || step.startTime || 0
+          duration = step.duration || (step.end - step.start) || 30
+        }
+        
+        return {
+          id: step.id,
+          timestamp: timestamp,
+          title: step.title,
+          description: step.description,
+          duration: duration,
+          aliases: step.aliases || [],
+          notes: step.notes || '',
+          isManual: step.isManual || false
+        }
+      }
 
       // Handle different actions
       if (action === 'add' && Array.isArray(steps)) {
@@ -307,16 +331,40 @@ export const stepsController = {
       const existingData = JSON.parse(rawData)
 
       // Convert frontend format to backend format
-      const convertToBackendFormat = (step: any) => ({
-        id: step.id,
-        timestamp: step.timestamp,
-        title: step.title,
-        description: step.description,
-        duration: step.duration,
-        aliases: step.aliases || [],
-        notes: step.notes || '',
-        isManual: step.isManual || false
-      })
+      const convertToBackendFormat = (step: any) => {
+        // Handle different input formats
+        let timestamp = 0
+        let duration = 30
+        
+        if (step.timestamp !== undefined) {
+          // Already in backend format
+          timestamp = step.timestamp
+          duration = step.duration || 30
+        } else if (step.start !== undefined && step.end !== undefined) {
+          // Frontend format: convert start/end to timestamp/duration
+          timestamp = step.start
+          duration = step.end - step.start
+        } else if (step.startTime !== undefined && step.endTime !== undefined) {
+          // Alternative frontend format
+          timestamp = step.startTime
+          duration = step.endTime - step.startTime
+        } else {
+          // Fallback
+          timestamp = step.timestamp || step.start || step.startTime || 0
+          duration = step.duration || (step.end - step.start) || 30
+        }
+        
+        return {
+          id: step.id,
+          timestamp: timestamp,
+          title: step.title,
+          description: step.description,
+          duration: duration,
+          aliases: step.aliases || [],
+          notes: step.notes || '',
+          isManual: step.isManual || false
+        }
+      }
 
       // Update steps
       existingData.steps = steps.map(convertToBackendFormat)

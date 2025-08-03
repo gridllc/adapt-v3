@@ -5,6 +5,7 @@ import { api, API_ENDPOINTS } from '../config/api'
 import { AddStepForm } from '../components/AddStepForm'
 import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
+import QRCodeGenerator from '../components/QRCodeGenerator'
 
 interface Step {
   id: string
@@ -48,6 +49,7 @@ export const TrainingPage: React.FC = () => {
   const [processingAI, setProcessingAI] = useState(false)
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
+  const [showQRCode, setShowQRCode] = useState(false)
   const chatHistoryRef = useRef<HTMLDivElement>(null)
 
   // Video seeking function
@@ -416,6 +418,15 @@ Just ask me anything about the training!`
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Training: {moduleId}</h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowQRCode(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            title="Share this training module via QR code"
+          >
+            📱 Share QR Code
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -466,7 +477,21 @@ Just ask me anything about the training!`
               <div className="text-center py-8">
                 <div className="w-8 h-8 mx-auto animate-spin text-blue-600">⏳</div>
                 <p className="text-gray-600 mt-2">Loading steps... Module ID: {moduleId}</p>
-                <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
+                
+                {/* Prominent AI Processing Message */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mt-6 shadow-sm">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <div className="text-2xl animate-pulse">⏳</div>
+                    <h3 className="text-lg font-bold text-blue-800">AI Processing in Progress</h3>
+                  </div>
+                  <p className="text-base text-blue-700 font-medium">
+                    Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
+                  </p>
+                  <div className="mt-2 flex items-center justify-center gap-2 text-sm text-blue-600">
+                    <span className="animate-spin">🔄</span>
+                    <span>Generating training steps and analyzing video content...</span>
+                  </div>
+                </div>
               </div>
             ) : stepsError ? (
               <div className="text-center py-8">
@@ -527,7 +552,19 @@ Just ask me anything about the training!`
                   {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
                 </button>
                 {processingAI && (
-                  <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mt-4 shadow-sm">
+                    <div className="flex items-center justify-center gap-3 mb-3">
+                      <div className="text-2xl animate-pulse">⏳</div>
+                      <h3 className="text-lg font-bold text-blue-800">AI Processing in Progress</h3>
+                    </div>
+                    <p className="text-base text-blue-700 font-medium">
+                      Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
+                    </p>
+                    <div className="mt-2 flex items-center justify-center gap-2 text-sm text-blue-600">
+                      <span className="animate-spin">🔄</span>
+                      <span>Generating training steps and analyzing video content...</span>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -621,6 +658,15 @@ Just ask me anything about the training!`
           </div>
         </div>
       </div>
+      
+      {/* QR Code Modal */}
+      {showQRCode && moduleId && (
+        <QRCodeGenerator
+          moduleId={moduleId}
+          moduleTitle={`Training: ${moduleId}`}
+          onClose={() => setShowQRCode(false)}
+        />
+      )}
     </div>
   )
 } 

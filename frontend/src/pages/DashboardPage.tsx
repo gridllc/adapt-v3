@@ -5,12 +5,14 @@ import { useModules } from '../hooks/useModules'
 import { ApiTest } from '../components/ApiTest'
 import { api } from '../config/api'
 import { FeedbackDashboard } from '../components/common/FeedbackDashboard'
+import QRCodeGenerator from '../components/QRCodeGenerator'
 
 export const DashboardPage: React.FC = () => {
   const { modules, loading, error } = useModules()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchTerm, setSearchTerm] = useState('')
   const [deleted, setDeleted] = useState<string[]>([])
+  const [showQRCode, setShowQRCode] = useState<string | null>(null)
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this module?')) return
@@ -77,6 +79,11 @@ export const DashboardPage: React.FC = () => {
                 to={`/training/${mod.id}`}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >▶️ Start Training</Link>
+              <button
+                onClick={() => setShowQRCode(mod.id)}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                title="Share this module via QR code"
+              >📱 Share</button>
               <Link
                 to={`/edit-steps/${mod.id}`}
                 className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600"

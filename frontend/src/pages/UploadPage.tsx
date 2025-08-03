@@ -140,7 +140,21 @@ export const UploadPage: React.FC = () => {
     <div className="space-y-8">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">Uploading Training Module</h1>
-        <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
+        
+        {/* Prominent AI Processing Message */}
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mb-6 shadow-sm">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="text-3xl animate-pulse">⏳</div>
+            <h2 className="text-xl font-bold text-blue-800">AI Processing in Progress</h2>
+          </div>
+          <p className="text-lg text-blue-700 font-medium">
+            Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
+          </p>
+          <div className="mt-3 flex items-center justify-center gap-2 text-sm text-blue-600">
+            <span className="animate-spin">🔄</span>
+            <span>Processing video, transcribing audio, and generating training steps...</span>
+          </div>
+        </div>
       </div>
 
       {uploadStatus === 'idle' && (

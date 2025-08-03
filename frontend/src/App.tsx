@@ -10,6 +10,7 @@ import { DashboardPage } from '@pages/DashboardPage'
 import { TrainingPage } from '@pages/TrainingPage'
 import { UploadPage } from '@pages/UploadPage'
 import EditStepsPage from '@pages/EditStepsPage'
+import SharePage from '@pages/SharePage'
 import { ApiDebug } from '@components/ApiDebug'
 
 // Conditional Home Component
@@ -98,6 +99,12 @@ function App() {
              <TrainingPage />
            </Layout>
          }
+       />
+       
+       {/* Public share route - NO AUTH REQUIRED */}
+       <Route
+         path="/share/:moduleId"
+         element={<SharePage />}
        />
       
       {/* Catch-all route for unknown paths */}

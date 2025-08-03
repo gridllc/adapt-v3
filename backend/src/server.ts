@@ -12,6 +12,7 @@ import videoRoutes from './routes/videoRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
+import shareRoutes from './routes/shareRoutes.js'
 
 // Load environment variables
 dotenv.config()
@@ -97,6 +98,9 @@ const configureRoutes = () => {
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
   app.use('/api/reprocess', reprocessRoutes)
+  
+  // Public Share Routes (no auth required)
+  app.use('/api/share', shareRoutes)
 
   // Static file serving for uploads with CORS
   app.use('/uploads', (req, res, next) => {

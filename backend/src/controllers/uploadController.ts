@@ -125,21 +125,53 @@ export const uploadController = {
         filename: `${moduleId}.mp4`, // Use the moduleId from storageService
         title: originalname.replace(/\.[^/.]+$/, ''),
         createdAt: new Date().toISOString(),
+        status: 'ready'
       }
-      // Handle both development and production paths
-    const isProduction = process.env.NODE_ENV === 'production'
-    const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
-    const dataPath = path.join(baseDir, 'data', 'modules.json')
+      
+      // Debug: Check current working directory and available paths
+      console.log('🔍 Current working directory:', process.cwd())
+      console.log('🔍 __dirname:', __dirname)
+      console.log('🔍 __filename:', __filename)
+      
+      // Use the same path resolution as moduleRoutes.ts
+      const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
+      console.log('✅ Writing to modules.json at', modulesPath)
+      
+      // Also check if the src/data path exists and has data
+      const srcModulesPath = path.join(process.cwd(), 'src', 'data', 'modules.json')
+      console.log('🔍 Checking src modules path:', srcModulesPath)
+      
+      // Ensure data directory exists
+      await fs.promises.mkdir(path.dirname(modulesPath), { recursive: true })
+      
       let existingModules = []
       try {
-        const raw = await fs.promises.readFile(dataPath, 'utf-8')
+        const raw = await fs.promises.readFile(modulesPath, 'utf-8')
         existingModules = JSON.parse(raw)
-      } catch {
+        console.log('📋 Loaded existing modules from main path:', existingModules.length)
+      } catch (error) {
+        console.log('📋 No existing modules file at main path, starting fresh')
         existingModules = []
       }
+      
+      // Also check if there are modules in the src path that we should merge
+      try {
+        const srcRaw = await fs.promises.readFile(srcModulesPath, 'utf-8')
+        const srcModules = JSON.parse(srcRaw)
+        console.log('📋 Found modules in src path:', srcModules.length)
+        
+        // Merge modules from src path if they're not already in the main path
+        const existingIds = existingModules.map((m: any) => m.id)
+        const newModules = srcModules.filter((m: any) => !existingIds.includes(m.id))
+        existingModules = [...existingModules, ...newModules]
+        console.log('📋 Merged modules, total count:', existingModules.length)
+      } catch (error) {
+        console.log('📋 No modules found in src path')
+      }
+      
       existingModules.push(newModule)
-      await fs.promises.writeFile(dataPath, JSON.stringify(existingModules, null, 2))
-      console.log('✅ modules.json updated')
+      await fs.promises.writeFile(modulesPath, JSON.stringify(existingModules, null, 2))
+      console.log('✅ modules.json updated with', existingModules.length, 'modules')
 
       console.log('🎤 Starting background transcription...')
       // Start transcription in background (fire-and-forget)
