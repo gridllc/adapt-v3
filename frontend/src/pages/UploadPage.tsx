@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { API_CONFIG, API_ENDPOINTS } from '../config/api'
 import { VideoProcessingFeedback } from '../components/common/FeedbackWidget'
 import { VideoCompressor } from '../utils/videoCompression'
-import { ChunkedUploader, UploadProgress } from '../utils/chunkedUpload'
 
 export const UploadPage: React.FC = () => {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'success' | 'error'>('idle')
@@ -66,35 +65,29 @@ export const UploadPage: React.FC = () => {
         return
       }
 
-      // TEMP: Skip compression for testing
-      // const compressedFile = file
-      // console.log('🚀 TEMP: Skipping compression, using original file')
-
-      // Step 2: Upload using chunked uploader
+      // Step 2: Upload using simple FormData
       setUploadStatus('uploading')
       const newModuleId = generateModuleId()
       
-      console.log('🚀 Starting chunked upload...')
+      console.log('🚀 Starting simple upload...')
       console.log(`📦 Compressed file size: ${compressedFile.size} bytes`)
-      console.log(`📦 Chunk size: ${2 * 1024 * 1024} bytes (2MB)`)
-      console.log(`📦 Expected chunks: ${Math.ceil(compressedFile.size / (2 * 1024 * 1024))}`)
       
-      const uploadResult = await ChunkedUploader.uploadVideoInChunks(
-        compressedFile,
-        newModuleId,
-        {
-          chunkSize: 2 * 1024 * 1024, // 2MB chunks
-          maxConcurrent: 3,
-          retryAttempts: 3,
-          retryDelay: 1000
-        },
-        (progress: UploadProgress) => {
-          setUploadProgress(progress.percentage)
-          console.log(`📤 Upload progress: ${progress.percentage.toFixed(1)}% (${progress.currentChunk}/${progress.totalChunks} chunks)`)
-        }
-      )
+      // Create FormData and upload
+      const formData = new FormData()
+      formData.append('file', compressedFile)
+      
+      const response = await fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.UPLOAD), {
+        method: 'POST',
+        body: formData,
+      })
 
-      setModuleId(uploadResult.moduleId)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`)
+      }
+
+      const result = await response.json()
+      setModuleId(result.moduleId)
       setUploadProgress(100)
       setUploadStatus('success')
       
@@ -103,7 +96,7 @@ export const UploadPage: React.FC = () => {
       console.log(`   Original size: ${(file.size / 1024 / 1024).toFixed(2)} MB`)
       console.log(`   Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`)
       console.log(`   Compression ratio: ${compressionRatio}%`)
-      console.log(`   Module ID: ${uploadResult.moduleId}`)
+      console.log(`   Module ID: ${result.moduleId}`)
 
     } catch (err: any) {
       setUploadStatus('error')

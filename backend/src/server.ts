@@ -199,8 +199,6 @@ const startServer = () => {
     
     console.log('\n📚 Available API Endpoints:')
     console.log('   POST /api/upload')
-    console.log('   POST /api/upload/chunk')
-    console.log('   POST /api/upload/finalize')
     console.log('   POST /api/ai/chat')
     console.log('   GET  /api/modules')
     console.log('   GET  /api/modules/:id')

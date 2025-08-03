@@ -644,6 +644,7 @@ Just ask me anything about the training!`
               <div className="text-center py-8">
                 <div className="w-8 h-8 mx-auto animate-spin text-blue-600">⏳</div>
                 <p className="text-gray-600 mt-2">Loading steps... Module ID: {moduleId}</p>
+                <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
               </div>
             ) : stepsError ? (
               <div className="text-center py-8">
@@ -664,6 +665,9 @@ Just ask me anything about the training!`
                   >
                     {processingAI ? '🤖 Processing...' : '🤖 Try AI Processing'}
                   </button>
+                )}
+                {processingAI && (
+                  <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
                 )}
               </div>
             ) : steps && steps.length > 0 ? (
@@ -853,6 +857,9 @@ Just ask me anything about the training!`
                     {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
                   </button>
                 </div>
+                {processingAI && (
+                  <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
+                )}
               </div>
             )}
           </div>
