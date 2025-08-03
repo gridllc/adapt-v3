@@ -77,6 +77,13 @@ export async function api(endpoint: string, options?: RequestInit) {
     console.error('❌ API Error:', response.status, response.statusText)
     const errorText = await response.text()
     console.error('❌ Response body:', errorText)
+    
+    // Special handling for 404 errors - return empty data instead of throwing
+    if (response.status === 404 && endpoint.includes('/api/steps/')) {
+      console.warn('⚠️ Steps not found, returning empty steps array')
+      return { steps: [], success: false, error: 'Steps not found' }
+    }
+    
     throw new Error(`API Error: ${response.status} ${response.statusText}`)
   }
   

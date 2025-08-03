@@ -14,16 +14,12 @@ export const stepsController = {
       console.log(`🔍 Looking for steps for module: ${moduleId}`)
 
       // Define possible paths where steps might be stored
-      const isProduction = process.env.NODE_ENV === 'production'
-      const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
-      
-      const possiblePaths = [
-        path.join(baseDir, 'data', 'steps', `${moduleId}.json`),
-        path.join(baseDir, 'data', 'training', `${moduleId}.json`),
-        path.join(baseDir, 'data', 'modules', `${moduleId}.json`),
+s      const possiblePaths = [
+        path.join(process.cwd(), 'data', 'training', `${moduleId}.json`),
+        path.join(process.cwd(), 'data', 'steps', `${moduleId}.json`),
+        path.join(process.cwd(), 'data', 'modules', `${moduleId}.json`),
         // Also check in uploads directory
-        path.join(process.cwd(), 'uploads', 'training', `${moduleId}.json`),
-        path.join(process.cwd(), 'backend', 'data', 'training', `${moduleId}.json`)
+        path.join(process.cwd(), 'uploads', 'training', `${moduleId}.json`)
       ]
 
       console.log('🔍 Searching in paths:', possiblePaths)

@@ -547,6 +547,7 @@ export const uploadController = {
   async createBasicSteps(moduleId: string, originalFilename: string, videoPath: string) {
     try {
       console.log(`📝 Creating basic steps for module ${moduleId}`)
+      console.log(`📁 Current working directory: ${process.cwd()}`)
       
       // Create basic steps data (no AI dependency)
       const basicSteps = [
@@ -589,20 +590,29 @@ export const uploadController = {
       }
 
       // Save steps to training directory
-      const trainingDir = path.join(path.resolve(__dirname, '../../'), 'data', 'training')
+      const trainingDir = path.join(process.cwd(), 'data', 'training')
+      console.log(`📁 Creating training directory: ${trainingDir}`)
       await fs.promises.mkdir(trainingDir, { recursive: true })
+      
       const stepsPath = path.join(trainingDir, `${moduleId}.json`)
+      console.log(`📝 Writing steps to: ${stepsPath}`)
       await fs.promises.writeFile(stepsPath, JSON.stringify(stepsData, null, 2))
       
-      console.log(`✅ Basic steps saved to: ${stepsPath}`)
+      // Verify file was written
+      const stats = await fs.promises.stat(stepsPath)
+      console.log(`✅ Basic steps saved to: ${stepsPath} (${stats.size} bytes)`)
 
       // Update modules.json
-      const modulesPath = path.join(path.resolve(__dirname, '../../'), 'data', 'modules.json')
+      const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
+      console.log(`📝 Updating modules.json at: ${modulesPath}`)
+      
       let existingModules = []
       try {
         const raw = await fs.promises.readFile(modulesPath, 'utf-8')
         existingModules = JSON.parse(raw)
-      } catch {
+        console.log(`📋 Found ${existingModules.length} existing modules`)
+      } catch (error) {
+        console.log(`📋 No existing modules.json found, creating new one`)
         existingModules = []
       }
       
@@ -617,15 +627,27 @@ export const uploadController = {
       }
       
       // Remove existing module if it exists
+      const beforeCount = existingModules.length
       existingModules = existingModules.filter((m: any) => m.id !== moduleId)
-      existingModules.push(newModule)
+      const afterCount = existingModules.length
+      if (beforeCount !== afterCount) {
+        console.log(`🔄 Removed existing module entry for ${moduleId}`)
+      }
       
+      existingModules.push(newModule)
       await fs.promises.writeFile(modulesPath, JSON.stringify(existingModules, null, 2))
       
-      console.log('✅ Module added to modules.json')
+      console.log(`✅ Module added to modules.json (${existingModules.length} total modules)`)
       
     } catch (error) {
       console.error(`❌ Failed to create basic steps for ${moduleId}:`, error)
+      console.error(`📋 Error details:`, {
+        moduleId,
+        originalFilename,
+        videoPath,
+        cwd: process.cwd(),
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
       throw error
     }
   }

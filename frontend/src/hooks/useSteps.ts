@@ -16,13 +16,30 @@ export function useSteps(moduleId?: string) {
     if (!moduleId) return
 
     setLoading(true)
+    setError(null)
+    
     fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.STEPS(moduleId)))
       .then(res => {
-        if (!res.ok) throw new Error('Steps not found')
+        if (!res.ok) {
+          if (res.status === 404) {
+            console.warn('⚠️ Steps not found for module:', moduleId)
+            return { steps: [], success: false, error: 'Steps not found' }
+          }
+          throw new Error('Steps not found')
+        }
         return res.json()
       })
-      .then(data => setSteps(data.steps || []))
-      .catch(err => setError(err.message))
+      .then(data => {
+        setSteps(data.steps || [])
+        if (data.error) {
+          setError(data.error)
+        }
+      })
+      .catch(err => {
+        console.error('❌ Error fetching steps:', err)
+        setError(err.message)
+        setSteps([]) // Set empty steps on error
+      })
       .finally(() => setLoading(false))
   }, [moduleId])
 
