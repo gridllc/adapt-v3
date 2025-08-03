@@ -65,7 +65,7 @@ const configureMiddleware = () => {
 
   // CORS configuration
   const corsOptions = {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Range'],
@@ -135,8 +135,47 @@ const configureRoutes = () => {
       res.json({ 
         message: 'Backend is working!',
         timestamp: new Date().toISOString(),
-        environment: NODE_ENV
+        environment: NODE_ENV,
+        cors: 'enabled'
       })
+    })
+
+    app.get('/api/test-cors', (req, res) => {
+      res.json({ 
+        message: 'CORS test successful!',
+        timestamp: new Date().toISOString(),
+        environment: NODE_ENV,
+        origin: req.headers.origin || 'unknown'
+      })
+    })
+
+    app.post('/api/test-rewrite', async (req, res) => {
+      try {
+        const { text, style = 'polished' } = req.body
+        
+        if (!text) {
+          return res.status(400).json({ error: 'Text is required' })
+        }
+        
+        // Import AI service
+        const { aiService } = await import('./services/aiService.js')
+        
+        // Call AI rewrite
+        const rewrittenText = await aiService.rewriteStep(text, style)
+        
+        res.json({ 
+          original: text,
+          rewritten: rewrittenText,
+          style: style,
+          timestamp: new Date().toISOString()
+        })
+      } catch (error) {
+        console.error('❌ Test rewrite error:', error)
+        res.status(500).json({ 
+          error: 'Test rewrite failed', 
+          details: error instanceof Error ? error.message : 'Unknown error' 
+        })
+      }
     })
 
     app.get('/api/test-speech', async (req, res) => {

@@ -1,0 +1,26 @@
+[
+  {
+    "timestamp": 0,
+    "title": "Initial Access",
+    "description": "Enter the 4-digit code on the screen. The order of the digits does not matter.",
+    "duration": 15
+  },
+  {
+    "timestamp": 15,
+    "title": "Troubleshooting: Screen Lock",
+    "description": "If the screen locks up (numbers remain displayed and the system doesn't respond), repeatedly press the screen or buttons until the screen goes blank with a red blinking light. This will reset the input.",
+    "duration": 30
+  },
+  {
+    "timestamp": 45,
+    "title": "Reaccessing after Lock",
+    "description": "After the screen resets, re-enter the 4-digit code to access the system.",
+    "duration": 15
+  },
+  {
+    "timestamp": 60,
+    "title": "Successful Entry Confirmation",
+    "description": "Observe confirmation of successful access (e.g., a change in the screen display indicating access granted).",
+    "duration": 30
+  }
+]

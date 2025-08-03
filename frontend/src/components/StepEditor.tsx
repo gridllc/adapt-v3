@@ -123,10 +123,54 @@ export const StepEditor: React.FC<StepEditorProps> = ({
     }
   }
 
-  // Stub functions for AI rewrite and auto-save (disabled for now)
+  // AI rewrite functionality
   const handleAIRewrite = async (style: string): Promise<void> => {
-    // Disabled for now - could be implemented later
-    console.log('AI rewrite requested with style:', style)
+    try {
+      console.log('🤖 AI rewrite requested with style:', style)
+      
+      // Get current step title for rewriting
+      const currentTitle = step.title
+      
+      if (!currentTitle || currentTitle.trim().length < 3) {
+        console.warn('⚠️ Title too short for AI rewrite')
+        return
+      }
+      
+      // Call the AI rewrite API
+      const response = await fetch(`/api/steps/${moduleId}/rewrite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: currentTitle,
+          style: style
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(`AI rewrite failed: ${errorData.error || response.statusText}`)
+      }
+      
+      const data = await response.json()
+      console.log('✅ AI rewrite successful:', data)
+      
+      // Update the step with the rewritten title
+      const updatedStep = {
+        ...step,
+        title: data.text
+      }
+      
+      // Call the update function
+      onUpdate(updatedStep)
+      
+      console.log('✅ Step updated with AI rewrite')
+    } catch (error) {
+      console.error('❌ AI rewrite error:', error)
+      // You could show a toast notification here
+      alert(`AI rewrite failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   const handleAutoSave = async (updated: StepData): Promise<void> => {

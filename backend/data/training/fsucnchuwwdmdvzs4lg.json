@@ -1,0 +1,240 @@
+{
+  "moduleId": "fsucnchuwwdmdvzs4lg",
+  "originalSteps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Access",
+      "description": "Enter the 4-digit code on the screen. The order of the digits does not matter.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Troubleshooting: Screen Lock",
+      "description": "If the screen locks up (numbers remain displayed and the system doesn't respond), repeatedly press the screen or buttons until the screen goes blank with a red blinking light. This will reset the input.",
+      "duration": 30
+    },
+    {
+      "timestamp": 45,
+      "title": "Reaccessing after Lock",
+      "description": "After the screen resets, re-enter the 4-digit code to access the system.",
+      "duration": 15
+    },
+    {
+      "timestamp": 60,
+      "title": "Successful Entry Confirmation",
+      "description": "Observe confirmation of successful access (e.g., a change in the screen display indicating access granted).",
+      "duration": 30
+    }
+  ],
+  "structuredSteps": [
+    {
+      "id": "step_1",
+      "text": "any problems, the problem that you'll have when you do this is that sometimes, when you hit this to do the screen, it just feels",
+      "start": 2,
+      "end": 10,
+      "confidence": 0.94,
+      "duration": 8,
+      "wordCount": 25,
+      "type": "introduction"
+    },
+    {
+      "id": "step_2",
+      "text": "So now we hit the screen, I'll hit the fort these numbers again.",
+      "start": 12,
+      "end": 15,
+      "confidence": 0.92,
+      "duration": 3,
+      "wordCount": 13,
+      "type": "general"
+    },
+    {
+      "id": "step_3",
+      "text": "Now if I go too fast, I don't exactly have the numbers, right?",
+      "start": 15,
+      "end": 17,
+      "confidence": 0.92,
+      "duration": 2,
+      "wordCount": 13,
+      "type": "general"
+    },
+    {
+      "id": "step_4",
+      "text": "And said to keep hitting things until the screen finding those blank with that red blink?",
+      "start": 22,
+      "end": 25,
+      "confidence": 0.93,
+      "duration": 3,
+      "wordCount": 16,
+      "type": "general"
+    },
+    {
+      "id": "step_5",
+      "text": "So then, again, I'm starting from the beginning, four numbers.",
+      "start": 27,
+      "end": 29,
+      "confidence": 0.85,
+      "duration": 2,
+      "wordCount": 10,
+      "type": "general"
+    },
+    {
+      "id": "step_6",
+      "text": "See, I didn't do any order and then the code again.",
+      "start": 31,
+      "end": 33,
+      "confidence": 0.82,
+      "duration": 2,
+      "wordCount": 11,
+      "type": "general"
+    }
+  ],
+  "enhancedSteps": [
+    {
+      "id": "step_1",
+      "title": "Introduction and Overview",
+      "description": "any problems, the problem that you'll have when you do this is that sometimes, when you hit this to do the screen, it just feels",
+      "start": 2,
+      "end": 10,
+      "confidence": 0.94,
+      "duration": 8,
+      "type": "introduction",
+      "rewrittenDescription": "1. Be aware that you may encounter issues when interacting with the screen."
+    },
+    {
+      "id": "step_2",
+      "title": "So now we hit the screen, I'll hit the fort these numbers again",
+      "description": "So now we hit the screen, I'll hit the fort these numbers again.",
+      "start": 12,
+      "end": 15,
+      "confidence": 0.92,
+      "duration": 3,
+      "type": "general",
+      "rewrittenDescription": "2. Tap the screen to input the numbers again."
+    },
+    {
+      "id": "step_3",
+      "title": "Now if I go too fast, I don't exactly have the numbers, right",
+      "description": "Now if I go too fast, I don't exactly have the numbers, right?",
+      "start": 15,
+      "end": 17,
+      "confidence": 0.92,
+      "duration": 2,
+      "type": "general",
+      "rewrittenDescription": "3. Ensure you enter the numbers slowly to avoid mistakes."
+    },
+    {
+      "id": "step_4",
+      "title": "And said to keep hitting things until the screen finding those blank with that red blink",
+      "description": "And said to keep hitting things until the screen finding those blank with that red blink?",
+      "start": 22,
+      "end": 25,
+      "confidence": 0.93,
+      "duration": 3,
+      "type": "general",
+      "rewrittenDescription": "4. Keep tapping until the screen indicates a blank with a red blink."
+    },
+    {
+      "id": "step_5",
+      "title": "So then, again, I'm starting from the beginning, four numbers",
+      "description": "So then, again, I'm starting from the beginning, four numbers.",
+      "start": 27,
+      "end": 29,
+      "confidence": 0.85,
+      "duration": 2,
+      "type": "general",
+      "rewrittenDescription": "5. Start over by entering the four numbers again."
+    },
+    {
+      "id": "step_6",
+      "title": "See, I didn't do any order and then the code again",
+      "description": "See, I didn't do any order and then the code again.",
+      "start": 31,
+      "end": 33,
+      "confidence": 0.82,
+      "duration": 2,
+      "type": "general",
+      "rewrittenDescription": "6. Remember, the order of the numbers does not matter."
+    }
+  ],
+  "stepGroups": [
+    {
+      "title": "Introduction",
+      "steps": [
+        {
+          "id": "step_1",
+          "text": "any problems, the problem that you'll have when you do this is that sometimes, when you hit this to do the screen, it just feels",
+          "start": 2,
+          "end": 10,
+          "confidence": 0.94,
+          "duration": 8,
+          "wordCount": 25,
+          "type": "introduction"
+        },
+        {
+          "id": "step_2",
+          "text": "So now we hit the screen, I'll hit the fort these numbers again.",
+          "start": 12,
+          "end": 15,
+          "confidence": 0.92,
+          "duration": 3,
+          "wordCount": 13,
+          "type": "general"
+        },
+        {
+          "id": "step_3",
+          "text": "Now if I go too fast, I don't exactly have the numbers, right?",
+          "start": 15,
+          "end": 17,
+          "confidence": 0.92,
+          "duration": 2,
+          "wordCount": 13,
+          "type": "general"
+        },
+        {
+          "id": "step_4",
+          "text": "And said to keep hitting things until the screen finding those blank with that red blink?",
+          "start": 22,
+          "end": 25,
+          "confidence": 0.93,
+          "duration": 3,
+          "wordCount": 16,
+          "type": "general"
+        },
+        {
+          "id": "step_5",
+          "text": "So then, again, I'm starting from the beginning, four numbers.",
+          "start": 27,
+          "end": 29,
+          "confidence": 0.85,
+          "duration": 2,
+          "wordCount": 10,
+          "type": "general"
+        },
+        {
+          "id": "step_6",
+          "text": "See, I didn't do any order and then the code again.",
+          "start": 31,
+          "end": 33,
+          "confidence": 0.82,
+          "duration": 2,
+          "wordCount": 11,
+          "type": "general"
+        }
+      ],
+      "totalDuration": 20,
+      "averageConfidence": 0.8543749999999999
+    }
+  ],
+  "stats": {
+    "totalDuration": 20,
+    "averageConfidence": 0.9,
+    "totalWords": 88,
+    "stepCount": 6,
+    "typeDistribution": {
+      "introduction": 1,
+      "general": 5
+    }
+  },
+  "transcript": "It's an open, that's it.  any problems, the problem that you'll have when you do this is that  sometimes, when you hit this to do the screen,  it just feels right now. It just locked again because we're outside. So now we hit the screen, I'll hit the fort these numbers again. Now if I go too fast, I don't exactly have the numbers, right?  It stays locked with all those numbers up there. So what does that mean? How do I reset it? And said to keep hitting things until the screen finding those blank with that red blink?  The screen is then blank. So then, again, I'm starting from the beginning, four numbers.  See, I didn't do any order and then the code again.  And then we're back in.",
+  "createdAt": "2025-08-03T18:07:33.975Z"
+}

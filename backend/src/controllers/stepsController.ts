@@ -54,6 +54,37 @@ const normalizeStep = (step: any, index: number) => {
 }
 
 export const stepsController = {
+  async rewriteStep(req: Request, res: Response) {
+    try {
+      const { moduleId } = req.params
+      const { text, style = 'polished' } = req.body
+      
+      console.log(`🤖 AI Rewrite requested for module: ${moduleId}`)
+      console.log(`📝 Original text: ${text}`)
+      console.log(`🎨 Style: ${style}`)
+      
+      if (!text) {
+        return res.status(400).json({ error: 'Text is required' })
+      }
+      
+      // Import AI service
+      const { aiService } = await import('../services/aiService.js')
+      
+      // Call AI rewrite
+      const rewrittenText = await aiService.rewriteStep(text, style)
+      
+      console.log(`✅ AI rewrite successful:`, rewrittenText)
+      
+      res.json({ text: rewrittenText })
+    } catch (error) {
+      console.error('❌ AI rewrite error:', error)
+      res.status(500).json({ 
+        error: 'AI rewrite failed', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      })
+    }
+  },
+
   async getSteps(req: Request, res: Response) {
     try {
       const { moduleId } = req.params

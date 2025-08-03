@@ -1,0 +1,39 @@
+{
+  "title": "Accessing the System with a Keypad",
+  "description": "This training module demonstrates how to use the keypad to access the system, including troubleshooting steps for when the screen locks up.",
+  "transcript": "then open. That's it. Any problems? The problem that you'll have when you do this is that sometimes when you hit this to do the screen, it just, you'll hear it right now, it just locked again because we're outside. So now we hit the screen. I'll hit the four, these numbers again. Now if I go too fast or I don't exactly hit the numbers right, it stays locked with all those numbers up there. So what does that mean? How do I reset it? I just have to keep hitting things until the screen finally goes blank with that red blink. The screen is then blank. So again, I'm starting from the beginning, four numbers. See, I didn't have to do any order and then the code again, and then we're back in.",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Entry",
+      "description": "Enter the four-digit code on the keypad. The order of entry does not matter.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Troubleshooting: Screen Lock",
+      "description": "If the screen locks up (numbers displayed, unresponsive), repeatedly press any key on the keypad until the screen goes blank and a red light blinks. This resets the keypad.",
+      "duration": 30
+    },
+    {
+      "timestamp": 45,
+      "title": "Re-entry after Lockup",
+      "description": "Once the screen is reset (blank with a red blink), re-enter the four-digit code to access the system.",
+      "duration": 15
+    },
+    {
+      "timestamp": 60,
+      "title": "Successful Entry Confirmation",
+      "description": "Confirm successful system access after code entry.",
+      "duration": 15
+    },
+    {
+      "timestamp": 75,
+      "title": "Troubleshooting: Incorrect Entry",
+      "description": "If the code is entered incorrectly (too fast, wrong numbers), the screen might lock. Follow the 'Troubleshooting: Screen Lock' steps and try entering the code again.",
+      "duration": 15
+    }
+  ],
+  "totalDuration": 90,
+  "id": "fsucnchuwwdmdvzs4lg"
+}

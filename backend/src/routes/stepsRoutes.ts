@@ -12,4 +12,7 @@ router.post('/:moduleId', stepsController.createSteps)
 // Update steps for a module
 router.put('/:moduleId', stepsController.updateSteps)
 
+// AI rewrite endpoint
+router.post('/:moduleId/rewrite', stepsController.rewriteStep)
+
 export { router as stepsRoutes }

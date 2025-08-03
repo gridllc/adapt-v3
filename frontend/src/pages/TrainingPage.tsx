@@ -9,10 +9,10 @@ import QRCodeGenerator from '../components/QRCodeGenerator'
 
 interface Step {
   id: string
-  timestamp: number
+  start: number
+  end: number
   title: string
   description: string
-  duration?: number
   aliases?: string[]
   notes?: string
   isManual?: boolean
@@ -82,8 +82,8 @@ export const TrainingPage: React.FC = () => {
     
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i]
-      const stepStart = step.timestamp
-      const stepEnd = step.timestamp + (step.duration || 30)
+      const stepStart = step.start
+      const stepEnd = step.end
       
       if (videoTime >= stepStart && videoTime < stepEnd) {
         return i
@@ -266,8 +266,8 @@ export const TrainingPage: React.FC = () => {
         stepNumber: currentStepIndex! + 1,
         title: currentStep.title,
         description: currentStep.description,
-        timestamp: currentStep.timestamp,
-        duration: currentStep.duration,
+        start: currentStep.start,
+        end: currentStep.end,
         aliases: currentStep.aliases,
         notes: currentStep.notes
       } : null

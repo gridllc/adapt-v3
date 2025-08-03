@@ -265,8 +265,17 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
     setIsRewriting(true)
     setShowRewriteOptions(false)
     setLastUsedStyle(style)
+    
+    // Show temporary placeholder
+    const originalTitle = editedStep.title
+    handleChange('title', '✨ AI is rewriting...')
+    
     try {
       await onAIRewrite(style)
+    } catch (error) {
+      // Restore original title on error
+      handleChange('title', originalTitle)
+      console.error('AI rewrite failed:', error)
     } finally {
       setIsRewriting(false)
     }

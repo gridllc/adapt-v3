@@ -2,7 +2,7 @@
 const isDevelopment = import.meta.env.MODE === 'development'
 const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
 
-// Use localhost in development, Railway URL in production
+// Use proxy in development, Railway URL in production
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
   (isDevelopment ? '' : RAILWAY_URL)
 
