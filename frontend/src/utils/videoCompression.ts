@@ -16,7 +16,13 @@ export class VideoCompressor {
       video.playsInline = true
       video.crossOrigin = 'anonymous'
       
-      video.onloadedmetadata = () => resolve(video)
+      video.onloadedmetadata = () => {
+        if (video.duration === 0 || isNaN(video.duration)) {
+          reject(new Error('Invalid or unsupported video file'))
+        } else {
+          resolve(video)
+        }
+      }
       video.onerror = () => reject(new Error('Failed to load video'))
       
       video.src = URL.createObjectURL(file)
@@ -53,68 +59,130 @@ export class VideoCompressor {
 
     console.log('🎬 Starting video compression...')
     console.log('📊 Original size:', (file.size / 1024 / 1024).toFixed(2), 'MB')
-    
+
     try {
       const video = await this.createVideoElement(file)
+
+      // 🚫 Validate duration
+      if (!video.duration || isNaN(video.duration) || video.duration === Infinity) {
+        throw new Error('Video appears to be invalid or unsupported (no duration)')
+      }
+
+      console.log('🎞️ Duration:', video.duration.toFixed(2), 's')
+      console.log('📶 ReadyState:', video.readyState)
+
       const canvas = await this.createCanvas(video, options)
       const ctx = canvas.getContext('2d')!
-      
-      // Create MediaRecorder with compression settings
-      const stream = canvas.captureStream()
+
+      // ✅ Determine best codec
+      const supportedTypes = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ]
+      let mimeType = 'video/webm'
+      for (const type of supportedTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type
+          console.log('✅ Using codec:', type)
+          break
+        }
+      }
+
+      console.log('🎥 Final mime type:', mimeType)
+
+      const stream = canvas.captureStream(30)
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
+        mimeType,
         videoBitsPerSecond: targetBitrate * 1000
       })
-      
+
       const chunks: Blob[] = []
-      
+
       return new Promise((resolve, reject) => {
         mediaRecorder.ondataavailable = (event) => {
+          console.log('📦 Data available:', event.data.size, 'bytes')
           if (event.data.size > 0) {
             chunks.push(event.data)
           }
         }
-        
+
+        mediaRecorder.onerror = (event) => {
+          console.error('❌ MediaRecorder error:', event)
+          reject(new Error('Video compression failed during recording'))
+        }
+
         mediaRecorder.onstop = () => {
-          const compressedBlob = new Blob(chunks, { type: 'video/webm' })
+          console.log('🛑 Recording stopped, chunks:', chunks.length)
+          console.log('📊 Total chunks size:', chunks.reduce((sum, chunk) => sum + chunk.size, 0), 'bytes')
+          
+          const compressedBlob = new Blob(chunks, { type: mimeType })
           const compressedFile = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, '.webm'), {
-            type: 'video/webm'
+            type: mimeType
           })
-          
-          console.log('📊 Compressed size:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB')
-          console.log('📈 Compression ratio:', ((1 - compressedFile.size / file.size) * 100).toFixed(1) + '%')
-          
+
+          console.log('📏 Compressed size:', (compressedFile.size / 1024 / 1024).toFixed(2), 'MB')
+
+          if (compressedFile.size === 0) {
+            reject(new Error('Video compression failed – output file is empty.'))
+            return
+          }
+
           resolve(compressedFile)
         }
-        
-        mediaRecorder.onerror = () => reject(new Error('Compression failed'))
-        
-        // Start recording
-        mediaRecorder.start()
-        
-        // Play video and capture frames
-        video.currentTime = 0
-        video.play()
-        
+
+        // 🎬 Frame capture logic
         const captureFrame = () => {
           if (video.currentTime >= video.duration) {
+            console.log('✅ All frames captured. Stopping recorder.')
             mediaRecorder.stop()
             return
           }
-          
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-          video.currentTime += 1/30 // 30 FPS
-          requestAnimationFrame(captureFrame)
+
+          try {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+            video.currentTime += 1 / 30
+            requestAnimationFrame(captureFrame)
+          } catch (err) {
+            console.warn('⚠️ drawImage error, stopping:', err)
+            mediaRecorder.stop()
+          }
         }
-        
+
+        // 🕒 Wait for decoded frames
         video.onplay = () => {
-          captureFrame()
+          console.log('▶️ Video started playing')
+          const waitUntilReady = () => {
+            if (video.readyState < 2) {
+              console.log('⏳ Waiting for video to be ready...')
+              requestAnimationFrame(waitUntilReady)
+            } else {
+              captureFrame()
+            }
+          }
+          waitUntilReady()
         }
+
+        // 🧯 Timeout fallback
+        const maxDuration = Math.min(video.duration * 1000 + 1000, 30000)
+        setTimeout(() => {
+          if (mediaRecorder.state === 'recording') {
+            console.warn('⏰ Timeout reached, forcing stop.')
+            mediaRecorder.stop()
+          }
+        }, maxDuration)
+
+        // 🔁 Start flow
+        mediaRecorder.start(1000)
+        video.play().catch(err => {
+          console.error('❌ Video playback failed:', err)
+          reject(new Error('Unable to play video for compression.'))
+        })
+
       })
-    } catch (error) {
-      console.error('❌ Compression failed:', error)
-      // Return original file if compression fails
-      return file
+    } catch (err) {
+      console.error('❌ Compression error:', err)
+      throw new Error(typeof err === 'string' ? err : (err as Error).message)
     }
   }
 

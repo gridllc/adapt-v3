@@ -30,20 +30,45 @@ export const UploadPage: React.FC = () => {
     setOriginalFileSize(file.size)
 
     try {
+      // Check for empty file
+      if (file.size === 0) {
+        setErrorMessage('File appears to be empty. Please upload a valid video file.')
+        setUploadStatus('error')
+        return
+      }
+
       // Step 1: Compress video
       console.log('🎬 Starting video compression...')
       console.log('📊 Original file size:', (file.size / 1024 / 1024).toFixed(2), 'MB')
-      const compressedFile = await VideoCompressor.compressVideo(file, {
-        quality: 0.7,
-        maxWidth: 1280,
-        maxHeight: 720,
-        targetBitrate: 1000 // 1 Mbps
-      })
+      
+      let compressedFile: File
+      try {
+        compressedFile = await VideoCompressor.compressVideo(file, {
+          quality: 0.7,
+          maxWidth: 1280,
+          maxHeight: 720,
+          targetBitrate: 1000 // 1 Mbps
+        })
+      } catch (compressionError) {
+        console.warn('⚠️ Compression failed, using original file:', compressionError)
+        compressedFile = file
+      }
       
       setCompressedFileSize(compressedFile.size)
       const compressionRatio = ((1 - compressedFile.size / file.size) * 100).toFixed(1)
       console.log(`📊 Compression complete: ${compressionRatio}% reduction`)
       console.log(`📊 Compressed file size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`)
+
+      // Check compressed file size
+      if (compressedFile.size === 0) {
+        setErrorMessage('Video compression failed - resulting file is empty. Please try a different video.')
+        setUploadStatus('error')
+        return
+      }
+
+      // TEMP: Skip compression for testing
+      // const compressedFile = file
+      // console.log('🚀 TEMP: Skipping compression, using original file')
 
       // Step 2: Upload using chunked uploader
       setUploadStatus('uploading')

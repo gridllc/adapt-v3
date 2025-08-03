@@ -237,7 +237,8 @@ export const uploadController = {
 
   async finalizeUpload(req: Request, res: Response) {
     console.log('🔁 Finalize upload handler triggered')
-    console.log('📦 Request body:', req.body)
+    console.log('📦 Request body:', JSON.stringify(req.body, null, 2))
+    console.log('📦 Request headers:', req.headers['content-type'])
     
     try {
       const { moduleId, originalFilename, totalChunks } = req.body
@@ -250,22 +251,26 @@ export const uploadController = {
       
       if (missingFields.length > 0) {
         console.error(`❌ Missing required fields: ${missingFields.join(', ')}`)
+        console.error(`📦 Received body:`, req.body)
         return res.status(400).json({ 
           error: `Missing required fields: ${missingFields.join(', ')}`,
           received: { moduleId, originalFilename, totalChunks }
         })
       }
 
-      // Validate totalChunks is a number
-      const totalChunksNum = parseInt(totalChunks)
+      // Validate totalChunks is a number (handle string conversion)
+      const totalChunksNum = parseInt(totalChunks.toString())
       if (isNaN(totalChunksNum) || totalChunksNum <= 0) {
+        console.error(`❌ Invalid totalChunks: ${totalChunks} (type: ${typeof totalChunks})`)
         return res.status(400).json({ 
           error: 'Invalid totalChunks - must be a positive number',
-          received: { totalChunks }
+          received: { totalChunks, type: typeof totalChunks }
         })
       }
 
-      console.log(`📦 Finalizing upload for module ${moduleId} with ${totalChunks} chunks`)
+      console.log(`📦 Finalizing upload for module ${moduleId} with ${totalChunksNum} chunks`)
+      console.log(`📦 Original filename: ${originalFilename}`)
+      console.log(`📦 Total chunks (parsed): ${totalChunksNum}`)
 
       // Reassemble chunks
       const tempDir = path.join(process.cwd(), 'uploads', 'temp', moduleId)
@@ -284,75 +289,129 @@ export const uploadController = {
         })
       }
       
-      const fileBuffers: Buffer[] = []
-      
-      for (let i = 0; i < totalChunksNum; i++) {
-        const chunkPath = path.join(tempDir, `chunk-${i}`)
-        console.log(`📦 Looking for chunk ${i} at: ${chunkPath}`)
+      // List all files in temp directory for debugging
+      try {
+        const tempFiles = await fs.promises.readdir(tempDir)
+        console.log(`📁 Files in temp directory:`, tempFiles)
         
-        if (!fs.existsSync(chunkPath)) {
-          console.error(`❌ Missing chunk file: ${chunkPath}`)
+        // Verify we have the expected number of chunks
+        const chunkFiles = tempFiles.filter(file => file.startsWith('chunk-'))
+        console.log(`📦 Found ${chunkFiles.length} chunk files, expected ${totalChunksNum}`)
+        
+        if (chunkFiles.length !== totalChunksNum) {
+          console.error(`❌ Chunk count mismatch: found ${chunkFiles.length}, expected ${totalChunksNum}`)
           return res.status(400).json({ 
-            error: `Missing chunk ${i}. Expected ${totalChunksNum} chunks but chunk ${i} is missing.`,
+            error: `Chunk count mismatch. Found ${chunkFiles.length} chunks, expected ${totalChunksNum}`,
             moduleId,
-            missingChunk: i,
-            totalChunks: totalChunksNum
+            foundChunks: chunkFiles.length,
+            expectedChunks: totalChunksNum
           })
         }
-        
-        const chunkBuffer = await fs.promises.readFile(chunkPath)
-        fileBuffers.push(chunkBuffer)
-        console.log(`📦 Loaded chunk ${i}: ${(chunkBuffer.length / 1024).toFixed(2)} KB`)
-      }
-
-      // Combine all chunks
-      const fullFile = Buffer.concat(fileBuffers)
-      
-      // Validate the final file size
-      if (fullFile.length === 0) {
-        console.error('❌ Final file is empty')
-        return res.status(400).json({ 
-          error: 'Final file is empty. Upload may have failed.',
-          moduleId,
-          totalChunks: totalChunksNum,
-          finalFileSize: fullFile.length
+      } catch (listError) {
+        console.error(`❌ Error listing temp directory:`, listError)
+        return res.status(500).json({ 
+          error: 'Failed to read chunk directory',
+          moduleId
         })
       }
       
-      // Ensure uploads directory exists
-      const uploadsDir = path.dirname(finalPath)
-      if (!fs.existsSync(uploadsDir)) {
-        await fs.promises.mkdir(uploadsDir, { recursive: true })
-        console.log(`📁 Created uploads directory: ${uploadsDir}`)
-      }
+      // Use write stream for better memory management
+      console.log(`🧩 Merging chunks for module: ${moduleId}`)
+      const writeStream = fs.createWriteStream(finalPath)
+      let totalBytesWritten = 0
       
-      await fs.promises.writeFile(finalPath, fullFile)
-
-      console.log(`✅ File reassembled: ${finalPath}`)
-      console.log(`📊 Final file size: ${(fullFile.length / 1024 / 1024).toFixed(2)} MB`)
-
-      // Clean up temp directory
-      try {
-        await fs.promises.rm(tempDir, { recursive: true, force: true })
-        console.log(`🗑️ Cleaned up temp directory: ${tempDir}`)
-      } catch (cleanupError) {
-        console.warn('⚠️ Failed to clean up temp directory:', cleanupError)
-      }
-
-      // Start async processing (don't await it)
-      console.log('🤖 Starting async AI processing...')
-      // Temporarily disable async processing to isolate the issue
-      // this.processVideoAsync(moduleId, originalFilename, finalPath).catch(error => {
-      //   console.error(`❌ Async processing failed for ${moduleId}:`, error)
-      // })
-
-      // Return immediately
-      res.json({
-        success: true,
-        moduleId,
-        videoUrl: `http://localhost:8000/uploads/${moduleId}.mp4`,
-        message: 'Upload finalized successfully. Processing started in background.',
-        fileSize: fullFile.length
+      return new Promise<void>((resolve, reject) => {
+        writeStream.on('error', (error) => {
+          console.error('❌ Write stream error:', error)
+          reject(error)
+        })
+        
+        writeStream.on('finish', async () => {
+          console.log(`✅ Final video assembled at: ${finalPath}`)
+          console.log(`📊 Total bytes written: ${totalBytesWritten}`)
+          
+          // Verify the final file exists and has content
+          try {
+            const stats = await fs.promises.stat(finalPath)
+            console.log(`📊 Final file stats: ${stats.size} bytes`)
+            
+            if (stats.size === 0) {
+              console.error('❌ Final file is empty after writing')
+              reject(new Error('Final file is empty after writing'))
+              return
+            }
+            
+            // Clean up temp directory
+            try {
+              await fs.promises.rm(tempDir, { recursive: true, force: true })
+              console.log(`🗑️ Cleaned up temp directory: ${tempDir}`)
+            } catch (cleanupError) {
+              console.warn('⚠️ Failed to clean up temp directory:', cleanupError)
+            }
+            
+            // Start async processing
+            console.log('🤖 Starting AI processing...')
+            try {
+              await this.processVideoAsync(moduleId, originalFilename, finalPath)
+              console.log('✅ AI processing completed successfully')
+            } catch (processingError) {
+              console.error('❌ AI processing failed:', processingError)
+              // Continue with response but log the error
+            }
+            
+            resolve()
+          } catch (error) {
+            console.error('❌ Error verifying final file:', error)
+            reject(error)
+          }
+        })
+        
+        // Write chunks sequentially
+        const writeChunks = async () => {
+          try {
+            for (let i = 0; i < totalChunksNum; i++) {
+              const chunkPath = path.join(tempDir, `chunk-${i}`)
+              console.log(`📦 Writing chunk ${i} from: ${chunkPath}`)
+              
+              if (!fs.existsSync(chunkPath)) {
+                const error = `Missing chunk file: ${chunkPath}`
+                console.error(`❌ ${error}`)
+                reject(new Error(error))
+                return
+              }
+              
+              const chunkBuffer = await fs.promises.readFile(chunkPath)
+              console.log(`📦 Chunk ${i} size: ${(chunkBuffer.length / 1024).toFixed(2)} KB`)
+              
+              writeStream.write(chunkBuffer)
+              totalBytesWritten += chunkBuffer.length
+            }
+            
+            writeStream.end()
+          } catch (error) {
+            console.error('❌ Error writing chunks:', error)
+            reject(error)
+          }
+        }
+        
+        writeChunks()
+      }).then(() => {
+        // Return success response
+        res.json({
+          success: true,
+          moduleId,
+          videoUrl: `http://localhost:8000/uploads/${moduleId}.mp4`,
+          message: 'Upload finalized successfully. Processing started in background.',
+          fileSize: totalBytesWritten
+        })
+      }).catch((error) => {
+        console.error('❌ Finalize upload error:', error)
+        res.status(500).json({ 
+          error: 'Failed to finalize upload',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          moduleId: req.body?.moduleId || 'unknown',
+          totalChunks: req.body?.totalChunks || 'unknown'
+        })
       })
 
     } catch (error) {
@@ -372,26 +431,77 @@ export const uploadController = {
   async processVideoAsync(moduleId: string, originalFilename: string, videoPath: string) {
     try {
       console.log(`🤖 Starting async processing for module ${moduleId}`)
+      console.log(`📁 Video file: ${videoPath}`)
       
-      // For now, skip AI processing to avoid potential errors
-      console.log(`📁 Video file saved at: ${videoPath}`)
+      // Use existing imports
+      const audioProcessor = new AudioProcessor()
       
-      // Save basic module data without AI processing
-      const basicModuleData = {
+      // Step 1: Generate transcript
+      console.log(`🎤 Generating transcript for ${moduleId}...`)
+      await transcribeS3Video(moduleId, `${moduleId}.mp4`)
+      console.log(`✅ Transcript generated for ${moduleId}`)
+      
+      // Step 2: Generate steps from transcript
+      console.log(`📝 Generating steps for ${moduleId}...`)
+      const transcriptPath = path.join(path.resolve(__dirname, '../../'), 'data', 'transcripts', `${moduleId}.json`)
+      const stepsPath = path.join(path.resolve(__dirname, '../../'), 'data', 'training', `${moduleId}.json`)
+      
+      // Ensure directories exist
+      await fs.promises.mkdir(path.dirname(transcriptPath), { recursive: true })
+      await fs.promises.mkdir(path.dirname(stepsPath), { recursive: true })
+      
+      // Read transcript
+      let transcript = ''
+      try {
+        const transcriptData = await fs.promises.readFile(transcriptPath, 'utf-8')
+        const parsed = JSON.parse(transcriptData)
+        transcript = parsed.transcript || parsed.text || ''
+      } catch (error) {
+        console.warn(`⚠️ Could not read transcript for ${moduleId}:`, error)
+        transcript = ''
+      }
+      
+      // Generate basic steps if transcript exists
+      if (transcript) {
+        const steps = await audioProcessor.generateEnhancedSteps(videoPath)
+        
+        // Save steps
+        await fs.promises.writeFile(stepsPath, JSON.stringify({
+          moduleId,
+          steps: steps.steps,
+          transcript,
+          createdAt: new Date().toISOString()
+        }, null, 2))
+        
+        console.log(`✅ Generated ${steps.steps.length} steps for ${moduleId}`)
+      } else {
+        // Create empty steps file
+        await fs.promises.writeFile(stepsPath, JSON.stringify({
+          moduleId,
+          steps: [],
+          transcript: '',
+          createdAt: new Date().toISOString(),
+          error: 'No transcript available'
+        }, null, 2))
+        
+        console.log(`⚠️ No transcript available for ${moduleId}, created empty steps`)
+      }
+      
+      // Step 3: Save module data
+      const moduleData = {
         id: moduleId,
         filename: `${moduleId}.mp4`,
         title: originalFilename.replace(/\.[^/.]+$/, ''),
         createdAt: new Date().toISOString(),
-        status: 'uploaded'
+        status: 'processed',
+        hasTranscript: !!transcript,
+        hasSteps: true
       }
       
-      // Save module data
-      await storageService.saveModule(basicModuleData)
+      await storageService.saveModule(moduleData)
       
       // Update modules.json
-      const isProduction = process.env.NODE_ENV === 'production'
-      const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
-      const dataPath = path.join(baseDir, 'data', 'modules.json')
+      const dataPath = path.join(path.resolve(__dirname, '../../'), 'data', 'modules.json')
       
       let existingModules = []
       try {
@@ -401,14 +511,36 @@ export const uploadController = {
         existingModules = []
       }
       
-      existingModules.push(basicModuleData)
+      // Update existing module or add new one
+      const existingIndex = existingModules.findIndex((m: any) => m.id === moduleId)
+      if (existingIndex >= 0) {
+        existingModules[existingIndex] = moduleData
+      } else {
+        existingModules.push(moduleData)
+      }
+      
       await fs.promises.writeFile(dataPath, JSON.stringify(existingModules, null, 2))
       
-      console.log(`✅ Basic processing completed for module ${moduleId}`)
+      console.log(`✅ Processing completed for module ${moduleId}`)
       
     } catch (error) {
       console.error(`❌ Async processing failed for module ${moduleId}:`, error)
-      // Don't throw - this is background processing
+      console.error('📋 Full error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      
+      // Create error steps file
+      try {
+        const stepsPath = path.join(path.resolve(__dirname, '../../'), 'data', 'training', `${moduleId}.json`)
+        await fs.promises.mkdir(path.dirname(stepsPath), { recursive: true })
+        await fs.promises.writeFile(stepsPath, JSON.stringify({
+          moduleId,
+          steps: [],
+          transcript: '',
+          createdAt: new Date().toISOString(),
+          error: error instanceof Error ? error.message : 'Unknown processing error'
+        }, null, 2))
+      } catch (writeError) {
+        console.error('❌ Failed to write error steps file:', writeError)
+      }
     }
   }
 } 

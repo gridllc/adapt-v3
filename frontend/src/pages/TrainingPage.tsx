@@ -32,6 +32,8 @@ export const TrainingPage: React.FC = () => {
   const [stepsLoading, setStepsLoading] = useState(false)
   const [stepsError, setStepsError] = useState<string | null>(null)
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const maxRetries = 5
 
   const [chatMessage, setChatMessage] = useState('')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
@@ -296,48 +298,33 @@ export const TrainingPage: React.FC = () => {
 
   // Fetch steps when video URL is ready
   useEffect(() => {
-    if (!moduleId) {
-      console.log('🔄 No moduleId, skipping steps fetch')
-      return
+    if (!moduleId) return
+
+    const fetchSteps = async () => {
+      setStepsLoading(true)
+      setStepsError(null)
+      try {
+        const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 10000))
+        const data = await Promise.race([api(freshUrl), timeoutPromise])
+        if (!data.steps || data.steps.length === 0) throw new Error('Steps not found')
+        setSteps(data.steps)
+        setRetryCount(0)
+      } catch (err: any) {
+        if (retryCount < maxRetries) {
+          console.warn(`Retry ${retryCount + 1}/${maxRetries}...`)
+          setTimeout(() => setRetryCount(prev => prev + 1), 2000)
+        } else {
+          setStepsError('Failed to load steps after multiple attempts')
+          setSteps([])
+        }
+      } finally {
+        setStepsLoading(false)
+      }
     }
 
-    console.log('🔄 Fetching steps for module:', moduleId)
-    setStepsLoading(true)
-    setStepsError(null)
-
-    const stepsEndpoint = API_ENDPOINTS.STEPS(moduleId)
-    console.log('📡 Steps endpoint:', stepsEndpoint)
-
-    // Force fresh fetch with cache-busting
-    const freshUrl = `${stepsEndpoint}?t=${Date.now()}`
-    console.log('📡 Fresh URL:', freshUrl)
-
-    console.log('🔄 Starting API call to:', freshUrl)
-    
-    // Add timeout to prevent hanging
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Request timeout')), 10000)
-    })
-    
-    Promise.race([
-      api(freshUrl),
-      timeoutPromise
-    ])
-      .then(data => {
-        console.log('📋 Steps data received:', data)
-        console.log('📋 Steps array:', data.steps)
-        setSteps(data.steps || [])
-      })
-      .catch(err => {
-        console.error('❌ Error fetching steps:', err)
-        setStepsError(`Failed to load steps: ${err.message}`)
-        setSteps([])
-      })
-      .finally(() => {
-        console.log('✅ Steps loading finished')
-        setStepsLoading(false)
-      })
-  }, [moduleId])
+    fetchSteps()
+  }, [moduleId, retryCount])
 
   const handleSendMessage = async () => {
     if (!chatMessage.trim()) return
@@ -524,14 +511,33 @@ Just ask me anything about the training!`
     
     setProcessingAI(true)
     try {
-      // This would call the AI processing endpoint
       console.log('🤖 AI processing requested for module:', moduleId)
-      // TODO: Implement actual AI processing
+      
+      // Call the steps generation endpoint
+      const response = await fetch(`/api/steps/generate/${moduleId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(`AI processing failed: ${errorData.error || response.statusText}`)
+      }
+      
+      const result = await response.json()
+      console.log('✅ AI processing completed:', result)
+      
+      // Reload steps after successful processing
       setTimeout(() => {
-        setProcessingAI(false)
-      }, 2000)
+        setRetryCount(0) // Reset retry count to trigger steps reload
+      }, 1000)
+      
     } catch (err) {
       console.error('AI processing error:', err)
+      setStepsError(`AI processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
       setProcessingAI(false)
     }
   }
@@ -643,13 +649,22 @@ Just ask me anything about the training!`
               <div className="text-center py-8">
                 <div className="text-red-500 mb-2">⚠️</div>
                 <p className="text-red-600">{stepsError}</p>
-                <button
-                  onClick={handleProcessWithAI}
-                  disabled={processingAI}
-                  className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg"
-                >
-                  {processingAI ? '🤖 Processing...' : '🤖 Try AI Processing'}
-                </button>
+                {retryCount >= maxRetries ? (
+                  <button
+                    onClick={() => setRetryCount(0)}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                  >
+                    🔁 Retry Loading Steps
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleProcessWithAI}
+                    disabled={processingAI}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg"
+                  >
+                    {processingAI ? '🤖 Processing...' : '🤖 Try AI Processing'}
+                  </button>
+                )}
               </div>
             ) : steps && steps.length > 0 ? (
               <div className="space-y-4">

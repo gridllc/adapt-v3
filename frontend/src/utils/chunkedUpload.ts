@@ -165,6 +165,11 @@ export class ChunkedUploader {
       retryDelay = 1000
     } = options
 
+    // Check for empty file
+    if (file.size === 0) {
+      throw new Error('Cannot upload empty file. Please select a valid video file.')
+    }
+
     console.log('🚀 Starting chunked upload...')
     console.log('📊 File size:', (file.size / 1024 / 1024).toFixed(2), 'MB')
     console.log('🔧 Chunk size:', (chunkSize / 1024 / 1024).toFixed(2), 'MB')
