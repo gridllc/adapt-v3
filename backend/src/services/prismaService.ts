@@ -1,6 +1,14 @@
 import { PrismaClient } from '@prisma/client'
 import { calculateCosineSimilarity } from '../utils/vectorUtils.js'
 
+// Type definitions for better type safety
+interface VectorWithEmbedding {
+  embedding: number[]
+  question: {
+    step?: { title: string; timestamp: number }
+  }
+}
+
 // Create Prisma client instance
 const prisma = new PrismaClient()
 
@@ -73,9 +81,23 @@ export class DatabaseService {
     })
   }
 
-  static async getAllModules(userId?: string) {
+  static async getAllModules(filters?: { ownerId?: string; status?: string; userId?: string }) {
+    const where: any = {}
+    
+    if (filters?.userId) {
+      where.userId = filters.userId
+    }
+    
+    if (filters?.ownerId) {
+      where.userId = filters.ownerId
+    }
+    
+    if (filters?.status) {
+      where.status = filters.status
+    }
+    
     return await prisma.module.findMany({
-      where: userId ? { userId } : undefined,
+      where: Object.keys(where).length > 0 ? where : undefined,
       orderBy: { createdAt: 'desc' },
       include: {
         _count: {
@@ -106,6 +128,13 @@ export class DatabaseService {
   static async deleteModule(id: string) {
     return await prisma.module.delete({
       where: { id }
+    })
+  }
+
+  static async updateModule(id: string, data: Record<string, unknown>) {
+    return await prisma.module.update({
+      where: { id },
+      data
     })
   }
 
@@ -166,7 +195,7 @@ export class DatabaseService {
     userMessage: string
     aiResponse: string
     source?: string
-    context?: any
+    context?: Record<string, unknown>
   }) {
     return await prisma.aIInteraction.create({
       data
@@ -185,14 +214,25 @@ export class DatabaseService {
   }
 
   static async endTrainingSession(sessionId: string) {
+    // First get the training session to calculate duration
+    const training = await prisma.trainingSession.findFirst({
+      where: { sessionId }
+    })
+    
+    if (!training) {
+      throw new Error('Training session not found')
+    }
+    
+    const endedAt = new Date()
+    const duration = training.startedAt 
+      ? Math.floor((endedAt.getTime() - training.startedAt.getTime()) / 1000)
+      : 0
+    
     return await prisma.trainingSession.updateMany({
       where: { sessionId },
       data: { 
-        endedAt: new Date(),
-        duration: {
-          // Calculate duration in seconds
-          // This is a simplified version - you might want to calculate this properly
-        }
+        endedAt,
+        duration
       }
     })
   }
@@ -202,7 +242,7 @@ export class DatabaseService {
     userId?: string
     action: string
     targetId?: string
-    metadata?: any
+    metadata?: Record<string, unknown>
   }) {
     return await prisma.activityLog.create({
       data
@@ -314,7 +354,7 @@ export class DatabaseService {
 
     // Calculate cosine similarity and filter by threshold
     const similarQuestions = vectors
-      .map((vector: any) => ({
+      .map((vector: VectorWithEmbedding) => ({
         ...vector,
         similarity: calculateCosineSimilarity(embedding, vector.embedding)
       }))
@@ -343,7 +383,8 @@ export class DatabaseService {
   // Health check
   static async healthCheck() {
     try {
-      await prisma.$queryRaw`SELECT 1`
+      // Test both connection and table access
+      await prisma.module.findFirst({ select: { id: true } })
       return true
     } catch (error) {
       console.error('Database health check failed:', error)

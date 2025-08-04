@@ -43,5 +43,14 @@
     "status": "processing",
     "progress": 0,
     "message": "Upload complete, starting AI processing..."
+  },
+  {
+    "id": "ka8gs3pm9zmdxnevcc",
+    "filename": "ka8gs3pm9zmdxnevcc.mp4",
+    "title": "20250802_170050",
+    "createdAt": "2025-08-04T21:54:49.426Z",
+    "status": "processing",
+    "progress": 0,
+    "message": "Upload complete, starting AI processing..."
   }
 ]

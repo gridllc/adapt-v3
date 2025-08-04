@@ -1,7 +1,7 @@
 import Bull from 'bull'
 import { aiService } from './aiService.js'
 import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
-import { saveModuleStatus, updateModuleProgress } from './statusService.js'
+import { DatabaseService } from './prismaService.js'
 import { testRedisConnection } from './redisClient.js'
 
 // Redis configuration for Bull (Railway) - handle both naming conventions
@@ -82,6 +82,10 @@ async function initializeJobQueue() {
       })
       
       console.log('✅ Job queue initialized with Redis')
+      
+      // Register job processor after queue is ready
+      jobQueue.process('process-video', processVideoJob)
+      console.log('✅ Job processor registered')
     } else {
       throw new Error('Redis not available')
     }
@@ -168,12 +172,12 @@ class PerformanceLogger {
     }
   }
 
-  logGPTComplete(moduleId: string) {
+  logStepSaveComplete(moduleId: string) {
     const metric = this.metrics.get(moduleId)
     if (metric && metric.stepsEnd) {
-      metric.gptEnd = Date.now()
-      const duration = metric.gptEnd - metric.stepsEnd
-      console.log(`✨ [${moduleId}] GPT enhancement complete: ${duration}ms`)
+      metric.stepSaveEnd = Date.now()
+      const duration = metric.stepSaveEnd - metric.stepsEnd
+      console.log(`💾 [${moduleId}] Step save complete: ${duration}ms`)
     }
   }
 
@@ -181,6 +185,14 @@ class PerformanceLogger {
     const metric = this.metrics.get(moduleId)
     if (metric) {
       metric.totalEnd = Date.now()
+      
+      // Guard against missing uploadStart
+      if (!metric.uploadStart) {
+        console.warn(`⚠️ [${moduleId}] Missing uploadStart time — skipping perf totals`)
+        this.metrics.delete(moduleId)
+        return
+      }
+      
       const totalDuration = metric.totalEnd - metric.uploadStart
       const aiDuration = metric.aiStart ? metric.totalEnd - metric.aiStart : 0
       
@@ -207,20 +219,13 @@ async function processVideoJob(jobData: any) {
     console.log(`🎬 [${moduleId}] Video URL: ${videoUrl}`)
     
     // Update status to processing
-    await saveModuleStatus(moduleId, 'processing', 'Starting AI processing...', 0)
-    
-    // Update progress: starting AI processing
-    await updateTrainingData(moduleId, { 
-      status: 'processing', 
-      progress: 10,
-      message: 'Starting AI analysis...'
-    })
+    await DatabaseService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI processing...')
 
     perfLogger.logAIStart(moduleId)
 
     // Step 1: AI processing
     console.log(`🧠 [${moduleId}] Starting AI processing...`)
-    await updateModuleProgress(moduleId, 10, 'Starting AI analysis...')
+    await DatabaseService.updateModuleStatus(moduleId, 'processing', 10, 'Starting AI analysis...')
     
     const moduleData = await aiService.processVideo(videoUrl)
     
@@ -231,17 +236,13 @@ async function processVideoJob(jobData: any) {
     console.log(`🧠 [${moduleId}] AI processing completed successfully`)
     console.log(`🧠 [${moduleId}] Result:`, moduleData)
     
-    await updateModuleProgress(moduleId, 30, 'AI analysis complete, extracting steps...')
-    await updateTrainingData(moduleId, { 
-      progress: 30,
-      message: 'AI analysis complete, extracting steps...'
-    })
+    await DatabaseService.updateModuleStatus(moduleId, 'processing', 30, 'AI analysis complete, extracting steps...')
 
     perfLogger.logTranscriptionComplete(moduleId)
 
     // Step 2: Generate steps
     console.log(`📋 [${moduleId}] Generating steps...`)
-    await updateModuleProgress(moduleId, 50, 'Generating steps...')
+    await DatabaseService.updateModuleStatus(moduleId, 'processing', 50, 'Generating steps...')
     
     const steps = await aiService.generateStepsForModule(moduleId, videoUrl)
     
@@ -251,64 +252,38 @@ async function processVideoJob(jobData: any) {
     
     console.log(`📋 [${moduleId}] Generated ${steps.length} steps`)
     
-    await updateModuleProgress(moduleId, 60, 'Steps extracted, enhancing with AI...')
-    await updateTrainingData(moduleId, { 
-      progress: 60,
-      message: 'Steps extracted, enhancing with AI...'
-    })
+    await DatabaseService.updateModuleStatus(moduleId, 'processing', 60, 'Steps extracted, enhancing with AI...')
+    await DatabaseService.createSteps(moduleId, steps)
 
     perfLogger.logStepsComplete(moduleId)
 
     // Step 3: Save final results
     console.log(`💾 [${moduleId}] Saving final results...`)
-    await updateModuleProgress(moduleId, 80, 'Saving final results...')
+    await DatabaseService.updateModuleStatus(moduleId, 'processing', 80, 'Saving final results...')
     
-    await updateStepsData(moduleId, steps)
-    
-    await updateModuleProgress(moduleId, 100, 'Processing complete! Your training module is ready.')
-    await updateTrainingData(moduleId, { 
-      status: 'ready',
-      progress: 100,
-      message: 'Processing complete! Your training module is ready.',
-      steps: steps
-    })
+    await DatabaseService.updateModuleStatus(moduleId, 'complete', 100, 'Processing complete! Your training module is ready.')
 
-    // Mark as complete
-    await saveModuleStatus(moduleId, 'complete', 'Processing complete!', 100)
-
-    perfLogger.logGPTComplete(moduleId)
+    perfLogger.logStepSaveComplete(moduleId)
     perfLogger.logTotalComplete(moduleId)
     
     console.log(`✅ Job complete for moduleId=${moduleId}`)
     
-  } catch (error) {
-    console.error(`❌ Job failed for moduleId=${moduleId}`, error)
-    console.error(`❌ [${moduleId}] Processing failed:`, error)
-    console.error(`❌ [${moduleId}] Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
-    
-    // Update status to failed
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    await saveModuleStatus(moduleId, 'error', `Processing failed: ${errorMessage}`, 0, errorMessage)
-    
-    try {
-      await updateTrainingData(moduleId, {
-        status: 'failed',
-        message: `Processing failed: ${errorMessage}`,
-        progress: 0
-      })
-    } catch (updateError) {
-      console.error(`❌ [${moduleId}] Failed to update status to failed:`, updateError)
-    }
-    
-    throw error
-  }
-}
-
-// Register job processor
-if (jobQueue && typeof jobQueue.process === 'function') {
-  jobQueue.process('process-video', processVideoJob)
-} else {
-  console.log('⚠️ Job queue not properly initialized, using mock processing')
+     } catch (error) {
+     console.error(`❌ Job failed for moduleId=${moduleId}`, error)
+     console.error(`❌ [${moduleId}] Processing failed:`, error)
+     console.error(`❌ [${moduleId}] Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
+     
+     // Update status to failed
+     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+     await DatabaseService.updateModuleStatus(moduleId, 'error', 0, `Processing failed: ${errorMessage}`)
+     
+     // Note: updateTrainingData is no longer needed since we use DatabaseService.updateModuleStatus
+     
+     // Ensure performance logging cleanup even on error
+     perfLogger.logTotalComplete(moduleId)
+     
+     throw error
+   }
 }
 
 export { jobQueue } 

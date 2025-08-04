@@ -119,8 +119,10 @@ export const uploadController = {
         success: true,
         moduleId,
         videoUrl,
+        title,
         status: 'processing',
-        message: 'Upload complete! AI processing has started in the background.'
+        message: 'Upload complete! AI processing has started in the background.',
+        totalDuration: 0 // Will be calculated from steps later
       })
       console.log('✅ Upload response sent - AI processing continues in background')
 
@@ -146,15 +148,18 @@ export const uploadController = {
       // Get latest status
       const latestStatus = module.statuses[0]
       
+      // Calculate total duration from steps
+      const totalDuration = module.steps?.reduce((acc: number, step: any) => acc + (step.duration || 0), 0) || 0
+      
       res.json({
         status: module.status || 'processing',
         progress: module.progress || 0,
         message: latestStatus?.message || '',
         steps: module.steps || [],
-        error: null, // We'll handle errors differently with database
+        error: module.status === 'error' ? latestStatus?.message || 'Processing failed' : null,
         title: module.title || '',
-        description: '', // We can add this field later
-        totalDuration: 0 // We can calculate this from steps later
+        description: module.description || '', // Will be populated from AI processing
+        totalDuration
       })
     } catch (error) {
       console.error('Status check error:', error)

@@ -68,37 +68,22 @@ export const storageService = {
 
   async getModule(moduleId: string): Promise<any> {
     try {
-      const modulePath = path.join(dataDir, `${moduleId}.json`)
-      if (!fs.existsSync(modulePath)) {
-        console.log(`Module file not found: ${modulePath}`)
-        return null
-      }
-      const raw = await fs.promises.readFile(modulePath, 'utf-8')
-      return JSON.parse(raw)
+      // Use database instead of file system
+      const { DatabaseService } = await import('./prismaService.js')
+      return await DatabaseService.getModule(moduleId)
     } catch (error) {
-      console.error('Error loading module:', error)
+      console.error('Error loading module from database:', error)
       return null
     }
   },
 
   async getAllModules(): Promise<any[]> {
     try {
-      const modulesPath = path.join(dataDir, 'modules.json')
-      
-      // Check if modules.json exists
-      if (!fs.existsSync(modulesPath)) {
-        console.log('No modules.json found, returning empty array')
-        return []
-      }
-      
-      // Read and parse modules.json
-      const raw = await fs.promises.readFile(modulesPath, 'utf-8')
-      const modules = JSON.parse(raw)
-      
-      console.log('Loaded modules:', modules)
-      return modules
+      // Use database instead of file system
+      const { DatabaseService } = await import('./prismaService.js')
+      return await DatabaseService.getAllModules()
     } catch (error) {
-      console.error('Error loading modules:', error)
+      console.error('Error loading modules from database:', error)
       return []
     }
   },

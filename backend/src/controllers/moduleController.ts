@@ -1,11 +1,16 @@
 import { Request, Response } from 'express'
-import { storageService } from '../services/storageService.js'
+import { DatabaseService } from '../services/prismaService.js'
 
 export const moduleController = {
   async getAllModules(req: Request, res: Response) {
     try {
-      const modules = await storageService.getAllModules()
-      res.json(modules)
+      const { ownerId, status } = req.query
+      const filters = {
+        ownerId: ownerId as string | undefined,
+        status: status as string | undefined
+      }
+      const modules = await DatabaseService.getAllModules(filters)
+      res.json({ success: true, modules })
     } catch (error) {
       console.error('Get modules error:', error)
       res.status(500).json({ error: 'Failed to get modules' })
@@ -15,13 +20,13 @@ export const moduleController = {
   async getModuleById(req: Request, res: Response) {
     try {
       const { id } = req.params
-      const module = await storageService.getModule(id)
+      const module = await DatabaseService.getModule(id)
       
       if (!module) {
         return res.status(404).json({ error: 'Module not found' })
       }
       
-      res.json(module)
+      res.json({ success: true, module })
     } catch (error) {
       console.error('Get module error:', error)
       res.status(500).json({ error: 'Failed to get module' })
@@ -32,9 +37,33 @@ export const moduleController = {
     try {
       const { id } = req.params
       const updateData = req.body
-      
-      // This would typically update in storage/database
-      res.json({ success: true, id })
+
+      if (!id) return res.status(400).json({ error: 'Module ID is required' })
+      if (!updateData || typeof updateData !== 'object') {
+        return res.status(400).json({ error: 'Invalid update data' })
+      }
+
+      // Define allowed fields for security
+      const allowedFields = ['title', 'status', 'description', 'progress']
+      const updateDataFiltered = Object.fromEntries(
+        Object.entries(updateData).filter(([key]) => allowedFields.includes(key))
+      )
+
+      // Check if any valid fields were provided
+      if (Object.keys(updateDataFiltered).length === 0) {
+        return res.status(400).json({ 
+          error: 'No valid fields provided for update',
+          allowedFields 
+        })
+      }
+
+      const updated = await DatabaseService.updateModule(id, updateDataFiltered)
+
+      if (!updated) {
+        return res.status(404).json({ error: 'Module not found or not updated' })
+      }
+
+      res.json({ success: true, module: updated })
     } catch (error) {
       console.error('Update module error:', error)
       res.status(500).json({ error: 'Failed to update module' })
@@ -45,15 +74,20 @@ export const moduleController = {
     try {
       const { id } = req.params
       
-      // Delete from modules.json
-      const success = await storageService.deleteModule(id)
-      
-      if (success) {
-        res.json({ success: true, id, message: 'Module deleted successfully' })
-      } else {
-        res.status(404).json({ error: 'Module not found' })
+      if (!id) {
+        return res.status(400).json({ error: 'Module ID is required' })
       }
-    } catch (error) {
+      
+      // Delete from database
+      await DatabaseService.deleteModule(id)
+      
+      res.json({ success: true, id, message: 'Module deleted successfully' })
+    } catch (error: any) {
+      if (error.code === 'P2025') {
+        // Prisma not found error
+        return res.status(404).json({ error: 'Module not found' })
+      }
+      
       console.error('Delete module error:', error)
       res.status(500).json({ error: 'Failed to delete module' })
     }
