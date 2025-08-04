@@ -1,11 +1,11 @@
 import Redis from 'ioredis'
 
-// Redis configuration
+// Redis configuration for Railway
 const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
+  host: process.env.REDIS_HOST, // e.g. metro.proxy.rlwy.net
+  port: Number(process.env.REDIS_PORT), // e.g. 40569
   password: process.env.REDIS_PASSWORD,
-  retryDelayOnFailover: 100,
+  retryStrategy: (times: number) => Math.min(times * 50, 2000),
   maxRetriesPerRequest: 3,
   lazyConnect: true,
   keepAlive: 30000,
