@@ -11,6 +11,9 @@ interface Step {
   aliases?: string[]
   notes?: string
   isManual?: boolean
+  originalText?: string  // Original transcript text
+  aiRewrite?: string     // AI-rewritten version
+  stepText?: string      // Currently displayed text (original or rewritten)
 }
 
 interface StepEditorProps {
@@ -44,6 +47,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showOriginal, setShowOriginal] = useState(false)
 
   const handleEdit = () => {
     setIsEditing(true)
@@ -137,7 +141,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
       }
       
       // Call the AI rewrite API with universal prompt
-      const response = await fetch(`/api/steps/${moduleId}/rewrite`, {
+      const data = await api(`/api/steps/${moduleId}/rewrite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -148,12 +152,6 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         }),
       })
       
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(`AI rewrite failed: ${errorData.error || response.statusText}`)
-      }
-      
-      const data = await response.json()
       console.log('✅ AI rewrite successful:', data)
       
       // Update the step with the rewritten title
@@ -278,7 +276,37 @@ export const StepEditor: React.FC<StepEditorProps> = ({
 
       <div>
         <h3 className="font-semibold text-gray-900 mb-1">{step.title}</h3>
-        <p className="text-gray-600 text-sm mb-2">{step.description}</p>
+        
+        {/* Original/AI Rewrite Toggle */}
+        {step.originalText && step.aiRewrite && (
+          <div className="mb-2">
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                onClick={() => setShowOriginal(!showOriginal)}
+                className={`text-xs px-2 py-1 rounded transition-colors ${
+                  showOriginal 
+                    ? 'bg-blue-100 text-blue-800' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title="Toggle between original transcript and AI rewrite"
+              >
+                {showOriginal ? '📝 Original' : '🤖 AI Rewrite'}
+              </button>
+              <span className="text-xs text-gray-500">
+                {showOriginal ? 'Showing original transcript' : 'Showing AI-rewritten version'}
+              </span>
+            </div>
+            
+            <p className="text-gray-600 text-sm mb-2">
+              {showOriginal ? step.originalText : step.aiRewrite}
+            </p>
+          </div>
+        )}
+        
+        {/* Fallback to description if no original/rewrite available */}
+        {(!step.originalText || !step.aiRewrite) && (
+          <p className="text-gray-600 text-sm mb-2">{step.description}</p>
+        )}
         
         {step.aliases && step.aliases.length > 0 && (
           <p className="text-xs text-gray-500 italic mb-1">

@@ -12,7 +12,8 @@ console.log('🔧 API Configuration:', {
   isDevelopment,
   VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
   API_BASE_URL,
-  RAILWAY_URL
+  RAILWAY_URL,
+  NODE_ENV: import.meta.env.NODE_ENV
 })
 
 export const API_CONFIG = {
@@ -79,10 +80,18 @@ export async function api(endpoint: string, options?: RequestInit) {
     clearTimeout(timeoutId)
     console.log('📡 API response status:', response.status, response.statusText)
     
+    // Read response as text first to check if it's JSON
+    const rawText = await response.text()
+    
     if (!response.ok) {
       console.error('❌ API Error:', response.status, response.statusText)
-      const errorText = await response.text()
-      console.error('❌ Response body:', errorText)
+      console.error('❌ Response body (raw):', rawText)
+      
+      // Check if we got HTML instead of JSON
+      if (rawText.startsWith('<!DOCTYPE html') || rawText.includes('<html')) {
+        console.error('❌ Received HTML instead of JSON - possible wrong API endpoint or server error')
+        throw new Error(`Server returned HTML instead of JSON. Check API endpoint: ${url}`)
+      }
       
       // Special handling for 404 errors - return empty data instead of throwing
       if (response.status === 404 && endpoint.includes('/api/steps/')) {
@@ -93,10 +102,23 @@ export async function api(endpoint: string, options?: RequestInit) {
       throw new Error(`API Error: ${response.status} ${response.statusText}`)
     }
     
-    const data = await response.json()
-    console.log('📦 API response data:', data)
+    // Try to parse as JSON
+    try {
+      const parsed = JSON.parse(rawText)
+      console.log('📦 API response data:', parsed)
+      return parsed
+    } catch (err) {
+      console.error('❌ Failed to parse response as JSON:', rawText.slice(0, 200))
+      
+      // Check if we got HTML instead of JSON
+      if (rawText.startsWith('<!DOCTYPE html') || rawText.includes('<html')) {
+        console.error('❌ Received HTML instead of JSON - possible wrong API endpoint or server error')
+        throw new Error(`Server returned HTML instead of JSON. Check API endpoint: ${url}`)
+      }
+      
+      throw new Error('Invalid JSON returned by server')
+    }
     
-    return data
   } catch (error) {
     console.error('❌ Network error:', error)
     
@@ -109,5 +131,18 @@ export async function api(endpoint: string, options?: RequestInit) {
     }
     
     throw error
+  }
+}
+
+// Test function to verify API configuration
+export async function testApiConnection() {
+  try {
+    console.log('🧪 Testing API connection...')
+    const result = await api('/api/health')
+    console.log('✅ API connection successful:', result)
+    return true
+  } catch (error) {
+    console.error('❌ API connection failed:', error)
+    return false
   }
 }

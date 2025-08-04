@@ -20,12 +20,14 @@ export function useModuleStatus(moduleId: string, enabled = true) {
   const [stuckAtZero, setStuckAtZero] = useState(false)
   const [lastProgress, setLastProgress] = useState(0)
   const [stuckStartTime, setStuckStartTime] = useState<number | null>(null)
+  const [timeoutReached, setTimeoutReached] = useState(false)
 
   useEffect(() => {
     if (!enabled || !moduleId) return
 
     let interval: NodeJS.Timeout
     let stuckTimeout: NodeJS.Timeout
+    let timeoutTimer: NodeJS.Timeout
 
     const checkStatus = async () => {
       try {
@@ -70,6 +72,7 @@ export function useModuleStatus(moduleId: string, enabled = true) {
           console.log(`✅ Module ${moduleId} processing complete: ${data.status}`)
           clearInterval(interval)
           if (stuckTimeout) clearTimeout(stuckTimeout)
+          if (timeoutTimer) clearTimeout(timeoutTimer)
         }
       } catch (err) {
         console.error('❌ Status check failed:', err)
@@ -97,11 +100,20 @@ export function useModuleStatus(moduleId: string, enabled = true) {
       }
     }, 15000) // 15 seconds
 
+    // Set up overall timeout (5 minutes)
+    timeoutTimer = setTimeout(() => {
+      setTimeoutReached(true)
+      console.warn(`⏰ Module ${moduleId} processing timeout reached (5 minutes)`)
+      clearInterval(interval)
+      if (stuckTimeout) clearTimeout(stuckTimeout)
+    }, 300000) // 5 minutes
+
     return () => {
       clearInterval(interval)
       if (stuckTimeout) clearTimeout(stuckTimeout)
+      if (timeoutTimer) clearTimeout(timeoutTimer)
     }
-  }, [moduleId, enabled, lastProgress, stuckStartTime, stuckAtZero])
+  }, [moduleId, enabled])
 
-  return { status, loading, error, stuckAtZero }
+  return { status, loading, error, stuckAtZero, timeoutReached }
 } 

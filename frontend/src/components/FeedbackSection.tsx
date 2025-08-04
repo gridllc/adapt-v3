@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
-import { StepGenerationFeedback, TranscriptionFeedback } from './common/FeedbackWidget'
+import { StepGenerationFeedback } from './StepGenerationFeedback'
+import { TranscriptionFeedback } from './TranscriptionFeedback'
+import { api } from '../config/api'
 
 interface FeedbackSectionProps {
   moduleId: string
@@ -11,8 +13,8 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({ moduleId, step
   const [improvementFeedback, setImprovementFeedback] = useState('')
 
   const handleFeedbackSubmitted = (action: string) => {
-    // If feedback is negative, show AI improvement option
-    if (action === 'not_working' || action === 'partially_working') {
+    console.log('Feedback submitted:', action)
+    if (action === 'didnt_work') {
       setShowAIImprovement(true)
     }
   }
@@ -22,7 +24,7 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({ moduleId, step
 
     try {
       // Save improvement feedback for admin review
-      const response = await fetch('/api/feedback/improvement', {
+      await api('/api/feedback/improvement', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -34,11 +36,9 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({ moduleId, step
         }),
       })
 
-      if (response.ok) {
-        setImprovementFeedback('')
-        setShowAIImprovement(false)
-        alert('Thank you for your feedback! We\'ll use it to improve this training.')
-      }
+      setImprovementFeedback('')
+      setShowAIImprovement(false)
+      alert('Thank you for your feedback! We\'ll use it to improve this training.')
     } catch (error) {
       console.error('Failed to submit improvement feedback:', error)
       alert('Failed to submit feedback. Please try again.')

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { TrendingUp, MessageSquare, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { API_ENDPOINTS } from '../../config/api'
+import { api } from '../../config/api'
 
 interface FeedbackStats {
   total: number
@@ -31,18 +31,9 @@ export const FeedbackDashboard: React.FC<FeedbackDashboardProps> = ({ className 
     const fetchFeedbackStats = async () => {
       try {
         setLoading(true)
-        const response = await fetch(API_ENDPOINTS.FEEDBACK_STATS)
+        setError(null)
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        }
-        
-        const text = await response.text()
-        if (!text) {
-          throw new Error('Empty response from server')
-        }
-        
-        const data = JSON.parse(text)
+        const data = await api('/api/feedback/stats')
         
         if (data.success) {
           setStats(data.stats)

@@ -1,0 +1,33 @@
+{
+  "moduleId": "ws6ebmavgismdwc4z9a",
+  "status": "ready",
+  "progress": 100,
+  "message": "Processing complete! Your training module is ready.",
+  "createdAt": "2025-08-03T23:51:25.951Z",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Entry",
+      "description": "Enter the four-digit code on the keypad.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Troubleshooting: Frozen Screen",
+      "description": "If the screen freezes or locks up after entering the code (especially outdoors), repeatedly press keys on the keypad until the screen goes blank and the red light blinks. This resets the system.",
+      "duration": 30
+    },
+    {
+      "timestamp": 45,
+      "title": "Re-entry After Reset",
+      "description": "Once the screen is blank and the red light is blinking, re-enter the four-digit code on the keypad.  The order of entry does not matter.",
+      "duration": 15
+    },
+    {
+      "timestamp": 60,
+      "title": "Confirmation",
+      "description": "The system should unlock and grant access.",
+      "duration": 30
+    }
+  ]
+}

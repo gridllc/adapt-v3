@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 
 export interface ModuleStatus {
@@ -9,12 +9,13 @@ export interface ModuleStatus {
   error?: string
 }
 
-export const saveModuleStatus = (moduleId: string, status: string, message?: string, progress?: number, error?: string) => {
+export const saveModuleStatus = async (moduleId: string, status: string, message?: string, progress?: number, error?: string) => {
   try {
-    const statusPath = path.join(process.cwd(), 'backend', 'data', 'status', `${moduleId}.json`)
+    // Fix the path to use the correct directory structure
+    const statusPath = path.join(process.cwd(), 'data', 'status', `${moduleId}.json`)
     
     // Ensure directory exists
-    fs.mkdirSync(path.dirname(statusPath), { recursive: true })
+    await fs.mkdir(path.dirname(statusPath), { recursive: true })
     
     const statusData: ModuleStatus = {
       status: status as ModuleStatus['status'],
@@ -24,22 +25,25 @@ export const saveModuleStatus = (moduleId: string, status: string, message?: str
       error
     }
     
-    fs.writeFileSync(statusPath, JSON.stringify(statusData, null, 2))
+    await fs.writeFile(statusPath, JSON.stringify(statusData, null, 2))
     console.log(`📊 [Status] Updated status for ${moduleId}: ${status}${message ? ` - ${message}` : ''}`)
   } catch (err) {
     console.error(`❌ [Status] Failed to save status for ${moduleId}:`, err)
+    console.error(`❌ [Status] Error details:`, err instanceof Error ? err.stack : 'No stack trace')
   }
 }
 
-export const getModuleStatus = (moduleId: string): ModuleStatus | null => {
+export const getModuleStatus = async (moduleId: string): Promise<ModuleStatus | null> => {
   try {
-    const statusPath = path.join(process.cwd(), 'backend', 'data', 'status', `${moduleId}.json`)
+    // Fix the path to use the correct directory structure
+    const statusPath = path.join(process.cwd(), 'data', 'status', `${moduleId}.json`)
     
-    if (!fs.existsSync(statusPath)) {
+    const exists = await fs.access(statusPath).then(() => true).catch(() => false)
+    if (!exists) {
       return null
     }
     
-    const raw = fs.readFileSync(statusPath, 'utf-8')
+    const raw = await fs.readFile(statusPath, 'utf-8')
     return JSON.parse(raw)
   } catch (err) {
     console.error(`❌ [Status] Failed to read status for ${moduleId}:`, err)
@@ -47,9 +51,12 @@ export const getModuleStatus = (moduleId: string): ModuleStatus | null => {
   }
 }
 
-export const updateModuleProgress = (moduleId: string, progress: number, message?: string) => {
-  const currentStatus = getModuleStatus(moduleId)
+export const updateModuleProgress = async (moduleId: string, progress: number, message?: string) => {
+  const currentStatus = await getModuleStatus(moduleId)
   if (currentStatus) {
-    saveModuleStatus(moduleId, currentStatus.status, message, progress, currentStatus.error)
+    await saveModuleStatus(moduleId, currentStatus.status, message, progress, currentStatus.error)
+  } else {
+    // If no status exists, create one
+    await saveModuleStatus(moduleId, 'processing', message, progress)
   }
 } 

@@ -85,7 +85,7 @@ export const DashboardPage: React.FC = () => {
                 title="Share this module via QR code"
               >📱 Share</button>
               <Link
-                to={`/edit-steps/${mod.id}`}
+                to={`/training/${mod.id}#step-1`}
                 className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600"
               >✏️ Edit</Link>
               <button

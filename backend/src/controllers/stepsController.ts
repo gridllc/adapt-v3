@@ -9,14 +9,13 @@ const __dirname = path.dirname(__filename)
 
 // Helper function to normalize step format
 const normalizeStep = (step: any, index: number) => {
-  // Handle different step formats from backend
   if (step.start !== undefined && step.end !== undefined) {
-    // enhancedSteps format - preserve start/end for frontend compatibility
+    // Frontend format - already has start/end
     return {
       id: step.id || `step_${index + 1}`,
       start: step.start,
       end: step.end,
-      title: step.title || step.text || '',
+      title: step.title || '',
       description: step.description || step.text || '',
       aliases: step.aliases || [],
       notes: step.notes || '',
@@ -25,7 +24,7 @@ const normalizeStep = (step: any, index: number) => {
   } else if (step.timestamp !== undefined) {
     // originalSteps format - convert to start/end for frontend compatibility
     const start = step.timestamp
-    const end = start + (step.duration || 30)
+    const end = start + (step.duration || 15) // Use actual duration, fallback to 15s instead of 30s
     return {
       id: step.id || `step_${index + 1}`,
       start: start,
@@ -39,7 +38,7 @@ const normalizeStep = (step: any, index: number) => {
   } else {
     // Fallback for unknown format
     const start = step.timestamp || step.start || 0
-    const end = start + (step.duration || 30)
+    const end = start + (step.duration || 15) // Use actual duration, fallback to 15s instead of 30s
     return {
       id: step.id || `step_${index + 1}`,
       start: start,
@@ -246,7 +245,7 @@ export const stepsController = {
         } else if (step.timestamp !== undefined) {
           // Old backend format: convert timestamp/duration to start/end
           start = step.timestamp
-          end = start + (step.duration || 30)
+          end = start + (step.duration || 15) // Use actual duration, fallback to 15s
         } else if (step.startTime !== undefined && step.endTime !== undefined) {
           // Alternative frontend format
           start = step.startTime
@@ -254,7 +253,7 @@ export const stepsController = {
         } else {
           // Fallback
           start = step.timestamp || step.start || step.startTime || 0
-          end = start + (step.duration || 30)
+          end = start + (step.duration || 15) // Use actual duration, fallback to 15s
         }
         
         return {
@@ -377,7 +376,7 @@ export const stepsController = {
         } else if (step.timestamp !== undefined) {
           // Old backend format: convert timestamp/duration to start/end
           start = step.timestamp
-          end = start + (step.duration || 30)
+          end = start + (step.duration || 15) // Use actual duration, fallback to 15s
         } else if (step.startTime !== undefined && step.endTime !== undefined) {
           // Alternative frontend format
           start = step.startTime
@@ -385,7 +384,7 @@ export const stepsController = {
         } else {
           // Fallback
           start = step.timestamp || step.start || step.startTime || 0
-          end = start + (step.duration || 30)
+          end = start + (step.duration || 15) // Use actual duration, fallback to 15s
         }
         
         return {

@@ -128,7 +128,7 @@ const configureRoutes = () => {
       // Import status service
       const { getModuleStatus } = await import('./services/statusService.js')
       
-      const status = getModuleStatus(moduleId)
+      const status = await getModuleStatus(moduleId)
       
       if (!status) {
         return res.status(404).json({ 

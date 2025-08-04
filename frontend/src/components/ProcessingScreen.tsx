@@ -4,9 +4,15 @@ interface ProcessingScreenProps {
   progress: number
   message?: string
   stuckAtZero?: boolean
+  timeoutReached?: boolean
 }
 
-export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, message, stuckAtZero = false }) => {
+export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ 
+  progress, 
+  message, 
+  stuckAtZero = false,
+  timeoutReached = false 
+}) => {
   const getProgressMessage = (progress: number) => {
     if (progress < 10) return "Starting AI analysis..."
     if (progress < 30) return "Analyzing video content..."
@@ -46,6 +52,40 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, me
                 <strong>Don't worry!</strong> Your video is still being processed in the background. 
                 You can close this page and check back in a few minutes.
               </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const getTimeoutMessage = () => {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="text-red-400 text-xl">⏰</div>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-sm font-medium text-red-800">
+              Processing timeout reached
+            </h3>
+            <div className="mt-2 text-sm text-red-700">
+              <p>Your video has been processing for over 5 minutes. This is unusual and may indicate:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>A very large video file</li>
+                <li>Server issues</li>
+                <li>AI service problems</li>
+              </ul>
+              <p className="mt-2">
+                <strong>What to do:</strong>
+              </p>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Try refreshing the page</li>
+                <li>Check back in a few minutes</li>
+                <li>If the problem persists, try uploading a smaller video</li>
+                <li>Contact support if issues continue</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -131,6 +171,7 @@ export const ProcessingScreen: React.FC<ProcessingScreenProps> = ({ progress, me
 
         {/* Show stuck message if processing is stuck */}
         {stuckAtZero && getStuckMessage()}
+        {timeoutReached && getTimeoutMessage()}
       </div>
     </div>
   )

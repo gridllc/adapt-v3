@@ -58,12 +58,11 @@ export default function EditStepsPage() {
     setSteps(newSteps)
 
     try {
-      const res = await fetch(`/api/steps/${moduleId}`, {
+      await api(`/api/steps/${moduleId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ steps: newSteps }),
       })
-      if (!res.ok) throw new Error('Failed to save')
       console.log(`✅ Step ${index + 1} saved`)
     } catch (err) {
       console.error('❌ Save error:', err)
@@ -72,7 +71,7 @@ export default function EditStepsPage() {
 
   const handleAIRewrite = async (text: string): Promise<string> => {
     try {
-      const res = await fetch(`/api/steps/${moduleId}/rewrite`, {
+      const data = await api(`/api/steps/${moduleId}/rewrite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -81,9 +80,6 @@ export default function EditStepsPage() {
         }),
       })
       
-      if (!res.ok) throw new Error('AI rewrite failed')
-      
-      const data = await res.json()
       return data.text
     } catch (err) {
       console.error('AI rewrite error:', err)

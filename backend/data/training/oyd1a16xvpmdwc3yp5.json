@@ -1,0 +1,33 @@
+{
+  "moduleId": "oyd1a16xvpmdwc3yp5",
+  "status": "ready",
+  "progress": 100,
+  "message": "Processing complete! Your training module is ready.",
+  "createdAt": "2025-08-03T23:50:38.476Z",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Access",
+      "description": "Enter the four-digit code on the keypad followed by the access code.",
+      "duration": 15
+    },
+    {
+      "timestamp": 15,
+      "title": "Troubleshooting: Frozen Screen",
+      "description": "If the screen freezes or locks up after entering digits, repeatedly press any key until the screen goes blank and the red light blinks. This indicates the system has reset.",
+      "duration": 30
+    },
+    {
+      "timestamp": 45,
+      "title": "Reaccessing After Reset",
+      "description": "After the screen resets, enter the four-digit code followed by the access code again.  The digits can be entered in any order.",
+      "duration": 30
+    },
+    {
+      "timestamp": 75,
+      "title": "Successful Access",
+      "description": "The system should now be unlocked and accessible.",
+      "duration": 15
+    }
+  ]
+}

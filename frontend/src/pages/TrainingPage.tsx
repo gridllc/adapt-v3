@@ -18,6 +18,9 @@ interface Step {
   aliases?: string[]
   notes?: string
   isManual?: boolean
+  originalText?: string  // Original transcript text
+  aiRewrite?: string     // AI-rewritten version
+  stepText?: string      // Currently displayed text (original or rewritten)
 }
 
 interface ChatMessage {
@@ -34,7 +37,7 @@ export const TrainingPage: React.FC = () => {
   const { url, loading, error } = useSignedVideoUrl(filename)
   
   // Use module status hook for processing state - ensure moduleId is always defined
-  const { status, loading: statusLoading, error: statusError, stuckAtZero } = useModuleStatus(moduleId || '', isProcessing)
+  const { status, loading: statusLoading, error: statusError, stuckAtZero, timeoutReached } = useModuleStatus(moduleId || '', isProcessing)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const chatHistoryRef = useRef<HTMLDivElement>(null)
@@ -241,19 +244,13 @@ export const TrainingPage: React.FC = () => {
       console.log('🤖 AI processing requested for module:', moduleId)
       
       // Call the steps generation endpoint
-      const response = await fetch(`/api/steps/generate/${moduleId}`, {
+      const result = await api(`/api/steps/generate/${moduleId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       })
       
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(`AI processing failed: ${errorData.error || response.statusText}`)
-      }
-      
-      const result = await response.json()
       console.log('✅ AI processing completed:', result)
       
       // Reload steps after successful processing
@@ -314,7 +311,7 @@ export const TrainingPage: React.FC = () => {
   const generateAIResponse = async (userMessage: string, currentStep: any, allSteps: Step[]) => {
     // Use the enhanced contextual AI service
     try {
-      const response = await fetch(API_ENDPOINTS.AI_CONTEXTUAL_RESPONSE, {
+      const data = await api(API_ENDPOINTS.AI_CONTEXTUAL_RESPONSE, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -328,15 +325,9 @@ export const TrainingPage: React.FC = () => {
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('AI service unavailable')
-      }
-
-      const data = await response.json()
       return data.response || 'I apologize, but I\'m having trouble processing your request right now.'
     } catch (error) {
-      console.error('AI response error:', error)
-      // Fallback to simple keyword-based responses
+      console.error('AI response generation error:', error)
       return generateFallbackResponse(userMessage, currentStep, allSteps)
     }
   }
@@ -443,6 +434,7 @@ Just ask me anything about the training!`
         progress={status?.progress || 0} 
         message={status?.message}
         stuckAtZero={stuckAtZero}
+        timeoutReached={timeoutReached}
       />
     )
   }

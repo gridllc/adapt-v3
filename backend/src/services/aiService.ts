@@ -67,6 +67,7 @@ interface VideoProcessingResult {
   title: string
   description: string
   transcript: string
+  segments: Array<{ start: number; end: number; text: string }>
   steps: Array<{
     timestamp: number
     title: string
@@ -137,16 +138,17 @@ export const aiService = {
 
       // 4. Transcribe audio - CRITICAL STEP
       console.log('📝 [AI Service] Starting audio transcription...')
-      const transcript = await this.transcribeAudio(currentAudioPath)
+      const transcriptionResult = await this.transcribeAudio(currentAudioPath)
       
       // CRITICAL VALIDATION: Check if transcription returned valid result
-      if (!transcript || transcript.trim().length === 0) {
+      if (!transcriptionResult.text || transcriptionResult.text.trim().length === 0) {
         throw new Error('Transcription returned empty result - this is likely a silent failure in OpenAI Whisper or FFmpeg')
       }
       
       console.log('✅ [AI Service] Audio transcribed successfully')
-      console.log('📝 [AI Service] Transcript length:', transcript.length, 'characters')
-      console.log('📝 [AI Service] Transcript preview:', transcript.substring(0, 200))
+      console.log('📝 [AI Service] Transcript length:', transcriptionResult.text.length, 'characters')
+      console.log('📝 [AI Service] Transcript preview:', transcriptionResult.text.substring(0, 200))
+      console.log('📝 [AI Service] Segments count:', transcriptionResult.segments.length)
 
       // 5. Extract key frames
       console.log('🖼️ [AI Service] Extracting key frames...')
@@ -155,7 +157,7 @@ export const aiService = {
 
       // 6. Analyze with AI - CRITICAL STEP
       console.log('🤖 [AI Service] Starting AI content analysis...')
-      const result = await this.analyzeVideoContent(transcript, keyFrames, metadata)
+      const result = await this.analyzeVideoContent(transcriptionResult.text, transcriptionResult.segments, keyFrames, metadata)
       
       // CRITICAL VALIDATION: Check if AI analysis returned valid result
       if (!result || !result.steps || !Array.isArray(result.steps)) {
@@ -165,6 +167,9 @@ export const aiService = {
       if (result.steps.length === 0) {
         throw new Error('AI analysis returned empty steps array - this indicates the AI failed to generate steps')
       }
+      
+      // Add segments to the result
+      result.segments = transcriptionResult.segments
       
       console.log('✅ [AI Service] AI analysis completed successfully')
       console.log('🤖 [AI Service] Generated steps:', result.steps.length)
@@ -283,7 +288,7 @@ export const aiService = {
   /**
    * Transcribe audio using OpenAI Whisper
    */
-  async transcribeAudio(audioPath: string): Promise<string> {
+  async transcribeAudio(audioPath: string): Promise<{ text: string; segments: Array<{ start: number; end: number; text: string }> }> {
     try {
       // Initialize clients if needed
       initializeClients()
@@ -295,22 +300,43 @@ export const aiService = {
         throw new Error('OpenAI not initialized')
       }
 
-      console.log('🎤 Starting Whisper transcription...')
+      console.log('🎤 Starting Whisper transcription with timestamps...')
       
-      // Use fs.createReadStream for OpenAI (this is the recommended approach)
+      // Use verbose_json to get segments with timestamps
       const transcription = await openai.audio.transcriptions.create({
         file: fs.createReadStream(audioPath),
         model: 'whisper-1',
-        response_format: 'text'
+        response_format: 'verbose_json',
+        timestamp_granularities: ['segment']
       })
 
-      console.log('✅ Whisper transcription successful:', transcription.length, 'characters')
-      return transcription
+      console.log('✅ Whisper transcription successful:', transcription.text.length, 'characters')
+      console.log('✅ Whisper segments:', transcription.segments?.length || 0, 'segments')
+      
+      if (transcription.segments && transcription.segments.length > 0) {
+        console.log('📊 Sample segments:')
+        transcription.segments.slice(0, 3).forEach((segment, i) => {
+          console.log(`  ${i + 1}. [${segment.start}s - ${segment.end}s] ${segment.text}`)
+        })
+      }
+
+      return {
+        text: transcription.text,
+        segments: transcription.segments || []
+      }
     } catch (error) {
       console.error('Whisper transcription failed, using fallback:', error instanceof Error ? error.message : 'Unknown error')
       
       // Fallback: return realistic simulated transcript
-      return this.generateFallbackTranscript()
+      const fallbackText = this.generateFallbackTranscript()
+      return {
+        text: fallbackText,
+        segments: [{
+          start: 0,
+          end: 30,
+          text: fallbackText
+        }]
+      }
     }
   },
 
@@ -348,6 +374,7 @@ export const aiService = {
    */
   async analyzeVideoContent(
     transcript: string, 
+    segments: Array<{ start: number; end: number; text: string }>,
     keyFrames: Array<{ timestamp: number; path: string }>, 
     metadata: { duration: number }
   ): Promise<VideoProcessingResult> {
@@ -357,7 +384,7 @@ export const aiService = {
     try {
       // Try Gemini first
       if (genAI) {
-        return await this.analyzeWithGemini(transcript, keyFrames, metadata)
+        return await this.analyzeWithGemini(transcript, segments, keyFrames, metadata)
       }
     } catch (error) {
       console.log('Gemini analysis failed, trying OpenAI...')
@@ -366,14 +393,14 @@ export const aiService = {
     try {
       // Try OpenAI
       if (openai) {
-        return await this.analyzeWithOpenAI(transcript, keyFrames, metadata)
+        return await this.analyzeWithOpenAI(transcript, segments, keyFrames, metadata)
       }
     } catch (error) {
       console.log('OpenAI analysis failed, using fallback...')
     }
 
     // Fallback analysis
-    return this.generateFallbackAnalysis(transcript, metadata)
+    return this.generateFallbackAnalysis(transcript, segments, metadata)
   },
 
   /**
@@ -381,22 +408,28 @@ export const aiService = {
    */
   async analyzeWithGemini(
     transcript: string, 
+    segments: Array<{ start: number; end: number; text: string }>,
     keyFrames: Array<{ timestamp: number; path: string }>, 
     metadata: { duration: number }
   ): Promise<VideoProcessingResult> {
     const model = genAI!.getGenerativeModel({ model: 'gemini-1.5-pro' })
     
+    // Use actual segments with timestamps from Whisper
     const prompt = `
-      Analyze this training video and create a step-by-step training module.
+      Analyze this training video transcript and create a step-by-step training module.
       
       Video Duration: ${metadata.duration} seconds
-      Transcript: ${transcript}
       
-      Based on the transcript, create a training module with:
-      1. A clear, descriptive title
-      2. A brief overview description
-      3. Step-by-step instructions with timestamps
-      4. Each step should have: timestamp (seconds), title, description, and estimated duration
+      Here are the actual transcript segments with timestamps from Whisper:
+      ${segments.map((segment, index) => 
+        `${index + 1}. [${segment.start}s - ${segment.end}s] ${segment.text}`
+      ).join('\n')}
+      
+      Create a training module using these actual transcript segments. Each step should:
+      1. Use the exact timestamp from the transcript segment
+      2. Have a descriptive title based on the content
+      3. Include the transcript text as the description
+      4. Use the actual duration from the segment
       
       Return ONLY valid JSON in this exact format:
       {
@@ -405,10 +438,10 @@ export const aiService = {
         "transcript": "${transcript}",
         "steps": [
           {
-            "timestamp": 0,
+            "timestamp": ${segments[0]?.start || 0},
             "title": "Step Title",
-            "description": "Detailed description of what to do",
-            "duration": 30
+            "description": "Transcript text from the segment",
+            "duration": ${segments[0] ? segments[0].end - segments[0].start : 30}
           }
         ],
         "totalDuration": ${metadata.duration}
@@ -433,9 +466,11 @@ export const aiService = {
    */
   async analyzeWithOpenAI(
     transcript: string, 
+    segments: Array<{ start: number; end: number; text: string }>,
     keyFrames: Array<{ timestamp: number; path: string }>, 
     metadata: { duration: number }
   ): Promise<VideoProcessingResult> {
+    // Use actual segments with timestamps from Whisper
     const completion = await openai!.chat.completions.create({
       model: 'gpt-4',
       messages: [
@@ -449,7 +484,17 @@ export const aiService = {
             Analyze this training video transcript and create a step-by-step training module.
             
             Duration: ${metadata.duration} seconds
-            Transcript: ${transcript}
+            
+            Here are the actual transcript segments with timestamps from Whisper:
+            ${segments.map((segment, index) => 
+              `${index + 1}. [${segment.start}s - ${segment.end}s] ${segment.text}`
+            ).join('\n')}
+            
+            Create a training module using these actual transcript segments. Each step should:
+            1. Use the exact timestamp from the transcript segment
+            2. Have a descriptive title based on the content
+            3. Include the transcript text as the description
+            4. Use the actual duration from the segment
             
             Return ONLY valid JSON in this format:
             {
@@ -458,10 +503,10 @@ export const aiService = {
               "transcript": "${transcript}",
               "steps": [
                 {
-                  "timestamp": 0,
+                  "timestamp": ${segments[0]?.start || 0},
                   "title": "Step Title", 
-                  "description": "What to do",
-                  "duration": 30
+                  "description": "Transcript text from the segment",
+                  "duration": ${segments[0] ? segments[0].end - segments[0].start : 30}
                 }
               ],
               "totalDuration": ${metadata.duration}
@@ -483,27 +528,24 @@ export const aiService = {
   /**
    * Generate fallback analysis when AI services fail
    */
-  generateFallbackAnalysis(transcript: string, metadata: { duration: number }): VideoProcessingResult {
-    const stepCount = Math.max(3, Math.floor(metadata.duration / 30))
-    const steps = []
+  generateFallbackAnalysis(transcript: string, segments: Array<{ start: number; end: number; text: string }>, metadata: { duration: number }): VideoProcessingResult {
+    // Use actual segments with timestamps from Whisper
+    const steps = segments.map((segment, index) => ({
+      timestamp: segment.start,
+      title: this.generateStepTitle(segment.text),
+      description: segment.text,
+      duration: segment.end - segment.start,
+      originalText: segment.text,
+      aiRewrite: segment.text,
+      stepText: segment.text
+    }))
     
-    for (let i = 0; i < stepCount; i++) {
-      const timestamp = (i * metadata.duration) / stepCount
-      const duration = metadata.duration / stepCount
-      
-      steps.push({
-        timestamp: Math.round(timestamp),
-        title: `Step ${i + 1}: Training Process`,
-        description: `This step covers part ${i + 1} of the training process. ${transcript.slice(i * 100, (i + 1) * 100)}`,
-        duration: Math.round(duration)
-      })
-    }
-
     return {
       title: 'Training Module',
-      description: 'Video training module with step-by-step instructions',
-      transcript,
-      steps,
+      description: 'Step-by-step training created from video transcript',
+      transcript: transcript,
+      segments: segments, // Include segments in fallback
+      steps: steps,
       totalDuration: metadata.duration
     }
   },
@@ -516,38 +558,6 @@ export const aiService = {
   },
 
   /**
-   * Get fallback result when everything fails
-   */
-  getFallbackResult(videoUrl: string): VideoProcessingResult {
-    return {
-      title: 'Training Module',
-      description: 'Interactive training session based on uploaded video content',
-      transcript: this.generateFallbackTranscript(),
-      steps: [
-        {
-          timestamp: 0,
-          title: 'Introduction',
-          description: 'Welcome and overview of the training session',
-          duration: 30
-        },
-        {
-          timestamp: 30,
-          title: 'Main Content',
-          description: 'Core training material and demonstration',
-          duration: 90
-        },
-        {
-          timestamp: 120,
-          title: 'Summary',
-          description: 'Review of key points and next steps',
-          duration: 30
-        }
-      ],
-      totalDuration: 180
-    }
-  },
-
-  /**
    * Generate and save steps for a module
    */
   async generateStepsForModule(moduleId: string, videoUrl: string): Promise<any[]> {
@@ -555,6 +565,30 @@ export const aiService = {
       console.log(`🤖 Starting AI processing for module: ${moduleId}`)
       
       const result = await this.processVideo(videoUrl)
+      
+      // CRITICAL: Validate that we got actual transcript-based steps
+      if (!result.steps || result.steps.length === 0) {
+        throw new Error('AI processing returned no steps - this indicates a failure in the AI pipeline')
+      }
+      
+      // Check if steps have actual timestamps (not just 0, 30, 60, etc.)
+      const hasRealTimestamps = result.steps.some(step => 
+        step.timestamp > 0 && step.timestamp !== Math.floor(step.timestamp / 30) * 30
+      )
+      
+      if (!hasRealTimestamps) {
+        console.warn('⚠️ Steps appear to have fixed intervals, attempting to generate from transcript...')
+        
+        // Try to generate steps from the actual transcript
+        const transcriptBasedSteps = await this.generateStepsFromTranscript(result.transcript, result.segments, result.totalDuration)
+        
+        if (transcriptBasedSteps.length > 0) {
+          console.log(`✅ Generated ${transcriptBasedSteps.length} steps from transcript`)
+          result.steps = transcriptBasedSteps
+        } else {
+          throw new Error('Failed to generate steps from transcript')
+        }
+      }
       
       // Save the steps to file
       const stepsPath = path.join(dataDir, 'steps', `${moduleId}.json`)
@@ -564,12 +598,62 @@ export const aiService = {
       console.log(`💾 Saving steps to: ${stepsPath}`)
       console.log(`✅ Steps generated and saved for module: ${moduleId}`)
       console.log(`📊 Final step count: ${result.steps.length}`)
+      console.log(`📊 Step timestamps:`, result.steps.map(s => s.timestamp))
       
       return result.steps
     } catch (error) {
-      console.error('Error generating steps:', error)
-      return this.getFallbackResult(videoUrl).steps
+      console.error('❌ Error generating steps:', error)
+      
+      // Instead of falling back to hardcoded intervals, throw the error
+      // This will expose the actual problem instead of hiding it
+      throw new Error(`Step generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
+  },
+
+  /**
+   * Generate steps from transcript using actual timestamps
+   */
+  async generateStepsFromTranscript(transcript: string, segments: Array<{ start: number; end: number; text: string }>, totalDuration: number): Promise<any[]> {
+    try {
+      console.log('📝 Generating steps from transcript...')
+      console.log('📝 Transcript length:', transcript.length, 'characters')
+      console.log('📝 Total duration:', totalDuration, 'seconds')
+      console.log('📝 Segments count:', segments.length)
+      
+      // Use actual segments with timestamps from Whisper
+      const steps = segments.map((segment, index) => {
+        return {
+          timestamp: segment.start,
+          title: this.generateStepTitle(segment.text),
+          description: segment.text,
+          duration: segment.end - segment.start,
+          originalText: segment.text,
+          aiRewrite: segment.text,
+          stepText: segment.text
+        }
+      })
+      
+      console.log(`✅ Generated ${steps.length} steps from transcript segments`)
+      console.log('📊 Sample steps:')
+      steps.slice(0, 3).forEach((step, i) => {
+        console.log(`  ${i + 1}. [${step.timestamp}s] ${step.title}`)
+      })
+      
+      return steps
+    } catch (error) {
+      console.error('❌ Failed to generate steps from transcript:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Generate a step title from sentence content
+   */
+  generateStepTitle(sentence: string): string {
+    // Extract key words and create a title
+    const words = sentence.split(' ').filter(word => word.length > 3)
+    const keyWords = words.slice(0, 3).join(' ')
+    return keyWords.length > 0 ? keyWords : 'Step'
   },
 
   /**
@@ -628,8 +712,8 @@ export const aiService = {
   /**
    * Rewrite a training step with AI
    */
-  async rewriteStep(text: string, instruction: string = "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."): Promise<string> {
-    console.log(`🤖 Rewriting text with universal instruction`)
+  async rewriteStep(text: string, instruction: string = "Clean up this training step text by removing filler words (um, uh, and then) and fixing basic grammar. Do NOT add new information, change the meaning, or introduce concepts not in the original. Keep the exact same intent and actions. Only improve clarity and readability."): Promise<string> {
+    console.log(`🤖 Rewriting text with conservative instruction`)
     
     try {
       // Try Gemini first
@@ -656,9 +740,11 @@ export const aiService = {
 
     const prompt = `${instruction}
 
+IMPORTANT: Do NOT add new information or change the meaning. Only clean up grammar and remove filler words.
+
 Original: "${text}"
 
-Rewrite:`
+Cleaned version:`
 
     try {
       const result = await genAI!.getGenerativeModel({ model: 'gemini-1.5-pro' }).generateContent(prompt)
@@ -684,16 +770,18 @@ Rewrite:`
 
     const prompt = `${instruction}
 
+IMPORTANT: Do NOT add new information or change the meaning. Only clean up grammar and remove filler words.
+
 Original: "${text}"
 
-Rewrite:`
+Cleaned version:`
 
     try {
       const response = await openai!.chat.completions.create({
         model: 'gpt-4',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 150,
-        temperature: 0.7
+        temperature: 0.2  // Lower temperature for more conservative rewrites
       })
 
       const rewrittenText = response.choices[0]?.message?.content?.trim()
@@ -914,6 +1002,41 @@ User Question: "${userMessage}"`
     }
     
     return `I understand you're asking about "${userMessage}". I can help with step navigation, editing, timing, and general questions about this training. What would you like to know?`
+  },
+
+  /**
+   * Create transcript segments with timestamps
+   */
+  createTranscriptSegments(transcript: string, totalDuration: number): Array<{
+    timestamp: number
+    text: string
+    duration: number
+  }> {
+    // Split transcript into sentences
+    const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 10)
+    
+    if (sentences.length === 0) {
+      return [{
+        timestamp: 0,
+        text: transcript,
+        duration: totalDuration
+      }]
+    }
+    
+    // Calculate timestamps based on sentence position
+    return sentences.map((sentence, index) => {
+      const progress = index / sentences.length
+      const timestamp = Math.floor(progress * totalDuration)
+      const nextProgress = (index + 1) / sentences.length
+      const nextTimestamp = Math.floor(nextProgress * totalDuration)
+      const duration = nextTimestamp - timestamp
+      
+      return {
+        timestamp: Math.max(0, timestamp),
+        text: sentence.trim(),
+        duration: Math.max(5, duration) // Minimum 5 seconds
+      }
+    })
   },
 
   /**

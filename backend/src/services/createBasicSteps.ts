@@ -12,12 +12,30 @@ export interface BasicStepData {
   progress: number
   message: string
   createdAt: string
-  steps: any[]
+  steps: Array<{
+    id: string
+    timestamp: number
+    title: string
+    description: string
+    duration: number
+    originalText?: string  // Original transcript text
+    aiRewrite?: string     // AI-rewritten version
+    stepText?: string      // Currently displayed text (original or rewritten)
+  }>
 }
 
 export interface BasicStepsData {
   moduleId: string
-  steps: any[]
+  steps: Array<{
+    id: string
+    timestamp: number
+    title: string
+    description: string
+    duration: number
+    originalText?: string  // Original transcript text
+    aiRewrite?: string     // AI-rewritten version
+    stepText?: string      // Currently displayed text (original or rewritten)
+  }>
 }
 
 /**
