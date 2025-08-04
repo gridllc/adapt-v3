@@ -56,7 +56,7 @@ export const uploadController = {
       }
       
       // Save to modules.json
-      const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
+      const modulesPath = path.join(process.cwd(), 'backend', 'src', 'data', 'modules.json')
       await fs.promises.mkdir(path.dirname(modulesPath), { recursive: true })
       
       let existingModules = []
@@ -127,7 +127,7 @@ export const uploadController = {
       const { moduleId } = req.params
       
       // Read from modules.json
-      const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
+      const modulesPath = path.join(process.cwd(), 'backend', 'src', 'data', 'modules.json')
       let modules = []
       
       try {

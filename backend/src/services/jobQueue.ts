@@ -2,33 +2,48 @@ import Bull from 'bull'
 import { aiService } from './aiService.js'
 import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
 import { saveModuleStatus, updateModuleProgress } from './statusService.js'
+import { testRedisConnection } from './redisClient.js'
 
-// Redis configuration
+// Redis configuration for Bull
 const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
-  maxRetriesPerRequest: 0,
-  retryDelayOnFailover: 0
+  password: process.env.REDIS_PASSWORD,
+  maxRetriesPerRequest: 3,
+  retryDelayOnFailover: 100,
+  lazyConnect: true,
+  keepAlive: 30000,
 }
 
 // Check if Redis is available
-function checkRedisConnectionSync() {
+async function checkRedisConnection() {
   if (process.env.DISABLE_REDIS === 'true') {
     console.log('⚠️ Redis disabled via DISABLE_REDIS environment variable')
     return false
   }
-  // For now, assume Redis is not available in development
-  console.log('⚠️ Redis not available, using mock queue')
-  return false
+  
+  try {
+    const isConnected = await testRedisConnection()
+    if (isConnected) {
+      console.log('✅ Redis connection successful, using real queue')
+      return true
+    } else {
+      console.log('⚠️ Redis connection failed, using mock queue')
+      return false
+    }
+  } catch (error) {
+    console.log('⚠️ Redis not available, using mock queue:', error)
+    return false
+  }
 }
 
 // Initialize job queue
 let jobQueue: Bull.Queue | any
 let useMockQueue = false
 
-function initializeJobQueueSync() {
+async function initializeJobQueue() {
   try {
-    const redisAvailable = checkRedisConnectionSync()
+    const redisAvailable = await checkRedisConnection()
 
     if (redisAvailable) {
       jobQueue = new Bull('video-processing', {
@@ -87,7 +102,25 @@ function initializeJobQueueSync() {
   }
 }
 
-initializeJobQueueSync()
+// Initialize job queue asynchronously
+initializeJobQueue().catch(error => {
+  console.error('❌ Failed to initialize job queue:', error)
+  // Fall back to mock queue
+  useMockQueue = true
+  jobQueue = {
+    add: async (name: string, data: any) => {
+      console.log(`📝 [MOCK] Adding job: ${name}`)
+      console.log(`📝 [MOCK] Job data:`, data)
+      if (name === 'process-video') {
+        setTimeout(() => processVideoJob(data), 100)
+      }
+      return { id: 'mock-job-id' }
+    },
+    process: (name: string, handler: any) => {
+      console.log(`📝 [MOCK] Registered processor for: ${name}`)
+    }
+  }
+})
 
 // Performance logging
 class PerformanceLogger {

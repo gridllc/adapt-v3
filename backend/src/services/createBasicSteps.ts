@@ -1,8 +1,8 @@
 import fs from 'fs/promises'
 import path from 'path'
 
-// Constants for better path management - use process.cwd() for consistency
-const DATA_DIR = path.join(process.cwd(), 'data')
+// Constants for better path management - use the correct path structure
+const DATA_DIR = path.join(process.cwd(), 'backend', 'src', 'data')
 const TRAINING_DIR = path.join(DATA_DIR, 'training')
 const STEPS_DIR = path.join(DATA_DIR, 'steps')
 
