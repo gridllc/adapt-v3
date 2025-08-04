@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { API_CONFIG, API_ENDPOINTS } from '../config/api'
+import { api, API_ENDPOINTS } from '../config/api'
 
 interface Step {
   stepTitle: string
@@ -15,32 +15,29 @@ export function useSteps(moduleId?: string) {
   useEffect(() => {
     if (!moduleId) return
 
-    setLoading(true)
-    setError(null)
-    
-    fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.STEPS(moduleId)))
-      .then(res => {
-        if (!res.ok) {
-          if (res.status === 404) {
-            console.warn('⚠️ Steps not found for module:', moduleId)
-            return { steps: [], success: false, error: 'Steps not found' }
-          }
-          throw new Error('Steps not found')
+    const fetchSteps = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const data = await api(API_ENDPOINTS.STEPS(moduleId))
+        
+        if (data.success) {
+          setSteps(data.steps || [])
+        } else {
+          setError(data.error || 'Failed to load steps')
+          setSteps([])
         }
-        return res.json()
-      })
-      .then(data => {
-        setSteps(data.steps || [])
-        if (data.error) {
-          setError(data.error)
-        }
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('❌ Error fetching steps:', err)
-        setError(err.message)
+        setError(err instanceof Error ? err.message : 'Failed to load steps')
         setSteps([]) // Set empty steps on error
-      })
-      .finally(() => setLoading(false))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchSteps()
   }, [moduleId])
 
   return { steps, loading, error }

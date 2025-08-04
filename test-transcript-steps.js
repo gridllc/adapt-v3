@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+s#!/usr/bin/env node
 
 /**
  * Test script to verify transcript-based step generation

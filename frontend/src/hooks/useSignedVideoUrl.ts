@@ -1,6 +1,6 @@
 // src/hooks/useSignedVideoUrl.ts
 import { useState, useEffect } from 'react'
-import { API_CONFIG, API_ENDPOINTS } from '../config/api'
+import { api, API_ENDPOINTS } from '../config/api'
 
 interface UseSignedVideoUrlResult {
   url: string | null
@@ -22,25 +22,20 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
     }
 
     let isMounted = true
-    const controller = new AbortController()
     
-    setLoading(true)
-    setError(null)
-
-    const apiUrl = API_CONFIG.getApiUrl(API_ENDPOINTS.VIDEO_URL(filename))
-    
-    console.log('🔗 Fetching video URL:', apiUrl)
-    
-    fetch(apiUrl, { signal: controller.signal })
-      .then(res => {
+    const fetchVideoUrl = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        console.log('🔗 Fetching video URL for:', filename)
+        
+        const data = await api(API_ENDPOINTS.VIDEO_URL(filename))
+        
         if (!isMounted) return
-        console.log('📡 Video URL response status:', res.status)
-        if (!res.ok) throw new Error(`Failed to get video URL: ${res.status} ${res.statusText}`)
-        return res.json()
-      })
-      .then(data => {
-        if (!isMounted) return
+        
         console.log('📦 Video URL response data:', data)
+        
         if (data?.url) {
           // Always use the absolute URL from the backend
           const videoUrl = data.url
@@ -50,24 +45,22 @@ export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
           setUrl(null)
           setError('No URL returned from server')
         }
-      })
-      .catch(err => {
+      } catch (err) {
         if (!isMounted) return
         console.error('❌ Video URL error:', err)
-        if (err.name !== 'AbortError') {
-          setError(err.message || 'Unknown error')
-          setUrl(null)
-        }
-      })
-      .finally(() => {
+        setError(err instanceof Error ? err.message : 'Failed to get video URL')
+        setUrl(null)
+      } finally {
         if (isMounted) {
           setLoading(false)
         }
-      })
+      }
+    }
+
+    fetchVideoUrl()
 
     return () => {
       isMounted = false
-      controller.abort()
     }
   }, [filename])
 

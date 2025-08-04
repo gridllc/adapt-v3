@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { API_CONFIG, API_ENDPOINTS } from '../config/api'
+import { api, API_ENDPOINTS } from '../config/api'
 
 export function useTranscript(moduleId?: string) {
   const [transcript, setTranscript] = useState<string | any[] | null>(null)
@@ -9,15 +9,27 @@ export function useTranscript(moduleId?: string) {
   useEffect(() => {
     if (!moduleId) return
 
-    setLoading(true)
-    fetch(API_CONFIG.getApiUrl(API_ENDPOINTS.TRANSCRIPT(moduleId)))
-      .then(res => {
-        if (!res.ok) throw new Error('Transcript not found')
-        return res.json()
-      })
-      .then(data => setTranscript(data.transcript))
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false))
+    const fetchTranscript = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        
+        const data = await api(API_ENDPOINTS.TRANSCRIPT(moduleId))
+        
+        if (data.success) {
+          setTranscript(data.transcript)
+        } else {
+          setError(data.error || 'Failed to load transcript')
+        }
+      } catch (err) {
+        console.error('Error fetching transcript:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load transcript')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTranscript()
   }, [moduleId])
 
   return { transcript, loading, error }

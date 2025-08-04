@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
-import { StepGenerationFeedback } from './StepGenerationFeedback'
-import { TranscriptionFeedback } from './TranscriptionFeedback'
+import { StepGenerationFeedback, TranscriptionFeedback } from './common/FeedbackWidget'
 import { api } from '../config/api'
 
 interface FeedbackSectionProps {

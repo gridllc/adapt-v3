@@ -31,7 +31,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
 
   const handleFeedback = async (action: 'worked' | 'not_working' | 'partially_working') => {
     try {
-              const response = await api('feedback/submit', {
+      const data = await api('/api/feedback/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -46,8 +46,6 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
           timestamp: new Date().toISOString()
         })
       })
-
-      const data = await response.json()
       
       if (data.success) {
         setFeedbackMessage(data.message)

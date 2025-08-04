@@ -1,19 +1,28 @@
 // Environment detection and API base URL configuration  
 const isDevelopment = import.meta.env.MODE === 'development'
-const RAILWAY_URL = 'https://adapt-v3-production.up.railway.app'
 
-// Use proxy in development, Railway URL in production
+// Production API URL - this should be set in Vercel environment variables
+const PRODUCTION_API_URL = 'https://adapt-v3-production.up.railway.app'
+
+// Force production API (for testing)
+const FORCE_PRODUCTION_API = import.meta.env.VITE_FORCE_PRODUCTION_API === 'true'
+
+// In development, use empty string to leverage Vite proxy
+// In production, use the Railway URL or environment variable
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (isDevelopment ? '' : RAILWAY_URL)
+  (isDevelopment && !FORCE_PRODUCTION_API ? '' : PRODUCTION_API_URL)
 
 // Debug logging
 console.log('🔧 API Configuration:', {
   mode: import.meta.env.MODE,
   isDevelopment,
   VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  VITE_FORCE_PRODUCTION_API: import.meta.env.VITE_FORCE_PRODUCTION_API,
+  FORCE_PRODUCTION_API,
   API_BASE_URL,
-  RAILWAY_URL,
-  NODE_ENV: import.meta.env.NODE_ENV
+  PRODUCTION_API_URL,
+  NODE_ENV: import.meta.env.NODE_ENV,
+  location: window.location.href
 })
 
 export const API_CONFIG = {
@@ -21,7 +30,25 @@ export const API_CONFIG = {
   timeout: 10000,
   getApiUrl: (endpoint: string): string => {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
-    const fullUrl = API_BASE_URL ? `${API_BASE_URL}${cleanEndpoint}` : cleanEndpoint
+    
+    // In development, just return the endpoint (proxy will handle it)
+    // In production, prepend the base URL
+    let fullUrl: string
+    
+    if (isDevelopment && !FORCE_PRODUCTION_API) {
+      // In development, use proxy
+      fullUrl = cleanEndpoint
+    } else {
+      // In production or when forcing production API, use the full URL
+      // If API_BASE_URL is empty, undefined, or "undefined", use the production URL
+      const baseUrl = (API_BASE_URL && API_BASE_URL !== 'undefined') ? API_BASE_URL : PRODUCTION_API_URL
+      fullUrl = `${baseUrl}${cleanEndpoint}`
+    }
+    
+    // Ensure the URL has the correct protocol
+    if (!isDevelopment && !fullUrl.startsWith('http')) {
+      fullUrl = `https://${fullUrl}`
+    }
     
     // Debug logging
     console.log('🔗 API Call:', {
@@ -30,6 +57,7 @@ export const API_CONFIG = {
       API_BASE_URL,
       fullUrl,
       isDevelopment,
+      FORCE_PRODUCTION_API,
       mode: import.meta.env.MODE
     })
     
@@ -80,15 +108,21 @@ export async function api(endpoint: string, options?: RequestInit) {
     clearTimeout(timeoutId)
     console.log('📡 API response status:', response.status, response.statusText)
     
-    // Read response as text first to check if it's JSON
-    const rawText = await response.text()
+    // NEW: HTML Response Guard
+    const contentType = response.headers.get('content-type')
+    if (!contentType?.includes('application/json')) {
+      const text = await response.text()
+      console.error('❌ Received non-JSON response:', text.slice(0, 200))
+      throw new Error(`Unexpected response format. Expected JSON, got: ${text.slice(0, 100)}...`)
+    }
     
     if (!response.ok) {
+      const errorText = await response.text()
       console.error('❌ API Error:', response.status, response.statusText)
-      console.error('❌ Response body (raw):', rawText)
+      console.error('❌ Response body:', errorText)
       
       // Check if we got HTML instead of JSON
-      if (rawText.startsWith('<!DOCTYPE html') || rawText.includes('<html')) {
+      if (errorText.startsWith('<!DOCTYPE html') || errorText.includes('<html')) {
         console.error('❌ Received HTML instead of JSON - possible wrong API endpoint or server error')
         throw new Error(`Server returned HTML instead of JSON. Check API endpoint: ${url}`)
       }
@@ -101,21 +135,16 @@ export async function api(endpoint: string, options?: RequestInit) {
       
       throw new Error(`API Error: ${response.status} ${response.statusText}`)
     }
-    
+
     // Try to parse as JSON
     try {
-      const parsed = JSON.parse(rawText)
+      const parsed = await response.json()
       console.log('📦 API response data:', parsed)
       return parsed
     } catch (err) {
-      console.error('❌ Failed to parse response as JSON:', rawText.slice(0, 200))
+      console.error('❌ Failed to parse response as JSON')
       
-      // Check if we got HTML instead of JSON
-      if (rawText.startsWith('<!DOCTYPE html') || rawText.includes('<html')) {
-        console.error('❌ Received HTML instead of JSON - possible wrong API endpoint or server error')
-        throw new Error(`Server returned HTML instead of JSON. Check API endpoint: ${url}`)
-      }
-      
+      // This shouldn't happen now with the content-type check above
       throw new Error('Invalid JSON returned by server')
     }
     

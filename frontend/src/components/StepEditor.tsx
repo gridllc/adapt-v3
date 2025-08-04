@@ -132,38 +132,41 @@ export const StepEditor: React.FC<StepEditorProps> = ({
     try {
       console.log('🤖 AI rewrite requested')
       
-      // Get current step title for rewriting
-      const currentTitle = step.title
+      // Get current step description for rewriting (this contains the actual step text)
+      const currentDescription = step.description || step.originalText || step.stepText
       
-      if (!currentTitle || currentTitle.trim().length < 3) {
-        console.warn('⚠️ Title too short for AI rewrite')
+      if (!currentDescription || currentDescription.trim().length < 3) {
+        console.warn('⚠️ Description too short for AI rewrite')
         return
       }
       
-      // Call the AI rewrite API with universal prompt
+      // Call the AI rewrite API with conservative prompt
       const data = await api(`/api/steps/${moduleId}/rewrite`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: currentTitle,
-          instruction: "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."
+          text: currentDescription,
+          instruction: "Clean up this training step text by removing filler words (um, uh, and then) and fixing basic grammar. Do NOT add new information, change the meaning, or introduce concepts not in the original. Keep the exact same intent and actions. Only improve clarity and readability."
         }),
       })
       
       console.log('✅ AI rewrite successful:', data)
       
-      // Update the step with the rewritten title
+      // Update the step with the rewritten description, preserving original
       const updatedStep = {
         ...step,
-        title: data.text
+        originalText: step.originalText || currentDescription, // Preserve original
+        aiRewrite: data.text, // Set AI rewrite
+        description: data.text, // Update description with AI rewrite
+        stepText: data.text // Update displayed text
       }
       
       // Call the update function to save the changes
       onUpdate(updatedStep)
       
-      console.log('✅ Step updated with AI rewrite')
+      console.log('✅ Step updated with AI rewrite, original preserved')
     } catch (error) {
       console.error('❌ AI rewrite error:', error)
       // You could show a toast notification here
@@ -261,6 +264,15 @@ export const StepEditor: React.FC<StepEditorProps> = ({
             title="Edit this step"
           >
             ✏️ Edit
+          </button>
+          
+          {/* AI Rewrite Button */}
+          <button
+            onClick={handleAIRewrite}
+            className="text-purple-600 hover:text-purple-800 text-xs px-2 py-1 rounded hover:bg-purple-50 transition-colors"
+            title="Rewrite this step with AI"
+          >
+            🤖 Rewrite
           </button>
           
           <button
