@@ -12,7 +12,6 @@ import { UploadPage } from '@pages/UploadPage'
 import EditStepsPage from '@pages/EditStepsPage'
 import SharePage from '@pages/SharePage'
 import { ApiDebug } from '@components/ApiDebug'
-import { ApiTest } from '@components/ApiTest'
 
 // Conditional Home Component
 const ConditionalHome = () => {
@@ -55,8 +54,7 @@ function App() {
       {/* Debug panel temporarily disabled */}
       {/* <ApiDebug /> */}
       
-      {/* API Test component for debugging */}
-      <ApiTest />
+
       
       <Routes>
       {/* Always show home page at root */}

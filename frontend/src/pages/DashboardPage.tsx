@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useModules } from '../hooks/useModules'
-import { ApiTest } from '../components/ApiTest'
+
 import { api } from '../config/api'
 import { FeedbackDashboard } from '../components/common/FeedbackDashboard'
 import QRCodeGenerator from '../components/QRCodeGenerator'
@@ -97,10 +97,7 @@ export const DashboardPage: React.FC = () => {
         ))}
       </div>
       
-      {/* Temporary API Test */}
-      <div className="mt-8">
-        <ApiTest />
-      </div>
+
       
       {/* QR Code Modal */}
       {showQRCode && (

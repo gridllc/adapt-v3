@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
+import multer from 'multer'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -19,6 +20,14 @@ try {
 } catch (error) {
   console.error(`❌ Failed to initialize OpenAI in aiRoutes: ${error instanceof Error ? error.message : 'Unknown error'}`)
 }
+
+// Configure multer for audio uploads
+const upload = multer({ 
+  dest: '/tmp',
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  }
+})
 
 const router = express.Router()
 
@@ -237,6 +246,74 @@ router.get('/debug-transcribe/:moduleId', async (req, res) => {
     })
   } catch (error) {
     console.error('❌ Transcription debug error:', error)
+    res.status(500).json({ 
+      success: false, 
+      error: 'Transcription failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Real-time audio transcription endpoint
+router.post('/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No audio file provided' 
+      })
+    }
+
+    console.log('🎤 Audio transcription request received')
+    console.log(`📁 File: ${req.file.originalname}`)
+    console.log(`📊 Size: ${req.file.size} bytes`)
+
+    // Read the audio file
+    const audioBytes = fs.readFileSync(req.file.path)
+    console.log(`📁 Audio file read: ${audioBytes.length} bytes`)
+
+    // Initialize OpenAI if not already done
+    if (!openai) {
+      try {
+        if (process.env.OPENAI_API_KEY) {
+          openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+          console.log('✅ OpenAI initialized for transcription')
+        } else {
+          return res.status(500).json({ error: 'OpenAI API key not found' })
+        }
+      } catch (error) {
+        return res.status(500).json({ error: 'Failed to initialize OpenAI' })
+      }
+    }
+
+    console.log('🎤 Starting Whisper transcription...')
+    
+    // Use OpenAI Whisper for transcription
+    const transcription = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(req.file.path),
+      model: 'whisper-1',
+      response_format: 'text'
+    })
+
+    // Clean up the temporary file
+    fs.unlinkSync(req.file.path)
+
+    console.log('✅ Transcription successful:', transcription.length, 'characters')
+    console.log('📝 Transcript:', transcription.substring(0, 100) + '...')
+
+    res.json({
+      success: true,
+      transcript: transcription,
+      length: transcription.length
+    })
+  } catch (error) {
+    console.error('❌ Transcription error:', error)
+    
+    // Clean up file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path)
+    }
+    
     res.status(500).json({ 
       success: false, 
       error: 'Transcription failed',
