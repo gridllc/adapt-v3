@@ -35,6 +35,10 @@ export class DatabaseService {
     })
   }
 
+  static async getUserCount() {
+    return await prisma.user.count()
+  }
+
   // Module operations
   static async createModule(data: {
     id: string

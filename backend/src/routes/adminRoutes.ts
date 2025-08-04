@@ -51,11 +51,13 @@ router.get('/activity', requireAdmin, async (req, res) => {
 // Get system statistics (admin only)
 router.get('/stats', requireAdmin, async (req, res) => {
   try {
-    const [moduleCount, userCount, feedbackStats] = await Promise.all([
+    const results = await Promise.all([
       DatabaseService.getAllModules().then(modules => modules.length),
-      // Add user count when you have that method
+      DatabaseService.getUserCount(),
       DatabaseService.getFeedbackStats()
     ])
+    
+    const [moduleCount, userCount, feedbackStats] = results
     
     res.json({
       success: true,

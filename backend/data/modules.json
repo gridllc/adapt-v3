@@ -34,5 +34,14 @@
     "status": "processing",
     "progress": 0,
     "message": "Upload complete, starting AI processing..."
+  },
+  {
+    "id": "mtz4pm0604mdxmup6l",
+    "filename": "mtz4pm0604mdxmup6l.mp4",
+    "title": "20250802_170050",
+    "createdAt": "2025-08-04T21:39:08.261Z",
+    "status": "processing",
+    "progress": 0,
+    "message": "Upload complete, starting AI processing..."
   }
 ]
