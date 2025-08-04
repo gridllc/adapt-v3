@@ -2,7 +2,7 @@ import express from 'express'
 import { aiService } from '../services/aiService.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { UserService } from '../services/userService.js'
-import { generateEmbedding, logInteractionToVectorDB, findSimilarInteractions } from '../utils/vectorUtils.js'
+import { generateEmbedding, logInteractionToVectorDB } from '../utils/vectorUtils.js'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -52,17 +52,6 @@ router.post('/contextual-response', async (req: any, res: any) => {
     console.log(`📝 User message: "${userMessage}"`)
     console.log(`🎬 Current step: ${currentStep?.title || 'None'}`)
     console.log(`⏰ Video time: ${videoTime}s`)
-
-    // Find similar past questions for enhanced context
-    let similarQuestions = []
-    if (moduleId) {
-      try {
-        similarQuestions = await findSimilarInteractions(userMessage, moduleId, 0.8, 3)
-        console.log(`🔍 Found ${similarQuestions.length} similar questions`)
-      } catch (error) {
-        console.warn('⚠️ Failed to find similar questions:', error)
-      }
-    }
 
     // Generate contextual response using the enhanced AI service
     const response = await aiService.generateContextualResponse(

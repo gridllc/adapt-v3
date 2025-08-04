@@ -1,23 +1,15 @@
 import { PrismaClient } from '@prisma/client'
 import { calculateCosineSimilarity } from '../utils/vectorUtils.js'
 
-// Global prisma instance to prevent multiple connections
-declare global {
-  var __prisma: PrismaClient | undefined
-}
-
-const prisma = globalThis.__prisma || new PrismaClient()
-
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.__prisma = prisma
-}
+// Create Prisma client instance
+const prisma = new PrismaClient()
 
 // Graceful shutdown
 process.on('beforeExit', async () => {
   await prisma.$disconnect()
 })
 
-export { prisma }
+export default prisma
 
 // Database service functions
 export class DatabaseService {
