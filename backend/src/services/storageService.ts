@@ -34,9 +34,17 @@ export const storageService = {
       
       console.log(`✅ Video uploaded successfully: ${filename}`)
       
+      // Check if we're in production (Railway) or development
+      const isProduction = process.env.NODE_ENV === 'production'
+      const baseUrl = process.env.RAILWAY_STATIC_URL || process.env.FRONTEND_URL || 'http://localhost:8000'
+      
+      const videoUrl = isProduction 
+        ? `${baseUrl}/uploads/${filename}`
+        : `http://localhost:8000/uploads/${filename}`
+      
       return {
         moduleId,
-        videoUrl: `http://localhost:8000/uploads/${filename}`
+        videoUrl
       }
     } catch (error) {
       console.error('❌ Error uploading video:', error)
@@ -154,6 +162,15 @@ export const storageService = {
 }
 
 export async function getSignedS3Url(filename: string): Promise<string> {
-  // For local development, return the local file URL with absolute path
-  return `http://localhost:8000/uploads/${filename}`
+  // Check if we're in production (Railway) or development
+  const isProduction = process.env.NODE_ENV === 'production'
+  const baseUrl = process.env.RAILWAY_STATIC_URL || process.env.FRONTEND_URL || 'http://localhost:8000'
+  
+  if (isProduction) {
+    // In production, use the Railway URL
+    return `${baseUrl}/uploads/${filename}`
+  } else {
+    // For local development, return the local file URL
+    return `http://localhost:8000/uploads/${filename}`
+  }
 } 

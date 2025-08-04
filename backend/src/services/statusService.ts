@@ -11,8 +11,8 @@ export interface ModuleStatus {
 
 export const saveModuleStatus = async (moduleId: string, status: string, message?: string, progress?: number, error?: string) => {
   try {
-    // Fix the path to use the correct directory structure
-    const statusPath = path.join(process.cwd(), 'data', 'status', `${moduleId}.json`)
+    // Use the correct path structure that matches the data directory
+    const statusPath = path.join(process.cwd(), 'backend', 'src', 'data', 'status', `${moduleId}.json`)
     
     // Ensure directory exists
     await fs.mkdir(path.dirname(statusPath), { recursive: true })
@@ -35,8 +35,8 @@ export const saveModuleStatus = async (moduleId: string, status: string, message
 
 export const getModuleStatus = async (moduleId: string): Promise<ModuleStatus | null> => {
   try {
-    // Fix the path to use the correct directory structure
-    const statusPath = path.join(process.cwd(), 'data', 'status', `${moduleId}.json`)
+    // Use the correct path structure that matches the data directory
+    const statusPath = path.join(process.cwd(), 'backend', 'src', 'data', 'status', `${moduleId}.json`)
     
     const exists = await fs.access(statusPath).then(() => true).catch(() => false)
     if (!exists) {
