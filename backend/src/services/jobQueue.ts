@@ -4,11 +4,11 @@ import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
 import { saveModuleStatus, updateModuleProgress } from './statusService.js'
 import { testRedisConnection } from './redisClient.js'
 
-// Redis configuration for Bull (Railway)
+// Redis configuration for Bull (Railway) - handle both naming conventions
 const redisConfig = {
-  host: process.env.REDIS_HOST, // e.g. metro.proxy.rlwy.net
-  port: Number(process.env.REDIS_PORT), // e.g. 40569
-  password: process.env.REDIS_PASSWORD,
+  host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost', // e.g. metro.proxy.rlwy.net
+  port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'), // e.g. 40569
+  password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
   retryStrategy: (times: number) => Math.min(times * 50, 2000),
   maxRetriesPerRequest: 3,
   lazyConnect: true,

@@ -1,10 +1,10 @@
 import Redis from 'ioredis'
 
-// Redis configuration for Railway
+// Redis configuration for Railway - handle both naming conventions
 const redisConfig = {
-  host: process.env.REDIS_HOST, // e.g. metro.proxy.rlwy.net
-  port: Number(process.env.REDIS_PORT), // e.g. 40569
-  password: process.env.REDIS_PASSWORD,
+  host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost', // e.g. metro.proxy.rlwy.net
+  port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'), // e.g. 40569
+  password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
   retryStrategy: (times: number) => Math.min(times * 50, 2000),
   maxRetriesPerRequest: 3,
   lazyConnect: true,
@@ -13,6 +13,19 @@ const redisConfig = {
 
 // Create Redis client
 const redis = new Redis(redisConfig)
+
+// Log Redis configuration (without sensitive data)
+console.log('🔧 Redis Configuration:')
+console.log(`   Host: ${redisConfig.host}`)
+console.log(`   Port: ${redisConfig.port}`)
+console.log(`   Password: ${redisConfig.password ? 'SET' : 'NOT SET'}`)
+console.log(`   Environment Variables:`)
+console.log(`     REDIS_HOST: ${process.env.REDIS_HOST || 'NOT SET'}`)
+console.log(`     REDISHOST: ${process.env.REDISHOST || 'NOT SET'}`)
+console.log(`     REDIS_PORT: ${process.env.REDIS_PORT || 'NOT SET'}`)
+console.log(`     REDISPORT: ${process.env.REDISPORT || 'NOT SET'}`)
+console.log(`     REDIS_PASSWORD: ${process.env.REDIS_PASSWORD ? 'SET' : 'NOT SET'}`)
+console.log(`     REDISPASSWORD: ${process.env.REDISPASSWORD ? 'SET' : 'NOT SET'}`)
 
 // Connection event handlers
 redis.on('connect', () => {
