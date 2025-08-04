@@ -1,5 +1,8 @@
 import express from 'express'
 import { aiService } from '../services/aiService.js'
+import { DatabaseService } from '../services/prismaService.js'
+import { UserService } from '../services/userService.js'
+import { generateEmbedding, logInteractionToVectorDB, findSimilarInteractions } from '../utils/vectorUtils.js'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -50,15 +53,56 @@ router.post('/contextual-response', async (req: any, res: any) => {
     console.log(`🎬 Current step: ${currentStep?.title || 'None'}`)
     console.log(`⏰ Video time: ${videoTime}s`)
 
+    // Find similar past questions for enhanced context
+    let similarQuestions = []
+    if (moduleId) {
+      try {
+        similarQuestions = await findSimilarInteractions(userMessage, moduleId, 0.8, 3)
+        console.log(`🔍 Found ${similarQuestions.length} similar questions`)
+      } catch (error) {
+        console.warn('⚠️ Failed to find similar questions:', error)
+      }
+    }
+
     // Generate contextual response using the enhanced AI service
     const response = await aiService.generateContextualResponse(
       userMessage,
       currentStep,
       allSteps,
-      videoTime
+      videoTime,
+      moduleId
     )
 
     console.log(`✅ AI response generated: ${response.substring(0, 100)}...`)
+
+    // Save Q&A to database with vector logging
+    const userId = await UserService.getUserIdFromRequest(req)
+    try {
+      await logInteractionToVectorDB({
+        question: userMessage,
+        answer: response,
+        moduleId,
+        stepId: currentStep?.id,
+        videoTime,
+        userId: userId || undefined
+      })
+    } catch (error) {
+      console.warn('⚠️ Failed to log interaction to vector database:', error)
+      // Continue without vector logging - not critical
+    }
+
+    // Log activity
+    await DatabaseService.createActivityLog({
+      userId: userId || undefined,
+      action: 'AI_QUESTION',
+      targetId: moduleId,
+      metadata: {
+        questionLength: userMessage.length,
+        answerLength: response.length,
+        videoTime,
+        stepId: currentStep?.id
+      }
+    })
 
     res.json({ 
       success: true, 
@@ -301,6 +345,18 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
     console.log('✅ Transcription successful:', transcription.length, 'characters')
     console.log('📝 Transcript:', transcription.substring(0, 100) + '...')
 
+    // Log activity
+    const userId = await UserService.getUserIdFromRequest(req)
+    await DatabaseService.createActivityLog({
+      userId: userId || undefined,
+      action: 'UPLOAD_AUDIO',
+      metadata: { 
+        fileSize: req.file.size,
+        transcriptLength: transcription.length,
+        originalName: req.file.originalname
+      }
+    })
+
     res.json({
       success: true,
       transcript: transcription,
@@ -317,6 +373,44 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Transcription failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Vector search for similar questions
+router.post('/search-similar', async (req, res) => {
+  try {
+    const { moduleId, question } = req.body
+
+    if (!moduleId || !question) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Module ID and question are required' 
+      })
+    }
+
+    console.log(`🔍 Searching for similar questions in module: ${moduleId}`)
+    console.log(`📝 Question: "${question}"`)
+
+    // Generate embedding for the new question
+    const embedding = await generateEmbedding(question)
+
+    // Find similar questions
+    const similarQuestions = await DatabaseService.findSimilarQuestions(moduleId, embedding, 0.8)
+
+    console.log(`✅ Found ${similarQuestions.length} similar questions`)
+
+    res.json({
+      success: true,
+      similarQuestions,
+      count: similarQuestions.length
+    })
+  } catch (error) {
+    console.error('❌ Vector search error:', error)
+    res.status(500).json({ 
+      success: false, 
+      error: 'Vector search failed',
       details: error instanceof Error ? error.message : 'Unknown error'
     })
   }

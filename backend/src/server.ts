@@ -13,6 +13,8 @@ import feedbackRoutes from './routes/feedbackRoutes.js'
 import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
+import { adminRoutes } from './routes/adminRoutes.js'
+import { qaRoutes } from './routes/qaRoutes.js'
 
 // Import job queue to ensure it's initialized
 import './services/jobQueue.js'
@@ -118,6 +120,12 @@ const configureRoutes = () => {
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
   app.use('/api/reprocess', reprocessRoutes)
+  
+  // Admin Routes (protected)
+  app.use('/api/admin', adminRoutes)
+  
+  // Q&A Routes
+  app.use('/api/qa', qaRoutes)
   
   // Public Share Routes (no auth required)
   app.use('/api/share', shareRoutes)

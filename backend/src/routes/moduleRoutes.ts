@@ -1,5 +1,7 @@
 import express from 'express'
 import { moduleController } from '../controllers/moduleController.js'
+import { DatabaseService } from '../services/prismaService.js'
+import { UserService } from '../services/userService.js'
 import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -17,28 +19,17 @@ const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
 const uploadsDir = path.join(process.cwd(), 'uploads')
 const dataDir = path.join(process.cwd(), 'data')
 
-// Get all modules (JSON file-based)
+// Get all modules (Database-based) - optionally filtered by user
 router.get('/', async (req, res) => {
   try {
-    console.log('📋 Fetching modules from:', modulesPath)
-    console.log('🔍 Environment:', process.env.NODE_ENV)
-    console.log('🔍 Base directory:', baseDir)
-    console.log('🔍 Current directory:', process.cwd())
+    console.log('📋 Fetching modules from database')
     
-    // Check if file exists first
-    try {
-      await fs.access(modulesPath)
-    } catch {
-      console.log('📁 Modules file not found, creating empty array')
-      // Ensure data directory exists
-      await fs.mkdir(path.dirname(modulesPath), { recursive: true })
-      await fs.writeFile(modulesPath, JSON.stringify([], null, 2))
-    }
+    // Get user ID if authenticated (optional for now)
+    const userId = await UserService.getUserIdFromRequest(req)
     
-    const raw = await fs.readFile(modulesPath, 'utf-8')
-    const modules = JSON.parse(raw)
+    const modules = await DatabaseService.getAllModules(userId || undefined)
     
-    console.log(`✅ Loaded ${modules.length} modules`)
+    console.log(`✅ Loaded ${modules.length} modules from database${userId ? ' for user' : ''}`)
     return res.json({ success: true, modules })
   } catch (err) {
     console.error('❌ Error loading modules:', err)
@@ -49,23 +40,16 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Delete module - Direct implementation with comprehensive cleanup
+// Delete module - Database-based with comprehensive cleanup
 router.delete('/:id', async (req, res) => {
   const moduleId = req.params.id
 
   try {
-    // Read existing modules
-    const raw = await fs.readFile(modulesPath, 'utf-8')
-    const modules = JSON.parse(raw)
-
-    // Find and remove the module
-    const updated = modules.filter((m: any) => m.id !== moduleId)
-    if (updated.length === modules.length) {
-      return res.status(404).json({ error: 'Module not found' })
-    }
-
-    // Save updated modules.json
-    await fs.writeFile(modulesPath, JSON.stringify(updated, null, 2))
+    // Get user ID for activity logging
+    const userId = await UserService.getUserIdFromRequest(req)
+    
+    // Delete from database (this will cascade delete related records)
+    await DatabaseService.deleteModule(moduleId)
 
     // Delete associated files (ignore errors if files don't exist)
     const cleanupPromises = [
@@ -75,6 +59,14 @@ router.delete('/:id', async (req, res) => {
     ]
     
     await Promise.all(cleanupPromises)
+    
+    // Log activity
+    await DatabaseService.createActivityLog({
+      userId: userId || undefined,
+      action: 'DELETE_MODULE',
+      targetId: moduleId,
+      metadata: { moduleId }
+    })
     
     console.log(`✅ Successfully deleted module: ${moduleId}`)
     res.json({ success: true, id: moduleId, message: 'Module deleted successfully' })
@@ -94,63 +86,19 @@ router.get('/:id/steps', async (req, res) => {
   try {
     console.log(`📖 Getting steps for module: ${moduleId}`)
     
-    // Define possible paths where steps might be stored
-    const projectRoot = path.resolve(__dirname, '../../')
-    const possiblePaths = [
-      path.join(projectRoot, 'data', 'training', `${moduleId}.json`),
-      path.join(projectRoot, 'data', 'steps', `${moduleId}.json`),
-      path.join(projectRoot, 'data', 'modules', `${moduleId}.json`),
-      path.join(process.cwd(), 'data', 'training', `${moduleId}.json`),
-      path.join(process.cwd(), 'data', 'steps', `${moduleId}.json`)
-    ]
-
-    console.log('🔍 Searching in paths:', possiblePaths)
-
-    let stepsData = null
-    let foundPath = null
-
-    // Try each path until we find the file
-    for (const filePath of possiblePaths) {
-      try {
-        await fs.access(filePath)
-        console.log(`✅ Found steps file at: ${filePath}`)
-        const rawData = await fs.readFile(filePath, 'utf-8')
-        stepsData = JSON.parse(rawData)
-        foundPath = filePath
-        break
-      } catch (error) {
-        console.log(`❌ Not found: ${filePath}`)
-      }
-    }
-
-    if (!stepsData) {
+    // Get steps from database
+    const steps = await DatabaseService.getSteps(moduleId)
+    
+    if (!steps || steps.length === 0) {
       console.error(`❌ Steps not found for module ${moduleId}`)
       return res.status(404).json({
         error: 'Steps not found',
         moduleId,
-        searchedPaths: possiblePaths,
-        message: 'Check server logs for detailed debugging info'
+        message: 'No steps found in database'
       })
     }
 
-    console.log(`✅ Successfully loaded steps from: ${foundPath}`)
-    
-    // Return the steps based on the file structure
-    let steps = []
-    if (stepsData.steps) {
-      steps = stepsData.steps
-    } else if (stepsData.enhancedSteps) {
-      steps = stepsData.enhancedSteps
-    } else if (stepsData.structuredSteps) {
-      steps = stepsData.structuredSteps
-    } else if (Array.isArray(stepsData)) {
-      steps = stepsData
-    } else {
-      // If it's a module data object, extract steps
-      steps = stepsData.originalSteps || stepsData.moduleSteps || []
-    }
-
-    console.log(`📦 Returning ${steps.length} steps for module ${moduleId}`)
+    console.log(`✅ Successfully loaded ${steps.length} steps from database`)
 
     res.json({
       success: true,
@@ -158,10 +106,8 @@ router.get('/:id/steps', async (req, res) => {
       steps,
       metadata: {
         totalSteps: steps.length,
-        sourceFile: foundPath,
-        hasEnhancedSteps: !!stepsData.enhancedSteps,
-        hasStructuredSteps: !!stepsData.structuredSteps,
-        stats: stepsData.stats || null
+        source: 'database',
+        hasSteps: steps.length > 0
       }
     })
 

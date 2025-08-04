@@ -2,13 +2,15 @@ import Redis from 'ioredis'
 
 // Redis configuration for Railway - handle both naming conventions
 const redisConfig = {
-  host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost', // e.g. metro.proxy.rlwy.net
-  port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'), // e.g. 40569
+  host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost',
+  port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'),
   password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
   retryStrategy: (times: number) => Math.min(times * 50, 2000),
   maxRetriesPerRequest: 3,
   lazyConnect: true,
   keepAlive: 30000,
+  // Add TLS for Railway Redis
+  tls: process.env.NODE_ENV === 'production' ? {} : undefined,
 }
 
 // Create Redis client

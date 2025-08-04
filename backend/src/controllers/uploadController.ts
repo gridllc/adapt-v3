@@ -4,6 +4,8 @@ import { storageService } from '../services/storageService.js'
 import { AudioProcessor } from '../services/audioProcessor.js'
 import { jobQueue, perfLogger } from '../services/jobQueue.js'
 import { createBasicSteps, updateTrainingData } from '../services/createBasicSteps.js'
+import { DatabaseService } from '../services/prismaService.js'
+import { UserService } from '../services/userService.js'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -44,32 +46,40 @@ export const uploadController = {
 
       perfLogger.logUploadComplete(moduleId)
 
-      // Create initial module entry with processing status
-      const newModule = {
-        id: moduleId,
-        filename: `${moduleId}.mp4`,
-        title: originalname.replace(/\.[^/.]+$/, ''),
-        createdAt: new Date().toISOString(),
-        status: 'processing',
-        progress: 0,
-        message: 'Upload complete, starting AI processing...'
-      }
+      // Create initial module entry in database
+      const title = originalname.replace(/\.[^/.]+$/, '')
       
-      // Save to modules.json
-      const modulesPath = path.join(process.cwd(), 'backend', 'src', 'data', 'modules.json')
-      await fs.promises.mkdir(path.dirname(modulesPath), { recursive: true })
+      // Get user ID if authenticated (optional for now)
+      const userId = await UserService.getUserIdFromRequest(req)
       
-      let existingModules = []
       try {
-        const raw = await fs.promises.readFile(modulesPath, 'utf-8')
-        existingModules = JSON.parse(raw)
-      } catch {
-        existingModules = []
+        await DatabaseService.createModule({
+          id: moduleId,
+          title,
+          filename: `${moduleId}.mp4`,
+          videoUrl,
+          userId: userId || undefined
+        })
+        
+        // Update status to processing
+        await DatabaseService.updateModuleStatus(moduleId, 'processing', 0, 'Upload complete, starting AI processing...')
+        console.log('✅ Module entry created in database with processing status')
+        
+        // Log activity
+        await DatabaseService.createActivityLog({
+          userId: userId || undefined,
+          action: 'CREATE_MODULE',
+          targetId: moduleId,
+          metadata: { 
+            title,
+            filename: `${moduleId}.mp4`,
+            videoUrl 
+          }
+        })
+      } catch (error) {
+        console.error('❌ Failed to create module in database:', error)
+        return res.status(500).json({ error: 'Failed to save module data' })
       }
-      
-      existingModules.push(newModule)
-      await fs.promises.writeFile(modulesPath, JSON.stringify(existingModules, null, 2))
-      console.log('✅ Module entry created with processing status')
 
       // 🔴 CRITICAL FIX: Create basic step files immediately using new service
       console.log('📝 Creating basic step files...')
@@ -126,32 +136,25 @@ export const uploadController = {
     try {
       const { moduleId } = req.params
       
-      // Read from modules.json
-      const modulesPath = path.join(process.cwd(), 'backend', 'src', 'data', 'modules.json')
-      let modules = []
-      
-      try {
-        const raw = await fs.promises.readFile(modulesPath, 'utf-8')
-        modules = JSON.parse(raw)
-      } catch {
-        return res.status(404).json({ error: 'Module not found' })
-      }
-      
-      const module = modules.find((m: any) => m.id === moduleId)
+      // Get module from database
+      const module = await DatabaseService.getModule(moduleId)
       
       if (!module) {
         return res.status(404).json({ error: 'Module not found' })
       }
 
+      // Get latest status
+      const latestStatus = module.statuses[0]
+      
       res.json({
         status: module.status || 'processing',
         progress: module.progress || 0,
-        message: module.message || '',
+        message: latestStatus?.message || '',
         steps: module.steps || [],
-        error: module.error || null,
+        error: null, // We'll handle errors differently with database
         title: module.title || '',
-        description: module.description || '',
-        totalDuration: module.totalDuration || 0
+        description: '', // We can add this field later
+        totalDuration: 0 // We can calculate this from steps later
       })
     } catch (error) {
       console.error('Status check error:', error)

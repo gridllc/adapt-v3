@@ -9,6 +9,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import ffmpegStatic from 'ffmpeg-static'
 import fs from 'fs'
+import { DatabaseService } from './prismaService.js'
+import { generateEmbedding } from '../utils/vectorUtils.js'
 
 const execAsync = promisify(exec)
 
@@ -826,7 +828,8 @@ Cleaned version:`
     userMessage: string,
     currentStep: any,
     allSteps: any[],
-    videoTime: number = 0
+    videoTime: number = 0,
+    moduleId?: string
   ): Promise<string> {
     console.log(`🤖 Generating contextual response for step: ${currentStep?.title}`)
     
@@ -839,8 +842,20 @@ Cleaned version:`
     }
     
     try {
+      // Find similar past questions if moduleId is provided
+      let similarQuestions = []
+      if (moduleId) {
+        try {
+          const embedding = await generateEmbedding(userMessage)
+          similarQuestions = await DatabaseService.findSimilarQuestions(moduleId, embedding, 0.8)
+          console.log(`🔍 Found ${similarQuestions.length} similar questions`)
+        } catch (error) {
+          console.warn('⚠️ Vector search failed:', error)
+        }
+      }
+
       // Build rich context for the AI
-      const context = this.buildStepContext(userMessage, currentStep, allSteps, videoTime)
+      const context = this.buildStepContext(userMessage, currentStep, allSteps, videoTime, similarQuestions)
       
       // Try Gemini first (cheaper)
       const geminiResponse = await this.generateWithGemini(userMessage, context)
@@ -858,7 +873,7 @@ Cleaned version:`
     }
   },
 
-  buildStepContext(userMessage: string, currentStep: any, allSteps: any[], videoTime: number): string {
+  buildStepContext(userMessage: string, currentStep: any, allSteps: any[], videoTime: number, similarQuestions: any[] = []): string {
     if (!currentStep) {
       return `You are an AI training assistant. The user is asking: "${userMessage}". Provide a helpful response about the training.`
     }
@@ -874,7 +889,7 @@ Cleaned version:`
     const seconds = currentStep.timestamp % 60
     const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`
     
-    return `You are an AI training assistant helping with a video tutorial.
+    let context = `You are an AI training assistant helping with a video tutorial.
 
 CURRENT STEP CONTEXT:
 - Step ${stepIndex} of ${totalSteps} (${progress}% complete)
@@ -887,9 +902,19 @@ CURRENT STEP CONTEXT:
 TRAINING OVERVIEW:
 ${allSteps.map((step, idx) => 
   `${idx + 1}. ${step.title} (${Math.floor(step.timestamp / 60)}:${(step.timestamp % 60).toString().padStart(2, '0')})`
+).join('\n')}`
+
+    // Add similar questions context if available
+    if (similarQuestions.length > 0) {
+      context += `\n\nSIMILAR PREVIOUS QUESTIONS:
+${similarQuestions.map((q, idx) => 
+  `${idx + 1}. Q: "${q.question.question}" A: "${q.question.answer}"`
 ).join('\n')}
 
-GUIDELINES:
+Use these similar questions as reference, but provide a fresh response tailored to the current context.`
+    }
+
+    context += `\n\nGUIDELINES:
 - Reference the current step naturally in your response
 - Use step-specific terms and aliases when relevant
 - Provide helpful, actionable advice
@@ -897,6 +922,8 @@ GUIDELINES:
 - If the user seems stuck, suggest next steps or clarification
 
 User Question: "${userMessage}"`
+
+    return context
   },
 
   async generateWithGemini(userMessage: string, context: string): Promise<string> {

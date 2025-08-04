@@ -1,0 +1,171 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and ownership
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  clerkId      String?       @unique // Clerk user ID
+  modules      Module[]
+  activityLogs ActivityLog[]
+  questions    Question[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  @@map("users")
+}
+
+// Main training module
+model Module {
+  id          String   @id @default(cuid())
+  title       String
+  filename    String   // Original video filename
+  videoUrl    String   // Full URL to video file
+  status      String   @default("processing") // processing, completed, failed
+  progress    Int      @default(0) // 0-100 progress percentage
+  userId      String?  // Optional - for future user ownership
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  steps       Step[]
+  feedbacks   Feedback[]
+  statuses    ModuleStatus[]
+  questions   Question[]
+  
+  @@map("modules")
+}
+
+// Training steps for each module
+model Step {
+  id          String   @id @default(cuid())
+  moduleId    String
+  timestamp   Int      // Video timestamp in seconds
+  title       String
+  description String
+  duration    Int      // Duration in seconds
+  order       Int      // Step order in sequence
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  questions   Question[]
+  
+  @@map("steps")
+}
+
+// Module status tracking
+model ModuleStatus {
+  id        String   @id @default(cuid())
+  moduleId  String
+  status    String   // processing, completed, failed
+  progress  Int      // 0-100
+  message   String?  // Optional status message
+  createdAt DateTime @default(now())
+  
+  // Relations
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  
+  @@map("module_statuses")
+}
+
+// User feedback system
+model Feedback {
+  id        String   @id @default(cuid())
+  moduleId  String
+  type      String   // step_generation, ai_response, etc.
+  action    String   // worked, not_working, etc.
+  context   String?  // Additional context
+  sessionId String?  // User session identifier
+  createdAt DateTime @default(now())
+  
+  // Relations
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  
+  @@map("feedbacks")
+}
+
+// AI interactions and chat history
+model AIInteraction {
+  id        String   @id @default(cuid())
+  moduleId  String
+  userMessage String
+  aiResponse String
+  source    String?  // Which AI service was used
+  context   Json?    // Additional context data
+  createdAt DateTime @default(now())
+  
+  @@map("ai_interactions")
+}
+
+// Training sessions (for analytics)
+model TrainingSession {
+  id        String   @id @default(cuid())
+  moduleId  String
+  userId    String?  // Optional user ID if authenticated
+  sessionId String   // Unique session identifier
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  duration  Int?     // Session duration in seconds
+  
+  @@map("training_sessions")
+}
+
+// Activity logs for analytics and debugging
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String   // CREATE_MODULE, DELETE_MODULE, UPLOAD_AUDIO, AI_QUESTION, etc.
+  targetId  String?  // Optional - e.g., module ID
+  metadata  Json?    // Additional context data
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@map("activity_logs")
+}
+
+// Q&A Memory for AI tutor conversations
+model Question {
+  id        String   @id @default(cuid())
+  moduleId  String
+  stepId    String?  // Optional - if AI knows which step it matched
+  question  String
+  answer    String
+  videoTime Float?   // Timestamp in video where question was asked
+  isFAQ     Boolean  @default(false) // Flag for frequently asked questions
+  userId    String?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  step      Step?    @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  vector    QuestionVector?
+  
+  @@map("questions")
+}
+
+// Vector embeddings for semantic Q&A search
+model QuestionVector {
+  id         String   @id @default(cuid())
+  questionId String   @unique
+  embedding  Float[]  // 1536 floats for OpenAI, or 768 for Gemini
+  createdAt  DateTime @default(now())
+  
+  // Relations
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@map("question_vectors")
+}

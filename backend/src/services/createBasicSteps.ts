@@ -1,5 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { DatabaseService } from './prismaService.js'
 
 // Constants for better path management - use the correct path structure
 const DATA_DIR = path.join(process.cwd(), 'backend', 'src', 'data')
@@ -126,42 +127,19 @@ export const createBasicSteps = async (moduleId: string, filename?: string): Pro
  */
 export const updateTrainingData = async (moduleId: string, updates: Partial<BasicStepData>): Promise<void> => {
   try {
-    const trainingPath = path.join(TRAINING_DIR, `${moduleId}.json`)
-    
-    // Read existing data
-    let trainingData: BasicStepData
-    try {
-      const raw = await fs.readFile(trainingPath, 'utf-8')
-      trainingData = JSON.parse(raw)
-    } catch {
-      // If file doesn't exist, create basic structure
-      trainingData = {
-        moduleId,
-        status: 'processing',
-        progress: 0,
-        message: 'Processing...',
-        createdAt: new Date().toISOString(),
-        steps: []
-      }
-    }
-    
-    // Update with new data
-    const updatedData = { ...trainingData, ...updates }
-    
     console.log(`📝 Updating training data for ${moduleId}:`, updates)
-    console.log(`📝 Writing to: ${trainingPath}`)
     
-    await fs.writeFile(trainingPath, JSON.stringify(updatedData, null, 2))
-    
-    // CRITICAL VALIDATION: Verify file was updated
-    const stats = await fs.stat(trainingPath)
-    console.log(`📊 Updated training file size: ${stats.size} bytes`)
-    
-    if (stats.size === 0) {
-      throw new Error(`Training file is empty after update: ${trainingPath}`)
+    // Update module status in database
+    if (updates.status && updates.progress !== undefined) {
+      await DatabaseService.updateModuleStatus(
+        moduleId, 
+        updates.status, 
+        updates.progress, 
+        updates.message
+      )
     }
     
-    console.log(`✅ Training data updated for ${moduleId}`)
+    console.log(`✅ Training data updated for ${moduleId} in database`)
   } catch (error) {
     console.error(`❌ Failed to update training data for ${moduleId}:`, error)
     console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
@@ -174,39 +152,12 @@ export const updateTrainingData = async (moduleId: string, updates: Partial<Basi
  */
 export const updateStepsData = async (moduleId: string, steps: any[]): Promise<void> => {
   try {
-    const stepsPath = path.join(STEPS_DIR, `${moduleId}.json`)
-    
     console.log(`📝 Updating steps data for ${moduleId} with ${steps.length} steps`)
-    console.log(`📝 Writing to: ${stepsPath}`)
     
-    const stepsData: BasicStepsData = {
-      moduleId,
-      steps: steps
-    }
+    // Save steps to database
+    await DatabaseService.createSteps(moduleId, steps)
     
-    await fs.writeFile(stepsPath, JSON.stringify(stepsData, null, 2))
-    
-    // CRITICAL VALIDATION: Verify file was written
-    const stats = await fs.stat(stepsPath)
-    console.log(`📊 Updated steps file size: ${stats.size} bytes`)
-    
-    if (stats.size === 0) {
-      throw new Error(`Steps file is empty after update: ${stepsPath}`)
-    }
-    
-    // Verify the file contains the expected data
-    const writtenData = await fs.readFile(stepsPath, 'utf-8')
-    const parsedData = JSON.parse(writtenData)
-    
-    if (!parsedData.steps || !Array.isArray(parsedData.steps)) {
-      throw new Error(`Steps file contains invalid data structure: ${stepsPath}`)
-    }
-    
-    if (parsedData.steps.length !== steps.length) {
-      throw new Error(`Steps file contains wrong number of steps: expected ${steps.length}, got ${parsedData.steps.length}`)
-    }
-    
-    console.log(`✅ Steps data updated for ${moduleId}`)
+    console.log(`✅ Steps data updated for ${moduleId} in database`)
   } catch (error) {
     console.error(`❌ Failed to update steps data for ${moduleId}:`, error)
     console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
