@@ -8,7 +8,9 @@ import { redisClient } from '../config/database.js'
 function getBullRedisConfig() {
   if (process.env.REDIS_URL) {
     try {
-      const parsed = new URL(process.env.REDIS_URL)
+      // Convert tls:// to rediss:// for URL parsing
+      const redisUrl = process.env.REDIS_URL.replace('tls://', 'rediss://')
+      const parsed = new URL(redisUrl)
       return {
         port: Number(parsed.port),
         host: parsed.hostname,

@@ -25,8 +25,12 @@ console.log('🔍 Redis Environment Check:', {
 if (process.env.USE_REDIS === 'true' && process.env.REDIS_URL) {
   console.log('🔧 Setting up Redis with URL:', process.env.REDIS_URL?.substring(0, 20) + '...')
 
+  // Convert tls:// to rediss:// for Redis client compatibility
+  const redisUrl = process.env.REDIS_URL.replace('tls://', 'rediss://')
+  console.log('🔧 Converted Redis URL:', redisUrl.substring(0, 30) + '...')
+
   redisClient = createClient({
-    url: process.env.REDIS_URL
+    url: redisUrl
   })
 
   redisClient.on('error', (err: Error) => {
