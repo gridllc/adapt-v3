@@ -218,13 +218,31 @@ const configureRoutes = () => {
   })
 
   // Health check endpoint
-  app.get('/api/health', (req, res) => {
-    res.json({ 
-      status: 'ok', 
-      timestamp: new Date().toISOString(),
-      environment: NODE_ENV,
-      uptime: process.uptime()
-    })
+  app.get('/api/health', async (req, res) => {
+    try {
+      const dbHealth = await DatabaseService.healthCheck()
+      const { redisClient } = await import('./config/database.js')
+      const redisHealth = redisClient ? await redisClient.ping().then(() => true).catch(() => false) : false
+      
+      res.json({ 
+        status: 'ok', 
+        timestamp: new Date().toISOString(),
+        environment: NODE_ENV,
+        uptime: process.uptime(),
+        postgresql: dbHealth ? 'connected' : 'failed',
+        redis: redisHealth ? 'connected' : 'failed'
+      })
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        environment: NODE_ENV,
+        uptime: process.uptime(),
+        postgresql: 'failed',
+        redis: 'failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
   })
 
   // Test endpoints for development

@@ -1,27 +1,23 @@
 // Environment detection and API base URL configuration  
 const isDevelopment = import.meta.env.MODE === 'development'
 
-// Production API URL - this should be set in Vercel environment variables
-const PRODUCTION_API_URL = 'https://adapt-v3-production.up.railway.app'
+// API base URL - Railway backend URL (with localhost fallback for development)
+const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'https://adapt-v3-production.up.railway.app')
 
 // Force production API (for testing)
 const FORCE_PRODUCTION_API = import.meta.env.VITE_FORCE_PRODUCTION_API === 'true'
 
-// In development, use empty string to leverage Vite proxy
-// In production, use the Railway URL or environment variable
-export const API_BASE_URL = isDevelopment && !FORCE_PRODUCTION_API
-  ? '' // In development always rely on Vite proxy; ignore VITE_API_BASE_URL to avoid accidental prod calls
-  : (import.meta.env.VITE_API_BASE_URL || PRODUCTION_API_URL)
+// Export the API base URL
+export const API_BASE_URL = baseURL
 
 // Debug logging
 console.log('🔧 API Configuration:', {
   mode: import.meta.env.MODE,
   isDevelopment,
-  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  VITE_API_URL: import.meta.env.VITE_API_URL,
   VITE_FORCE_PRODUCTION_API: import.meta.env.VITE_FORCE_PRODUCTION_API,
   FORCE_PRODUCTION_API,
   API_BASE_URL,
-  PRODUCTION_API_URL,
   NODE_ENV: import.meta.env.NODE_ENV,
   location: window.location.href
 })
@@ -32,8 +28,8 @@ export const API_CONFIG = {
   getApiUrl: (endpoint: string): string => {
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
     
-    // In development, just return the endpoint (proxy will handle it)
-    // In production, prepend the base URL
+    // In development, use proxy (empty base URL)
+    // In production, use the full URL from environment variable
     let fullUrl: string
     
     if (isDevelopment && !FORCE_PRODUCTION_API) {
@@ -41,9 +37,7 @@ export const API_CONFIG = {
       fullUrl = cleanEndpoint
     } else {
       // In production or when forcing production API, use the full URL
-      // If API_BASE_URL is empty, undefined, or "undefined", use the production URL
-      const baseUrl = (API_BASE_URL && API_BASE_URL !== 'undefined') ? API_BASE_URL : PRODUCTION_API_URL
-      fullUrl = `${baseUrl}${cleanEndpoint}`
+      fullUrl = `${API_BASE_URL}${cleanEndpoint}`
     }
     
     // Ensure the URL has the correct protocol

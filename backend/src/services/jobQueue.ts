@@ -2,7 +2,7 @@ import Bull from 'bull'
 import { aiService } from './aiService.js'
 import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
 import { DatabaseService } from './prismaService.js'
-import { testRedisConnection } from './redisClient.js'
+import { redisClient } from '../config/database.js'
 
 // Parse REDIS_URL for Bull (Bull doesn't support url + tls directly)
 function getBullRedisConfig() {
@@ -25,52 +25,42 @@ function getBullRedisConfig() {
     }
   }
   
-  // Fallback to individual environment variables
-  return {
-    host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost',
-    port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'),
-    password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
-    retryStrategy: (times: number) => Math.min(times * 50, 2000),
-    maxRetriesPerRequest: 3,
-    lazyConnect: true,
-    keepAlive: 30000,
-    tls: process.env.NODE_ENV === 'production' ? {} : undefined,
-  }
+  // No fallback - Redis must be explicitly configured
+  console.log('⚠️ No REDIS_URL provided - Redis will be disabled')
+  return null
 }
 
 const redisConfig = getBullRedisConfig()
 
 // Log Bull Redis configuration
 console.log('🔧 Bull Redis Configuration:')
-if (process.env.REDIS_URL) {
+if (process.env.REDIS_URL && redisConfig) {
   console.log(`   Using REDIS_URL: ${process.env.REDIS_URL.replace(/\/\/.*@/, '//***:***@')}`)
   console.log(`   Parsed host: ${redisConfig.host}`)
   console.log(`   Parsed port: ${redisConfig.port}`)
   console.log(`   TLS: Enabled`)
 } else {
-  console.log(`   Host: ${redisConfig.host}`)
-  console.log(`   Port: ${redisConfig.port}`)
-  console.log(`   Password: ${redisConfig.password ? 'SET' : 'NOT SET'}`)
+  console.log(`   Redis: DISABLED - No REDIS_URL provided`)
 }
 
 // Check if Redis is available
 async function checkRedisConnection() {
-  if (process.env.DISABLE_REDIS === 'true') {
-    console.log('⚠️ Redis disabled via DISABLE_REDIS environment variable')
+  if (process.env.USE_REDIS !== 'true') {
+    console.log('⚠️ Redis disabled via USE_REDIS environment variable')
+    return false
+  }
+  
+  if (!redisClient) {
+    console.log('⚠️ Redis client not available, using mock queue')
     return false
   }
   
   try {
-    const isConnected = await testRedisConnection()
-    if (isConnected) {
-      console.log('✅ Redis connection successful, using real queue')
-      return true
-    } else {
-      console.log('⚠️ Redis connection failed, using mock queue')
-      return false
-    }
+    await redisClient.ping()
+    console.log('✅ Redis connection successful, using real queue')
+    return true
   } catch (error) {
-    console.log('⚠️ Redis not available, using mock queue:', error)
+    console.log('⚠️ Redis connection failed, using mock queue:', error)
     return false
   }
 }
@@ -83,7 +73,7 @@ async function initializeJobQueue() {
   try {
     const redisAvailable = await checkRedisConnection()
 
-    if (redisAvailable) {
+    if (redisAvailable && redisConfig) {
       jobQueue = new Bull('video-processing', {
         redis: redisConfig,
         defaultJobOptions: {

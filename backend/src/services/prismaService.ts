@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../config/database.js'
 import { calculateCosineSimilarity } from '../utils/vectorUtils.js'
 
 // Type definitions for better type safety
@@ -8,9 +8,6 @@ interface VectorWithEmbedding {
     step?: { title: string; timestamp: number }
   }
 }
-
-// Create Prisma client instance
-const prisma = new PrismaClient()
 
 // Graceful shutdown
 process.on('beforeExit', async () => {
