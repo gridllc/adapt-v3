@@ -4,26 +4,54 @@ import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
 import { DatabaseService } from './prismaService.js'
 import { testRedisConnection } from './redisClient.js'
 
-// Redis configuration for Bull (Railway) - use REDIS_URL with explicit TLS
-const redisConfig = process.env.REDIS_URL 
-  ? {
-      url: process.env.REDIS_URL,
-      tls: {}, // ✅ Required for Railway's TLS proxy
-      retryStrategy: (times: number) => Math.min(times * 50, 2000),
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      keepAlive: 30000,
+// Parse REDIS_URL for Bull (Bull doesn't support url + tls directly)
+function getBullRedisConfig() {
+  if (process.env.REDIS_URL) {
+    try {
+      const parsed = new URL(process.env.REDIS_URL)
+      return {
+        port: Number(parsed.port),
+        host: parsed.hostname,
+        password: parsed.password,
+        tls: {}, // ✅ Required for Railway's TLS proxy
+        retryStrategy: (times: number) => Math.min(times * 50, 2000),
+        maxRetriesPerRequest: 3,
+        lazyConnect: true,
+        keepAlive: 30000,
+      }
+    } catch (error) {
+      console.error('❌ Failed to parse REDIS_URL:', error)
+      // Fall back to individual env vars
     }
-  : {
-      host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost',
-      port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'),
-      password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
-      retryStrategy: (times: number) => Math.min(times * 50, 2000),
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      keepAlive: 30000,
-      tls: process.env.NODE_ENV === 'production' ? {} : undefined,
-    }
+  }
+  
+  // Fallback to individual environment variables
+  return {
+    host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost',
+    port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'),
+    password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
+    retryStrategy: (times: number) => Math.min(times * 50, 2000),
+    maxRetriesPerRequest: 3,
+    lazyConnect: true,
+    keepAlive: 30000,
+    tls: process.env.NODE_ENV === 'production' ? {} : undefined,
+  }
+}
+
+const redisConfig = getBullRedisConfig()
+
+// Log Bull Redis configuration
+console.log('🔧 Bull Redis Configuration:')
+if (process.env.REDIS_URL) {
+  console.log(`   Using REDIS_URL: ${process.env.REDIS_URL.replace(/\/\/.*@/, '//***:***@')}`)
+  console.log(`   Parsed host: ${redisConfig.host}`)
+  console.log(`   Parsed port: ${redisConfig.port}`)
+  console.log(`   TLS: Enabled`)
+} else {
+  console.log(`   Host: ${redisConfig.host}`)
+  console.log(`   Port: ${redisConfig.port}`)
+  console.log(`   Password: ${redisConfig.password ? 'SET' : 'NOT SET'}`)
+}
 
 // Check if Redis is available
 async function checkRedisConnection() {

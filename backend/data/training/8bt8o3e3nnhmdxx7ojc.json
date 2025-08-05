@@ -1,0 +1,51 @@
+{
+  "moduleId": "8bt8o3e3nnhmdxx7ojc",
+  "status": "ready",
+  "progress": 100,
+  "message": "Processing complete! Your training module is ready.",
+  "createdAt": "2025-08-05T02:29:10.089Z",
+  "steps": [
+    {
+      "timestamp": 0,
+      "title": "Initial Access",
+      "description": "then open. That's it. Any problems? The problem that you'll have when you do this is that",
+      "duration": 5.840000152587891
+    },
+    {
+      "timestamp": 6.639999866485596,
+      "title": "Potential Lockout Issue",
+      "description": "sometimes when you hit this to do the screen, it just, you'll hear it right now, it just locked again because we're outside.",
+      "duration": 4.720000000000001
+    },
+    {
+      "timestamp": 11.359999656677246,
+      "title": "Entering the Code",
+      "description": "So now we hit the screen. I'll hit the four, these numbers again.",
+      "duration": 4.160000000000001
+    },
+    {
+      "timestamp": 15.520000457763672,
+      "title": "Incorrect Code Entry",
+      "description": "Now if I go too fast or I don't exactly hit the numbers right, it stays locked with all those numbers up there.",
+      "duration": 4.879999618530273
+    },
+    {
+      "timestamp": 20.399999618530273,
+      "title": "Resetting the Device",
+      "description": "So what does that mean? How do I reset it? I just have to keep hitting things until the screen finally goes blank with that red blink.",
+      "duration": 2.720000000000001
+    },
+    {
+      "timestamp": 23.1200008392334,
+      "title": "Screen Reset Confirmation",
+      "description": "The screen is then blank. So again,",
+      "duration": 4.720000000000001
+    },
+    {
+      "timestamp": 27.84000015258789,
+      "title": "Re-entering the Code",
+      "description": "I'm starting from the beginning, four numbers. See, I didn't have to do any order and then the code again, and then we're back in.",
+      "duration": 5.040001068115234
+    }
+  ]
+}

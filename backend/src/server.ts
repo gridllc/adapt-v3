@@ -13,6 +13,7 @@ import feedbackRoutes from './routes/feedbackRoutes.js'
 import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
+import { DatabaseService } from './services/prismaService.js'
 import { adminRoutes } from './routes/adminRoutes.js'
 import { qaRoutes } from './routes/qaRoutes.js'
 
@@ -130,32 +131,70 @@ const configureRoutes = () => {
   // Public Share Routes (no auth required)
   app.use('/api/share', shareRoutes)
 
-  // Status endpoint for debugging stuck jobs
+  // Status endpoint (database-backed)
   app.get('/api/status/:moduleId', async (req, res) => {
     try {
       const { moduleId } = req.params
-      
-      // Import status service
-      const { getModuleStatus } = await import('./services/statusService.js')
-      
-      const status = await getModuleStatus(moduleId)
-      
-      if (!status) {
-        return res.status(404).json({ 
+      console.log(`🔍 Checking status for module: ${moduleId}`)
+
+      // Fetch module including its latest status
+      const module = await DatabaseService.getModule(moduleId)
+      if (!module) {
+        console.log(`❌ Module not found: ${moduleId}`)
+        return res.status(404).json({
+          error: 'Module not found',
+          moduleId,
+          message: 'This module was never created or has been deleted',
+          timestamp: new Date().toISOString()
+        })
+      }
+
+      console.log(`✅ Module found: ${moduleId}, statuses count: ${module.statuses?.length || 0}`)
+
+      // Prisma returns statuses ordered desc; pick first
+      const latest = module.statuses?.[0]
+      if (!latest) {
+        console.log(`⚠️ Module exists but has no status records: ${moduleId}`)
+        // Create a default status for modules that exist but have no status
+        try {
+          await DatabaseService.updateModuleStatus(moduleId, 'processing', 0, 'Status initialized')
+          console.log(`✅ Created default status for module: ${moduleId}`)
+          
+          // Fetch the module again to get the new status
+          const updatedModule = await DatabaseService.getModule(moduleId)
+          const newLatest = updatedModule?.statuses?.[0]
+          
+          if (newLatest) {
+            return res.json({
+              status: newLatest.status,
+              progress: newLatest.progress,
+              message: newLatest.message,
+              moduleId,
+              timestamp: new Date().toISOString()
+            })
+          }
+        } catch (statusError) {
+          console.error(`❌ Failed to create default status for ${moduleId}:`, statusError)
+        }
+        
+        return res.status(404).json({
           error: 'Module status not found',
           moduleId,
           timestamp: new Date().toISOString()
         })
       }
-      
-      res.json({
-        ...status,
+
+      console.log(`✅ Returning status for ${moduleId}: ${latest.status} (${latest.progress}%)`)
+      return res.json({
+        status: latest.status,
+        progress: latest.progress,
+        message: latest.message,
         moduleId,
         timestamp: new Date().toISOString()
       })
     } catch (error) {
       console.error('❌ Status endpoint error:', error)
-      res.status(500).json({ 
+      return res.status(500).json({
         error: 'Failed to get module status',
         details: error instanceof Error ? error.message : 'Unknown error',
         timestamp: new Date().toISOString()
@@ -199,6 +238,30 @@ const configureRoutes = () => {
         environment: NODE_ENV,
         cors: 'enabled'
       })
+    })
+
+    app.get('/api/test-db', async (req, res) => {
+      try {
+        const moduleCount = await DatabaseService.getAllModules().then(modules => modules.length)
+        const healthCheck = await DatabaseService.healthCheck()
+        
+        res.json({ 
+          message: 'Database test',
+          timestamp: new Date().toISOString(),
+          environment: NODE_ENV,
+          database: {
+            health: healthCheck,
+            moduleCount,
+            status: 'connected'
+          }
+        })
+      } catch (error) {
+        res.status(500).json({ 
+          message: 'Database test failed',
+          error: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        })
+      }
     })
 
     app.get('/api/test-cors', (req, res) => {

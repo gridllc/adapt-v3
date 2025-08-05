@@ -127,46 +127,5 @@ export const uploadController = {
       console.error('📋 Full error stack:', error instanceof Error ? error.stack : 'No stack trace')
       res.status(500).json({ error: 'Upload failed' })
     }
-  },
-
-  // New endpoint for checking processing status
-  async getModuleStatus(req: Request, res: Response) {
-    try {
-      const moduleId = req.params.moduleId as string
-      
-      // Get module from database
-      const module = await DatabaseService.getModule(moduleId)
-      
-      if (!module) {
-        return res.status(404).json({ error: 'Module not found' })
-      }
-
-      // Get latest status
-      const latestStatus = module.statuses?.[0] || {
-        status: 'processing',
-        progress: 0,
-        message: 'Processing started'
-      }
-      
-      // Calculate total duration from steps
-      const totalDuration = (module.steps || []).reduce(
-        (acc: number, step: any) => acc + (step.duration || 0), 
-        0
-      )
-      
-      res.json({
-        status: module.status || 'processing',
-        progress: module.progress || 0,
-        message: latestStatus?.message || '',
-        steps: module.steps || [],
-        error: module.status === 'error' ? latestStatus?.message || 'Processing failed' : null,
-        title: module.title || '',
-        description: (module as any)?.description || '', // Will be populated from AI processing when schema is updated
-        totalDuration
-      })
-    } catch (error) {
-      console.error('Status check error:', error)
-      res.status(500).json({ error: 'Status check failed' })
-    }
   }
 } 
