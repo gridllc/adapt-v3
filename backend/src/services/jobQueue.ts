@@ -4,18 +4,26 @@ import { updateTrainingData, updateStepsData } from './createBasicSteps.js'
 import { DatabaseService } from './prismaService.js'
 import { testRedisConnection } from './redisClient.js'
 
-// Redis configuration for Bull (Railway) - handle both naming conventions
-const redisConfig = {
-  host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost',
-  port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'),
-  password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
-  retryStrategy: (times: number) => Math.min(times * 50, 2000),
-  maxRetriesPerRequest: 3,
-  lazyConnect: true,
-  keepAlive: 30000,
-  // Add TLS for Railway Redis
-  tls: process.env.NODE_ENV === 'production' ? {} : undefined,
-}
+// Redis configuration for Bull (Railway) - use REDIS_URL with explicit TLS
+const redisConfig = process.env.REDIS_URL 
+  ? {
+      url: process.env.REDIS_URL,
+      tls: {}, // ✅ Required for Railway's TLS proxy
+      retryStrategy: (times: number) => Math.min(times * 50, 2000),
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+      keepAlive: 30000,
+    }
+  : {
+      host: process.env.REDIS_HOST || process.env.REDISHOST || 'localhost',
+      port: Number(process.env.REDIS_PORT || process.env.REDISPORT || '6379'),
+      password: process.env.REDIS_PASSWORD || process.env.REDISPASSWORD,
+      retryStrategy: (times: number) => Math.min(times * 50, 2000),
+      maxRetriesPerRequest: 3,
+      lazyConnect: true,
+      keepAlive: 30000,
+      tls: process.env.NODE_ENV === 'production' ? {} : undefined,
+    }
 
 // Check if Redis is available
 async function checkRedisConnection() {
