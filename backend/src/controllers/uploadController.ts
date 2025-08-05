@@ -94,22 +94,18 @@ export const uploadController = {
       // Queue AI processing job (async - don't wait!)
       console.log('🚀 Queuing AI processing job...')
       try {
-        await jobQueue.add('process-video', {
+        const job = await jobQueue.add('process-video', {
           moduleId,
           videoUrl,
         })
-        console.log('✅ AI processing job queued successfully')
+        console.log('✅ AI processing job queued successfully with job ID:', job.id)
       } catch (error) {
         console.error('❌ Failed to queue AI processing job:', error)
         // Update status to indicate failure
         try {
-          await updateTrainingData(moduleId, {
-            status: 'failed',
-            message: 'Failed to start AI processing',
-            progress: 0
-          })
+          await DatabaseService.updateModuleStatus(moduleId, 'error', 0, 'Failed to start AI processing')
         } catch (updateError) {
-          console.error('❌ Failed to update training data:', updateError)
+          console.error('❌ Failed to update module status:', updateError)
         }
       }
 
@@ -136,7 +132,7 @@ export const uploadController = {
   // New endpoint for checking processing status
   async getModuleStatus(req: Request, res: Response) {
     try {
-      const { moduleId } = req.params
+      const moduleId = req.params.moduleId as string
       
       // Get module from database
       const module = await DatabaseService.getModule(moduleId)
@@ -146,10 +142,17 @@ export const uploadController = {
       }
 
       // Get latest status
-      const latestStatus = module.statuses[0]
+      const latestStatus = module.statuses?.[0] || {
+        status: 'processing',
+        progress: 0,
+        message: 'Processing started'
+      }
       
       // Calculate total duration from steps
-      const totalDuration = module.steps?.reduce((acc: number, step: any) => acc + (step.duration || 0), 0) || 0
+      const totalDuration = (module.steps || []).reduce(
+        (acc: number, step: any) => acc + (step.duration || 0), 
+        0
+      )
       
       res.json({
         status: module.status || 'processing',
@@ -158,7 +161,7 @@ export const uploadController = {
         steps: module.steps || [],
         error: module.status === 'error' ? latestStatus?.message || 'Processing failed' : null,
         title: module.title || '',
-        description: module.description || '', // Will be populated from AI processing
+        description: '', // Will be populated from AI processing when schema is updated
         totalDuration
       })
     } catch (error) {

@@ -198,7 +198,13 @@ export class DatabaseService {
     context?: Record<string, unknown>
   }) {
     return await prisma.aIInteraction.create({
-      data
+      data: {
+        moduleId: data.moduleId,
+        userMessage: data.userMessage,
+        aiResponse: data.aiResponse,
+        source: data.source,
+        context: data.context as any
+      }
     })
   }
 
@@ -245,7 +251,12 @@ export class DatabaseService {
     metadata?: Record<string, unknown>
   }) {
     return await prisma.activityLog.create({
-      data
+      data: {
+        userId: data.userId ?? null,
+        action: data.action,
+        targetId: data.targetId,
+        metadata: data.metadata as any
+      }
     })
   }
 
@@ -354,10 +365,10 @@ export class DatabaseService {
 
     // Calculate cosine similarity and filter by threshold
     const similarQuestions = vectors
-      .map((vector: VectorWithEmbedding) => ({
-        ...vector,
-        similarity: calculateCosineSimilarity(embedding, vector.embedding)
-      }))
+      .map((vector: any) => {
+        const sim = calculateCosineSimilarity(embedding, vector.embedding)
+        return { ...vector, similarity: sim }
+      })
       .filter((item: any) => item.similarity >= threshold)
       .sort((a: any, b: any) => b.similarity - a.similarity)
 
