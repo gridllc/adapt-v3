@@ -9,8 +9,9 @@ const FORCE_PRODUCTION_API = import.meta.env.VITE_FORCE_PRODUCTION_API === 'true
 
 // In development, use empty string to leverage Vite proxy
 // In production, use the Railway URL or environment variable
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (isDevelopment && !FORCE_PRODUCTION_API ? '' : PRODUCTION_API_URL)
+export const API_BASE_URL = isDevelopment && !FORCE_PRODUCTION_API
+  ? '' // In development always rely on Vite proxy; ignore VITE_API_BASE_URL to avoid accidental prod calls
+  : (import.meta.env.VITE_API_BASE_URL || PRODUCTION_API_URL)
 
 // Debug logging
 console.log('🔧 API Configuration:', {
