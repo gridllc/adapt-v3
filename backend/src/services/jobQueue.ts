@@ -13,7 +13,7 @@ function getBullRedisConfig() {
         port: Number(parsed.port),
         host: parsed.hostname,
         password: parsed.password,
-        tls: {}, // ✅ Required for Railway's TLS proxy
+        tls: process.env.NODE_ENV === 'production' ? {} : undefined,
         retryStrategy: (times: number) => Math.min(times * 50, 2000),
         maxRetriesPerRequest: 3,
         lazyConnect: true,
