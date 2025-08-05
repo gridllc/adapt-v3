@@ -1,7 +1,7 @@
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { moduleRoutes } from './routes/moduleRoutes.js'
@@ -20,8 +20,6 @@ import { qaRoutes } from './routes/qaRoutes.js'
 // Import job queue to ensure it's initialized
 import './services/jobQueue.js'
 
-// Load environment variables
-dotenv.config()
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url)
