@@ -161,7 +161,7 @@ export const uploadController = {
         steps: module.steps || [],
         error: module.status === 'error' ? latestStatus?.message || 'Processing failed' : null,
         title: module.title || '',
-        description: '', // Will be populated from AI processing when schema is updated
+        description: (module as any)?.description || '', // Will be populated from AI processing when schema is updated
         totalDuration
       })
     } catch (error) {

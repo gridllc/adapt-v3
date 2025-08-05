@@ -843,7 +843,7 @@ Cleaned version:`
     
     try {
       // Find similar past questions if moduleId is provided
-      let similarQuestions = []
+      let similarQuestions: any[] = []
       if (moduleId) {
         try {
           const embedding = await generateEmbedding(userMessage)

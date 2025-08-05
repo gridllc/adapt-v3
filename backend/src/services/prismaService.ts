@@ -203,7 +203,7 @@ export class DatabaseService {
         userMessage: data.userMessage,
         aiResponse: data.aiResponse,
         source: data.source,
-        context: data.context as any
+        context: data.context ? JSON.parse(JSON.stringify(data.context)) : undefined
       }
     })
   }
@@ -252,7 +252,7 @@ export class DatabaseService {
   }) {
     return await prisma.activityLog.create({
       data: {
-        userId: data.userId ?? null,
+        ...(data.userId ? { userId: data.userId } : {}),
         action: data.action,
         targetId: data.targetId,
         metadata: data.metadata as any
