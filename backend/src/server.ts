@@ -5,6 +5,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
@@ -169,6 +170,39 @@ const configureRoutes = () => {
     app.use('/api/test-auth', testAuthRoutes)
     app.use('/api/debug', debugRoutes)
   }
+
+  // Root endpoint - API status
+  app.get('/', (req, res) => {
+    res.json({
+      status: 'Backend running ✅',
+      version: 'v3',
+      message: 'Adapt Video Training Platform API',
+      description: 'This is the backend API server. The frontend is hosted separately.',
+      endpoints: {
+        health: '/api/health',
+        upload: '/api/upload',
+        modules: '/api/modules',
+        ai: '/api/ai',
+        status: '/api/status/:moduleId'
+      },
+      frontend: 'https://adapt-v3.vercel.app',
+      timestamp: new Date().toISOString()
+    })
+  })
+
+  // API-only mode - redirect non-API routes to frontend
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api/')) {
+      return res.redirect('https://adapt-v3.vercel.app')
+    }
+    // Let the 404 handler deal with unknown API routes
+    res.status(404).json({
+      error: 'Route not found',
+      path: req.path,
+      method: req.method,
+      message: 'This is an API-only server. Visit https://adapt-v3.vercel.app for the frontend.'
+    })
+  })
 
   // Status endpoint (database-backed)
   app.get('/api/status/:moduleId', async (req, res) => {

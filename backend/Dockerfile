@@ -15,6 +15,8 @@ RUN npm ci
 
 COPY . .
 
+# Frontend will be built separately and copied if needed
+
 # Set production env explicitly for better error handling
 ENV NODE_ENV=production
 
