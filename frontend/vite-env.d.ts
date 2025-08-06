@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_CLERK_PUBLISHABLE_KEY: string
+  readonly NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: string
   readonly VITE_API_URL: string
   readonly VITE_FORCE_PRODUCTION_API: string
   readonly DEV: boolean

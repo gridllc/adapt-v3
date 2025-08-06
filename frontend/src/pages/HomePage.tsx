@@ -14,12 +14,12 @@ import {
 } from 'lucide-react'
 
 export const HomePage: React.FC = () => {
-  const clerkConfigured = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+  const clerkConfigured = !!(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
   const { isSignedIn, isLoaded } = useAuth()
   
   // Debug logging
   console.log('🔍 HomePage Debug:')
-  console.log('📧 VITE_CLERK_PUBLISHABLE_KEY:', import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? 'SET' : 'NOT SET')
+  console.log('📧 CLERK_PUBLISHABLE_KEY:', (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) ? 'SET' : 'NOT SET')
   console.log('🔧 clerkConfigured:', clerkConfigured)
   console.log('🔐 isSignedIn:', isSignedIn)
   console.log('📦 isLoaded:', isLoaded)
@@ -176,7 +176,7 @@ export const HomePage: React.FC = () => {
           {!clerkConfigured && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 mb-8 max-w-md mx-auto">
                 <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-                ⚠️ Authentication not configured. Set VITE_CLERK_PUBLISHABLE_KEY to enable sign-in.
+                ⚠️ Authentication not configured. Set VITE_CLERK_PUBLISHABLE_KEY or NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to enable sign-in.
               </p>
             </div>
           )}

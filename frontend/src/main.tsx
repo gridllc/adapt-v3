@@ -18,7 +18,7 @@ if (import.meta.env.PROD) {
   }
 }
 
-const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
 // Configuration Error Component
 const ConfigurationError: React.FC = () => (
@@ -28,7 +28,7 @@ const ConfigurationError: React.FC = () => (
       <h1 className="text-2xl font-bold text-gray-900 mb-4">Configuration Error</h1>
       <p className="text-gray-600 mb-6">
         The Clerk authentication service is not properly configured. 
-        Please check that the <code className="bg-gray-100 px-2 py-1 rounded">VITE_CLERK_PUBLISHABLE_KEY</code> environment variable is set.
+        Please check that either <code className="bg-gray-100 px-2 py-1 rounded">VITE_CLERK_PUBLISHABLE_KEY</code> or <code className="bg-gray-100 px-2 py-1 rounded">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> environment variable is set.
       </p>
       <div className="text-sm text-gray-500">
         If you're a developer, check the console for more details.

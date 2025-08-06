@@ -1,5 +1,39 @@
-node_modules
-# Keep environment variables out of version control
+# Node
+node_modules/
+dist/
+.build/
 .env
+.env.local
+.env.*.local
+.env.production
 
-/src/generated/prisma
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+coverage/"*.mp4" 
+
+# Ignore all video files
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mkv
+
+# Ignore uploaded video folders (if applicable)
+backend/src/uploads/
+uploads/
+public/videos/"gcp-key.json" 
+
+# Google credentials
+**/gcp-key.json
+**/secrets/*.json

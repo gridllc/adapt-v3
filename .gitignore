@@ -5,6 +5,7 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.production
 
 # Logs
 logs/
@@ -36,3 +37,4 @@ public/videos/"gcp-key.json"
 # Google credentials
 **/gcp-key.json
 **/secrets/*.json
+backend/env.production 
