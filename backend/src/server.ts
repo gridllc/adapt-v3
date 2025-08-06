@@ -16,9 +16,16 @@ import shareRoutes from './routes/shareRoutes.js'
 import { DatabaseService } from './services/prismaService.js'
 import { adminRoutes } from './routes/adminRoutes.js'
 import { qaRoutes } from './routes/qaRoutes.js'
+import { workerRoutes } from './routes/workerRoutes.js'
+import { requireAuth, optionalAuth } from './middleware/auth.js'
+import { testAuthRoutes } from './routes/testAuth.js'
+import { debugRoutes } from './routes/debugRoutes.js'
 
-// Import job queue to ensure it's initialized
-import './services/jobQueue.js'
+// Import QStash queue to ensure it's initialized
+import './services/qstashQueue.js'
+
+// Import and validate S3 configuration
+import { validateS3Config } from './services/s3Uploader.js'
 
 
 // Get __dirname equivalent for ES modules
@@ -68,34 +75,44 @@ const configureMiddleware = () => {
   }))
 
   // CORS configuration
+  const corsAllowedOrigins = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',')  // comma-separated
+    : [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:5174', 
+        'http://localhost:5175',
+        'http://localhost:5176',
+        'http://localhost:5177',
+        'http://localhost:5178',
+        'http://localhost:5179',
+        'http://localhost:5180',
+        'http://localhost:5181',
+        'http://localhost:5182',
+        'http://localhost:5183',
+        'http://localhost:5184',
+        'http://localhost:5185',
+        'https://adapt-v3-sepia.vercel.app',
+        'https://adapt-v3.vercel.app'
+      ]
+
   const corsOptions = {
-    origin: process.env.FRONTEND_URL || [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://localhost:5174', 
-      'http://localhost:5175',
-      'http://localhost:5176',
-      'http://localhost:5177',
-      'http://localhost:5178',
-      'http://localhost:5179',
-      'http://localhost:5180',
-      'http://localhost:5181',
-      'http://localhost:5182',
-      'http://localhost:5183',
-      'http://localhost:5184',
-      'http://localhost:5185',
-      'https://adapt-v3-sepia.vercel.app',
-      'https://adapt-v3.vercel.app'
-    ],
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin || corsAllowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error(`Not allowed by CORS: ${origin}`))
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Range'],
   }
   app.use(cors(corsOptions))
 
-  // Body parsing middleware
-  app.use(express.json({ limit: '50mb' }))
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+  // Body parsing middleware (increased for larger video uploads)
+  app.use(express.json({ limit: '200mb' }))
+  app.use(express.urlencoded({ extended: true, limit: '200mb' }))
 
   // Request logging middleware
   app.use((req, res, next) => {
@@ -110,24 +127,31 @@ const configureMiddleware = () => {
 
 // Route configuration
 const configureRoutes = () => {
-  // API Routes
-  app.use('/api/modules', moduleRoutes)
-  app.use('/api/upload', uploadRoutes)
+  // Protected Routes (require authentication)
+  app.use('/api/upload', requireAuth, uploadRoutes)
+  app.use('/api/modules', requireAuth, moduleRoutes)
+  
+  // Steps routes with auth for generation
+  app.use('/api/steps', stepsRoutes) // Individual routes will be protected as needed
+  
+  // Public Routes (no authentication required)
   app.use('/api/ai', aiRoutes)
-  app.use('/api/steps', stepsRoutes)
   app.use('/api/video-url', videoRoutes)
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
   app.use('/api/reprocess', reprocessRoutes)
+  app.use('/api/qa', qaRoutes)
+  app.use('/api/worker', workerRoutes)
+  app.use('/api/share', shareRoutes)
   
   // Admin Routes (protected)
-  app.use('/api/admin', adminRoutes)
+  app.use('/api/admin', requireAuth, adminRoutes)
   
-  // Q&A Routes
-  app.use('/api/qa', qaRoutes)
-  
-  // Public Share Routes (no auth required)
-  app.use('/api/share', shareRoutes)
+  // Test Routes (for development)
+  if (NODE_ENV === 'development') {
+    app.use('/api/test-auth', testAuthRoutes)
+    app.use('/api/debug', debugRoutes)
+  }
 
   // Status endpoint (database-backed)
   app.get('/api/status/:moduleId', async (req, res) => {
@@ -217,30 +241,59 @@ const configureRoutes = () => {
     res.status(200).end()
   })
 
-  // Health check endpoint
+    // Enhanced health check endpoint
   app.get('/api/health', async (req, res) => {
     try {
-      const dbHealth = await DatabaseService.healthCheck()
-      const { redisClient } = await import('./config/database.js')
-      const redisHealth = redisClient ? await redisClient.ping().then(() => true).catch(() => false) : false
+      console.log('[TEST] Health check requested')
       
-      res.json({ 
-        status: 'ok', 
+      // Database check
+      const dbHealth = await DatabaseService.healthCheck()
+      console.log('[TEST] Database health:', dbHealth ? '✅ Connected' : '❌ Failed')
+      
+      // Redis check
+      const { redisClient } = await import('./config/database.js')
+      let redisHealth = false
+      if (redisClient) {
+        try {
+          await redisClient.set('health:test', 'ok')
+          const result = await redisClient.get('health:test')
+          redisHealth = result === 'ok'
+          console.log('[TEST] Redis health:', redisHealth ? '✅ Ping OK' : '❌ Redis Issue')
+        } catch (redisError) {
+          console.error('[TEST] Redis health check failed:', redisError)
+        }
+      } else {
+        console.log('[TEST] Redis health: ⚠️ Not configured')
+      }
+      
+      // S3 check
+      let s3Health = false
+      try {
+        const { checkS3Health } = await import('./services/s3Service.js')
+        s3Health = await checkS3Health()
+        console.log('[TEST] S3 health:', s3Health ? '✅ Accessible' : '❌ S3 Issue')
+      } catch (s3Error) {
+        console.error('[TEST] S3 health check failed:', s3Error)
+      }
+      
+      const response = {
+        postgres: dbHealth ? '✅ Connected' : '❌ Failed',
+        s3: s3Health ? '✅ Accessible' : '❌ S3 Issue',
+        redis: redisHealth ? '✅ Ping OK' : '❌ Redis Issue',
         timestamp: new Date().toISOString(),
         environment: NODE_ENV,
-        uptime: process.uptime(),
-        postgresql: dbHealth ? 'connected' : 'failed',
-        redis: redisHealth ? 'connected' : 'failed'
-      })
+        uptime: Math.floor(process.uptime())
+      }
+      
+      console.log('[TEST] Health check response:', response)
+      res.json(response)
+      
     } catch (error) {
-      res.status(500).json({
-        status: 'error',
-        timestamp: new Date().toISOString(),
-        environment: NODE_ENV,
-        uptime: process.uptime(),
-        postgresql: 'failed',
-        redis: 'failed',
-        error: error instanceof Error ? error.message : 'Unknown error'
+      console.error('[TEST] Health check error:', error)
+      res.status(500).json({ 
+        error: 'Health check failed', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
       })
     }
   })
@@ -318,25 +371,35 @@ const configureRoutes = () => {
       }
     })
 
-    app.get('/api/test-speech', async (req, res) => {
-      try {
-        const { audioProcessor } = await import('./services/audioProcessor.js')
-        await audioProcessor.ensureSpeechClient()
-        res.json({ 
-          status: 'success', 
-          message: 'Google Cloud Speech client initialized successfully',
-          timestamp: new Date().toISOString()
-        })
-      } catch (error) {
-        res.status(500).json({ 
-          status: 'error', 
-          message: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        })
-      }
-    })
-  }
-}
+         app.get('/api/test-speech', async (req, res) => {
+       try {
+         const { audioProcessor } = await import('./services/audioProcessor.js')
+         await audioProcessor.ensureSpeechClient()
+         res.json({ 
+           status: 'success', 
+           message: 'Google Cloud Speech client initialized successfully',
+           timestamp: new Date().toISOString()
+         })
+       } catch (error) {
+         res.status(500).json({ 
+           status: 'error', 
+           message: error instanceof Error ? error.message : 'Unknown error',
+           timestamp: new Date().toISOString()
+         })
+       }
+     })
+
+     // Debug environment variables (development only)
+     app.get('/api/debug/env', (req, res) => {
+       res.json({
+         message: 'Environment variables (keys only)',
+         timestamp: new Date().toISOString(),
+         environment: NODE_ENV,
+         envKeys: Object.keys(process.env).sort()
+       })
+     })
+   }
+ }
 
 // Error handling middleware
 const configureErrorHandling = () => {
@@ -371,14 +434,14 @@ const configureErrorHandling = () => {
   })
 }
 
-// Server startup
-const startServer = () => {
-  const server = app.listen(PORT, () => {
-    console.log('🚀 Server Configuration:')
-    console.log(`   📍 Port: ${PORT}`)
-    console.log(`   🌍 Environment: ${NODE_ENV}`)
-    console.log(`   📁 Uploads: ${path.join(__dirname, '../uploads')}`)
-    console.log(`   🔗 URL: http://localhost:${PORT}`)
+  // Server startup
+  const startServer = () => {
+    const server = app.listen(PORT, () => {
+      console.log('🚀 Server Configuration:')
+      console.log(`   📍 Port: ${PORT}`)
+      console.log(`   🌍 Environment: ${NODE_ENV}`)
+      console.log(`   📁 Uploads: ${path.resolve(__dirname, '../uploads')}`)
+      console.log(`   🔗 URL: http://localhost:${PORT}`)
     
     console.log('\n📚 Available API Endpoints:')
     console.log('   POST /api/upload')
@@ -420,6 +483,7 @@ const startServer = () => {
 const initializeServer = () => {
   try {
     validateEnvironment()
+    validateS3Config() // Validate S3 configuration
     configureMiddleware()
     configureRoutes()
     configureErrorHandling()

@@ -1,18 +1,19 @@
 import express from 'express'
 import { stepsController } from '../controllers/stepsController.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// Get steps for a specific module
+// Get steps for a specific module (public)
 router.get('/:moduleId', stepsController.getSteps)
 
-// Create steps for a module
-router.post('/:moduleId', stepsController.createSteps)
+// Create steps for a module (protected)
+router.post('/:moduleId', requireAuth, stepsController.createSteps)
 
-// Update steps for a module
-router.put('/:moduleId', stepsController.updateSteps)
+// Update steps for a module (protected)
+router.put('/:moduleId', requireAuth, stepsController.updateSteps)
 
-// AI rewrite endpoint
-router.post('/:moduleId/rewrite', stepsController.rewriteStep)
+// AI rewrite endpoint (protected)
+router.post('/:moduleId/rewrite', requireAuth, stepsController.rewriteStep)
 
 export { router as stepsRoutes }

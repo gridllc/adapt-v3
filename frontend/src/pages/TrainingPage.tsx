@@ -47,6 +47,7 @@ export const TrainingPage: React.FC = () => {
   const [stepsError, setStepsError] = useState<string | null>(null)
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
   const [retryCount, setRetryCount] = useState(0)
+  const [hasTriedOnce, setHasTriedOnce] = useState(false)
   const maxRetries = 5
 
   const [chatMessage, setChatMessage] = useState('')
@@ -201,7 +202,14 @@ export const TrainingPage: React.FC = () => {
       return
     }
 
+    // Prevent auto-retries after refresh unless user manually retries
+    if (hasTriedOnce && retryCount === 0) {
+      console.log(`🔄 Skipping auto-retry for ${moduleId} - already tried once`)
+      return
+    }
+
     const fetchSteps = async () => {
+      console.log(`[AI DEBUG] Attempting to fetch steps for ${moduleId}, retry ${retryCount}`)
       setStepsLoading(true)
       setStepsError(null)
       try {
@@ -218,15 +226,20 @@ export const TrainingPage: React.FC = () => {
           }
         }
         
+        console.log(`✅ Successfully loaded ${data.steps.length} steps for ${moduleId}`)
         setSteps(data.steps)
         setRetryCount(0)
+        setHasTriedOnce(true)
       } catch (err: any) {
+        console.error(`❌ Error fetching steps for ${moduleId}:`, err)
         if (retryCount < maxRetries) {
-          console.warn(`Retry ${retryCount + 1}/${maxRetries}...`)
+          console.warn(`🔄 Retry ${retryCount + 1}/${maxRetries} for ${moduleId}...`)
           setTimeout(() => setRetryCount(prev => prev + 1), 2000)
         } else {
+          console.error(`💥 Max retries reached for ${moduleId}`)
           setStepsError('Failed to load steps after multiple attempts')
           setSteps([])
+          setHasTriedOnce(true)
         }
       } finally {
         setStepsLoading(false)
@@ -234,12 +247,15 @@ export const TrainingPage: React.FC = () => {
     }
 
     fetchSteps()
-  }, [moduleId, retryCount, status?.status]) // Added status.status as dependency
+  }, [moduleId, retryCount, status?.status, hasTriedOnce]) // Added hasTriedOnce as dependency
 
   const handleProcessWithAI = async () => {
     if (!moduleId) return
     
+    console.log(`[AI DEBUG] Processing AI steps for ${moduleId}`)
     setProcessingAI(true)
+    setStepsError(null) // Clear any previous errors
+    
     try {
       console.log('🤖 AI processing requested for module:', moduleId)
       
@@ -253,13 +269,18 @@ export const TrainingPage: React.FC = () => {
       
       console.log('✅ AI processing completed:', result)
       
+      // Reset retry state and reload steps after successful processing
+      setRetryCount(0)
+      setHasTriedOnce(false) // Allow fresh attempt
+      
       // Reload steps after successful processing
       setTimeout(() => {
+        console.log(`🔄 Triggering steps reload for ${moduleId} after AI processing`)
         setRetryCount(0) // Reset retry count to trigger steps reload
       }, 1000)
       
     } catch (err) {
-      console.error('AI processing error:', err)
+      console.error('❌ AI processing error:', err)
       setStepsError(`AI processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setProcessingAI(false)
@@ -543,24 +564,30 @@ Just ask me anything about the training!`
               <div className="text-center py-8">
                 <div className="text-red-500 mb-2">⚠️</div>
                 <p className="text-red-600">{stepsError}</p>
-                {retryCount >= maxRetries ? (
+
+                <div className="mt-4 flex gap-3 justify-center">
                   <button
-                    onClick={() => setRetryCount(0)}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                    onClick={() => {
+                      setRetryCount(0)
+                      setHasTriedOnce(false) // Reset to allow fresh attempt
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
                   >
                     🔁 Retry Loading Steps
                   </button>
-                ) : (
                   <button
                     onClick={handleProcessWithAI}
                     disabled={processingAI}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg"
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg"
                   >
-                    {processingAI ? '🤖 Processing...' : '🤖 Try AI Processing'}
+                    🤖 Re-run AI Step Detection
                   </button>
-                )}
+                </div>
+
                 {processingAI && (
-                  <p className="text-sm text-blue-600 mt-2">⏳ Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.</p>
+                  <p className="text-sm text-blue-600 mt-2 animate-pulse">
+                    ⏳ AI is working... give it a sec, it's growing a brain.
+                  </p>
                 )}
               </div>
             ) : steps && steps.length > 0 ? (
@@ -587,16 +614,33 @@ Just ask me anything about the training!`
               <div className="text-center py-8">
                 <div className="text-gray-400 mb-2">📝</div>
                 <p className="text-gray-600">No steps available for this training</p>
-                <div className="text-xs text-gray-400 mt-2">
-                  Debug: moduleId={moduleId}, url={url ? 'loaded' : 'not loaded'}, steps={steps.length}
+                
+                {/* Debug info for developers */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="text-xs text-gray-400 mt-2">
+                    Debug: moduleId={moduleId}, url={url ? 'loaded' : 'not loaded'}, steps={steps.length}, hasTriedOnce={hasTriedOnce.toString()}
+                  </div>
+                )}
+                
+                <div className="mt-4 flex gap-3 justify-center">
+                  <button
+                    onClick={() => {
+                      setRetryCount(0)
+                      setHasTriedOnce(false) // Reset to allow fresh attempt
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
+                  >
+                    🔁 Retry Loading Steps
+                  </button>
+                  <button
+                    onClick={handleProcessWithAI}
+                    disabled={processingAI}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm"
+                  >
+                    🤖 Generate Steps with AI
+                  </button>
                 </div>
-                <button
-                  onClick={handleProcessWithAI}
-                  disabled={processingAI}
-                  className="mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg text-sm"
-                >
-                  {processingAI ? '🤖 Processing...' : '🤖 Generate Steps with AI'}
-                </button>
+                
                 {processingAI && (
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mt-4 shadow-sm">
                     <div className="flex items-center justify-center gap-3 mb-3">

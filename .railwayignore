@@ -1,7 +1,0 @@
-frontend/
-docs/
-tests/
-.git/
-.github/
-*.md
-.env* 

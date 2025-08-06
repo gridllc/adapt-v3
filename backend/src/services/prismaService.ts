@@ -5,7 +5,7 @@ import { calculateCosineSimilarity } from '../utils/vectorUtils.js'
 interface VectorWithEmbedding {
   embedding: number[]
   question: {
-    step?: { title: string; timestamp: number }
+    step?: { title: string; startTime: number }
   }
 }
 
@@ -144,7 +144,8 @@ export class DatabaseService {
   }>) {
     const stepData = steps.map((step, index) => ({
       moduleId,
-      timestamp: step.timestamp,
+      startTime: step.timestamp,
+      endTime: step.timestamp + step.duration,
       title: step.title,
       description: step.description,
       duration: step.duration,

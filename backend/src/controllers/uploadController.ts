@@ -1,19 +1,10 @@
 import { Request, Response } from 'express'
-import { aiService } from '../services/aiService.js'
 import { storageService } from '../services/storageService.js'
-import { AudioProcessor } from '../services/audioProcessor.js'
-import { jobQueue, perfLogger } from '../services/jobQueue.js'
-import { createBasicSteps, updateTrainingData } from '../services/createBasicSteps.js'
+import { enqueueProcessVideoJob, perfLogger } from '../services/qstashQueue.js'
+import { createBasicSteps } from '../services/createBasicSteps.js'
 import { DatabaseService } from '../services/prismaService.js'
+import { ModuleService } from '../services/moduleService.js'
 import { UserService } from '../services/userService.js'
-import path from 'path'
-import fs from 'fs'
-import { fileURLToPath } from 'url'
-import { transcribeS3Video } from '../services/transcriptionService.js'
-
-// Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
@@ -25,9 +16,9 @@ export const uploadController = {
         return res.status(400).json({ error: 'No file uploaded' })
       }
 
-      console.log('📦 File uploaded:', req.file.originalname)
-      console.log('📦 File size:', req.file.size, 'bytes')
-      console.log('📦 File mimetype:', req.file.mimetype)
+      console.log('[TEST] 📁 Upload started:', req.file.originalname)
+      console.log('[TEST] 📁 File size:', req.file.size, 'bytes')
+      console.log('[TEST] 📁 File mimetype:', req.file.mimetype)
 
       const file = req.file
       const originalname = file.originalname
@@ -39,13 +30,16 @@ export const uploadController = {
 
       perfLogger.startUpload(file.originalname)
 
-      console.log('💾 Starting storage upload...')
+      console.log('[TEST] 📁 Saving to storage...')
       // Upload to storage and get the moduleId that was actually used
       const { moduleId, videoUrl } = await storageService.uploadVideo(file)
-      console.log('✅ Storage upload completed:', { moduleId, videoUrl })
+      console.log('[TEST] 📁 Module ID:', moduleId)
+      console.log('[TEST] 📁 Video URL:', videoUrl)
 
       perfLogger.logUploadComplete(moduleId)
 
+      // CRITICAL: Don't create DB entry until video is saved successfully
+      // This ensures we never have orphaned DB records without actual video files
       // Create initial module entry in database
       const title = originalname.replace(/\.[^/.]+$/, '')
       
@@ -62,7 +56,7 @@ export const uploadController = {
         })
         
         // Update status to processing
-        await DatabaseService.updateModuleStatus(moduleId, 'processing', 0, 'Upload complete, starting AI processing...')
+        await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Upload complete, starting AI processing...')
         console.log('✅ Module entry created in database with processing status')
         
         // Log activity
@@ -88,22 +82,24 @@ export const uploadController = {
         console.log('✅ Basic step files created')
       } catch (error) {
         console.error('❌ Failed to create basic step files:', error)
-        // Continue anyway - the background processing will handle this
+        console.warn(`⚠️ CRITICAL: Basic steps fallback failed for ${moduleId} - module may 404 until AI completes`)
+        console.warn(`⚠️ Users visiting /training/${moduleId} will see loading state until AI processing finishes`)
+        // Continue anyway - the background processing will handle this, but UX will be degraded
       }
 
       // Queue AI processing job (async - don't wait!)
       console.log('🚀 Queuing AI processing job...')
       try {
-        const job = await jobQueue.add('process-video', {
+        const job = await enqueueProcessVideoJob({
           moduleId,
           videoUrl,
         })
-        console.log('✅ AI processing job queued successfully with job ID:', job.id)
+        console.log('✅ AI processing job queued successfully with job ID:', job?.id || 'unknown')
       } catch (error) {
         console.error('❌ Failed to queue AI processing job:', error)
         // Update status to indicate failure
         try {
-          await DatabaseService.updateModuleStatus(moduleId, 'error', 0, 'Failed to start AI processing')
+          await ModuleService.updateModuleStatus(moduleId, 'failed', 0, 'Failed to start AI processing')
         } catch (updateError) {
           console.error('❌ Failed to update module status:', updateError)
         }
@@ -118,7 +114,9 @@ export const uploadController = {
         title,
         status: 'processing',
         message: 'Upload complete! AI processing has started in the background.',
-        totalDuration: 0 // Will be calculated from steps later
+        totalDuration: 0, // Will be calculated from steps later
+        fallbackStepsUrl: `/training/${moduleId}.json`, // Frontend can load basic training info immediately
+        trainingUrl: `/training/${moduleId}` // Direct link to training page
       })
       console.log('✅ Upload response sent - AI processing continues in background')
 

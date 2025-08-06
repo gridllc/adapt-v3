@@ -3,7 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
-  // Ensure proper output for Railway deployment
+  // Ensure proper output for Render deployment
 }
 
 datasource db {
@@ -19,6 +19,7 @@ model User {
   modules      Module[]
   activityLogs ActivityLog[]
   questions    Question[]
+  trainingSessions TrainingSession[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   
@@ -31,7 +32,7 @@ model Module {
   title       String
   filename    String   // Original video filename
   videoUrl    String   // Full URL to video file
-  status      String   @default("processing") // processing, completed, failed
+  status      String   @default("processing") // processing, ready, failed, orphaned
   progress    Int      @default(0) // 0-100 progress percentage
   userId      String?  // Optional - for future user ownership
   createdAt   DateTime @default(now())
@@ -43,7 +44,12 @@ model Module {
   feedbacks   Feedback[]
   statuses    ModuleStatus[]
   questions   Question[]
+  aiInteractions AIInteraction[]
+  trainingSessions TrainingSession[]
   
+  @@index([status])
+  @@index([userId])
+  @@index([createdAt])
   @@map("modules")
 }
 
@@ -51,7 +57,8 @@ model Module {
 model Step {
   id          String   @id @default(cuid())
   moduleId    String
-  timestamp   Int      // Video timestamp in seconds
+  startTime   Int      // Video start timestamp in seconds
+  endTime     Int      // Video end timestamp in seconds
   title       String
   description String
   duration    Int      // Duration in seconds
@@ -62,6 +69,7 @@ model Step {
   module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   questions   Question[]
   
+  @@unique([moduleId, order])
   @@map("steps")
 }
 
@@ -106,6 +114,9 @@ model AIInteraction {
   context   Json?    // Additional context data
   createdAt DateTime @default(now())
   
+  // Relations
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  
   @@map("ai_interactions")
 }
 
@@ -118,6 +129,10 @@ model TrainingSession {
   startedAt DateTime @default(now())
   endedAt   DateTime?
   duration  Int?     // Session duration in seconds
+  
+  // Relations
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   
   @@map("training_sessions")
 }
@@ -155,6 +170,9 @@ model Question {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   vector    QuestionVector?
   
+  @@index([moduleId])
+  @@index([stepId])
+  @@index([isFAQ])
   @@map("questions")
 }
 

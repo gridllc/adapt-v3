@@ -28,7 +28,7 @@ export const ApiDebug: React.FC = () => {
 
   const testDirect = async () => {
     try {
-      const response = await fetch('https://adapt-v3-production.up.railway.app/api/health')
+      const response = await fetch('https://adapt-v3-backend.onrender.com/api/health')
       const data = await response.json()
       setTestResults(prev => ({ ...prev, direct: { success: true, data } }))
     } catch (error) {
@@ -69,7 +69,7 @@ export const ApiDebug: React.FC = () => {
 
       <div className="space-y-2 mb-3">
         <button onClick={testDirect} className="bg-green-500 text-white px-2 py-1 rounded text-xs w-full">
-          Test Direct Railway
+          Test Direct Render
         </button>
         <button onClick={testViaConfig} className="bg-blue-500 text-white px-2 py-1 rounded text-xs w-full">
           Test Via Config

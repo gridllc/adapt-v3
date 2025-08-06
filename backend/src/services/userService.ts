@@ -39,7 +39,12 @@ export class UserService {
    */
   static async getUserIdFromRequest(req: any): Promise<string | null> {
     try {
-      // This assumes you have Clerk middleware that adds user to req
+      // The auth middleware adds userId to the request
+      if (req.userId) {
+        return req.userId
+      }
+      
+      // Fallback to Clerk user ID if available
       const clerkUser = req.auth?.userId
       
       if (!clerkUser) {
