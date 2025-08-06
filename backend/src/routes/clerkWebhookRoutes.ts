@@ -3,8 +3,13 @@ import express, { Request, Response } from 'express'
 import { z } from 'zod'
 import fs from 'fs/promises'
 import path from 'path'
+import { fileURLToPath } from 'url'
 
 const router = express.Router()
+
+// ES Module compatible __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const eventSchema = z.object({
   type: z.string(),

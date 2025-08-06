@@ -15,6 +15,7 @@ import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
 import { DatabaseService } from './services/prismaService.js'
+import { prisma } from './config/database.js'
 import { adminRoutes } from './routes/adminRoutes.js'
 import { qaRoutes } from './routes/qaRoutes.js'
 import { workerRoutes } from './routes/workerRoutes.js'
@@ -440,11 +441,42 @@ const configureErrorHandling = () => {
   return server
 }
 
+// Test database connection with retry
+const testDatabaseConnection = async () => {
+  const maxAttempts = 5
+  let attempt = 1
+  
+  while (attempt <= maxAttempts) {
+    try {
+      console.log(`🔍 Testing database connection (attempt ${attempt}/${maxAttempts})...`)
+      await prisma.$queryRaw`SELECT 1`
+      console.log('✅ Database connection successful')
+      return true
+    } catch (error) {
+      console.log(`❌ Database connection failed (attempt ${attempt}/${maxAttempts}):`, error instanceof Error ? error.message : 'Unknown error')
+      
+      if (attempt === maxAttempts) {
+        console.log('⚠️ All database connection attempts failed. Starting server anyway...')
+        return false
+      }
+      
+      console.log('⏳ Waiting 10 seconds before retry...')
+      await new Promise(resolve => setTimeout(resolve, 10000))
+      attempt++
+    }
+  }
+  return false
+}
+
 // Initialize server
-const initializeServer = () => {
+const initializeServer = async () => {
   try {
     validateEnvironment()
     validateS3Config() // Validate S3 configuration
+    
+    // Test database connection (but don't fail if it's not available)
+    await testDatabaseConnection()
+    
     configureMiddleware()
     configureRoutes()
     configureErrorHandling()
@@ -456,4 +488,7 @@ const initializeServer = () => {
 }
 
 // Start the server
-initializeServer() 
+initializeServer().catch(error => {
+  console.error('❌ Failed to start server:', error)
+  process.exit(1)
+}) 

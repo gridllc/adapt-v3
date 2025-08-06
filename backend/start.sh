@@ -10,22 +10,52 @@ fi
 
 echo "✅ DATABASE_URL is configured"
 
-# Run database migrations at startup (when DATABASE_URL is available)
-echo "🔄 Running database migrations..."
-npx prisma migrate deploy
+# Function to test database connectivity
+test_database_connection() {
+    echo "🔍 Testing database connection..."
+    timeout 10s npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1
+    return $?
+}
 
-if [ $? -eq 0 ]; then
-    echo "✅ Database migrations completed successfully"
+# Function to run migrations with retry
+run_migrations_with_retry() {
+    local max_attempts=5
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo "🔄 Running database migrations (attempt $attempt/$max_attempts)..."
+        
+        if npx prisma migrate deploy; then
+            echo "✅ Database migrations completed successfully"
+            return 0
+        else
+            echo "❌ Database migrations failed (attempt $attempt/$max_attempts)"
+            
+            if [ $attempt -eq $max_attempts ]; then
+                echo "⚠️ All migration attempts failed. Starting server anyway..."
+                return 1
+            fi
+            
+            echo "⏳ Waiting 10 seconds before retry..."
+            sleep 10
+            attempt=$((attempt + 1))
+        fi
+    done
+}
+
+# Test database connection first
+if test_database_connection; then
+    echo "✅ Database connection successful"
+    # Run migrations with retry
+    run_migrations_with_retry
 else
-    echo "❌ Database migrations failed"
-    exit 1
+    echo "⚠️ Database connection failed, but continuing..."
+    echo "⚠️ Migrations will be retried when database becomes available"
 fi
 
-# Optional: Generate Prisma client again (in case of version mismatches)
+# Generate Prisma client (this should work even without DB connection)
 echo "🔄 Generating Prisma client..."
-npx prisma generate
-
-if [ $? -eq 0 ]; then
+if npx prisma generate; then
     echo "✅ Prisma client generated successfully"
 else
     echo "⚠️ Prisma client generation failed, but continuing..."

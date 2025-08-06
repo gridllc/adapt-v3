@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
 import multer from 'multer'
 import { storageService } from '../services/storageService.js'
 import { enqueueProcessVideoJob, perfLogger } from '../services/qstashQueue.js'
@@ -14,6 +15,10 @@ import { UserService } from '../services/userService.js'
 interface MulterRequest extends Request {
   file: any
 }
+
+// ES Module compatible __dirname
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Configure upload directory
 const uploadDir = path.resolve(__dirname, '../../uploads')
