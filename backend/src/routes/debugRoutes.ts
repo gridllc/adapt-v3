@@ -255,7 +255,7 @@ router.get('/env', (req, res) => {
       // AWS S3 (checking both naming conventions)
       s3: {
         // What your code expects:
-        bucket: process.env.S3_BUCKET_NAME || 'MISSING',
+        bucket: process.env.AWS_BUCKET_NAME || 'MISSING',
         region: process.env.S3_REGION || 'MISSING',
         accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
         secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
@@ -308,12 +308,12 @@ router.get('/env', (req, res) => {
         totalEnvVars: Object.keys(process.env).length,
         criticalMissing: [
           !process.env.DATABASE_URL && 'DATABASE_URL',
-          !process.env.S3_BUCKET_NAME && 'S3_BUCKET_NAME',
+          !process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
           !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
           !process.env.CLERK_SECRET_KEY && 'CLERK_SECRET_KEY'
         ].filter(Boolean),
         renderMismatches: [
-          !process.env.S3_BUCKET_NAME && process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME→S3_BUCKET_NAME',
+          !process.env.AWS_BUCKET_NAME && process.env.S3_BUCKET_NAME && 'S3_BUCKET_NAME→AWS_BUCKET_NAME',
           !process.env.S3_REGION && process.env.AWS_REGION && 'AWS_REGION→S3_REGION',
           !process.env.QSTASH_ENDPOINT && process.env.QSTASH_URL && 'QSTASH_URL→QSTASH_ENDPOINT'
         ].filter(Boolean)

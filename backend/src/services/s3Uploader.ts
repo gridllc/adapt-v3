@@ -1,7 +1,7 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME!
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME!
 
 /**
  * Get S3 client with validation
@@ -126,7 +126,7 @@ export async function getPresignedUrl(filename: string, expiresIn: number = 3600
  * Check if S3 is properly configured
  */
 export function isS3Configured(): boolean {
-  return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.S3_BUCKET_NAME)
+  return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_BUCKET_NAME)
 }
 
 /**

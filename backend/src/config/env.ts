@@ -10,8 +10,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   
   // AWS S3 (Critical for file storage)
-  S3_BUCKET_NAME: z.string().min(1, 'S3_BUCKET_NAME is required'),
-  S3_REGION: z.string().default('us-east-1'),
+  AWS_BUCKET_NAME: z.string().min(1, 'AWS_BUCKET_NAME is required'),
+  AWS_REGION: z.string().default('us-east-1'),
   AWS_ACCESS_KEY_ID: z.string().min(1, 'AWS_ACCESS_KEY_ID is required'),
   AWS_SECRET_ACCESS_KEY: z.string().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
   
@@ -78,8 +78,8 @@ try {
       NODE_ENV: 'development',
       PORT: 8000,
       DATABASE_URL: process.env.DATABASE_URL || '',
-      S3_BUCKET_NAME: process.env.S3_BUCKET_NAME || '',
-      S3_REGION: process.env.S3_REGION || 'us-east-1',
+      AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME || '',
+      AWS_REGION: process.env.AWS_REGION || 'us-east-1',
       AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
       AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
       USE_REDIS: process.env.USE_REDIS || 'true',
@@ -98,7 +98,7 @@ export { env }
 export const isProduction = () => env?.NODE_ENV === 'production'
 export const isDevelopment = () => env?.NODE_ENV === 'development'
 export const hasRedis = () => !!(env?.UPSTASH_REDIS_REST_URL && env?.UPSTASH_REDIS_REST_TOKEN)
-export const hasS3 = () => !!(env?.AWS_ACCESS_KEY_ID && env?.AWS_SECRET_ACCESS_KEY && env?.S3_BUCKET_NAME)
+export const hasS3 = () => !!(env?.AWS_ACCESS_KEY_ID && env?.AWS_SECRET_ACCESS_KEY && env?.AWS_BUCKET_NAME)
 export const hasOpenAI = () => !!env?.OPENAI_API_KEY
 export const hasGemini = () => !!env?.GEMINI_API_KEY
 export const hasGoogle = () => !!(env?.GOOGLE_CLIENT_EMAIL && env?.GOOGLE_PRIVATE_KEY && env?.GOOGLE_PROJECT_ID)
