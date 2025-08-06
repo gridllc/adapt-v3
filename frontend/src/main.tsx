@@ -20,6 +20,13 @@ if (import.meta.env.PROD) {
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
+// Debug: Environment variables
+console.log('🔧 Environment Check:', {
+  VITE_CLERK_PUBLISHABLE_KEY: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
+  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
+  CLERK_PUBLISHABLE_KEY: CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing'
+})
+
 // Configuration Error Component
 const ConfigurationError: React.FC = () => (
   <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
