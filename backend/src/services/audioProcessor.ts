@@ -80,17 +80,21 @@ export class AudioProcessor {
 
   private async initializeSpeechClient() {
     try {
-      console.log('🔑 Initializing Google Cloud Speech client with environment variables')
-      console.log('📧 Client Email:', process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'NOT SET')
-      console.log('🔑 Private Key:', process.env.GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET')
-      console.log('🏢 Project ID:', process.env.GOOGLE_PROJECT_ID ? 'SET' : 'NOT SET')
+      const isDev = process.env.NODE_ENV === 'development'
+      
+      if (isDev) {
+        console.log('🔑 Initializing Google Cloud Speech client with environment variables')
+        console.log('📧 Client Email:', process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'NOT SET')
+        console.log('🔑 Private Key:', process.env.GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET')
+        console.log('🏢 Project ID:', process.env.GOOGLE_PROJECT_ID ? 'SET' : 'NOT SET')
+      }
 
       if (
         process.env.GOOGLE_CLIENT_EMAIL &&
         process.env.GOOGLE_PRIVATE_KEY &&
         process.env.GOOGLE_PROJECT_ID
       ) {
-        console.log('✅ Using Google Cloud credentials from environment variables')
+        if (isDev) console.log('✅ Using Google Cloud credentials from environment variables')
         this.speechClient = new speech.SpeechClient({
           credentials: {
             client_email: process.env.GOOGLE_CLIENT_EMAIL,
@@ -98,7 +102,7 @@ export class AudioProcessor {
           },
           projectId: process.env.GOOGLE_PROJECT_ID,
         })
-        console.log('✅ Google Cloud Speech client initialized successfully with env vars')
+        if (isDev) console.log('✅ Google Cloud Speech client initialized successfully with env vars')
       } else {
         console.warn('⚠️ Missing Google Cloud environment variables, using default credentials')
         this.speechClient = new speech.SpeechClient()
@@ -564,30 +568,80 @@ export class AudioProcessor {
     }
   }
 
-  private generateRealisticTranscript(duration: number, audioPath: string): string {
-    // Generate realistic transcript based on video characteristics
+  private generateRealisticTranscript(duration: number, audioPath: string, context?: string): string {
+    // Generate realistic transcript based on video characteristics and context
     const fileName = audioPath.split('/').pop() || audioPath.split('\\').pop() || ''
     const moduleId = fileName.replace('_speech.wav', '')
     
-    // Create realistic training content based on module ID
-    const trainingContent = [
-      "Welcome to this training module. Let's get started with the first step.",
-      "I'll show you how to complete this task step by step.",
-      "First, make sure you have all the necessary tools ready.",
-      "Now, let's begin with the main process.",
-      "Pay close attention to the details as I demonstrate.",
-      "This is an important step that requires careful attention.",
-      "You can see how this technique improves efficiency.",
-      "Remember to follow these safety guidelines throughout.",
-      "Let me show you the proper way to handle this situation.",
-      "This completes our training session. Thank you for your attention."
-    ]
+    // Determine content type based on module ID or context
+    const isTechnical = moduleId.includes('tech') || moduleId.includes('code') || context?.includes('technical')
+    const isSafety = moduleId.includes('safety') || moduleId.includes('security') || context?.includes('safety')
+    const isProcess = moduleId.includes('process') || moduleId.includes('workflow') || context?.includes('process')
     
-    // Select content based on duration and module characteristics
-    const contentLength = Math.max(3, Math.floor(duration / 10))
-    const selectedContent = trainingContent.slice(0, contentLength)
+    // Dynamic training content based on context
+    const trainingContent = {
+      technical: [
+        "Welcome to this technical training session. I'll walk you through the implementation step by step.",
+        "First, let's review the prerequisites and ensure our development environment is properly configured.",
+        "Now I'll demonstrate the core concepts and show you the best practices for this approach.",
+        "Pay attention to the syntax and structure as I explain each component in detail.",
+        "This technique significantly improves performance and maintainability of your code.",
+        "Remember to follow coding standards and documentation practices throughout your development.",
+        "Let me show you how to handle edge cases and error scenarios properly.",
+        "This completes our technical training. Practice these concepts to reinforce your understanding."
+      ],
+      safety: [
+        "Welcome to this important safety training module. Your safety is our top priority.",
+        "Before we begin, let's review the safety protocols and emergency procedures.",
+        "I'll demonstrate the proper safety equipment and protective measures required.",
+        "Pay close attention to these critical safety guidelines that must be followed at all times.",
+        "This safety procedure helps prevent accidents and ensures everyone goes home safely.",
+        "Remember to always wear appropriate protective gear and follow safety protocols.",
+        "Let me show you the correct way to handle potentially hazardous situations.",
+        "This concludes our safety training. Always prioritize safety in everything you do."
+      ],
+      process: [
+        "Welcome to this process training module. I'll guide you through each step systematically.",
+        "First, let's understand the overall workflow and identify the key decision points.",
+        "Now I'll demonstrate the standard operating procedures for this process.",
+        "Pay attention to the sequence and timing as I walk through each step carefully.",
+        "This process optimization significantly improves efficiency and reduces errors.",
+        "Remember to follow the established procedures and document any deviations.",
+        "Let me show you how to handle exceptions and troubleshoot common issues.",
+        "This completes our process training. Practice these steps to build confidence."
+      ],
+      general: [
+        "Welcome to this training module. Let's get started with the first step.",
+        "I'll show you how to complete this task step by step.",
+        "First, make sure you have all the necessary tools and materials ready.",
+        "Now, let's begin with the main process and work through it systematically.",
+        "Pay close attention to the details as I demonstrate each technique.",
+        "This is an important step that requires careful attention and practice.",
+        "You can see how this approach improves efficiency and quality of results.",
+        "Remember to follow the established guidelines and best practices throughout.",
+        "Let me show you the proper way to handle various scenarios and challenges.",
+        "This completes our training session. Thank you for your attention and participation."
+      ]
+    }
     
-    return selectedContent.join(' ')
+    // Select appropriate content based on context
+    let selectedContent: string[]
+    if (isTechnical) {
+      selectedContent = trainingContent.technical
+    } else if (isSafety) {
+      selectedContent = trainingContent.safety
+    } else if (isProcess) {
+      selectedContent = trainingContent.process
+    } else {
+      selectedContent = trainingContent.general
+    }
+    
+    // Adjust content length based on duration
+    const contentLength = Math.max(3, Math.min(selectedContent.length, Math.floor(duration / 8)))
+    const shuffledContent = selectedContent.sort(() => Math.random() - 0.5) // Add some randomness
+    const finalContent = shuffledContent.slice(0, contentLength)
+    
+    return finalContent.join(' ')
   }
 
   /**

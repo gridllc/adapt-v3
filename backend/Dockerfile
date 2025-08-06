@@ -11,7 +11,7 @@ RUN apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 COPY . .
 

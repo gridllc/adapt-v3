@@ -302,6 +302,12 @@ router.post('/transcribe', upload.single('audio') as any, async (req, res) => {
     console.log(`📊 Size: ${req.file.size} bytes`)
 
     // Read the audio file
+    if (!req.file?.path) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No audio file path found' 
+      })
+    }
     const audioBytes = fs.readFileSync(req.file.path)
     console.log(`📁 Audio file read: ${audioBytes.length} bytes`)
 
@@ -329,7 +335,9 @@ router.post('/transcribe', upload.single('audio') as any, async (req, res) => {
     })
 
     // Clean up the temporary file
-    fs.unlinkSync(req.file.path)
+    if (req.file.path) {
+      fs.unlinkSync(req.file.path)
+    }
 
     console.log('✅ Transcription successful:', transcription.length, 'characters')
     console.log('📝 Transcript:', transcription.substring(0, 100) + '...')
@@ -355,7 +363,7 @@ router.post('/transcribe', upload.single('audio') as any, async (req, res) => {
     console.error('❌ Transcription error:', error)
     
     // Clean up file on error
-    if (req.file && fs.existsSync(req.file.path)) {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path)
     }
     

@@ -23,8 +23,8 @@ if (!fs.existsSync(uploadDir)) {
 
 // Configure multer with disk storage for better file handling
 const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, uploadDir),
-  filename: (_, file, cb) => {
+  destination: (_: any, __: any, cb: any) => cb(null, uploadDir),
+  filename: (_: any, file: any, cb: any) => {
     const moduleId = uuidv4()
     const extension = path.extname(file.originalname)
     const filename = `${moduleId}${extension}`
@@ -155,7 +155,7 @@ export const uploadController = {
       console.error('❌ Upload error:', error)
       
       // Clean up file on error
-      if (req.file && fs.existsSync(req.file.path)) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path)
       }
       
