@@ -110,7 +110,9 @@ const configureMiddleware = () => {
         'http://localhost:5184',
         'http://localhost:5185',
         'https://adapt-v3-sepia.vercel.app',
-        'https://adapt-v3.vercel.app'
+        'https://adapt-v3.vercel.app',
+        'https://adaptord.com',
+        'https://app.adaptord.com'
       ]
 
   const corsOptions = {
