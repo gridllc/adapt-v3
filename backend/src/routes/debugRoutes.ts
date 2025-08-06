@@ -237,4 +237,101 @@ router.get('/modules/debug', async (_req, res) => {
   }
 })
 
+// Environment Debug - Shows what backend actually sees
+router.get('/env', (req, res) => {
+  try {
+    console.log('[TEST] 🔍 Environment debug requested')
+    
+    const envDebug = {
+      nodeEnv: process.env.NODE_ENV,
+      port: process.env.PORT,
+      
+      // Database
+      database: {
+        url: process.env.DATABASE_URL ? 'SET' : 'MISSING',
+        urlPrefix: process.env.DATABASE_URL?.substring(0, 20) + '...' || 'N/A'
+      },
+      
+      // AWS S3 (checking both naming conventions)
+      s3: {
+        // What your code expects:
+        bucket: process.env.S3_BUCKET_NAME || 'MISSING',
+        region: process.env.S3_REGION || 'MISSING',
+        accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
+        secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
+        
+        // Alternative names that might be in Render:
+        bucketAlt: process.env.AWS_BUCKET_NAME || 'N/A',
+        regionAlt: process.env.AWS_REGION || 'N/A'
+      },
+      
+      // Redis (checking both conventions)
+      redis: {
+        // What your code expects:
+        upstashUrl: process.env.UPSTASH_REDIS_REST_URL ? 'SET' : 'MISSING',
+        upstashToken: process.env.UPSTASH_REDIS_REST_TOKEN ? 'SET' : 'MISSING',
+        useRedis: process.env.USE_REDIS,
+        
+        // Alternative that might be in Render:
+        redisUrl: process.env.REDIS_URL || 'N/A'
+      },
+      
+      // QStash (checking both conventions)
+      qstash: {
+        // What your code expects:
+        token: process.env.QSTASH_TOKEN ? 'SET' : 'MISSING',
+        endpoint: process.env.QSTASH_ENDPOINT || 'DEFAULT',
+        workerUrl: process.env.QSTASH_WORKER_URL ? 'SET' : 'MISSING',
+        signingKey: process.env.QSTASH_CURRENT_SIGNING_KEY ? 'SET' : 'MISSING',
+        
+        // Alternative that might be in Render:
+        qstashUrl: process.env.QSTASH_URL || 'N/A'
+      },
+      
+      // AI Services
+      ai: {
+        openai: process.env.OPENAI_API_KEY ? 'SET' : 'MISSING',
+        gemini: process.env.GEMINI_API_KEY ? 'SET' : 'MISSING',
+        googleEmail: process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'MISSING',
+        googleKey: process.env.GOOGLE_PRIVATE_KEY ? 'SET' : 'MISSING',
+        googleProject: process.env.GOOGLE_PROJECT_ID ? 'SET' : 'MISSING'
+      },
+      
+      // Auth
+      auth: {
+        clerkSecret: process.env.CLERK_SECRET_KEY ? 'SET' : 'MISSING',
+        frontendUrl: process.env.FRONTEND_URL || 'DEFAULT'
+      },
+      
+      // Environment analysis
+      analysis: {
+        totalEnvVars: Object.keys(process.env).length,
+        criticalMissing: [
+          !process.env.DATABASE_URL && 'DATABASE_URL',
+          !process.env.S3_BUCKET_NAME && 'S3_BUCKET_NAME',
+          !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
+          !process.env.CLERK_SECRET_KEY && 'CLERK_SECRET_KEY'
+        ].filter(Boolean),
+        renderMismatches: [
+          !process.env.S3_BUCKET_NAME && process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME→S3_BUCKET_NAME',
+          !process.env.S3_REGION && process.env.AWS_REGION && 'AWS_REGION→S3_REGION',
+          !process.env.QSTASH_ENDPOINT && process.env.QSTASH_URL && 'QSTASH_URL→QSTASH_ENDPOINT'
+        ].filter(Boolean)
+      }
+    }
+    
+    console.log(`[TEST] 🔍 Found ${envDebug.analysis.criticalMissing.length} critical missing vars`)
+    console.log(`[TEST] 🔍 Found ${envDebug.analysis.renderMismatches.length} potential naming mismatches`)
+    
+    res.json(envDebug)
+    
+  } catch (error: any) {
+    console.error('[TEST] ❌ Environment debug failed:', error.message)
+    res.status(500).json({ 
+      error: 'Environment debug failed', 
+      details: error.message 
+    })
+  }
+})
+
 export { router as debugRoutes } 

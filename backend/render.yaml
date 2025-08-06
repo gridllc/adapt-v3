@@ -24,6 +24,8 @@ services:
         value: https://qstash.upstash.io/v1/publish
       - key: QSTASH_WORKER_URL
         sync: false
+      - key: QSTASH_CURRENT_SIGNING_KEY
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: GEMINI_API_KEY

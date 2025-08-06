@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { env } from './config/env.js'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -35,8 +36,8 @@ const __dirname = path.dirname(__filename)
 
 // Server configuration
 const app = express()
-const PORT = process.env.PORT || 8000
-const NODE_ENV = process.env.NODE_ENV || 'development'
+const PORT = env.PORT
+const NODE_ENV = env.NODE_ENV
 
 // Environment validation
 const validateEnvironment = () => {
