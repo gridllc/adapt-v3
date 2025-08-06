@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { getAuth } from '@clerk/express'
+import { clerkClient, getAuth } from '@clerk/clerk-sdk-node'
 
 // Extend Request interface to include userId
 declare global {
