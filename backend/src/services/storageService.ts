@@ -12,7 +12,7 @@ export const storageService = {
   /**
    * Upload video file to S3 and return module info
    */
-  async uploadVideo(file: Express.Multer.File): Promise<{ moduleId: string; videoUrl: string }> {
+  async uploadVideo(file: any): Promise<{ moduleId: string; videoUrl: string }> {
     try {
       const moduleId = generateId()
       const filename = `${moduleId}.mp4`

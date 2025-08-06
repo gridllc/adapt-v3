@@ -288,7 +288,7 @@ router.get('/debug-transcribe/:moduleId', async (req, res) => {
 })
 
 // Real-time audio transcription endpoint
-router.post('/transcribe', upload.single('audio'), async (req, res) => {
+router.post('/transcribe', upload.single('audio') as any, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ 

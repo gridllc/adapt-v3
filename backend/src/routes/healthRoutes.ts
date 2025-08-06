@@ -1,6 +1,6 @@
 import express from 'express'
-import { prisma } from '../services/prismaService.js'
-import { validateS3Config } from '../services/s3Service.js'
+import prisma from '../services/prismaService.js'
+import { isS3Configured, validateS3Config } from '../services/s3Uploader.js'
 
 const router = express.Router()
 
@@ -25,7 +25,7 @@ router.get('/health', async (_req, res) => {
 
     // Test S3 Configuration
     try {
-      const s3Valid = validateS3Config()
+      const s3Valid = isS3Configured()
       if (s3Valid) {
         healthStatus.s3 = '✅ Configuration Valid'
         console.log('[TEST] 📦 S3: Configuration OK')

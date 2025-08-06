@@ -36,8 +36,8 @@ const __dirname = path.dirname(__filename)
 
 // Server configuration
 const app = express()
-const PORT = env.PORT
-const NODE_ENV = env.NODE_ENV
+const PORT = env?.PORT || 8000
+const NODE_ENV = env?.NODE_ENV || 'development'
 
 // Environment validation
 const validateEnvironment = () => {

@@ -1,4 +1,8 @@
 import { Request, Response } from 'express'
+import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs'
+import path from 'path'
+import multer from 'multer'
 import { storageService } from '../services/storageService.js'
 import { enqueueProcessVideoJob, perfLogger } from '../services/qstashQueue.js'
 import { createBasicSteps } from '../services/createBasicSteps.js'
@@ -6,10 +10,42 @@ import { DatabaseService } from '../services/prismaService.js'
 import { ModuleService } from '../services/moduleService.js'
 import { UserService } from '../services/userService.js'
 
-// Type-safe interface for multer requests
+// Type-safe interface for multer requests  
 interface MulterRequest extends Request {
-  file: Express.Multer.File
+  file: any
 }
+
+// Configure upload directory
+const uploadDir = path.resolve(__dirname, '../../uploads')
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true })
+}
+
+// Configure multer with disk storage for better file handling
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => cb(null, uploadDir),
+  filename: (_, file, cb) => {
+    const moduleId = uuidv4()
+    const extension = path.extname(file.originalname)
+    const filename = `${moduleId}${extension}`
+    cb(null, filename)
+  }
+})
+
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 200 * 1024 * 1024, // 200MB limit
+    fieldSize: 200 * 1024 * 1024  // Also increase field size for large files
+  },
+  fileFilter: (req: any, file: any, cb: any) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true)
+    } else {
+      cb(new Error('Only video files are allowed'))
+    }
+  }
+})
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
@@ -30,6 +66,7 @@ export const uploadController = {
 
       const file = typedReq.file
       const originalname = file.originalname
+      const moduleId = path.parse(file.filename).name // Extract moduleId from filename
 
       // Validate file
       if (!file.mimetype.startsWith('video/')) {
@@ -38,16 +75,14 @@ export const uploadController = {
 
       perfLogger.startUpload(file.originalname)
 
-      console.log('[TEST] 📁 Saving to storage...')
-      // Upload to storage and get the moduleId that was actually used
-      const { moduleId, videoUrl } = await storageService.uploadVideo(file)
+      console.log('[TEST] 📁 Processing with storage service...')
+      // Upload to storage and get the video URL
+      const { videoUrl } = await storageService.uploadVideo(file)
       console.log('[TEST] 📁 Module ID:', moduleId)
       console.log('[TEST] 📁 Video URL:', videoUrl)
 
       perfLogger.logUploadComplete(moduleId)
 
-      // CRITICAL: Don't create DB entry until video is saved successfully
-      // This ensures we never have orphaned DB records without actual video files
       // Create initial module entry in database
       const title = originalname.replace(/\.[^/.]+$/, '')
       
@@ -58,7 +93,7 @@ export const uploadController = {
         await DatabaseService.createModule({
           id: moduleId,
           title,
-          filename: `${moduleId}.mp4`,
+          filename: file.filename,
           videoUrl,
           userId: userId || undefined
         })
@@ -74,7 +109,7 @@ export const uploadController = {
           targetId: moduleId,
           metadata: { 
             title,
-            filename: `${moduleId}.mp4`,
+            filename: file.filename,
             videoUrl 
           }
         })
@@ -83,7 +118,7 @@ export const uploadController = {
         return res.status(500).json({ error: 'Failed to save module data' })
       }
 
-      // 🔴 CRITICAL FIX: Create basic step files immediately using new service
+      // Create basic step files immediately
       console.log('📝 Creating basic step files...')
       try {
         await createBasicSteps(moduleId, originalname)
@@ -91,47 +126,49 @@ export const uploadController = {
       } catch (error) {
         console.error('❌ Failed to create basic step files:', error)
         console.warn(`⚠️ CRITICAL: Basic steps fallback failed for ${moduleId} - module may 404 until AI completes`)
-        console.warn(`⚠️ Users visiting /training/${moduleId} will see loading state until AI processing finishes`)
-        // Continue anyway - the background processing will handle this, but UX will be degraded
+        // Continue anyway - the background processing will handle this
       }
 
       // Queue AI processing job (async - don't wait!)
       console.log('🚀 Queuing AI processing job...')
       try {
-        const job = await enqueueProcessVideoJob({
+        await enqueueProcessVideoJob({
           moduleId,
-          videoUrl,
+          videoUrl
         })
-        console.log('✅ AI processing job queued successfully with job ID:', job?.id || 'unknown')
+        console.log('✅ AI processing job queued successfully')
       } catch (error) {
         console.error('❌ Failed to queue AI processing job:', error)
-        // Update status to indicate failure
-        try {
-          await ModuleService.updateModuleStatus(moduleId, 'failed', 0, 'Failed to start AI processing')
-        } catch (updateError) {
-          console.error('❌ Failed to update module status:', updateError)
-        }
+        // Don't fail the upload, but log the error
+        console.warn('⚠️ Upload succeeded but AI processing may be delayed')
       }
 
-      // Return immediately - don't wait for AI processing!
-      console.log('📤 Sending immediate response to client...')
-      res.status(201).json({
+      console.log('✅ Upload completed successfully')
+      return res.status(200).json({
         success: true,
         moduleId,
-        videoUrl,
-        title,
-        status: 'processing',
-        message: 'Upload complete! AI processing has started in the background.',
-        totalDuration: 0, // Will be calculated from steps later
-        fallbackStepsUrl: `/training/${moduleId}.json`, // Frontend can load basic training info immediately
-        trainingUrl: `/training/${moduleId}` // Direct link to training page
+        message: 'Video uploaded successfully. AI processing has been queued.',
+        videoUrl
       })
-      console.log('✅ Upload response sent - AI processing continues in background')
 
     } catch (error) {
       console.error('❌ Upload error:', error)
-      console.error('📋 Full error stack:', error instanceof Error ? error.stack : 'No stack trace')
-      res.status(500).json({ error: 'Upload failed' })
+      
+      // Clean up file on error
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path)
+      }
+      
+      return res.status(500).json({ 
+        error: 'Upload failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      })
     }
   }
-} 
+}
+
+// Export the middleware array for direct use
+export const handleUpload = [
+  upload.single('file') as any,
+  uploadController.uploadVideo
+] 

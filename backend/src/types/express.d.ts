@@ -1,8 +1,26 @@
 // Global type declarations for Express extensions
+import { File } from 'multer'
 
-declare namespace Express {
-  export interface Request {
-    file?: Express.Multer.File
-    files?: { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[]
+declare global {
+  namespace Express {
+    namespace Multer {
+      interface File {
+        fieldname: string
+        originalname: string
+        encoding: string
+        mimetype: string
+        size: number
+        buffer: Buffer
+        destination?: string
+        filename?: string
+        path?: string
+        stream?: any
+      }
+    }
+    
+    interface Request {
+      file?: Multer.File
+      files?: { [fieldname: string]: Multer.File[] } | Multer.File[]
+    }
   }
 }

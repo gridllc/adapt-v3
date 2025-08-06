@@ -4,7 +4,7 @@ import { z } from 'zod'
 const envSchema = z.object({
   // Core
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().transform(Number).default(8000),
+  PORT: z.string().transform((val) => parseInt(val, 10)).default('8000'),
   
   // Database (Critical)
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
@@ -44,7 +44,7 @@ const envSchema = z.object({
 })
 
 // Parse and validate environment
-let env: z.infer<typeof envSchema>
+let env: z.infer<typeof envSchema> | undefined
 
 try {
   env = envSchema.parse(process.env)
@@ -73,6 +73,21 @@ try {
     process.exit(1)
   } else {
     console.warn('⚠️ Continuing in development mode with invalid environment')
+    // Provide fallback env for development
+    env = {
+      NODE_ENV: 'development',
+      PORT: 8000,
+      DATABASE_URL: process.env.DATABASE_URL || '',
+      S3_BUCKET_NAME: process.env.S3_BUCKET_NAME || '',
+      S3_REGION: process.env.S3_REGION || 'us-east-1',
+      AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
+      AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
+      USE_REDIS: process.env.USE_REDIS || 'true',
+      QSTASH_TOKEN: process.env.QSTASH_TOKEN || '',
+      QSTASH_ENDPOINT: process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish',
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || '',
+      FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000'
+    } as any
   }
 }
 
