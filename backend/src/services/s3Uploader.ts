@@ -83,7 +83,7 @@ export async function uploadToS3(buffer: Buffer, filename: string, contentType?:
  */
 export async function deleteFromS3(filename: string): Promise<boolean> {
   try {
-    console.log(`[TEST] 🗑️ Deleting from S3: ${filename}`)
+    console.log(`[TEST] 🗑️ Deleting S3 object: ${filename}`)
     
     const command = new DeleteObjectCommand({
       Bucket: BUCKET_NAME,

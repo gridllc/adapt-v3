@@ -4,11 +4,22 @@ import { prisma } from '../config/database.js'
 const router = express.Router()
 
 // Debug endpoint to list all modules with summary
+// Query params: ?status=failed&limit=50&stuck=true
 router.get('/modules/debug', async (req, res) => {
   try {
     console.log('[TEST] Debug modules requested')
     
+    const { status, limit = '20', stuck } = req.query
+    const maxLimit = Math.min(parseInt(limit as string) || 20, 100)
+    
+    // Build query filters
+    const whereClause: any = {}
+    if (status) {
+      whereClause.status = status
+    }
+    
     const modules = await prisma.module.findMany({
+      where: whereClause,
       include: { 
         steps: true,
         _count: {
@@ -20,10 +31,19 @@ router.get('/modules/debug', async (req, res) => {
         }
       },
       orderBy: { createdAt: 'desc' },
-      take: 20
+      take: maxLimit
     })
 
-    const summary = modules.map((mod) => ({
+    let filteredModules = modules
+    
+    // Filter for "stuck" modules (status ready but no steps)
+    if (stuck === 'true') {
+      filteredModules = modules.filter((mod: any) => 
+        mod.status === 'ready' && mod.steps.length === 0
+      )
+    }
+
+    const summary = filteredModules.map((mod: any) => ({
       id: mod.id,
       title: mod.title || 'Untitled',
       status: mod.status,
@@ -32,11 +52,24 @@ router.get('/modules/debug', async (req, res) => {
       questions: mod._count.questions,
       createdAt: mod.createdAt,
       updatedAt: mod.updatedAt,
-      userId: mod.userId || 'No user'
+      userId: mod.userId || 'No user',
+      // Helper flags for tester convenience
+      isStuck: mod.status === 'ready' && mod.steps.length === 0,
+      needsAttention: mod.status === 'failed' || (mod.status === 'ready' && mod.steps.length === 0),
+      trainingUrl: `/training/${mod.id}`
     }))
 
-    console.log(`[TEST] Debug modules response: ${summary.length} modules`)
-    res.json(summary)
+    console.log(`[TEST] Debug modules response: ${summary.length} modules (filtered from ${modules.length})`)
+    res.json({
+      modules: summary,
+      total: summary.length,
+      filters: { status, stuck: stuck === 'true', limit: maxLimit },
+      helpful_queries: {
+        all_failed: '/api/debug/modules/debug?status=failed',
+        stuck_modules: '/api/debug/modules/debug?stuck=true',
+        recent_50: '/api/debug/modules/debug?limit=50'
+      }
+    })
   } catch (err) {
     console.error('[TEST] Debug modules error:', err)
     res.status(500).json({ 
@@ -83,7 +116,7 @@ router.get('/modules/:id/debug', async (req, res) => {
       updatedAt: module.updatedAt,
       steps: {
         count: module.steps.length,
-        details: module.steps.map(step => ({
+        details: module.steps.map((step: any) => ({
           id: step.id,
           title: step.title,
           startTime: step.startTime,
@@ -135,7 +168,7 @@ router.get('/modules/orphaned/debug', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     })
 
-    const summary = orphanedModules.map((mod) => ({
+    const summary = orphanedModules.map((mod: any) => ({
       id: mod.id,
       title: mod.title || 'Untitled',
       status: mod.status,
@@ -151,6 +184,55 @@ router.get('/modules/orphaned/debug', async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to fetch orphaned modules',
       details: err instanceof Error ? err.message : 'Unknown error'
+    })
+  }
+})
+
+// Admin Debug View - Quick overview of all modules
+router.get('/modules/debug', async (_req, res) => {
+  try {
+    console.log('[TEST] 🔍 Admin debug: Fetching module overview...')
+    
+    const modules = await prisma.module.findMany({
+      include: { 
+        steps: true,
+        user: {
+          select: {
+            email: true,
+            clerkId: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50 // Limit to most recent 50 for performance
+    })
+
+    const summary = modules.map((m: any) => ({
+      id: m.id,
+      title: m.title || 'Untitled',
+      status: m.status,
+      stepCount: m.steps.length,
+      fileName: m.filename,
+      videoUrl: m.videoUrl,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      progress: m.progress,
+      userEmail: m.user?.email || 'Unknown',
+      userId: m.userId
+    }))
+
+    console.log(`[TEST] ✅ Admin debug: Found ${summary.length} modules`)
+    res.json({
+      totalModules: summary.length,
+      modules: summary,
+      generatedAt: new Date().toISOString()
+    })
+    
+  } catch (err: any) {
+    console.error('[TEST] ❌ Admin debug failed:', err.message)
+    res.status(500).json({ 
+      error: 'Failed to fetch debug info', 
+      details: err.message 
     })
   }
 })

@@ -20,7 +20,7 @@ export class ModuleService {
           user: {
             select: {
               email: true,
-              name: true
+              clerkId: true
             }
           },
           _count: {
@@ -77,7 +77,7 @@ export class ModuleService {
           user: {
             select: {
               email: true,
-              name: true
+              clerkId: true
             }
           }
         },

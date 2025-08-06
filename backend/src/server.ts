@@ -20,6 +20,7 @@ import { workerRoutes } from './routes/workerRoutes.js'
 import { requireAuth, optionalAuth } from './middleware/auth.js'
 import { testAuthRoutes } from './routes/testAuth.js'
 import { debugRoutes } from './routes/debugRoutes.js'
+import healthRoutes from './routes/healthRoutes.js'
 
 // Import QStash queue to ensure it's initialized
 import './services/qstashQueue.js'
@@ -148,6 +149,7 @@ const configureRoutes = () => {
   app.use('/api/steps', stepsRoutes) // Individual routes will be protected as needed
   
   // Public Routes (no authentication required)
+  app.use('/api', healthRoutes)  // Mounts /api/health
   app.use('/api/ai', aiRoutes)
   app.use('/api/video-url', videoRoutes)
   app.use('/api/feedback', feedbackRoutes)
@@ -254,62 +256,7 @@ const configureRoutes = () => {
     res.status(200).end()
   })
 
-    // Enhanced health check endpoint
-  app.get('/api/health', async (req, res) => {
-    try {
-      console.log('[TEST] Health check requested')
-      
-      // Database check
-      const dbHealth = await DatabaseService.healthCheck()
-      console.log('[TEST] Database health:', dbHealth ? '✅ Connected' : '❌ Failed')
-      
-      // Redis check
-      const { redisClient } = await import('./config/database.js')
-      let redisHealth = false
-      if (redisClient) {
-        try {
-          await redisClient.set('health:test', 'ok')
-          const result = await redisClient.get('health:test')
-          redisHealth = result === 'ok'
-          console.log('[TEST] Redis health:', redisHealth ? '✅ Ping OK' : '❌ Redis Issue')
-        } catch (redisError) {
-          console.error('[TEST] Redis health check failed:', redisError)
-        }
-      } else {
-        console.log('[TEST] Redis health: ⚠️ Not configured')
-      }
-      
-      // S3 check
-      let s3Health = false
-      try {
-        const { checkS3Health } = await import('./services/s3Service.js')
-        s3Health = await checkS3Health()
-        console.log('[TEST] S3 health:', s3Health ? '✅ Accessible' : '❌ S3 Issue')
-      } catch (s3Error) {
-        console.error('[TEST] S3 health check failed:', s3Error)
-      }
-      
-      const response = {
-        postgres: dbHealth ? '✅ Connected' : '❌ Failed',
-        s3: s3Health ? '✅ Accessible' : '❌ S3 Issue',
-        redis: redisHealth ? '✅ Ping OK' : '❌ Redis Issue',
-        timestamp: new Date().toISOString(),
-        environment: NODE_ENV,
-        uptime: Math.floor(process.uptime())
-      }
-      
-      console.log('[TEST] Health check response:', response)
-      res.json(response)
-      
-    } catch (error) {
-      console.error('[TEST] Health check error:', error)
-      res.status(500).json({ 
-        error: 'Health check failed', 
-        details: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      })
-    }
-  })
+
 
   // Test endpoints for development
   if (NODE_ENV === 'development') {

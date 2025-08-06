@@ -2,6 +2,7 @@ import express from 'express'
 import { ModuleService } from '../services/moduleService.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { prisma } from '../config/database.js'
+import { deleteFromS3 } from '../services/s3Uploader.js'
 import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -129,7 +130,7 @@ router.get('/:id', async (req, res) => {
         user: {
           select: {
             email: true,
-            name: true
+            clerkId: true
           }
         },
         _count: {
@@ -163,6 +164,72 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Internal server error'
+    })
+  }
+})
+
+// DELETE /api/modules/:id - Complete module cleanup (S3 + DB)
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params
+  
+  try {
+    console.log(`[TEST] 🗑️ Starting deletion for module: ${id}`)
+    
+    // Find the module first to get S3 key
+    const module = await prisma.module.findUnique({ 
+      where: { id },
+      include: { steps: true, questions: true }
+    })
+
+    if (!module) {
+      console.warn(`[TEST] ⚠️ Module ${id} not found for deletion`)
+      return res.status(404).json({ error: 'Module not found' })
+    }
+
+    console.log(`[TEST] 📁 Module found: ${module.title}, file: ${module.filename}`)
+    console.log(`[TEST] 📊 Will delete ${module.steps.length} steps and ${module.questions.length} questions`)
+
+    // Delete from S3 first (if it exists)
+    try {
+      if (module.filename) {
+        await deleteFromS3(module.filename)
+        console.log(`[TEST] ✅ S3 file deleted: ${module.filename}`)
+      }
+    } catch (s3Error) {
+      console.warn(`[TEST] ⚠️ S3 deletion failed (file may not exist): ${s3Error}`)
+      // Continue with DB deletion even if S3 fails
+    }
+
+    // Delete from DB in correct order (due to foreign key constraints)
+    // 1. Delete related records first
+    await prisma.question.deleteMany({ where: { moduleId: id } })
+    console.log(`[TEST] 🗃️ Deleted ${module.questions.length} questions`)
+
+    await prisma.step.deleteMany({ where: { moduleId: id } })
+    console.log(`[TEST] 🗃️ Deleted ${module.steps.length} steps`)
+
+    // 2. Delete the module itself
+    await prisma.module.delete({ where: { id } })
+    console.log(`[TEST] 🗃️ Deleted module: ${id}`)
+
+    console.log(`[TEST] ✅ Complete deletion successful for module: ${id}`)
+    res.json({ 
+      success: true, 
+      message: `Module ${id} and all related data deleted successfully`,
+      deletedItems: {
+        module: module.title,
+        steps: module.steps.length,
+        questions: module.questions.length,
+        s3File: module.filename
+      }
+    })
+
+  } catch (err: any) {
+    console.error(`[TEST] ❌ Failed to delete module ${id}:`, err.message)
+    res.status(500).json({ 
+      error: 'Deletion failed', 
+      details: err.message,
+      moduleId: id
     })
   }
 })

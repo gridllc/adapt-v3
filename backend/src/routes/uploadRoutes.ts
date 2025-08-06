@@ -4,31 +4,23 @@ import { uploadController } from '../controllers/uploadController.js'
 
 const router = express.Router()
 
-// Add CORS headers for upload routes
-router.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  next()
-})
-
-// Configure multer for file uploads
-const storage = multer.memoryStorage()
-const upload = multer({
-  storage,
+// Configure multer with memory storage for cloud deployment
+const upload = multer({ 
+  storage: multer.memoryStorage(),
   limits: {
-    fileSize: 200 * 1024 * 1024, // 200MB
+    fileSize: 200 * 1024 * 1024, // 200MB limit
+    fieldSize: 200 * 1024 * 1024  // Also increase field size for large files
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     if (file.mimetype.startsWith('video/')) {
       cb(null, true)
     } else {
       cb(new Error('Only video files are allowed'))
     }
-  },
+  }
 })
 
-// Single upload endpoint
+// Upload endpoint with proper typing
 router.post('/', upload.single('file'), uploadController.uploadVideo)
 
 export { router as uploadRoutes } 

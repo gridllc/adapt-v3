@@ -1,9 +1,8 @@
-import { User } from '@clerk/clerk-sdk-node'
+// Global type declarations for Express extensions
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: User
-    }
+declare namespace Express {
+  export interface Request {
+    file?: Express.Multer.File
+    files?: { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[]
   }
-} 
+}

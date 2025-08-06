@@ -138,17 +138,17 @@ export class AudioProcessor {
           .audioCodec(audioConfig.codec)
           .format(audioConfig.format)
           .output(audioPath)
-          .on('start', (commandLine) => {
+          .on('start', (commandLine: string) => {
             console.log(`🔄 Starting audio extraction: ${commandLine}`)
           })
-          .on('progress', (progress) => {
+          .on('progress', (progress: any) => {
             console.log(`📊 Audio extraction progress: ${progress.percent}% complete`)
           })
           .on('end', () => {
             console.log(`✅ Audio extraction completed: ${audioPath}`)
             resolve(audioPath)
           })
-          .on('error', (error) => {
+          .on('error', (error: Error) => {
             console.error(`❌ Audio extraction failed: ${error.message}`)
             reject(new Error(`Audio extraction failed: ${error.message}`))
           })
@@ -220,7 +220,7 @@ export class AudioProcessor {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         return await new Promise((resolve, reject) => {
-          ffmpeg.ffprobe(audioPath, (error, metadata) => {
+          ffmpeg.ffprobe(audioPath, (error: Error | null, metadata: any) => {
             if (error) {
               console.error(`❌ Audio analysis failed (attempt ${attempt + 1}): ${error.message}`)
               
@@ -233,7 +233,7 @@ export class AudioProcessor {
               return
             }
 
-            const audioStream = metadata.streams.find(s => s.codec_type === 'audio')
+            const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio')
             if (!audioStream) {
               console.error(`❌ No audio stream found in file`)
               this.cleanupAudio(audioPath).catch(() => {})
@@ -337,17 +337,17 @@ export class AudioProcessor {
         
         command
           .output(outputPath)
-          .on('start', (commandLine) => {
+          .on('start', (commandLine: string) => {
             console.log(`🔄 Starting audio conversion: ${commandLine}`)
           })
-          .on('progress', (progress) => {
+          .on('progress', (progress: any) => {
             console.log(`📊 Audio conversion progress: ${progress.percent}% complete`)
           })
           .on('end', () => {
             console.log(`✅ Audio conversion completed: ${outputPath}`)
             resolve(outputPath)
           })
-          .on('error', (error) => {
+          .on('error', (error: Error) => {
             console.error(`❌ Audio conversion failed: ${error.message}`)
             reject(new Error(`Audio conversion failed: ${error.message}`))
           })
@@ -397,7 +397,7 @@ export class AudioProcessor {
 
     try {
       return new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(audioPath, (error, metadata) => {
+        ffmpeg.ffprobe(audioPath, (error: Error | null, metadata: any) => {
           if (error) {
             console.error(`❌ Audio metadata extraction failed: ${error.message}`)
             // Clean up corrupted files
@@ -406,7 +406,7 @@ export class AudioProcessor {
             return
           }
 
-          const audioStream = metadata.streams.find(s => s.codec_type === 'audio')
+          const audioStream = metadata.streams.find((s: any) => s.codec_type === 'audio')
           if (!audioStream) {
             console.error(`❌ No audio stream found in metadata`)
             this.cleanupAudio(audioPath).catch(() => {})

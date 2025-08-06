@@ -6,21 +6,29 @@ import { DatabaseService } from '../services/prismaService.js'
 import { ModuleService } from '../services/moduleService.js'
 import { UserService } from '../services/userService.js'
 
+// Type-safe interface for multer requests
+interface MulterRequest extends Request {
+  file: Express.Multer.File
+}
+
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
     console.log('🔁 Upload handler triggered')
     
     try {
-      if (!req.file) {
+      // Type-safe file access
+      const typedReq = req as MulterRequest
+      
+      if (!typedReq.file) {
         console.error('❌ No file uploaded')
         return res.status(400).json({ error: 'No file uploaded' })
       }
 
-      console.log('[TEST] 📁 Upload started:', req.file.originalname)
-      console.log('[TEST] 📁 File size:', req.file.size, 'bytes')
-      console.log('[TEST] 📁 File mimetype:', req.file.mimetype)
+      console.log('[TEST] 📁 Upload started:', typedReq.file.originalname)
+      console.log('[TEST] 📁 File size:', typedReq.file.size, 'bytes')
+      console.log('[TEST] 📁 File mimetype:', typedReq.file.mimetype)
 
-      const file = req.file
+      const file = typedReq.file
       const originalname = file.originalname
 
       // Validate file

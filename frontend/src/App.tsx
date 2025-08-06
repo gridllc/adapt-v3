@@ -11,6 +11,7 @@ import { TrainingPage } from '@pages/TrainingPage'
 import { UploadPage } from '@pages/UploadPage'
 import EditStepsPage from '@pages/EditStepsPage'
 import SharePage from '@pages/SharePage'
+import DebugPage from '@pages/DebugPage'
 import { ApiDebug } from '@components/ApiDebug'
 
 // Conditional Home Component
@@ -99,6 +100,16 @@ function App() {
          element={
            <Layout>
              <TrainingPage />
+           </Layout>
+         }
+       />
+       
+       {/* Debug page for development/testing - NO AUTH REQUIRED */}
+       <Route
+         path="/debug"
+         element={
+           <Layout>
+             <DebugPage />
            </Layout>
          }
        />

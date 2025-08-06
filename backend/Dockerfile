@@ -15,6 +15,13 @@ RUN npm ci --only=production
 
 COPY . .
 
+# Set production env explicitly for better error handling
+ENV NODE_ENV=production
+
+# Optional: enable verbose logging for debugging build issues
+ENV NPM_CONFIG_LOGLEVEL=verbose
+
+# Ensure clean builds with explicit steps
 RUN npx prisma generate
 RUN npm run build
 

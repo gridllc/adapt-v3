@@ -294,7 +294,7 @@ export class DatabaseService {
       orderBy: { createdAt: 'desc' },
       include: {
         step: {
-          select: { title: true, timestamp: true }
+          select: { title: true, startTime: true }
         },
         user: {
           select: { email: true }
@@ -312,7 +312,7 @@ export class DatabaseService {
       orderBy: { createdAt: 'desc' },
       include: {
         step: {
-          select: { title: true, timestamp: true }
+          select: { title: true, startTime: true }
         }
       }
     })
@@ -354,7 +354,7 @@ export class DatabaseService {
         question: {
           include: {
             step: {
-              select: { title: true, timestamp: true }
+              select: { title: true, startTime: true }
             }
           }
         }
@@ -380,7 +380,7 @@ export class DatabaseService {
       take: limit,
       include: {
         step: {
-          select: { title: true, timestamp: true }
+          select: { title: true, startTime: true }
         },
         user: {
           select: { email: true }
