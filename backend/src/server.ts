@@ -42,20 +42,33 @@ const validateEnvironment = () => {
   console.log('🔍 Environment Configuration:')
   console.log(`🌍 NODE_ENV: ${NODE_ENV}`)
   console.log(`🚀 PORT: ${PORT}`)
+  console.log(`🗄️ DATABASE_URL: ${process.env.DATABASE_URL ? 'SET' : 'NOT SET'}`)
   console.log(`📧 GOOGLE_CLIENT_EMAIL: ${process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'NOT SET'}`)
   console.log(`🔑 GOOGLE_PRIVATE_KEY: ${process.env.GOOGLE_PRIVATE_KEY ? 'SET' : 'NOT SET'}`)
   console.log(`🏢 GOOGLE_PROJECT_ID: ${process.env.GOOGLE_PROJECT_ID ? 'SET' : 'NOT SET'}`)
   console.log(`🤖 OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`)
   console.log(`🔮 GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET'}`)
   
-  // Warn about missing critical environment variables
-  const missingVars = []
-  if (!process.env.OPENAI_API_KEY) missingVars.push('OPENAI_API_KEY')
-  if (!process.env.GOOGLE_CLIENT_EMAIL) missingVars.push('GOOGLE_CLIENT_EMAIL')
-  if (!process.env.GOOGLE_PRIVATE_KEY) missingVars.push('GOOGLE_PRIVATE_KEY')
+  // Check for critical environment variables
+  const missingCritical = []
+  const missingOptional = []
   
-  if (missingVars.length > 0) {
-    console.warn(`⚠️ Missing environment variables: ${missingVars.join(', ')}`)
+  // Critical for basic operation
+  if (!process.env.DATABASE_URL) missingCritical.push('DATABASE_URL')
+  
+  // Important for AI features
+  if (!process.env.OPENAI_API_KEY) missingOptional.push('OPENAI_API_KEY')
+  if (!process.env.GOOGLE_CLIENT_EMAIL) missingOptional.push('GOOGLE_CLIENT_EMAIL')
+  if (!process.env.GOOGLE_PRIVATE_KEY) missingOptional.push('GOOGLE_PRIVATE_KEY')
+  
+  if (missingCritical.length > 0) {
+    console.error(`❌ CRITICAL: Missing environment variables: ${missingCritical.join(', ')}`)
+    console.error('Application cannot start without these variables')
+    throw new Error(`Missing critical environment variables: ${missingCritical.join(', ')}`)
+  }
+  
+  if (missingOptional.length > 0) {
+    console.warn(`⚠️ Missing optional environment variables: ${missingOptional.join(', ')}`)
     console.warn('Some AI features may not work properly')
   }
 }
