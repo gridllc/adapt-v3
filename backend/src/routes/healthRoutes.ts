@@ -38,30 +38,18 @@ router.get('/health', async (_req, res) => {
       console.error('[TEST] 📦 S3: ERROR', s3Error.message)
     }
 
-    // Test Redis (Optional - using Upstash)
+    // QStash Queue (Optional - for async job processing)
     try {
-      if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-        // Simple REST ping to Upstash Redis
-        const redisResponse = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/ping`, {
-          headers: {
-            'Authorization': `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`
-          }
-        })
-        
-        if (redisResponse.ok) {
-          healthStatus.redis = '✅ Ping OK'
-          console.log('[TEST] 📡 Redis: OK')
-        } else {
-          healthStatus.redis = '⚠️ Ping Failed'
-          console.warn('[TEST] 📡 Redis: Ping failed')
-        }
+      if (process.env.QSTASH_TOKEN) {
+        healthStatus.qstash = '✅ Configured'
+        console.log('[TEST] 📡 QStash: Configured')
       } else {
-        healthStatus.redis = '⚠️ Not Configured'
-        console.log('[TEST] 📡 Redis: Not configured (optional)')
+        healthStatus.qstash = '⚠️ Not Configured'
+        console.log('[TEST] 📡 QStash: Not configured (optional)')
       }
-    } catch (redisError: any) {
-      healthStatus.redis = `❌ Error: ${redisError.message}`
-      console.error('[TEST] 📡 Redis: ERROR', redisError.message)
+    } catch (qstashError: any) {
+      healthStatus.qstash = `❌ Error: ${qstashError.message}`
+      console.error('[TEST] 📡 QStash: ERROR', qstashError.message)
     }
 
     // Check environment variables

@@ -15,11 +15,6 @@ const envSchema = z.object({
   AWS_ACCESS_KEY_ID: z.string().min(1, 'AWS_ACCESS_KEY_ID is required'),
   AWS_SECRET_ACCESS_KEY: z.string().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
   
-  // Redis (Optional but recommended)
-  UPSTASH_REDIS_REST_URL: z.string().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
-  USE_REDIS: z.string().default('true'),
-  
   // QStash (Critical for async processing)
   QSTASH_TOKEN: z.string().min(1, 'QSTASH_TOKEN is required'),
   QSTASH_ENDPOINT: z.string().url().default('https://qstash.upstash.io/v1/publish'),
@@ -82,7 +77,7 @@ try {
       AWS_REGION: process.env.AWS_REGION || 'us-east-1',
       AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
       AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
-      USE_REDIS: process.env.USE_REDIS || 'true',
+
       QSTASH_TOKEN: process.env.QSTASH_TOKEN || '',
       QSTASH_ENDPOINT: process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish',
       CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || '',
@@ -97,7 +92,7 @@ export { env }
 // Helper functions
 export const isProduction = () => env?.NODE_ENV === 'production'
 export const isDevelopment = () => env?.NODE_ENV === 'development'
-export const hasRedis = () => !!(env?.UPSTASH_REDIS_REST_URL && env?.UPSTASH_REDIS_REST_TOKEN)
+export const hasQStash = () => !!env?.QSTASH_TOKEN
 export const hasS3 = () => !!(env?.AWS_ACCESS_KEY_ID && env?.AWS_SECRET_ACCESS_KEY && env?.AWS_BUCKET_NAME)
 export const hasOpenAI = () => !!env?.OPENAI_API_KEY
 export const hasGemini = () => !!env?.GEMINI_API_KEY
@@ -108,7 +103,7 @@ if (env) {
   console.log('🔧 Environment Configuration:')
   console.log(`  📊 Database: ${env.DATABASE_URL ? '✅' : '❌'}`)
   console.log(`  📦 S3: ${hasS3() ? '✅' : '❌'}`)
-  console.log(`  📡 Redis: ${hasRedis() ? '✅' : '⚠️ Optional'}`)
+  console.log(`  ⚡ QStash: ${hasQStash() ? '✅' : '❌'}`)
   console.log(`  🤖 OpenAI: ${hasOpenAI() ? '✅' : '⚠️'}`)
   console.log(`  🔮 Gemini: ${hasGemini() ? '✅' : '⚠️'}`)
   console.log(`  🔒 Clerk: ${env.CLERK_SECRET_KEY ? '✅' : '❌'}`)

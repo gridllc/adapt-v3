@@ -19,7 +19,7 @@ interface Module {
 interface HealthStatus {
   postgres: string
   s3: string
-  redis: string
+  qstash: string
   timestamp: string
   environment: string
   uptime: string
@@ -161,8 +161,8 @@ export default function DebugPage() {
                 <span className={getHealthColor(health.s3)}>{health.s3}</span>
               </div>
               <div className="flex items-center space-x-3">
-                <span className="font-medium">Redis:</span>
-                <span className={getHealthColor(health.redis)}>{health.redis}</span>
+                <span className="font-medium">QStash:</span>
+                <span className={getHealthColor(health.qstash)}>{health.qstash}</span>
               </div>
               <div className="flex items-center space-x-3">
                 <span className="font-medium">Environment:</span>

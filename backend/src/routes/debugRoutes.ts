@@ -265,22 +265,11 @@ router.get('/env', (req, res) => {
         regionAlt: process.env.AWS_REGION || 'N/A'
       },
       
-      // Redis (checking both conventions)
-      redis: {
-        // What your code expects:
-        upstashUrl: process.env.UPSTASH_REDIS_REST_URL ? 'SET' : 'MISSING',
-        upstashToken: process.env.UPSTASH_REDIS_REST_TOKEN ? 'SET' : 'MISSING',
-        useRedis: process.env.USE_REDIS,
-        
-        // Alternative that might be in Render:
-        redisUrl: process.env.REDIS_URL || 'N/A'
-      },
-      
-      // QStash (checking both conventions)
+      // QStash Queue
       qstash: {
         // What your code expects:
         token: process.env.QSTASH_TOKEN ? 'SET' : 'MISSING',
-        endpoint: process.env.QSTASH_ENDPOINT || 'DEFAULT',
+        endpoint: process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish',
         workerUrl: process.env.QSTASH_WORKER_URL ? 'SET' : 'MISSING',
         signingKey: process.env.QSTASH_CURRENT_SIGNING_KEY ? 'SET' : 'MISSING',
         
