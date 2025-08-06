@@ -11,7 +11,7 @@ const envSchema = z.object({
   
   // AWS S3 (Critical for file storage)
   AWS_BUCKET_NAME: z.string().min(1, 'AWS_BUCKET_NAME is required'),
-  AWS_REGION: z.string().default('us-east-1'),
+  AWS_REGION: z.string().default('us-west-1'),
   AWS_ACCESS_KEY_ID: z.string().min(1, 'AWS_ACCESS_KEY_ID is required'),
   AWS_SECRET_ACCESS_KEY: z.string().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
   
@@ -74,7 +74,7 @@ try {
       PORT: 8000,
       DATABASE_URL: process.env.DATABASE_URL || '',
       AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME || '',
-      AWS_REGION: process.env.AWS_REGION || 'us-east-1',
+      AWS_REGION: process.env.AWS_REGION || 'us-west-1',
       AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID || '',
       AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
 

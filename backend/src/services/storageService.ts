@@ -27,34 +27,14 @@ export const storageService = {
         throw new Error('Only video files are allowed')
       }
       
-      // Upload to S3
-      let videoUrl: string
-      
-      if (isS3Configured()) {
-        log.test(`📁 Uploading to S3: ${filename}`)
-        videoUrl = await uploadToS3(file.buffer, filename, file.mimetype)
-        log.test(`📁 Video URL: ${videoUrl}`)
-      } else {
-        log.warn('⚠️ S3 not configured - using fallback local storage')
-        // Fallback to local storage for development
-        const fs = await import('fs')
-        const path = await import('path')
-        const { fileURLToPath } = await import('url')
-        
-        const __filename = fileURLToPath(import.meta.url)
-        const __dirname = path.dirname(__filename)
-        const uploadsDir = path.join(__dirname, '../../uploads')
-        
-        // Ensure uploads directory exists
-        await fs.promises.mkdir(uploadsDir, { recursive: true })
-        
-        // Save locally
-        const filePath = path.join(uploadsDir, filename)
-        await fs.promises.writeFile(filePath, file.buffer)
-        
-        videoUrl = `http://localhost:8000/uploads/${filename}`
-        console.log(`[TEST] 📁 Local fallback URL: ${videoUrl}`)
+      // Upload to S3 (required)
+      if (!isS3Configured()) {
+        throw new Error('❌ S3 storage is required but not configured. Please check AWS environment variables.')
       }
+      
+      log.test(`📁 Uploading to S3: ${filename}`)
+      const videoUrl = await uploadToS3(file.buffer, filename, file.mimetype)
+      log.test(`📁 Video URL: ${videoUrl}`)
       
       // Normalize video URL to use consistent base URL
       const baseUrl = process.env.FRONTEND_URL || 'http://localhost:8000'

@@ -12,7 +12,7 @@ function getS3Client(): S3Client {
   }
 
   return new S3Client({
-    region: process.env.AWS_REGION || 'us-east-1',
+    region: process.env.AWS_REGION || 'us-west-1',
     credentials: {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
@@ -38,17 +38,13 @@ export { getSharedS3Client as s3Client }
  * Validate S3 configuration at startup
  */
 export function validateS3Config(): void {
-  if (process.env.NODE_ENV === 'production' && !isS3Configured()) {
-    throw new Error('❌ S3 is not configured in production mode')
+  if (!isS3Configured()) {
+    throw new Error('❌ S3 storage is required but not configured. Please check AWS environment variables.')
   }
   
-  if (isS3Configured()) {
-    console.log('[TEST] ✅ S3 configuration validated')
-    console.log(`[TEST] 📦 S3 Bucket: ${BUCKET_NAME}`)
-    console.log(`[TEST] 🌍 S3 Region: ${process.env.AWS_REGION || 'us-east-1'}`)
-  } else {
-    console.log('[TEST] ⚠️ S3 not configured - using local fallback')
-  }
+  console.log('[TEST] ✅ S3 configuration validated')
+  console.log(`[TEST] 📦 S3 Bucket: ${BUCKET_NAME}`)
+  console.log(`[TEST] 🌍 S3 Region: ${process.env.AWS_REGION || 'us-west-1'}`)
 }
 
 /**
@@ -68,7 +64,7 @@ export async function uploadToS3(buffer: Buffer, filename: string, contentType?:
 
     await getSharedS3Client().send(command)
     
-    const s3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${filename}`
+    const s3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com/${filename}`
     console.log(`[TEST] ✅ S3 upload successful: ${s3Url}`)
     
     return s3Url
@@ -133,5 +129,5 @@ export function isS3Configured(): boolean {
  * Get the public S3 URL for a file
  */
 export function getPublicS3Url(filename: string): string {
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${filename}`
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com/${filename}`
 } 

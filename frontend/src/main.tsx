@@ -6,6 +6,18 @@ import { ErrorBoundary } from '@components/common/ErrorBoundary'
 import App from './App'
 import './index.css'
 
+// Disable console errors in production to prevent Sentry-like rate limiting
+if (import.meta.env.PROD) {
+  const originalError = console.error
+  console.error = (...args) => {
+    // Only log critical errors, suppress others
+    if (args[0]?.includes?.('Sentry') || args[0]?.includes?.('rate limit')) {
+      return
+    }
+    originalError(...args)
+  }
+}
+
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 // Configuration Error Component
@@ -38,6 +50,12 @@ const AppWrapper: React.FC = () => {
         publishableKey={CLERK_PUBLISHABLE_KEY}
         afterSignInUrl="/dashboard"
         afterSignUpUrl="/dashboard"
+        appearance={{
+          baseTheme: undefined,
+          variables: {
+            colorPrimary: "#2563eb"
+          }
+        }}
       >
         <BrowserRouter
           future={{
