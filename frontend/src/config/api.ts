@@ -2,7 +2,7 @@
 const isDevelopment = import.meta.env.MODE === 'development'
 
 // API base URL - Render backend URL (with localhost fallback for development)
-const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'https://adapt-v3-backend.onrender.com')
+const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'https://adapt-v3.onrender.com')
 
 // Force production API (for testing)
 const FORCE_PRODUCTION_API = import.meta.env.VITE_FORCE_PRODUCTION_API === 'true'
