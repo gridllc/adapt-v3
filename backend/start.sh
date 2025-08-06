@@ -10,13 +10,6 @@ fi
 
 echo "✅ DATABASE_URL is configured"
 
-# Function to test database connectivity
-test_database_connection() {
-    echo "🔍 Testing database connection..."
-    timeout 10s npx prisma db execute --stdin <<< "SELECT 1;" > /dev/null 2>&1
-    return $?
-}
-
 # Function to run migrations with retry
 run_migrations_with_retry() {
     local max_attempts=5
@@ -43,15 +36,8 @@ run_migrations_with_retry() {
     done
 }
 
-# Test database connection first
-if test_database_connection; then
-    echo "✅ Database connection successful"
-    # Run migrations with retry
-    run_migrations_with_retry
-else
-    echo "⚠️ Database connection failed, but continuing..."
-    echo "⚠️ Migrations will be retried when database becomes available"
-fi
+# Run migrations with retry
+run_migrations_with_retry
 
 # Generate Prisma client (this should work even without DB connection)
 echo "🔄 Generating Prisma client..."
