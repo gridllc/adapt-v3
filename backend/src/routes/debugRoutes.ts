@@ -256,7 +256,7 @@ router.get('/env', (req, res) => {
       s3: {
         // What your code expects:
         bucket: process.env.AWS_BUCKET_NAME || 'MISSING',
-        region: process.env.S3_REGION || 'MISSING',
+                  region: process.env.AWS_REGION || 'MISSING',
         accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
         secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
         
@@ -314,7 +314,7 @@ router.get('/env', (req, res) => {
         ].filter(Boolean),
         renderMismatches: [
           !process.env.AWS_BUCKET_NAME && process.env.S3_BUCKET_NAME && 'S3_BUCKET_NAME→AWS_BUCKET_NAME',
-          !process.env.S3_REGION && process.env.AWS_REGION && 'AWS_REGION→S3_REGION',
+                      !process.env.AWS_REGION && process.env.S3_REGION && 'S3_REGION→AWS_REGION',
           !process.env.QSTASH_ENDPOINT && process.env.QSTASH_URL && 'QSTASH_URL→QSTASH_ENDPOINT'
         ].filter(Boolean)
       }
