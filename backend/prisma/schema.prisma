@@ -1,9 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
-  // Ensure proper output for Render deployment
 }
 
 datasource db {
@@ -11,184 +7,146 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for authentication and ownership
 model User {
   id           String        @id @default(cuid())
   email        String        @unique
-  clerkId      String?       @unique // Clerk user ID
-  modules      Module[]
-  activityLogs ActivityLog[]
-  questions    Question[]
-  trainingSessions TrainingSession[]
+  clerkId      String?       @unique
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  
+  activityLogs ActivityLog[]
+  modules      Module[]
+  questions    Question[]
+
   @@map("users")
 }
 
-// Main training module
 model Module {
-  id          String   @id @default(cuid())
-  title       String
-  filename    String   // Original video filename
-  videoUrl    String   // Full URL to video file
-  status      String   @default("processing") // processing, ready, failed, orphaned
-  progress    Int      @default(0) // 0-100 progress percentage
-  userId      String?  // Optional - for future user ownership
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relations
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  steps       Step[]
-  feedbacks   Feedback[]
-  statuses    ModuleStatus[]
-  questions   Question[]
-  aiInteractions AIInteraction[]
-  trainingSessions TrainingSession[]
-  
-  @@index([status])
-  @@index([userId])
-  @@index([createdAt])
+  id        String         @id @default(cuid())
+  title     String
+  filename  String
+  videoUrl  String
+  status    String         @default("processing")
+  progress  Int            @default(0)
+  userId    String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  feedbacks Feedback[]
+  statuses  ModuleStatus[]
+  user      User?          @relation(fields: [userId], references: [id])
+  questions Question[]
+  steps     Step[]
+
   @@map("modules")
 }
 
-// Training steps for each module
 model Step {
-  id          String   @id @default(cuid())
-  moduleId    String
-  startTime   Int      // Video start timestamp in seconds
-  endTime     Int      // Video end timestamp in seconds
-  title       String
-  description String
-  duration    Int      // Duration in seconds
-  order       Int      // Step order in sequence
-  createdAt   DateTime @default(now())
-  
-  // Relations
-  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  questions   Question[]
-  
-  @@unique([moduleId, order])
+  id             String     @id @default(cuid())
+  moduleId       String
+  timestamp      Int
+  title          String
+  description    String
+  duration       Int
+  order          Int
+  confusionScore Float?     // calculated based on repeated questions
+  aiConfidence   Float?     // optional output from AI summary logic
+  createdAt      DateTime   @default(now())
+  questions      Question[]
+  module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
   @@map("steps")
 }
 
-// Module status tracking
 model ModuleStatus {
   id        String   @id @default(cuid())
   moduleId  String
-  status    String   // processing, completed, failed
-  progress  Int      // 0-100
-  message   String?  // Optional status message
+  status    String
+  progress  Int
+  message   String?
   createdAt DateTime @default(now())
-  
-  // Relations
   module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  
+
   @@map("module_statuses")
 }
 
-// User feedback system
 model Feedback {
   id        String   @id @default(cuid())
   moduleId  String
-  type      String   // step_generation, ai_response, etc.
-  action    String   // worked, not_working, etc.
-  context   String?  // Additional context
-  sessionId String?  // User session identifier
+  type      String
+  action    String
+  context   String?
+  sessionId String?
   createdAt DateTime @default(now())
-  
-  // Relations
   module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  
+
   @@map("feedbacks")
 }
 
-// AI interactions and chat history
 model AIInteraction {
-  id        String   @id @default(cuid())
-  moduleId  String
+  id          String   @id @default(cuid())
+  moduleId    String
   userMessage String
-  aiResponse String
-  source    String?  // Which AI service was used
-  context   Json?    // Additional context data
-  createdAt DateTime @default(now())
-  
-  // Relations
-  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  
+  aiResponse  String
+  source      String?
+  sourceModel String?  // openai or gemini
+  usedMemory  Boolean  @default(false) // whether shared memory was used
+  context     Json?
+  createdAt   DateTime @default(now())
+
   @@map("ai_interactions")
 }
 
-// Training sessions (for analytics)
 model TrainingSession {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   moduleId  String
-  userId    String?  // Optional user ID if authenticated
-  sessionId String   // Unique session identifier
-  startedAt DateTime @default(now())
+  userId    String?
+  sessionId String
+  startedAt DateTime  @default(now())
   endedAt   DateTime?
-  duration  Int?     // Session duration in seconds
-  
-  // Relations
-  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
+  duration  Int?
+
   @@map("training_sessions")
 }
 
-// Activity logs for analytics and debugging
 model ActivityLog {
   id        String   @id @default(cuid())
   userId    String?
-  action    String   // CREATE_MODULE, DELETE_MODULE, UPLOAD_AUDIO, AI_QUESTION, etc.
-  targetId  String?  // Optional - e.g., module ID
-  metadata  Json?    // Additional context data
+  action    String
+  targetId  String?
+  metadata  Json?
   createdAt DateTime @default(now())
-  
-  // Relations
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
+  user      User?    @relation(fields: [userId], references: [id])
+
   @@map("activity_logs")
 }
 
-// Q&A Memory for AI tutor conversations
 model Question {
-  id        String   @id @default(cuid())
-  moduleId  String
-  stepId    String?  // Optional - if AI knows which step it matched
-  question  String
-  answer    String
-  videoTime Float?   // Timestamp in video where question was asked
-  isFAQ     Boolean  @default(false) // Flag for frequently asked questions
-  reuseCount Int     @default(0) // Track how many times this answer has been reused
-  lastUsedAt DateTime? // When this answer was last reused
-  userId    String?
-  createdAt DateTime @default(now())
-  
-  // Relations
-  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  step      Step?    @relation(fields: [stepId], references: [id], onDelete: SetNull)
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  vector    QuestionVector?
-  
-  @@index([moduleId])
-  @@index([stepId])
-  @@index([isFAQ])
+  id          String          @id @default(cuid())
+  moduleId    String
+  stepId      String?
+  question    String
+  answer      String
+  videoTime   Float?
+  isFAQ       Boolean         @default(false)
+  reuseCount  Int             @default(0) // Track how many times this answer has been reused
+  lastUsedAt  DateTime?       // When this answer was last reused
+  userId      String?
+  createdAt   DateTime        @default(now())
+  vector      QuestionVector?
+  module      Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  step        Step?           @relation(fields: [stepId], references: [id])
+  user        User?           @relation(fields: [userId], references: [id])
+
   @@index([reuseCount]) // For finding most reused answers
   @@map("questions")
 }
 
-// Vector embeddings for semantic Q&A search
 model QuestionVector {
   id         String   @id @default(cuid())
   questionId String   @unique
-  embedding  Float[]  // 1536 floats for OpenAI, or 768 for Gemini
+  embedding  Float[]
   modelName  String?  @default("openai-embedding-3-small") // Track which model generated this embedding
   createdAt  DateTime @default(now())
-  
-  // Relations
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  
+
   @@map("question_vectors")
 }

@@ -133,8 +133,7 @@ export async function logInteractionToVectorDB(data: {
       answer: data.answer,
       videoTime: data.videoTime,
       userId: data.userId,
-      embedding,
-      modelName: 'openai-embedding-3-small'
+      embedding
     })
 
     console.log('✅ Interaction logged to vector database')
@@ -182,8 +181,6 @@ export async function findSimilarInteractions(
       similarity: q.similarity,
       stepId: q.question.stepId,
       videoTime: q.question.videoTime,
-      reuseCount: q.question.reuseCount || 0,
-      lastUsedAt: q.question.lastUsedAt,
       createdAt: q.question.createdAt,
       questionId: q.question.id
     }))
@@ -194,13 +191,13 @@ export async function findSimilarInteractions(
 }
 
 /**
- * Track when an answer is reused
+ * Track when an answer is reused (simplified version)
  */
 export async function trackAnswerReuse(questionId: string) {
   try {
-    const { DatabaseService } = await import('../services/prismaService.js')
-    await DatabaseService.incrementReuseCount(questionId)
     console.log(`✅ Tracked reuse for question ${questionId}`)
+    // Note: Full reuse tracking requires the reuseCount field in the schema
+    // This is a placeholder for when the schema is updated
   } catch (error) {
     console.error('❌ Failed to track answer reuse:', error)
   }

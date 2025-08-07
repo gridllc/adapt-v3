@@ -150,8 +150,7 @@ export class DatabaseService {
   }>) {
     const stepData = steps.map((step, index) => ({
       moduleId,
-      startTime: step.timestamp,
-      endTime: step.timestamp + step.duration,
+      timestamp: step.timestamp,
       title: step.title,
       description: step.description,
       duration: step.duration,
@@ -166,7 +165,19 @@ export class DatabaseService {
   static async getSteps(moduleId: string) {
     return await prisma.step.findMany({
       where: { moduleId },
-      orderBy: { order: 'asc' }
+      orderBy: { order: 'asc' },
+      include: {
+        questions: {
+          select: {
+            id: true,
+            question: true,
+            answer: true,
+            videoTime: true,
+            isFAQ: true,
+            createdAt: true
+          }
+        }
+      }
     })
   }
 
@@ -193,7 +204,9 @@ export class DatabaseService {
     return { total, positive, negative }
   }
 
-  // AI Interaction operations
+  /**
+   * Create AI interaction with enhanced tracking
+   */
   static async createAIInteraction(data: {
     moduleId: string
     userMessage: string
@@ -318,7 +331,7 @@ export class DatabaseService {
       orderBy: { createdAt: 'desc' },
       include: {
         step: {
-          select: { title: true, startTime: true }
+          select: { title: true, timestamp: true }
         }
       }
     })
@@ -343,7 +356,6 @@ export class DatabaseService {
   static async createQuestionVector(data: {
     questionId: string
     embedding: number[]
-    modelName?: string
   }) {
     // Validate vector dimensions
     if (data.embedding.length !== 1536) {
@@ -353,8 +365,7 @@ export class DatabaseService {
     return await prisma.questionVector.create({
       data: {
         questionId: data.questionId,
-        embedding: data.embedding,
-        modelName: data.modelName || 'openai-embedding-3-small'
+        embedding: data.embedding
       }
     })
   }
@@ -401,8 +412,6 @@ export class DatabaseService {
             answer: item.answer,
             videoTime: item.video_time,
             isFAQ: item.is_faq,
-            reuseCount: item.reuse_count,
-            lastUsedAt: item.last_used_at,
             userId: item.user_id,
             createdAt: item.created_at,
             updatedAt: item.updated_at
@@ -436,7 +445,7 @@ export class DatabaseService {
         question: {
           include: {
             step: {
-              select: { title: true, startTime: true }
+              select: { title: true }
             }
           }
         }
@@ -464,38 +473,6 @@ export class DatabaseService {
   }
 
   /**
-   * Track when a question answer is reused
-   */
-  static async incrementReuseCount(questionId: string) {
-    return await prisma.question.update({
-      where: { id: questionId },
-      data: {
-        reuseCount: { increment: 1 },
-        lastUsedAt: new Date()
-      }
-    })
-  }
-
-  /**
-   * Get most reused questions for analytics
-   */
-  static async getMostReusedQuestions(moduleId: string, limit: number = 10) {
-    return await prisma.question.findMany({
-      where: { 
-        moduleId,
-        reuseCount: { gt: 0 }
-      },
-      orderBy: { reuseCount: 'desc' },
-      take: limit,
-      include: {
-        step: {
-          select: { title: true, startTime: true }
-        }
-      }
-    })
-  }
-
-  /**
    * Enhanced createQuestion method that bundles vector creation
    */
   static async createQuestionWithVector(data: {
@@ -506,7 +483,6 @@ export class DatabaseService {
     videoTime?: number
     userId?: string
     embedding: number[]
-    modelName?: string
   }) {
     // Create the question first
     const question = await this.createQuestion({
@@ -521,12 +497,31 @@ export class DatabaseService {
     // Create the vector embedding
     await this.createQuestionVector({
       questionId: question.id,
-      embedding: data.embedding,
-      modelName: data.modelName
+      embedding: data.embedding
     })
 
     return question
   }
+
+  /**
+   * Get step confusion analytics
+   */
+  static async getStepConfusionAnalytics(moduleId: string) {
+    return await prisma.step.findMany({
+      where: { moduleId },
+      include: {
+        questions: {
+          select: {
+            id: true,
+            question: true
+          }
+        }
+      },
+      orderBy: { order: 'asc' }
+    })
+  }
+
+
 
   static async getQuestionHistory(moduleId: string, limit: number = 10) {
     return await prisma.question.findMany({
@@ -535,7 +530,7 @@ export class DatabaseService {
       take: limit,
       include: {
         step: {
-          select: { title: true, startTime: true }
+          select: { title: true, timestamp: true }
         },
         user: {
           select: { email: true }
