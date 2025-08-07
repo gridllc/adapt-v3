@@ -313,7 +313,7 @@ export class DatabaseService {
       orderBy: { createdAt: 'desc' },
       include: {
         step: {
-          select: { title: true, startTime: true }
+          select: { title: true, timestamp: true }
         },
         user: {
           select: { email: true }
