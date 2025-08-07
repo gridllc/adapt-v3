@@ -13,6 +13,7 @@ import EditStepsPage from '@pages/EditStepsPage'
 import SharePage from '@pages/SharePage'
 import DebugPage from '@pages/DebugPage'
 import { ApiDebug } from '@components/ApiDebug'
+import { GlobalErrorBoundary, NavigationErrorBoundary, UploadErrorBoundary } from '@components/common/ErrorBoundaries'
 
 // Conditional Home Component
 const ConditionalHome = () => {
@@ -51,50 +52,50 @@ const ConditionalHome = () => {
 
 function App() {
   return (
-    <>
+    <GlobalErrorBoundary>
       {/* Debug panel temporarily disabled */}
       {/* <ApiDebug /> */}
       
-
-      
       <Routes>
-      {/* Always show home page at root */}
-      <Route path="/" element={<HomePage />} />
-      
-      {/* Clerk authentication routes */}
-      <Route path="/sign-in/*" element={<CenteredSignIn />} />
-      <Route path="/sign-up/*" element={<CenteredSignUp />} />
-      <Route path="/sso-callback" element={<div>Loading...</div>} />
+        {/* Always show home page at root */}
+        <Route path="/" element={<HomePage />} />
+        
+        {/* Clerk authentication routes */}
+        <Route path="/sign-in/*" element={<CenteredSignIn />} />
+        <Route path="/sign-up/*" element={<CenteredSignUp />} />
+        <Route path="/sso-callback" element={<div>Loading...</div>} />
 
-             {/* Protected routes */}
-       <Route element={<ProtectedRoute />}>
-         <Route
-           path="/edit-steps/:moduleId"
-           element={
-             <Layout>
-               <EditStepsPage />
-             </Layout>
-           }
-         />
-       </Route>
-      
-             {/* Public routes for development - NO AUTH REQUIRED */}
-       <Route
-         path="/dashboard"
-         element={
-           <Layout>
-             <DashboardPage />
-           </Layout>
-         }
-       />
-       <Route
-         path="/upload"
-         element={
-           <Layout>
-             <UploadPage />
-           </Layout>
-         }
-       />
+        {/* Protected routes */}
+        <Route element={<ProtectedRoute />}>
+          <Route
+            path="/edit-steps/:moduleId"
+            element={
+              <Layout>
+                <EditStepsPage />
+              </Layout>
+            }
+          />
+        </Route>
+        
+        {/* Public routes for development - NO AUTH REQUIRED */}
+        <Route
+          path="/dashboard"
+          element={
+            <Layout>
+              <DashboardPage />
+            </Layout>
+          }
+        />
+        <Route
+          path="/upload"
+          element={
+            <Layout>
+              <UploadErrorBoundary>
+                <UploadPage />
+              </UploadErrorBoundary>
+            </Layout>
+          }
+        />
        <Route
          path="/training/:moduleId"
          element={
@@ -123,7 +124,7 @@ function App() {
       {/* Catch-all route for unknown paths */}
       <Route path="*" element={<HomePage />} />
     </Routes>
-    </>
+    </GlobalErrorBoundary>
   )
 }
 

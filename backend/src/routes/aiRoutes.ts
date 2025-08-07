@@ -3,6 +3,7 @@ import { aiService } from '../services/aiService.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { UserService } from '../services/userService.js'
 import { generateEmbedding, logInteractionToVectorDB } from '../utils/vectorUtils.js'
+import { getLearningStats } from '../services/qaRecall.js'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -53,55 +54,68 @@ router.post('/contextual-response', async (req: any, res: any) => {
     console.log(`🎬 Current step: ${currentStep?.title || 'None'}`)
     console.log(`⏰ Video time: ${videoTime}s`)
 
-    // Generate contextual response using the enhanced AI service
-    const response = await aiService.generateContextualResponse(
+    // Generate contextual response using the enhanced AI service with Shared Learning System
+    const userId = await UserService.getUserIdFromRequest(req)
+    const aiResponse = await aiService.generateContextualResponse(
       userMessage,
       currentStep,
       allSteps,
       videoTime,
-      moduleId
+      moduleId,
+      userId || undefined
     )
 
-    console.log(`✅ AI response generated: ${response.substring(0, 100)}...`)
+    console.log(`✅ AI response generated: ${aiResponse.answer.substring(0, 100)}...`)
+    console.log(`♻️ Reused: ${aiResponse.reused}, Similarity: ${aiResponse.similarity ? (aiResponse.similarity * 100).toFixed(1) + '%' : 'N/A'}`)
 
-    // Save Q&A to database with vector logging
-    const userId = await UserService.getUserIdFromRequest(req)
-    try {
-      await logInteractionToVectorDB({
-        question: userMessage,
-        answer: response,
-        moduleId,
-        stepId: currentStep?.id,
-        videoTime,
-        userId: userId || undefined
-      })
-    } catch (error) {
-      console.warn('⚠️ Failed to log interaction to vector database:', error)
-      // Continue without vector logging - not critical
-    }
-
-    // Log activity
+    // Log activity with reuse information
     await DatabaseService.createActivityLog({
       userId: userId || undefined,
       action: 'AI_QUESTION',
       targetId: moduleId,
       metadata: {
         questionLength: userMessage.length,
-        answerLength: response.length,
+        answerLength: aiResponse.answer.length,
         videoTime,
-        stepId: currentStep?.id
+        stepId: currentStep?.id,
+        reused: aiResponse.reused,
+        similarity: aiResponse.similarity,
+        questionId: aiResponse.questionId
       }
     })
 
     res.json({ 
       success: true, 
-      response: response 
+      answer: aiResponse.answer,
+      reused: aiResponse.reused,
+      similarity: aiResponse.similarity,
+      questionId: aiResponse.questionId
     })
   } catch (error) {
     console.error('❌ Contextual AI response error:', error)
     res.status(500).json({ 
       success: false, 
       error: 'Failed to generate AI response' 
+    })
+  }
+})
+
+// Get Shared AI Learning System statistics
+router.get('/learning-stats', async (req, res) => {
+  try {
+    console.log('📊 Fetching Shared AI Learning System statistics')
+    
+    const stats = await getLearningStats()
+    
+    res.json({
+      success: true,
+      stats
+    })
+  } catch (error) {
+    console.error('❌ Failed to get learning stats:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get learning statistics'
     })
   }
 })

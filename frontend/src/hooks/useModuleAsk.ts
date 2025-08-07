@@ -6,6 +6,9 @@ interface AskResult {
   source: string | null
   loading: boolean
   error: string | null
+  reused: boolean
+  similarity: number | null
+  questionId: string | null
   ask: (moduleId: string, question: string) => Promise<void>
 }
 
@@ -14,6 +17,9 @@ export function useModuleAsk(): AskResult {
   const [source, setSource] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reused, setReused] = useState<boolean>(false)
+  const [similarity, setSimilarity] = useState<number | null>(null)
+  const [questionId, setQuestionId] = useState<string | null>(null)
 
   const ask = async (moduleId: string, question: string) => {
     try {
@@ -21,6 +27,9 @@ export function useModuleAsk(): AskResult {
       setError(null)
       setAnswer(null)
       setSource(null)
+      setReused(false)
+      setSimilarity(null)
+      setQuestionId(null)
       
       const data = await api(API_ENDPOINTS.AI_ASK, {
         method: 'POST',
@@ -31,6 +40,9 @@ export function useModuleAsk(): AskResult {
       if (data.success) {
         setAnswer(data.answer || null)
         setSource(data.source || null)
+        setReused(data.reused || false)
+        setSimilarity(data.similarity || null)
+        setQuestionId(data.questionId || null)
       } else {
         setError(data.error || 'Failed to get answer')
       }
@@ -42,5 +54,5 @@ export function useModuleAsk(): AskResult {
     }
   }
 
-  return { answer, source, loading, error, ask }
+  return { answer, source, loading, error, reused, similarity, questionId, ask }
 }

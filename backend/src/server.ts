@@ -3,11 +3,13 @@ import { env } from './config/env.js'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
-import { uploadRoutes } from './routes/uploadRoutes.js'
+import uploadRoutes from './routes/uploadRoutes.js'
+import enhancedUploadRoutes from './routes/enhancedUploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
@@ -124,9 +126,24 @@ const configureMiddleware = () => {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Range'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'Range',
+      'X-Upload-Source', // For tracking upload source
+      'X-File-Size',     // For file size validation
+      'X-File-Type'      // For file type validation
+    ],
+    exposedHeaders: [
+      'X-Upload-Progress',
+      'X-Upload-Status',
+      'X-Module-ID'
+    ],
+    maxAge: 86400 // Cache preflight for 24 hours
   }
   app.use(cors(corsOptions))
+
+  // Note: Rate limiting is applied at the route level for better control
 
   // Body parsing middleware (increased for larger video uploads)
   app.use(express.json({ limit: '200mb' }))
@@ -147,6 +164,7 @@ const configureMiddleware = () => {
 const configureRoutes = () => {
   // Protected Routes (require authentication)
   app.use('/api/upload', requireAuth, uploadRoutes)
+  app.use('/api/upload-enhanced', requireAuth, enhancedUploadRoutes)
   app.use('/api/modules', requireAuth, moduleRoutes)
   
   // Steps routes with auth for generation

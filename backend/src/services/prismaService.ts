@@ -78,6 +78,12 @@ export class DatabaseService {
     })
   }
 
+  static async getModuleCountByUser(userId: string) {
+    return await prisma.module.count({
+      where: { userId }
+    })
+  }
+
   static async getAllModules(filters?: { ownerId?: string; status?: string; userId?: string }) {
     const where: any = {}
     

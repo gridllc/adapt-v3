@@ -1,60 +1,110 @@
 import { Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import multer from 'multer'
 import { storageService } from '../services/storageService.js'
 import { enqueueProcessVideoJob, perfLogger } from '../services/qstashQueue.js'
 import { createBasicSteps } from '../services/createBasicSteps.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { ModuleService } from '../services/moduleService.js'
 import { UserService } from '../services/userService.js'
+import { logBlockedEvent } from '../utils/logBlockedEvent.js'
+import { getMaxUploadsPerUser } from '../config/env.js'
+import type { MulterFile } from '../types/express.d.ts'
 
 // Type-safe interface for multer requests  
 interface MulterRequest extends Request {
-  file: any
+  file: MulterFile
 }
 
-// ES Module compatible __dirname
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-// Configure upload directory
-const uploadDir = path.resolve(__dirname, '../../uploads')
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true })
+interface UploadResult {
+  moduleId: string
+  videoUrl: string
+  title: string
 }
 
-// Configure multer with disk storage for better file handling
-const storage = multer.diskStorage({
-  destination: (_: any, __: any, cb: any) => cb(null, uploadDir),
-  filename: (_: any, file: any, cb: any) => {
-    const moduleId = uuidv4()
-    const extension = path.extname(file.originalname)
-    const filename = `${moduleId}${extension}`
-    cb(null, filename)
-  }
-})
+// 🎯 Core upload logic - single source of truth
+export async function handleUpload(file: MulterFile, userId?: string, providedModuleId?: string): Promise<UploadResult> {
+  if (!file) throw new Error('No file provided')
+  if (!file.mimetype.startsWith('video/')) throw new Error('Only video files are allowed')
 
-const upload = multer({ 
-  storage,
-  limits: {
-    fileSize: 200 * 1024 * 1024, // 200MB limit
-    fieldSize: 200 * 1024 * 1024  // Also increase field size for large files
-  },
-  fileFilter: (req: any, file: any, cb: any) => {
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true)
-    } else {
-      cb(new Error('Only video files are allowed'))
+  // 🔐 Upload cap per user (friends & family beta)
+  if (userId) {
+    const maxUploads = getMaxUploadsPerUser()
+    const uploadCount = await DatabaseService.getModuleCountByUser(userId)
+    
+    if (uploadCount >= maxUploads) {
+      // Log the blocked event
+      await logBlockedEvent({
+        ip: 'unknown', // We don't have access to IP in this context
+        userId,
+        reason: `Upload limit exceeded (${uploadCount}/${maxUploads})`
+      })
+      
+      throw new Error(`Upload limit reached. Max ${maxUploads} videos allowed during beta testing.`)
     }
+    
+    console.log(`📊 User ${userId} has ${uploadCount}/${maxUploads} uploads`)
   }
-})
+
+  const moduleId = providedModuleId || uuidv4()
+  const originalname = file.originalname
+  const title = originalname.replace(/\.[^/.]+$/, '')
+
+  console.log('📦 Starting upload for:', originalname)
+  perfLogger.startUpload(originalname)
+
+  const { videoUrl } = await storageService.uploadVideo(file)
+
+  perfLogger.logUploadComplete(moduleId)
+  console.log('✅ Video stored at:', videoUrl)
+
+  try {
+    await DatabaseService.createModule({
+      id: moduleId,
+      title,
+      filename: file.originalname,
+      videoUrl,
+      userId: userId || undefined,
+    })
+
+    await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Upload complete, starting AI processing...')
+
+    await DatabaseService.createActivityLog({
+      userId: userId || undefined,
+      action: 'CREATE_MODULE',
+      targetId: moduleId,
+      metadata: {
+        title,
+        filename: file.originalname,
+        videoUrl,
+      },
+    })
+  } catch (err) {
+    console.error('❌ Failed to save metadata, cleaning up S3...')
+    // Optional: await storageService.deleteVideo(videoUrl)
+    throw new Error('Failed to save module metadata')
+  }
+
+  try {
+    await createBasicSteps(moduleId, originalname)
+    console.log('✅ Basic fallback steps created')
+  } catch (err) {
+    console.warn(`⚠️ Basic steps failed for ${moduleId} — will rely on AI`)
+  }
+
+  try {
+    await enqueueProcessVideoJob({ moduleId, videoUrl })
+    console.log('🚀 Queued AI processing')
+  } catch (err) {
+    console.warn('⚠️ Upload succeeded but AI processing was not queued')
+  }
+
+  return { moduleId, videoUrl, title }
+}
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
-    console.log('🔁 Upload handler triggered')
+    console.log('🔁 Express upload handler triggered')
     
     try {
       // Type-safe file access
@@ -62,98 +112,29 @@ export const uploadController = {
       
       if (!typedReq.file) {
         console.error('❌ No file uploaded')
-        return res.status(400).json({ error: 'No file uploaded' })
+        return res.status(400).json({ 
+          type: 'VALIDATION_ERROR',
+          message: 'No file uploaded' 
+        })
       }
 
       console.log('[TEST] 📁 Upload started:', typedReq.file.originalname)
       console.log('[TEST] 📁 File size:', typedReq.file.size, 'bytes')
       console.log('[TEST] 📁 File mimetype:', typedReq.file.mimetype)
 
-      const file = typedReq.file
-      const originalname = file.originalname
-      const moduleId = path.parse(file.filename).name // Extract moduleId from filename
-
-      // Validate file
-      if (!file.mimetype.startsWith('video/')) {
-        return res.status(400).json({ error: 'Only video files are allowed' })
-      }
-
-      perfLogger.startUpload(file.originalname)
-
-      console.log('[TEST] 📁 Processing with storage service...')
-      // Upload to storage and get the video URL
-      const { videoUrl } = await storageService.uploadVideo(file)
-      console.log('[TEST] 📁 Module ID:', moduleId)
-      console.log('[TEST] 📁 Video URL:', videoUrl)
-
-      perfLogger.logUploadComplete(moduleId)
-
-      // Create initial module entry in database
-      const title = originalname.replace(/\.[^/.]+$/, '')
-      
-      // Get user ID if authenticated (optional for now)
+      // Get user ID if authenticated
       const userId = await UserService.getUserIdFromRequest(req)
       
-      try {
-        await DatabaseService.createModule({
-          id: moduleId,
-          title,
-          filename: file.filename,
-          videoUrl,
-          userId: userId || undefined
-        })
-        
-        // Update status to processing
-        await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Upload complete, starting AI processing...')
-        console.log('✅ Module entry created in database with processing status')
-        
-        // Log activity
-        await DatabaseService.createActivityLog({
-          userId: userId || undefined,
-          action: 'CREATE_MODULE',
-          targetId: moduleId,
-          metadata: { 
-            title,
-            filename: file.filename,
-            videoUrl 
-          }
-        })
-      } catch (error) {
-        console.error('❌ Failed to create module in database:', error)
-        return res.status(500).json({ error: 'Failed to save module data' })
-      }
-
-      // Create basic step files immediately
-      console.log('📝 Creating basic step files...')
-      try {
-        await createBasicSteps(moduleId, originalname)
-        console.log('✅ Basic step files created')
-      } catch (error) {
-        console.error('❌ Failed to create basic step files:', error)
-        console.warn(`⚠️ CRITICAL: Basic steps fallback failed for ${moduleId} - module may 404 until AI completes`)
-        // Continue anyway - the background processing will handle this
-      }
-
-      // Queue AI processing job (async - don't wait!)
-      console.log('🚀 Queuing AI processing job...')
-      try {
-        await enqueueProcessVideoJob({
-          moduleId,
-          videoUrl
-        })
-        console.log('✅ AI processing job queued successfully')
-      } catch (error) {
-        console.error('❌ Failed to queue AI processing job:', error)
-        // Don't fail the upload, but log the error
-        console.warn('⚠️ Upload succeeded but AI processing may be delayed')
-      }
-
-      console.log('✅ Upload completed successfully')
+      // Use core upload logic
+      const { moduleId, videoUrl, title } = await handleUpload(typedReq.file, userId || undefined)
+      
       return res.status(200).json({
         success: true,
         moduleId,
-        message: 'Video uploaded successfully. AI processing has been queued.',
-        videoUrl
+        title,
+        videoUrl,
+        redirectUrl: `/training/${moduleId}`,
+        message: 'Video uploaded successfully. AI processing has been queued.'
       })
 
     } catch (error) {
@@ -164,16 +145,21 @@ export const uploadController = {
         fs.unlinkSync(req.file.path)
       }
       
+      // 🎯 Return typed error for smart frontend retries
+      const errorType = error instanceof Error && error.message.includes('Only video files are allowed') 
+        ? 'VALIDATION_ERROR' 
+        : 'SERVER_ERROR'
+      
       return res.status(500).json({ 
-        error: 'Upload failed',
+        type: errorType,
+        message: error instanceof Error ? error.message : 'Upload failed',
         details: error instanceof Error ? error.message : 'Unknown error'
       })
     }
   }
 }
 
-// Export the middleware array for direct use
-export const handleUpload = [
-  upload.single('file') as any,
-  uploadController.uploadVideo
-] 
+// 🎯 Updated upload function for new route system - uses core logic
+export const uploadVideo = async (file: MulterFile, userId?: string) => {
+  return handleUpload(file, userId)
+} 

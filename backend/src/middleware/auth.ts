@@ -1,26 +1,51 @@
 import { Request, Response, NextFunction } from 'express'
-import { clerkClient } from '@clerk/clerk-sdk-node'
+import { clerkClient, verifyToken } from '@clerk/clerk-sdk-node'
 
 // Simple auth helper for clerk-sdk-node
-function getAuth(req: Request) {
+async function getAuth(req: Request) {
   // Extract session token from Authorization header
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { userId: null }
   }
   
-  // For now, we'll use a simplified approach
-  // In production, you'd want to verify the JWT token properly
   const token = authHeader.substring(7)
   
-  // This is a simplified version - you should verify the token properly
   try {
-    // Extract userId from token (this is simplified)
-    // In real implementation, verify JWT and extract userId
-    const decodedToken = JSON.parse(atob(token.split('.')[1]))
-    return { userId: decodedToken.sub || null }
-  } catch {
+    // 🔐 Properly verify the JWT with Clerk
+    const { sessionClaims } = await verifyToken(token, {
+      issuer: process.env.CLERK_ISSUER_URL || 'https://clerk.adaptord.com',
+      secretKey: process.env.CLERK_SECRET_KEY
+    })
+    return { userId: (sessionClaims as any)?.sub || null }
+  } catch (error) {
+    console.error('❌ Token verification failed:', error)
     return { userId: null }
+  }
+}
+
+// 🎯 Allowlist functionality for friends and family beta
+async function isAllowedUser(userId: string): Promise<boolean> {
+  const { getAllowedEmails } = await import('../config/env.js')
+  const allowedEmails = getAllowedEmails()
+  
+  if (allowedEmails.length === 0) {
+    // If no allowlist is set, allow all authenticated users
+    return true
+  }
+  
+  try {
+    // 🔐 Fetch user's email from Clerk
+    const user = await clerkClient.users.getUser(userId)
+    const email = user?.emailAddresses?.[0]?.emailAddress || ''
+    
+    console.log(`🔍 Checking allowlist for user ${userId} (${email})`)
+    console.log(`📧 Allowed emails: ${allowedEmails.join(', ')}`)
+    
+    return allowedEmails.includes(email.toLowerCase())
+  } catch (error) {
+    console.error('❌ Failed to fetch Clerk user:', error)
+    return false
   }
 }
 
@@ -34,12 +59,12 @@ declare global {
 }
 
 /**
- * Minimal authentication middleware
- * Only checks if user is authenticated, doesn't require specific roles
+ * Minimal authentication middleware with allowlist support
+ * Only checks if user is authenticated and allowed, doesn't require specific roles
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    const { userId } = getAuth(req)
+    const { userId } = await getAuth(req)
     
     if (!userId) {
       console.log('🔒 Unauthorized access attempt:', {
@@ -56,10 +81,26 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
       })
     }
     
+    // 🎯 Check allowlist for friends and family beta
+    if (!(await isAllowedUser(userId))) {
+      console.log('🚫 Access denied - user not in allowlist:', {
+        userId,
+        path: req.path,
+        method: req.method,
+        ip: req.ip
+      })
+      
+      return res.status(403).json({ 
+        error: 'Access Denied',
+        message: 'Your account is not authorized for this beta',
+        code: 'ACCESS_DENIED'
+      })
+    }
+    
     // Add userId to request for use in controllers
     req.userId = userId
     
-    console.log('✅ Authenticated request:', {
+    console.log('✅ Authenticated and allowed request:', {
       userId,
       path: req.path,
       method: req.method
@@ -79,9 +120,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
  * Optional authentication middleware
  * Adds userId if authenticated, but doesn't block unauthenticated requests
  */
-export function optionalAuth(req: Request, res: Response, next: NextFunction) {
+export async function optionalAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    const { userId } = getAuth(req)
+    const { userId } = await getAuth(req)
     
     if (userId) {
       req.userId = userId
@@ -102,9 +143,9 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
  * Admin-only middleware (for future use)
  * Requires authentication and admin role
  */
-export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   try {
-    const { userId } = getAuth(req)
+    const { userId } = await getAuth(req)
     
     if (!userId) {
       return res.status(401).json({ 

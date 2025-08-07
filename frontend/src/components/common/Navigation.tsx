@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton, useAuth } from '@clerk/clerk-react'
+import { NetworkStatusBadge } from './NetworkStatusBadge'
 
 export const Navigation: React.FC = () => {
   const location = useLocation()
@@ -37,6 +38,7 @@ export const Navigation: React.FC = () => {
             {navLink('/', '🏠 Home')}
             {navLink('/dashboard', '📊 Dashboard')}
             {navLink('/upload', '📤 Upload')}
+            <NetworkStatusBadge variant="compact" showRefresh={false} />
             <UserButton afterSignOutUrl="/" />
           </div>
 
@@ -57,6 +59,9 @@ export const Navigation: React.FC = () => {
           {navLink('/', '🏠 Home')}
           {navLink('/dashboard', '📊 Dashboard')}
           {navLink('/upload', '📤 Upload')}
+          <div className="py-2">
+            <NetworkStatusBadge variant="full" showRefresh={true} />
+          </div>
           <UserButton afterSignOutUrl="/" />
         </div>
       )}

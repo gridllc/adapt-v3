@@ -11,6 +11,8 @@ import ffmpegStatic from 'ffmpeg-static'
 import fs from 'fs'
 import { DatabaseService } from './prismaService.js'
 import { generateEmbedding } from '../utils/vectorUtils.js'
+import { logTutorInteraction } from './qaLogger.js'
+import { findBestMatchingAnswer } from './qaRecall.js'
 
 const execAsync = promisify(exec)
 
@@ -65,17 +67,24 @@ function initializeClients() {
   }
 }
 
+// Type definitions for better structure
+type Segment = { start: number; end: number; text: string }
+type Step = { 
+  id: string
+  timestamp: number
+  title: string
+  description: string
+  duration: number
+  aliases?: string[]
+  notes?: string
+}
+
 interface VideoProcessingResult {
   title: string
   description: string
   transcript: string
-  segments: Array<{ start: number; end: number; text: string }>
-  steps: Array<{
-    timestamp: number
-    title: string
-    description: string
-    duration: number
-  }>
+  segments: Segment[]
+  steps: Step[]
   totalDuration: number
 }
 
@@ -829,8 +838,14 @@ Cleaned version:`
     currentStep: any,
     allSteps: any[],
     videoTime: number = 0,
-    moduleId?: string
-  ): Promise<string> {
+    moduleId?: string,
+    userId?: string
+  ): Promise<{
+    answer: string
+    reused: boolean
+    similarity?: number
+    questionId?: string
+  }> {
     console.log(`🤖 Generating contextual response for step: ${currentStep?.title}`)
     
     // Check for Griff-related questions first
@@ -838,17 +853,52 @@ Cleaned version:`
     if (message.includes('griff') || message.includes('who is griff') || message.includes('who\'s griff')) {
       const randomResponse = GRIFF_RESPONSES[Math.floor(Math.random() * GRIFF_RESPONSES.length)]
       console.log('🎭 Griff question detected, returning funny response')
-      return randomResponse
+      return {
+        answer: randomResponse,
+        reused: false
+      }
     }
     
     try {
-      // Find similar past questions if moduleId is provided
+      // 🔍 Step 1: Check for reusable answers using Shared AI Learning System
+      const reusableAnswer = await findBestMatchingAnswer(userMessage, moduleId, 0.85)
+      
+      if (reusableAnswer) {
+        console.log(`♻️ Reusing answer with ${(reusableAnswer.similarity * 100).toFixed(1)}% similarity`)
+        
+        // Log the reused interaction
+        await logTutorInteraction({
+          question: userMessage,
+          answer: reusableAnswer.answer,
+          moduleId,
+          stepId: currentStep?.id,
+          userId,
+          videoTime,
+          reused: true,
+          similarity: reusableAnswer.similarity
+        })
+        
+        return {
+          answer: reusableAnswer.answer,
+          reused: true,
+          similarity: reusableAnswer.similarity,
+          questionId: reusableAnswer.questionId,
+          reason: reusableAnswer.reason
+        }
+      }
+      
+      // 🆕 Step 2: Generate new response if no reusable answer found
+      console.log('🆕 Generating new response')
+      
+      // Find similar past questions for context (not for reuse)
+      // Only generate embedding if we didn't already find a reusable answer
       let similarQuestions: any[] = []
       if (moduleId) {
         try {
-          const embedding = await generateEmbedding(userMessage)
+          // Reuse the embedding from the reusable answer search if available
+          const embedding = reusableAnswer?.embedding || await generateEmbedding(userMessage)
           similarQuestions = await DatabaseService.findSimilarQuestions(moduleId, embedding, 0.8)
-          console.log(`🔍 Found ${similarQuestions.length} similar questions`)
+          console.log(`🔍 Found ${similarQuestions.length} similar questions for context`)
         } catch (error) {
           console.warn('⚠️ Vector search failed:', error)
         }
@@ -857,19 +907,47 @@ Cleaned version:`
       // Build rich context for the AI
       const context = this.buildStepContext(userMessage, currentStep, allSteps, videoTime, similarQuestions)
       
+      // Generate response using available AI services
+      let response: string
+      
       // Try Gemini first (cheaper)
       const geminiResponse = await this.generateWithGemini(userMessage, context)
-      if (geminiResponse) return geminiResponse
+      if (geminiResponse) {
+        response = geminiResponse
+      } else {
+        // Fallback to OpenAI
+        const openaiResponse = await this.generateWithOpenAI(userMessage, context)
+        if (openaiResponse) {
+          response = openaiResponse
+        } else {
+          // Final fallback to keyword-based response
+          response = this.generateFallbackResponse(userMessage, currentStep, allSteps)
+        }
+      }
       
-      // Fallback to OpenAI
-      const openaiResponse = await this.generateWithOpenAI(userMessage, context)
-      if (openaiResponse) return openaiResponse
+      // Log the new interaction for future reuse
+      await logTutorInteraction({
+        question: userMessage,
+        answer: response,
+        moduleId,
+        stepId: currentStep?.id,
+        userId,
+        videoTime,
+        reused: false
+      })
       
-      // Final fallback to keyword-based response
-      return this.generateFallbackResponse(userMessage, currentStep, allSteps)
+      return {
+        answer: response,
+        reused: false
+      }
     } catch (error) {
       console.error('❌ Contextual AI response failed:', error)
-      return this.generateFallbackResponse(userMessage, currentStep, allSteps)
+      const fallbackResponse = this.generateFallbackResponse(userMessage, currentStep, allSteps)
+      
+      return {
+        answer: fallbackResponse,
+        reused: false
+      }
     }
   },
 
@@ -878,6 +956,31 @@ Cleaned version:`
       return `You are an AI training assistant. The user is asking: "${userMessage}". Provide a helpful response about the training.`
     }
 
+    const stepMetadata = this.buildStepMetadata(currentStep, allSteps)
+    const trainingOverview = this.buildTrainingOverview(allSteps)
+    const similarQuestionContext = this.buildSimilarQuestionContext(similarQuestions)
+    
+    let context = `You are an AI training assistant helping with a video tutorial.
+
+${stepMetadata}
+
+${trainingOverview}
+
+${similarQuestionContext}
+
+GUIDELINES:
+- Reference the current step naturally in your response
+- Use step-specific terms and aliases when relevant
+- Provide helpful, actionable advice
+- Keep responses concise but informative
+- If the user seems stuck, suggest next steps or clarification
+
+User Question: "${userMessage}"`
+    
+    return context
+  },
+
+  buildStepMetadata(currentStep: any, allSteps: any[]): string {
     const stepIndex = allSteps.findIndex(s => s.id === currentStep.id) + 1
     const totalSteps = allSteps.length
     const progress = Math.round((stepIndex / totalSteps) * 100)
@@ -889,39 +992,38 @@ Cleaned version:`
     const seconds = currentStep.timestamp % 60
     const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`
     
-    let context = `You are an AI training assistant helping with a video tutorial.
-
-CURRENT STEP CONTEXT:
+    return `CURRENT STEP CONTEXT:
 - Step ${stepIndex} of ${totalSteps} (${progress}% complete)
 - Title: "${currentStep.title}"
 - Description: "${currentStep.description}"
 - Video Time: ${timeString} (${currentStep.duration}s duration)
 - Key Terms/Aliases: ${aliases}
-- Training Notes: ${notes}
+- Training Notes: ${notes}`
+  },
 
-TRAINING OVERVIEW:
-${allSteps.map((step, idx) => 
-  `${idx + 1}. ${step.title} (${Math.floor(step.timestamp / 60)}:${(step.timestamp % 60).toString().padStart(2, '0')})`
-).join('\n')}`
+  buildTrainingOverview(allSteps: any[]): string {
+    const overview = allSteps.map((step, idx) => 
+      `${idx + 1}. ${step.title} (${Math.floor(step.timestamp / 60)}:${(step.timestamp % 60).toString().padStart(2, '0')})`
+    ).join('\n')
+    
+    return `TRAINING OVERVIEW:
+${overview}`
+  },
 
-    // Add similar questions context if available
-    if (similarQuestions.length > 0) {
-      context += `\n\nSIMILAR PREVIOUS QUESTIONS:
-${similarQuestions.map((q, idx) => 
-  `${idx + 1}. Q: "${q.question.question}" A: "${q.question.answer}"`
-).join('\n')}
+  buildSimilarQuestionContext(similarQuestions: any[]): string {
+    if (similarQuestions.length === 0) {
+      return ''
+    }
+    
+    const questions = similarQuestions.map((q, idx) => 
+      `${idx + 1}. Q: "${q.question.question}" A: "${q.question.answer}"`
+    ).join('\n')
+    
+    return `SIMILAR PREVIOUS QUESTIONS:
+${questions}
 
 Use these similar questions as reference, but provide a fresh response tailored to the current context.`
-    }
-
-    context += `\n\nGUIDELINES:
-- Reference the current step naturally in your response
-- Use step-specific terms and aliases when relevant
-- Provide helpful, actionable advice
-- Keep responses concise but informative
-- If the user seems stuck, suggest next steps or clarification
-
-User Question: "${userMessage}"`
+  },
 
     return context
   },

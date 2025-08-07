@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { api } from '../config/api'
+import { NetworkStatusBadge } from '../components/common/NetworkStatusBadge'
 
 interface Module {
   id: string
@@ -20,7 +21,7 @@ interface HealthStatus {
   postgres: string
   s3: string
   qstash: string
-  timestamp: string
+  timestamp: strings
   environment: string
   uptime: string
   version: string
@@ -145,6 +146,11 @@ export default function DebugPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">🔧 Debug Dashboard</h1>
           <p className="text-gray-600">Internal testing and monitoring dashboard</p>
+          
+          {/* Network Status */}
+          <div className="mt-4">
+            <NetworkStatusBadge variant="detailed" showRefresh={true} />
+          </div>
         </div>
 
         {/* Health Status */}
