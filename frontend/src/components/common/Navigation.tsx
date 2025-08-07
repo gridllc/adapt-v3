@@ -1,7 +1,7 @@
 // ✅ Responsive sticky Navigation using emoji instead of lucide icons
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { UserButton, useAuth } from '@clerk/clerk-react'
+import { UserButton, SignInButton, useAuth } from '@clerk/clerk-react'
 import { NetworkStatusBadge } from './NetworkStatusBadge'
 
 export const Navigation: React.FC = () => {
@@ -39,7 +39,15 @@ export const Navigation: React.FC = () => {
             {navLink('/dashboard', '📊 Dashboard')}
             {navLink('/upload', '📤 Upload')}
             <NetworkStatusBadge variant="compact" showRefresh={false} />
-            <UserButton afterSignOutUrl="/" />
+            {isSignedIn ? (
+              <UserButton afterSignOutUrl="/" />
+            ) : (
+              <SignInButton mode="modal">
+                <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                  Sign In
+                </button>
+              </SignInButton>
+            )}
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -62,7 +70,15 @@ export const Navigation: React.FC = () => {
           <div className="py-2">
             <NetworkStatusBadge variant="full" showRefresh={true} />
           </div>
-          <UserButton afterSignOutUrl="/" />
+          {isSignedIn ? (
+            <UserButton afterSignOutUrl="/" />
+          ) : (
+            <SignInButton mode="modal">
+              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                Sign In
+              </button>
+            </SignInButton>
+          )}
         </div>
       )}
     </nav>
