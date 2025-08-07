@@ -8,7 +8,8 @@ export enum UploadErrorType {
   VALIDATION_ERROR = 'validation_error',
   AUTHENTICATION = 'authentication',
   COMPRESSION_FAILED = 'compression_failed',
-  STORAGE_FULL = 'storage_full'
+  STORAGE_FULL = 'storage_full',
+  USER_ABORT = 'user_abort'
 }
 
 // 🎯 Backend error response interface

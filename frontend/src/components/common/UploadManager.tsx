@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { EnhancedUploadProgress } from './EnhancedUploadProgress'
-import { UploadErrorType, isRetryableError, calculateRetryDelay, createFinalRetryError } from '../utils/uploadErrors'
-import { uploadFileWithProgress, UploadResponse, UploadOptions } from '../utils/uploadFileWithProgress'
+import { UploadErrorType, isRetryableError, calculateRetryDelay, createFinalRetryError, getErrorMessage } from '../../utils/uploadErrors'
+import { uploadFileWithProgress, UploadOptions } from '../../utils/uploadFileWithProgress'
 
 // 🎯 TypeScript interfaces for full type safety
 interface UploadError {
@@ -120,12 +120,13 @@ export const UploadManager: React.FC<Props> = ({
 
       // 🎯 Final failure - create comprehensive error
       const finalError = createFinalRetryError(err, attempt)
+      const errorResponse = getErrorMessage(finalError, file.size)
       const uploadError: UploadError = {
-        title: finalError.title || 'Upload Failed',
-        message: finalError.message || 'The upload could not be completed after multiple attempts.',
-        action: attempt > 1 ? `Failed after ${attempt} attempts. Try again or contact support.` : 'Try again or check your connection.',
+        title: errorResponse.title,
+        message: errorResponse.message,
+        action: errorResponse.action,
         type: finalError.type,
-        severity: attempt > 1 ? 'high' : 'medium'
+        severity: errorResponse.severity
       }
 
       setError(uploadError)

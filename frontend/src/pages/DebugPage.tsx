@@ -21,7 +21,7 @@ interface HealthStatus {
   postgres: string
   s3: string
   qstash: string
-  timestamp: strings
+  timestamp: string
   environment: string
   uptime: string
   version: string

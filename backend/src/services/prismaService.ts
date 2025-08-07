@@ -343,13 +343,89 @@ export class DatabaseService {
   static async createQuestionVector(data: {
     questionId: string
     embedding: number[]
+    modelName?: string
   }) {
+    // Validate vector dimensions
+    if (data.embedding.length !== 1536) {
+      throw new Error(`Invalid vector size — must be 1536 dimensions, got ${data.embedding.length}`)
+    }
+
     return await prisma.questionVector.create({
-      data
+      data: {
+        questionId: data.questionId,
+        embedding: data.embedding,
+        modelName: data.modelName || 'openai-embedding-3-small'
+      }
     })
   }
 
-  static async findSimilarQuestions(moduleId: string, embedding: number[], threshold: number = 0.8) {
+  /**
+   * Find similar questions using native pgvector ANN search
+   * Supports searching across multiple modules (primary + global fallback)
+   */
+  static async findSimilarQuestionsScoped(
+    embedding: number[],
+    moduleIds: string[], // primary + global modules
+    threshold: number = 0.8,
+    limit: number = 5
+  ) {
+    // Validate vector dimensions
+    if (embedding.length !== 1536) {
+      throw new Error(`Invalid vector size — must be 1536 dimensions, got ${embedding.length}`)
+    }
+
+    try {
+      // Use native pgvector ANN search for better performance
+      const results = await prisma.$queryRawUnsafe(`
+        SELECT 
+          q.*,
+          qv.embedding,
+          1 - (qv.embedding <=> $1) AS similarity
+        FROM question_vectors qv
+        JOIN questions q ON q.id = qv.question_id
+        WHERE q.module_id = ANY($2)
+        ORDER BY qv.embedding <=> $1
+        LIMIT $3
+      `, embedding, moduleIds, limit)
+
+      // Filter by threshold and return
+      return (results as any[])
+        .filter((item: any) => item.similarity >= threshold)
+        .map((item: any) => ({
+          ...item,
+          question: {
+            id: item.id,
+            moduleId: item.module_id,
+            stepId: item.step_id,
+            question: item.question,
+            answer: item.answer,
+            videoTime: item.video_time,
+            isFAQ: item.is_faq,
+            reuseCount: item.reuse_count,
+            lastUsedAt: item.last_used_at,
+            userId: item.user_id,
+            createdAt: item.created_at,
+            updatedAt: item.updated_at
+          }
+        }))
+    } catch (error) {
+      console.error('Native pgvector search failed, falling back to JS calculation:', error)
+      
+      // Fallback to JS calculation if native search fails
+      return await this.findSimilarQuestionsJS(embedding, moduleIds[0], threshold, limit)
+    }
+  }
+
+  /**
+   * Fallback method using JavaScript cosine similarity
+   * Used when native pgvector search is not available
+   */
+  static async findSimilarQuestionsJS(
+    embedding: number[],
+    moduleId: string,
+    threshold: number = 0.8,
+    limit: number = 5
+  ) {
     const vectors = await prisma.questionVector.findMany({
       where: {
         question: {
@@ -376,7 +452,80 @@ export class DatabaseService {
       .filter((item: any) => item.similarity >= threshold)
       .sort((a: any, b: any) => b.similarity - a.similarity)
 
-    return similarQuestions.slice(0, 3) // Return top 3 matches
+    return similarQuestions.slice(0, limit)
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   * @deprecated Use findSimilarQuestionsScoped instead
+   */
+  static async findSimilarQuestions(moduleId: string, embedding: number[], threshold: number = 0.8) {
+    return await this.findSimilarQuestionsScoped(embedding, [moduleId], threshold, 3)
+  }
+
+  /**
+   * Track when a question answer is reused
+   */
+  static async incrementReuseCount(questionId: string) {
+    return await prisma.question.update({
+      where: { id: questionId },
+      data: {
+        reuseCount: { increment: 1 },
+        lastUsedAt: new Date()
+      }
+    })
+  }
+
+  /**
+   * Get most reused questions for analytics
+   */
+  static async getMostReusedQuestions(moduleId: string, limit: number = 10) {
+    return await prisma.question.findMany({
+      where: { 
+        moduleId,
+        reuseCount: { gt: 0 }
+      },
+      orderBy: { reuseCount: 'desc' },
+      take: limit,
+      include: {
+        step: {
+          select: { title: true, startTime: true }
+        }
+      }
+    })
+  }
+
+  /**
+   * Enhanced createQuestion method that bundles vector creation
+   */
+  static async createQuestionWithVector(data: {
+    moduleId: string
+    stepId?: string
+    question: string
+    answer: string
+    videoTime?: number
+    userId?: string
+    embedding: number[]
+    modelName?: string
+  }) {
+    // Create the question first
+    const question = await this.createQuestion({
+      moduleId: data.moduleId,
+      stepId: data.stepId,
+      question: data.question,
+      answer: data.answer,
+      videoTime: data.videoTime,
+      userId: data.userId
+    })
+
+    // Create the vector embedding
+    await this.createQuestionVector({
+      questionId: question.id,
+      embedding: data.embedding,
+      modelName: data.modelName
+    })
+
+    return question
   }
 
   static async getQuestionHistory(moduleId: string, limit: number = 10) {

@@ -161,6 +161,8 @@ model Question {
   answer    String
   videoTime Float?   // Timestamp in video where question was asked
   isFAQ     Boolean  @default(false) // Flag for frequently asked questions
+  reuseCount Int     @default(0) // Track how many times this answer has been reused
+  lastUsedAt DateTime? // When this answer was last reused
   userId    String?
   createdAt DateTime @default(now())
   
@@ -173,6 +175,7 @@ model Question {
   @@index([moduleId])
   @@index([stepId])
   @@index([isFAQ])
+  @@index([reuseCount]) // For finding most reused answers
   @@map("questions")
 }
 
@@ -181,6 +184,7 @@ model QuestionVector {
   id         String   @id @default(cuid())
   questionId String   @unique
   embedding  Float[]  // 1536 floats for OpenAI, or 768 for Gemini
+  modelName  String?  @default("openai-embedding-3-small") // Track which model generated this embedding
   createdAt  DateTime @default(now())
   
   // Relations

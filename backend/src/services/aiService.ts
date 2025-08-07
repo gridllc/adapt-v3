@@ -542,6 +542,7 @@ export const aiService = {
   generateFallbackAnalysis(transcript: string, segments: Array<{ start: number; end: number; text: string }>, metadata: { duration: number }): VideoProcessingResult {
     // Use actual segments with timestamps from Whisper
     const steps = segments.map((segment, index) => ({
+      id: `step-${index + 1}`,
       timestamp: segment.start,
       title: this.generateStepTitle(segment.text),
       description: segment.text,
@@ -634,6 +635,7 @@ export const aiService = {
       // Use actual segments with timestamps from Whisper
       const steps = segments.map((segment, index) => {
         return {
+          id: `step-${index + 1}`,
           timestamp: segment.start,
           title: this.generateStepTitle(segment.text),
           description: segment.text,
@@ -860,11 +862,21 @@ Cleaned version:`
     }
     
     try {
-      // 🔍 Step 1: Check for reusable answers using Shared AI Learning System
+      // 🔍 Step 1: Check for reusable answers using improved Shared AI Learning System
       const reusableAnswer = await findBestMatchingAnswer(userMessage, moduleId, 0.85)
       
       if (reusableAnswer) {
         console.log(`♻️ Reusing answer with ${(reusableAnswer.similarity * 100).toFixed(1)}% similarity`)
+        
+        // Track the reuse for analytics
+        if (reusableAnswer.questionId) {
+          try {
+            const { trackAnswerReuse } = await import('../utils/vectorUtils.js')
+            await trackAnswerReuse(reusableAnswer.questionId)
+          } catch (error) {
+            console.warn('⚠️ Failed to track answer reuse:', error)
+          }
+        }
         
         // Log the reused interaction
         await logTutorInteraction({
@@ -882,8 +894,7 @@ Cleaned version:`
           answer: reusableAnswer.answer,
           reused: true,
           similarity: reusableAnswer.similarity,
-          questionId: reusableAnswer.questionId,
-          reason: reusableAnswer.reason
+          questionId: reusableAnswer.questionId
         }
       }
       
@@ -895,9 +906,21 @@ Cleaned version:`
       let similarQuestions: any[] = []
       if (moduleId) {
         try {
-          // Reuse the embedding from the reusable answer search if available
-          const embedding = reusableAnswer?.embedding || await generateEmbedding(userMessage)
-          similarQuestions = await DatabaseService.findSimilarQuestions(moduleId, embedding, 0.8)
+          // Generate embedding for the query
+          const embedding = await generateEmbedding(userMessage)
+          
+          // Use improved vector search with global fallback
+          const moduleIds = [moduleId]
+          if (moduleId !== 'global') {
+            moduleIds.push('global') // Add global as fallback
+          }
+          
+          similarQuestions = await DatabaseService.findSimilarQuestionsScoped(
+            embedding, 
+            moduleIds, 
+            0.8, 
+            5
+          )
           console.log(`🔍 Found ${similarQuestions.length} similar questions for context`)
         } catch (error) {
           console.warn('⚠️ Vector search failed:', error)
@@ -1023,9 +1046,6 @@ ${overview}`
 ${questions}
 
 Use these similar questions as reference, but provide a fresh response tailored to the current context.`
-  },
-
-    return context
   },
 
   async generateWithGemini(userMessage: string, context: string): Promise<string> {

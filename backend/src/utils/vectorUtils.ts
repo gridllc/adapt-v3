@@ -53,7 +53,14 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       encoding_format: 'float'
     })
 
-    return response.data[0].embedding
+    const embedding = response.data[0].embedding
+    
+    // Validate embedding dimensions
+    if (embedding.length !== 1536) {
+      throw new Error(`Invalid embedding dimensions: expected 1536, got ${embedding.length}`)
+    }
+
+    return embedding
   } catch (error) {
     console.error('Error generating embedding:', error)
     throw new Error('Failed to generate embedding')
@@ -71,10 +78,20 @@ export function findMostSimilarQuestion(
     return null
   }
 
+  // Validate embedding dimensions
+  if (newEmbedding.length !== 1536) {
+    throw new Error(`Invalid embedding dimensions: expected 1536, got ${newEmbedding.length}`)
+  }
+
   let bestMatch = null
   let highestSimilarity = 0
 
   for (const existing of existingQuestions) {
+    if (existing.embedding.length !== 1536) {
+      console.warn(`Skipping question with invalid embedding dimensions: ${existing.embedding.length}`)
+      continue
+    }
+    
     const similarity = calculateCosineSimilarity(newEmbedding, existing.embedding)
     
     if (similarity > highestSimilarity) {
@@ -108,19 +125,16 @@ export async function logInteractionToVectorDB(data: {
     // Save to database using DatabaseService
     const { DatabaseService } = await import('../services/prismaService.js')
     
-    const savedQuestion = await DatabaseService.createQuestion({
+    // Use the new bundled method for better consistency
+    const savedQuestion = await DatabaseService.createQuestionWithVector({
       moduleId: data.moduleId,
       stepId: data.stepId,
       question: data.question,
       answer: data.answer,
       videoTime: data.videoTime,
-      userId: data.userId
-    })
-
-    // Save embedding
-    await DatabaseService.createQuestionVector({
-      questionId: savedQuestion.id,
-      embedding
+      userId: data.userId,
+      embedding,
+      modelName: 'openai-embedding-3-small'
     })
 
     console.log('✅ Interaction logged to vector database')
@@ -132,7 +146,8 @@ export async function logInteractionToVectorDB(data: {
 }
 
 /**
- * Find similar interactions using vector search
+ * Find similar interactions using improved vector search
+ * Supports global + module-specific search
  */
 export async function findSimilarInteractions(
   query: string,
@@ -144,21 +159,49 @@ export async function findSimilarInteractions(
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query)
     
-    // Use DatabaseService to find similar questions
+    // Use DatabaseService to find similar questions with global fallback
     const { DatabaseService } = await import('../services/prismaService.js')
-    const similarQuestions = await DatabaseService.findSimilarQuestions(moduleId, queryEmbedding, similarityThreshold)
     
-    // Return top K results
+    // Search in module-specific questions first, then global
+    const moduleIds = [moduleId]
+    if (moduleId !== 'global') {
+      moduleIds.push('global') // Add global as fallback
+    }
+    
+    const similarQuestions = await DatabaseService.findSimilarQuestionsScoped(
+      queryEmbedding, 
+      moduleIds, 
+      similarityThreshold, 
+      topK
+    )
+    
+    // Return top K results with enhanced metadata
     return similarQuestions.slice(0, topK).map((q: any) => ({
       question: q.question.question,
       answer: q.question.answer,
       similarity: q.similarity,
       stepId: q.question.stepId,
       videoTime: q.question.videoTime,
-      createdAt: q.question.createdAt
+      reuseCount: q.question.reuseCount || 0,
+      lastUsedAt: q.question.lastUsedAt,
+      createdAt: q.question.createdAt,
+      questionId: q.question.id
     }))
   } catch (error) {
     console.error('❌ Failed to find similar interactions:', error)
     return []
+  }
+}
+
+/**
+ * Track when an answer is reused
+ */
+export async function trackAnswerReuse(questionId: string) {
+  try {
+    const { DatabaseService } = await import('../services/prismaService.js')
+    await DatabaseService.incrementReuseCount(questionId)
+    console.log(`✅ Tracked reuse for question ${questionId}`)
+  } catch (error) {
+    console.error('❌ Failed to track answer reuse:', error)
   }
 } 

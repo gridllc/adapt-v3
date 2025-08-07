@@ -100,6 +100,81 @@ router.post('/contextual-response', async (req: any, res: any) => {
   }
 })
 
+/**
+ * Simple AI ask endpoint for the frontend useModuleAsk hook
+ */
+router.post('/ask', async (req: any, res: any) => {
+  try {
+    const { moduleId, question } = req.body
+
+    if (!moduleId || !question) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Module ID and question are required' 
+      })
+    }
+
+    console.log(`🤖 AI ask request for module ${moduleId}`)
+    console.log(`📝 Question: "${question}"`)
+
+    // Get user ID from request
+    const userId = await UserService.getUserIdFromRequest(req)
+
+    // Get module and steps for context
+    const module = await DatabaseService.getModule(moduleId)
+    if (!module) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Module not found' 
+      })
+    }
+
+    const steps = await DatabaseService.getSteps(moduleId)
+    
+    // Generate contextual response using the enhanced AI service with Shared Learning System
+    const aiResponse = await aiService.generateContextualResponse(
+      question,
+      null, // No current step for simple ask
+      steps,
+      0, // No video time for simple ask
+      moduleId,
+      userId || undefined
+    )
+
+    console.log(`✅ AI response generated: ${aiResponse.answer.substring(0, 100)}...`)
+    console.log(`♻️ Reused: ${aiResponse.reused}, Similarity: ${aiResponse.similarity ? (aiResponse.similarity * 100).toFixed(1) + '%' : 'N/A'}`)
+
+    // Log activity with reuse information
+    await DatabaseService.createActivityLog({
+      userId: userId || undefined,
+      action: 'AI_ASK',
+      targetId: moduleId,
+      metadata: {
+        questionLength: question.length,
+        answerLength: aiResponse.answer.length,
+        reused: aiResponse.reused,
+        similarity: aiResponse.similarity,
+        questionId: aiResponse.questionId
+      }
+    })
+
+    res.json({ 
+      success: true, 
+      answer: aiResponse.answer,
+      source: aiResponse.reused ? 'shared-memory' : 'ai-generated',
+      reused: aiResponse.reused,
+      similarity: aiResponse.similarity,
+      questionId: aiResponse.questionId
+    })
+  } catch (error) {
+    console.error('❌ AI ask error:', error)
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to generate AI response' 
+    })
+  }
+})
+
 // Get Shared AI Learning System statistics
 router.get('/learning-stats', async (req, res) => {
   try {

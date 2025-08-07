@@ -11,7 +11,7 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [audioChunks, setAudioChunks] = useState<Blob[]>([])
   const [isRecording, setIsRecording] = useState(false)
-  const { answer, source, loading, error, ask } = useModuleAsk()
+  const { answer, source, loading, error, reused, similarity, ask } = useModuleAsk()
 
   const askQuestion = async () => {
     if (!question.trim()) return
@@ -117,9 +117,14 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
       {answer && (
         <div className="bg-gray-100 p-3 rounded-lg text-gray-800">
           <p className="whitespace-pre-wrap">{answer}</p>
-          <p className="mt-2 text-xs text-gray-500">
-            Answered by: {source?.toUpperCase()}
-          </p>
+          <div className="mt-2 text-xs text-gray-500 space-y-1">
+            <p>Answered by: {source?.toUpperCase()}</p>
+            {reused && (
+              <p className="text-green-600">
+                ♻️ Reused from shared memory ({(similarity * 100).toFixed(1)}% match)
+              </p>
+            )}
+          </div>
           
           {/* AI Suggestion Feedback */}
           <div className="mt-3">
