@@ -21,6 +21,7 @@ import { UploadNetworkBadge } from '../components/common/NetworkStatusBadge'
 import { useNetworkStatus, getMaxRecommendedFileSize } from '../hooks/useNetworkStatus'
 import { VideoProcessingErrorBoundary, AIProcessingErrorBoundary } from '../components/common/ErrorBoundaries'
 import { EnhancedUploadProgress } from '../components/common/EnhancedUploadProgress'
+import { useAuth } from '@clerk/clerk-react'
 
 export const UploadPage: React.FC = () => {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'processing' | 'success' | 'error'>('idle')
@@ -39,6 +40,7 @@ export const UploadPage: React.FC = () => {
   const [retryCountdown, setRetryCountdown] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
+  const { getToken } = useAuth()
   
   // Use enhanced retry hook
   const { uploadState, uploadWithRetry, retryUpload, resetUpload: resetRetryState } = useUploadWithRetry()
@@ -297,6 +299,8 @@ export const UploadPage: React.FC = () => {
     const formData = new FormData()
     formData.append('file', file)
     
+    const token = await getToken().catch(() => null)
+    
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       
@@ -340,6 +344,12 @@ export const UploadPage: React.FC = () => {
       
       xhr.timeout = 60000 // 60 second timeout
       xhr.open('POST', API_CONFIG.getApiUrl(API_ENDPOINTS.UPLOAD))
+      
+      // Attach Clerk bearer token if available
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+      }
+      
       xhr.send(formData)
     })
   }
