@@ -120,13 +120,15 @@ const configureMiddleware = () => {
       const list = allowedOrigins.length ? allowedOrigins : fallbackOrigins
       return list.includes(origin) ? cb(null, true) : cb(new Error(`Not allowed by CORS: ${origin}`))
     },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: false, // was true – set to true only if you use cookies
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     // Allow what browsers actually send on fetch()
     allowedHeaders: [
+      'Accept',
       'Content-Type',
       'Authorization',
       'Cache-Control',
+      'Pragma',            // <-- add this
       'X-Requested-With',
       'Range',
       'X-Upload-Source',
