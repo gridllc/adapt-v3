@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useAuth } from '@clerk/clerk-react'
-import { apiUrl } from '@config/api'
+import { apiUrl } from '../config/api'
 
 export function useAuthenticatedApi() {
   const { getToken } = useAuth()

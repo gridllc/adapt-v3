@@ -6,6 +6,7 @@ export interface Module {
   title: string
   filename: string
   status?: string
+  createdAt?: string
 }
 
 export function useModules() {

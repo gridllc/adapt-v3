@@ -73,7 +73,9 @@ export const DashboardPage: React.FC = () => {
         {filteredModules.map(mod => (
           <div key={mod.id} className="bg-white p-6 rounded-2xl border shadow-sm">
             <h3 className="text-xl font-semibold text-gray-900 mb-1">{mod.title}</h3>
-            <p className="text-sm text-gray-600 mb-3">Created: {new Date(mod.createdAt).toLocaleString()}</p>
+            <p className="text-sm text-gray-600 mb-3">
+              Created: {mod.createdAt ? new Date(mod.createdAt).toLocaleString() : 'Unknown date'}
+            </p>
             <div className="flex gap-2 flex-wrap">
               <Link
                 to={`/training/${mod.id}`}
