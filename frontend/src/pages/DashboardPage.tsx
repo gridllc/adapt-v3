@@ -2,13 +2,13 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useModules } from '../hooks/useModules'
-
-import { api } from '../config/api'
+import { useAuthenticatedApi } from '../hooks/useAuthenticatedApi'
 import { FeedbackDashboard } from '../components/common/FeedbackDashboard'
 import QRCodeGenerator from '../components/QRCodeGenerator'
 
 export const DashboardPage: React.FC = () => {
   const { modules, loading, error } = useModules()
+  const { authenticatedFetch } = useAuthenticatedApi()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [searchTerm, setSearchTerm] = useState('')
   const [deleted, setDeleted] = useState<string[]>([])
@@ -17,7 +17,7 @@ export const DashboardPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this module?')) return
     try {
-      await api(`/api/modules/${id}`, { method: 'DELETE' })
+      await authenticatedFetch(`/api/modules/${id}`, { method: 'DELETE' })
       setDeleted(prev => [...prev, id])
     } catch (error) {
       console.error('Error deleting module:', error)
