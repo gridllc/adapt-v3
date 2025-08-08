@@ -64,4 +64,3 @@ export function useModules() {
 
   return { modules, loading, error }
 }
-}
