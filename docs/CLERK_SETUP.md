@@ -24,6 +24,63 @@ CLERK_SECRET_KEY=sk_test_your-clerk-secret-key-here
 FRONTEND_URL=http://localhost:3000
 ```
 
+## Fixing Redirect URL Issues
+
+If you're experiencing redirect issues (like being redirected to `app.adaptord.com` instead of `adaptord.com`), follow these steps:
+
+### 1. Check Clerk Dashboard Settings
+
+1. Go to your [Clerk Dashboard](https://dashboard.clerk.com)
+2. Select your application
+3. Go to **User & Authentication** → **Email, Phone, Username**
+4. Check the **Redirect URLs** section
+
+### 2. Update Redirect URLs
+
+Make sure your redirect URLs are set to the correct domain:
+
+**For Production:**
+```
+https://adaptord.com/dashboard
+https://adaptord.com/sign-in
+https://adaptord.com/sign-up
+```
+
+**For Development:**
+```
+http://localhost:3000/dashboard
+http://localhost:3000/sign-in
+http://localhost:3000/sign-up
+```
+
+### 3. Check Allowed Origins
+
+In your Clerk Dashboard:
+1. Go to **User & Authentication** → **Email, Phone, Username**
+2. Scroll down to **Allowed origins**
+3. Make sure these are included:
+   ```
+   https://adaptord.com
+   http://localhost:3000
+   ```
+
+### 4. Update Sign-in/Sign-up URLs
+
+In your Clerk Dashboard:
+1. Go to **User & Authentication** → **Email, Phone, Username**
+2. Check the **Sign-in URL** and **Sign-up URL** settings
+3. Make sure they point to your correct domain:
+   ```
+   Sign-in URL: https://adaptord.com/sign-in
+   Sign-up URL: https://adaptord.com/sign-up
+   ```
+
+### 5. Clear Browser Cache
+
+After making changes:
+1. Clear your browser cache and cookies
+2. Try the sign-in process again
+
 ## Current Integration Status
 
 ✅ **Already Implemented:**
@@ -104,5 +161,6 @@ export const useAuth = () => {
 
 1. Set up your Clerk account and get your publishable/secret keys
 2. Add the environment variables to your `.env` files
-3. Test the authentication flow
-4. Customize the appearance using Clerk's appearance API if needed
+3. **Update your Clerk Dashboard redirect URLs** (see section above)
+4. Test the authentication flow
+5. Customize the appearance using Clerk's appearance API if needed

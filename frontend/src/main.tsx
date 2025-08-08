@@ -51,12 +51,22 @@ const AppWrapper: React.FC = () => {
     return <ConfigurationError />
   }
 
+  // Get the current domain for redirects
+  const currentDomain = window.location.origin
+  const dashboardUrl = `${currentDomain}/dashboard`
+  
+  console.log('🔧 Clerk Configuration:', {
+    currentDomain,
+    dashboardUrl,
+    publishableKey: CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing'
+  })
+
   return (
     <ErrorBoundary>
       <ClerkProvider 
         publishableKey={CLERK_PUBLISHABLE_KEY}
-        afterSignInUrl="/dashboard"
-        afterSignUpUrl="/dashboard"
+        afterSignInUrl={dashboardUrl}
+        afterSignUpUrl={dashboardUrl}
         appearance={{
           baseTheme: undefined,
           variables: {
