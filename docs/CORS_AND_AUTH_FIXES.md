@@ -5,14 +5,15 @@
 ### 1. CORS Preflight Issues
 **Problem:** Browser preflight requests were failing with:
 ```
-Access to fetch at 'https://adapt-v3.onrender.com/api/health' from origin 'https://adaptord.com' has been blocked by CORS policy: Request header field cache-control is not allowed by Access-Control-Allow-Headers in preflight response.
+Access to fetch at 'https://adapt-v3.onrender.com/api/health' from origin 'https://adaptord.com' has been blocked by CORS policy: Request header field pragma is not allowed by Access-Control-Allow-Headers in preflight response.
 ```
 
 **Solution:** Updated CORS configuration in `backend/src/server.ts`:
-- Added missing headers: `Cache-Control`, `X-Requested-With`, `X-Clerk-Auth`, `X-Clerk-Signature`
+- Added missing headers: `Accept`, `Pragma`, `X-Requested-With`, `X-Clerk-Auth`, `X-Clerk-Signature`
 - Added global OPTIONS handler: `app.options('*', cors(corsOptions))`
 - Improved origin handling with fallback origins
 - Disabled CSP for API-only server
+- Set `credentials: false` since we're using Bearer tokens, not cookies
 
 ### 2. Authentication Issues
 **Problem:** API calls were returning 401 Unauthorized because Clerk tokens weren't being sent.
@@ -21,6 +22,14 @@ Access to fetch at 'https://adapt-v3.onrender.com/api/health' from origin 'https
 - Added `useAuthenticatedApi` hook in `frontend/src/hooks/useAuthenticatedApi.ts`
 - Updated `useModules` hook to use authenticated API
 - Updated `DashboardPage` to use authenticated API for delete operations
+
+### 3. Preflight Optimization
+**Problem:** Frontend was causing unnecessary preflights by setting `Content-Type` on GET requests.
+
+**Solution:** Refactored API configuration:
+- Only set `Content-Type` when sending a body
+- Use shared header builder to avoid unnecessary preflights
+- Simplified URL construction for development vs production
 
 ## Changes Made
 
@@ -34,12 +43,14 @@ const corsOptions: cors.CorsOptions = {
     const list = allowedOrigins.length ? allowedOrigins : fallbackOrigins
     return list.includes(origin) ? cb(null, true) : cb(new Error(`Not allowed by CORS: ${origin}`))
   },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: false, // was true – set to true only if you use cookies
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
+    'Accept',
     'Content-Type',
     'Authorization',
     'Cache-Control',
+    'Pragma',            // <-- add this
     'X-Requested-With',
     'Range',
     'X-Upload-Source',
@@ -79,34 +90,71 @@ app.use('/api/modules', optionalAuth, moduleRoutes) // Temporarily optional for 
 
 ### Frontend Changes
 
-1. **New Authenticated API Hook** (`frontend/src/hooks/useAuthenticatedApi.ts`):
+1. **Refactored API Configuration** (`frontend/src/config/api.ts`):
 ```typescript
-export function useAuthenticatedApi() {
-  const { getToken } = useAuth()
+// API base URL - use domain in production, empty in development for proxy
+const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? '' : 'https://adaptord.com')
 
+// Shared header builder to avoid unnecessary preflights
+function buildHeaders(options?: RequestInit, token?: string): HeadersInit {
+  const headers: Record<string, string> = {}
+
+  // Only set Content-Type when sending a body
+  const method = (options?.method || 'GET').toUpperCase()
+  if (options?.body && !('Content-Type' in (options?.headers || {}))) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  // Merge caller headers last
+  return { ...headers, ...(options?.headers as any) }
+}
+
+export async function authenticatedApi(endpoint: string, options?: RequestInit) {
+  const url = apiUrl(endpoint)
+
+  // Get Clerk token
+  let token: string | null = null
+  try {
+    const { useAuth } = await import('@clerk/clerk-react')
+    const { getToken } = useAuth()
+    token = await getToken()
+  } catch {}
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+  const res = await fetch(url, {
+    ...options,
+    signal: controller.signal,
+    headers: buildHeaders(options, token || undefined),
+    // credentials: 'omit', // no cookies needed with Bearer
+  })
+  clearTimeout(timeoutId)
+
+  const ct = res.headers.get('content-type') || ''
+  const text = await res.text()
+  if (!res.ok) throw new Error(`API Error ${res.status}: ${text.slice(0, 120)}`)
+  if (!ct.includes('application/json')) throw new Error(`Unexpected response (not JSON): ${text.slice(0, 120)}`)
+  return JSON.parse(text)
+}
+```
+
+2. **Updated useAuthenticatedApi Hook** (`frontend/src/hooks/useAuthenticatedApi.ts`):
+```typescript
+import { useCallback } from 'react'
+import { authenticatedApi } from '../config/api'
+
+export function useAuthenticatedApi() {
   const authenticatedFetch = useCallback(async (endpoint: string, options: RequestInit = {}) => {
-    const token = await getToken()
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    }
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-    
-    return fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include',
-    })
-  }, [getToken])
+    return await authenticatedApi(endpoint, options)
+  }, [])
 
   return { authenticatedFetch }
 }
 ```
 
-2. **Updated useModules Hook** (`frontend/src/hooks/useModules.ts`):
+3. **Updated useModules Hook** (`frontend/src/hooks/useModules.ts`):
 ```typescript
 export function useModules() {
   const { authenticatedFetch } = useAuthenticatedApi()
@@ -116,7 +164,7 @@ export function useModules() {
 }
 ```
 
-3. **Updated DashboardPage** (`frontend/src/pages/DashboardPage.tsx`):
+4. **Updated DashboardPage** (`frontend/src/pages/DashboardPage.tsx`):
 ```typescript
 export const DashboardPage: React.FC = () => {
   const { authenticatedFetch } = useAuthenticatedApi()
@@ -127,13 +175,27 @@ export const DashboardPage: React.FC = () => {
 }
 ```
 
+## Environment Variables
+
+### Frontend (Vercel)
+```bash
+VITE_API_URL=https://adaptord.com
+VITE_CLERK_PUBLISHABLE_KEY=your-clerk-publishable-key
+```
+
+### Backend (Render)
+```bash
+FRONTEND_URL=https://adaptord.com,https://www.adaptord.com
+CLERK_SECRET_KEY=your-clerk-secret-key
+```
+
 ## Testing Steps
 
 1. **Test CORS Fix:**
    - Open browser dev tools
    - Navigate to `https://adaptord.com`
    - Check console for CORS errors
-   - Should see successful API calls to `https://adapt-v3.onrender.com`
+   - Should see successful API calls to `https://adaptord.com/api/health`
 
 2. **Test Authentication:**
    - Sign in to the application
@@ -142,7 +204,13 @@ export const DashboardPage: React.FC = () => {
 
 3. **Test Preflight:**
    - Check that OPTIONS requests succeed
-   - Verify that `Cache-Control` and other headers are allowed
+   - Verify that `Pragma` and other headers are allowed
+   - Confirm that GET requests don't trigger unnecessary preflights
+
+4. **Test Upload:**
+   - Try uploading a video file
+   - Should work without CORS errors
+   - Check that progress updates correctly
 
 ## Next Steps
 
@@ -158,16 +226,9 @@ app.use('/api/modules', requireAuth, moduleRoutes)
 
 3. **Monitor Logs:** Check backend logs for any remaining CORS or auth issues
 
-## Environment Variables
+## Key Improvements
 
-Make sure these are set in your backend `.env`:
-```bash
-FRONTEND_URL=https://adaptord.com,https://www.adaptord.com
-CLERK_SECRET_KEY=your-clerk-secret-key
-```
-
-And in your frontend `.env`:
-```bash
-VITE_CLERK_PUBLISHABLE_KEY=your-clerk-publishable-key
-VITE_API_URL=https://adapt-v3.onrender.com
-```
+- **Reduced Preflights:** Only set `Content-Type` when sending a body
+- **Better CORS:** Added all necessary headers including `Pragma`
+- **Simplified URLs:** Use domain in production, proxy in development
+- **Cleaner Code:** Shared header builder and simplified API functions

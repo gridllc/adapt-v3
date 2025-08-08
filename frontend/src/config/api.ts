@@ -1,11 +1,8 @@
 // Environment detection and API base URL configuration  
 const isDevelopment = import.meta.env.MODE === 'development'
 
-// API base URL - Render backend URL (with localhost fallback for development)
-const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? 'http://localhost:3001' : 'https://adapt-v3.onrender.com')
-
-// Force production API (for testing)
-const FORCE_PRODUCTION_API = import.meta.env.VITE_FORCE_PRODUCTION_API === 'true'
+// API base URL - use domain in production, empty in development for proxy
+const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? '' : 'https://adaptord.com')
 
 // Export the API base URL
 export const API_BASE_URL = baseURL
@@ -15,8 +12,6 @@ console.log('🔧 API Configuration:', {
   mode: import.meta.env.MODE,
   isDevelopment,
   VITE_API_URL: import.meta.env.VITE_API_URL,
-  VITE_FORCE_PRODUCTION_API: import.meta.env.VITE_FORCE_PRODUCTION_API,
-  FORCE_PRODUCTION_API,
   API_BASE_URL,
   NODE_ENV: import.meta.env.NODE_ENV,
   location: window.location.href
@@ -30,33 +25,11 @@ export const API_CONFIG = {
     
     // In development, use proxy (empty base URL)
     // In production, use the full URL from environment variable
-    let fullUrl: string
-    
-    if (isDevelopment && !FORCE_PRODUCTION_API) {
-      // In development, use proxy
-      fullUrl = cleanEndpoint
+    if (isDevelopment && API_BASE_URL === '') {
+      return cleanEndpoint
     } else {
-      // In production or when forcing production API, use the full URL
-      fullUrl = `${API_BASE_URL}${cleanEndpoint}`
+      return `${API_BASE_URL}${cleanEndpoint}`
     }
-    
-    // Ensure the URL has the correct protocol
-    if (!isDevelopment && !fullUrl.startsWith('http')) {
-      fullUrl = `https://${fullUrl}`
-    }
-    
-    // Debug logging
-    console.log('🔗 API Call:', {
-      endpoint,
-      cleanEndpoint,
-      API_BASE_URL,
-      fullUrl,
-      isDevelopment,
-      FORCE_PRODUCTION_API,
-      mode: import.meta.env.MODE
-    })
-    
-    return fullUrl
   }
 }
 
@@ -73,188 +46,72 @@ export const API_ENDPOINTS = {
 }
 
 export function apiUrl(endpoint: string): string {
-  return API_CONFIG.getApiUrl(endpoint)
+  const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  return isDevelopment && API_BASE_URL === '' ? clean : `${API_BASE_URL}${clean}`
 }
 
-// Authenticated API helper that includes Clerk tokens
+// Shared header builder to avoid unnecessary preflights
+function buildHeaders(options?: RequestInit, token?: string): HeadersInit {
+  const headers: Record<string, string> = {}
+
+  // Only set Content-Type when sending a body
+  const method = (options?.method || 'GET').toUpperCase()
+  if (options?.body && !('Content-Type' in (options?.headers || {}))) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  // Merge caller headers last
+  return { ...headers, ...(options?.headers as any) }
+}
+
 export async function authenticatedApi(endpoint: string, options?: RequestInit) {
   const url = apiUrl(endpoint)
-  
-  console.log('🔗 Authenticated API call to:', url)
-  
-  try {
-    // Get Clerk token
-    let token: string | null = null
-    try {
-      // Dynamic import to avoid SSR issues
-      const { useAuth } = await import('@clerk/clerk-react')
-      const { getToken } = useAuth()
-      token = await getToken()
-    } catch (error) {
-      console.warn('⚠️ Could not get Clerk token:', error)
-    }
-    
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
-    
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    }
-    
-    // Add Authorization header if token is available
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-      console.log('🔐 Added Authorization header')
-    } else {
-      console.warn('⚠️ No authentication token available')
-    }
-    
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-      headers,
-      credentials: 'include',
-    })
-    
-    clearTimeout(timeoutId)
-    console.log('📡 API response status:', response.status, response.statusText)
-    
-    // NEW: HTML Response Guard
-    const contentType = response.headers.get('content-type')
-    if (!contentType?.includes('application/json')) {
-      const text = await response.text()
-      console.error('❌ Received non-JSON response:', text.slice(0, 200))
-      throw new Error(`Unexpected response format. Expected JSON, got: ${text.slice(0, 100)}...`)
-    }
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('❌ API Error:', response.status, response.statusText)
-      console.error('❌ Response body:', errorText)
-      
-      // Check if we got HTML instead of JSON
-      if (errorText.startsWith('<!DOCTYPE html') || errorText.includes('<html')) {
-        console.error('❌ Received HTML instead of JSON - possible wrong API endpoint or server error')
-        throw new Error(`Server returned HTML instead of JSON. Check API endpoint: ${url}`)
-      }
-      
-      // Special handling for 404 errors - return empty data instead of throwing
-      if (response.status === 404 && endpoint.includes('/api/steps/')) {
-        console.warn('⚠️ Steps not found, returning empty steps array')
-        return { steps: [], success: false, error: 'Steps not found' }
-      }
-      
-      throw new Error(`API Error: ${response.status} ${response.statusText}`)
-    }
 
-    // Try to parse as JSON
-    try {
-      const parsed = await response.json()
-      console.log('📦 API response data:', parsed)
-      return parsed
-    } catch (err) {
-      console.error('❌ Failed to parse response as JSON')
-      
-      // This shouldn't happen now with the content-type check above
-      throw new Error('Invalid JSON returned by server')
-    }
-    
-  } catch (error) {
-    console.error('❌ Network error:', error)
-    
-    if (error instanceof Error) {
-      if (error.name === 'AbortError') {
-        throw new Error('Request timeout - server may be unavailable')
-      } else if (error.message.includes('ECONNREFUSED') || error.message.includes('Failed to fetch')) {
-        throw new Error('Connection refused - backend server may not be running')
-      }
-    }
-    
-    throw error
-  }
+  // Get Clerk token
+  let token: string | null = null
+  try {
+    const { useAuth } = await import('@clerk/clerk-react')
+    const { getToken } = useAuth()
+    token = await getToken()
+  } catch {}
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+  const res = await fetch(url, {
+    ...options,
+    signal: controller.signal,
+    headers: buildHeaders(options, token || undefined),
+    // credentials: 'omit', // no cookies needed with Bearer
+  })
+  clearTimeout(timeoutId)
+
+  const ct = res.headers.get('content-type') || ''
+  const text = await res.text()
+  if (!res.ok) throw new Error(`API Error ${res.status}: ${text.slice(0, 120)}`)
+  if (!ct.includes('application/json')) throw new Error(`Unexpected response (not JSON): ${text.slice(0, 120)}`)
+  return JSON.parse(text)
 }
 
 export async function api(endpoint: string, options?: RequestInit) {
   const url = apiUrl(endpoint)
-  
-  console.log('🔗 API call to:', url)
-  console.log('🔍 Environment check:', {
-    mode: import.meta.env.MODE,
-    isDevelopment: import.meta.env.MODE === 'development',
-    API_BASE_URL,
-    endpoint
-  })
-  
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
-    
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    })
-    
-    clearTimeout(timeoutId)
-    console.log('📡 API response status:', response.status, response.statusText)
-    
-    // NEW: HTML Response Guard
-    const contentType = response.headers.get('content-type')
-    if (!contentType?.includes('application/json')) {
-      const text = await response.text()
-      console.error('❌ Received non-JSON response:', text.slice(0, 200))
-      throw new Error(`Unexpected response format. Expected JSON, got: ${text.slice(0, 100)}...`)
-    }
-    
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('❌ API Error:', response.status, response.statusText)
-      console.error('❌ Response body:', errorText)
-      
-      // Check if we got HTML instead of JSON
-      if (errorText.startsWith('<!DOCTYPE html') || errorText.includes('<html')) {
-        console.error('❌ Received HTML instead of JSON - possible wrong API endpoint or server error')
-        throw new Error(`Server returned HTML instead of JSON. Check API endpoint: ${url}`)
-      }
-      
-      // Special handling for 404 errors - return empty data instead of throwing
-      if (response.status === 404 && endpoint.includes('/api/steps/')) {
-        console.warn('⚠️ Steps not found, returning empty steps array')
-        return { steps: [], success: false, error: 'Steps not found' }
-      }
-      
-      throw new Error(`API Error: ${response.status} ${response.statusText}`)
-    }
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
 
-    // Try to parse as JSON
-    try {
-      const parsed = await response.json()
-      console.log('📦 API response data:', parsed)
-      return parsed
-    } catch (err) {
-      console.error('❌ Failed to parse response as JSON')
-      
-      // This shouldn't happen now with the content-type check above
-      throw new Error('Invalid JSON returned by server')
-    }
-    
-  } catch (error) {
-    console.error('❌ Network error:', error)
-    
-    if (error instanceof Error) {
-      if (error.name === 'AbortError') {
-        throw new Error('Request timeout - server may be unavailable')
-      } else if (error.message.includes('ECONNREFUSED') || error.message.includes('Failed to fetch')) {
-        throw new Error('Connection refused - backend server may not be running')
-      }
-    }
-    
-    throw error
-  }
+  const res = await fetch(url, {
+    ...options,
+    signal: controller.signal,
+    headers: buildHeaders(options),
+    // credentials: 'omit',
+  })
+  clearTimeout(timeoutId)
+
+  const ct = res.headers.get('content-type') || ''
+  const text = await res.text()
+  if (!res.ok) throw new Error(`API Error ${res.status}: ${text.slice(0, 120)}`)
+  if (!ct.includes('application/json')) throw new Error(`Unexpected response (not JSON): ${text.slice(0, 120)}`)
+  return JSON.parse(text)
 }
 
 // Test function to verify API connection
