@@ -13,10 +13,12 @@ async function getAuth(req: Request) {
   
   try {
     // 🔐 Properly verify the JWT with Clerk
-    const { sessionClaims } = await verifyToken(token, {
-      issuer: process.env.CLERK_ISSUER_URL || 'https://clerk.adaptord.com',
-      secretKey: process.env.CLERK_SECRET_KEY
-    })
+    const verifyOpts: any = { secretKey: process.env.CLERK_SECRET_KEY }
+    if (process.env.CLERK_ISSUER_URL) {
+      verifyOpts.issuer = process.env.CLERK_ISSUER_URL
+    }
+
+    const { sessionClaims } = await verifyToken(token, verifyOpts)
     return { userId: (sessionClaims as any)?.sub || null }
   } catch (error) {
     console.error('❌ Token verification failed:', error)
@@ -71,7 +73,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         path: req.path,
         method: req.method,
         ip: req.ip,
-        userAgent: req.get('User-Agent')
+        userAgent: req.get('User-Agent'),
+        hasAuthHeader: !!req.headers.authorization,
       })
       
       return res.status(401).json({ 

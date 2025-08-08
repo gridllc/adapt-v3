@@ -342,7 +342,7 @@ export const UploadPage: React.FC = () => {
         type: UploadErrorType.NETWORK_TIMEOUT 
       })
       
-      xhr.timeout = 60000 // 60 second timeout
+      xhr.timeout = 180000 // 180 second timeout
       xhr.open('POST', API_CONFIG.getApiUrl(API_ENDPOINTS.UPLOAD))
       
       // Attach Clerk bearer token if available
