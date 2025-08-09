@@ -152,7 +152,6 @@ export async function createMultipartUpload(key: string, contentType: string): P
     Bucket: BUCKET_NAME,
     Key: key,
     ContentType: contentType,
-    ACL: 'public-read',
   })
   const result = await getSharedS3Client().send(command)
   if (!result.UploadId) throw new Error('Failed to create multipart upload')
