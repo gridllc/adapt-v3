@@ -10,7 +10,7 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME!
+const BUCKET_NAME = (process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET)!
 
 /**
  * Get S3 client with validation
