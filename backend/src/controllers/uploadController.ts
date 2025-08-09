@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs'
 import { storageService } from '../services/storageService.js'
+import { isS3Configured, getPublicS3Url } from '../services/s3Uploader.js'
 import { enqueueProcessVideoJob, perfLogger } from '../services/qstashQueue.js'
 import { createBasicSteps } from '../services/createBasicSteps.js'
 import { DatabaseService } from '../services/prismaService.js'
@@ -100,6 +101,27 @@ export async function handleUpload(file: MulterFile, userId?: string, providedMo
   }
 
   return { moduleId, videoUrl, title }
+}
+
+// 🎯 Finalize module after direct-to-cloud upload
+export async function finalizeDirectUpload(req: Request, res: Response) {
+  try {
+    const { key, title } = req.body as { key?: string; title?: string }
+    const userId = (req as any).userId as string | undefined
+    if (!key) return res.status(400).json({ success: false, error: 'Missing key' })
+    const moduleId = uuidv4()
+    const filename = key
+    const finalTitle = title || filename.replace(/\.[^/.]+$/, '')
+    const videoUrl = isS3Configured() ? getPublicS3Url(filename) : `/uploads/${filename}`
+
+    await DatabaseService.createModule({ id: moduleId, title: finalTitle, filename, videoUrl, userId })
+    await DatabaseService.updateModuleStatus(moduleId, 'uploaded', 10, 'Upload complete')
+
+    return res.json({ success: true, moduleId, videoUrl, title: finalTitle, redirectUrl: `/training/${moduleId}` })
+  } catch (error: any) {
+    console.error('Finalize direct upload error:', error)
+    return res.status(500).json({ success: false, error: error.message || 'Failed to finalize upload' })
+  }
 }
 
 export const uploadController = {

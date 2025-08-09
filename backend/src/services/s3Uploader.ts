@@ -1,4 +1,13 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME!
@@ -97,7 +106,7 @@ export async function deleteFromS3(filename: string): Promise<boolean> {
 }
 
 /**
- * Get a presigned URL for file access
+ * Get a presigned URL for file access (GET)
  */
 export async function getPresignedUrl(filename: string, expiresIn: number = 3600): Promise<string> {
   try {
@@ -116,6 +125,58 @@ export async function getPresignedUrl(filename: string, expiresIn: number = 3600
     console.error('[TEST] ❌ Failed to generate presigned URL:', error)
     throw new Error(`Failed to generate presigned URL: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+}
+
+/**
+ * Get a presigned URL for uploading (PUT)
+ */
+export async function getUploadPresignedUrl(filename: string, contentType: string, expiresIn: number = 900): Promise<string> {
+  try {
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: filename,
+      ContentType: contentType,
+    })
+
+    const presignedUrl = await getSignedUrl(getSharedS3Client(), command, { expiresIn })
+    return presignedUrl
+  } catch (error) {
+    console.error('[TEST] ❌ Failed to generate upload presigned URL:', error)
+    throw new Error(`Failed to generate upload URL: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/** Multipart upload helpers **/
+export async function createMultipartUpload(key: string, contentType: string): Promise<string> {
+  const command = new CreateMultipartUploadCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    ContentType: contentType,
+    ACL: 'public-read',
+  })
+  const result = await getSharedS3Client().send(command)
+  if (!result.UploadId) throw new Error('Failed to create multipart upload')
+  return result.UploadId
+}
+
+export async function getSignedUploadPartUrl(key: string, uploadId: string, partNumber: number, expiresIn: number = 600): Promise<string> {
+  const command = new UploadPartCommand({ Bucket: BUCKET_NAME, Key: key, UploadId: uploadId, PartNumber: partNumber })
+  return await getSignedUrl(getSharedS3Client(), command, { expiresIn })
+}
+
+export async function completeMultipartUpload(key: string, uploadId: string, parts: { ETag: string; PartNumber: number }[]) {
+  const command = new CompleteMultipartUploadCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    UploadId: uploadId,
+    MultipartUpload: { Parts: parts.sort((a, b) => a.PartNumber - b.PartNumber) },
+  })
+  return await getSharedS3Client().send(command)
+}
+
+export async function abortMultipartUpload(key: string, uploadId: string) {
+  const command = new AbortMultipartUploadCommand({ Bucket: BUCKET_NAME, Key: key, UploadId: uploadId })
+  return await getSharedS3Client().send(command)
 }
 
 /**

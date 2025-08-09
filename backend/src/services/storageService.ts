@@ -10,7 +10,7 @@ function generateId(): string {
 
 export const storageService = {
   /**
-   * Upload video file to S3 and return module info
+   * Upload video file to cloud storage and return module info
    */
   async uploadVideo(file: any): Promise<{ moduleId: string; videoUrl: string }> {
     try {
@@ -27,12 +27,12 @@ export const storageService = {
         throw new Error('Only video files are allowed')
       }
       
-      // Upload to S3 (required)
+      // Upload to cloud storage (required)
       if (!isS3Configured()) {
-        throw new Error('❌ S3 storage is required but not configured. Please check AWS environment variables.')
+        throw new Error('❌ Cloud storage is required but not configured. Please check AWS environment variables.')
       }
       
-      log.test(`📁 Uploading to S3: ${filename}`)
+      log.test(`📁 Uploading to cloud storage: ${filename}`)
       const videoUrl = await uploadToS3(file.buffer, filename, file.mimetype)
       log.test(`📁 Video URL: ${videoUrl}`)
       
@@ -91,7 +91,7 @@ export const storageService = {
   },
 
   /**
-   * Delete module from database and S3
+   * Delete module from database and cloud storage
    */
   async deleteModule(moduleId: string): Promise<boolean> {
     try {
@@ -108,13 +108,13 @@ export const storageService = {
       await DatabaseService.deleteModule(moduleId)
       console.log(`[TEST] ✅ Module deleted from database: ${moduleId}`)
       
-      // Delete video file from S3 if configured
+      // Delete video file from cloud storage if configured
       if (isS3Configured() && module.filename) {
         const deleted = await deleteFromS3(module.filename)
         if (deleted) {
-          console.log(`[TEST] ✅ Video deleted from S3: ${module.filename}`)
+          console.log(`[TEST] ✅ Video deleted from cloud storage: ${module.filename}`)
         } else {
-          console.warn(`[TEST] ⚠️ Failed to delete video from S3: ${module.filename}`)
+          console.warn(`[TEST] ⚠️ Failed to delete video from cloud storage: ${module.filename}`)
         }
       } else if (module.filename) {
         // Fallback: try to delete local file
@@ -147,12 +147,12 @@ export const storageService = {
 }
 
 /**
- * Get signed S3 URL for file access
+ * Get signed URL for file access
  */
 export async function getSignedS3Url(filename: string): Promise<string> {
   try {
     if (isS3Configured()) {
-      // Use S3 presigned URL
+      // Use cloud storage presigned URL
       return await getPresignedUrl(filename)
     } else {
       // Fallback to local URL
@@ -160,7 +160,7 @@ export async function getSignedS3Url(filename: string): Promise<string> {
     }
   } catch (error) {
     console.error('[TEST] ❌ Failed to get signed URL:', error)
-    // Fallback to public S3 URL if available
+    // Fallback to public URL if available
     if (isS3Configured()) {
       return getPublicS3Url(filename)
     }

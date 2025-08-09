@@ -23,19 +23,19 @@ router.get('/health', async (_req, res) => {
       console.error('[TEST] 📊 Database: FAILED', dbError.message)
     }
 
-    // Test S3 Configuration
+    // Cloud storage configuration
     try {
-      const s3Valid = isS3Configured()
-      if (s3Valid) {
-        healthStatus.s3 = '✅ Configuration Valid'
-        console.log('[TEST] 📦 S3: Configuration OK')
+      const storageValid = isS3Configured()
+      if (storageValid) {
+        healthStatus.storage = '✅ Configuration Valid'
+        console.log('[TEST] 📦 Storage: Configuration OK')
       } else {
-        healthStatus.s3 = '⚠️ Configuration Missing'
-        console.warn('[TEST] 📦 S3: Configuration incomplete')
+        healthStatus.storage = '⚠️ Configuration Missing'
+        console.warn('[TEST] 📦 Storage: Configuration incomplete')
       }
     } catch (s3Error: any) {
-      healthStatus.s3 = `❌ Error: ${s3Error.message}`
-      console.error('[TEST] 📦 S3: ERROR', s3Error.message)
+      healthStatus.storage = `❌ Error: ${s3Error.message}`
+      console.error('[TEST] 📦 Storage: ERROR', s3Error.message)
     }
 
     // QStash Queue (Optional - for async job processing)
