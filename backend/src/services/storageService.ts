@@ -9,62 +9,7 @@ function generateId(): string {
 }
 
 export const storageService = {
-  /**
-   * Upload video file to cloud storage and return module info
-   */
-  async uploadVideo(file: any): Promise<{ moduleId: string; videoUrl: string }> {
-    try {
-      const moduleId = generateId()
-      const filename = `${moduleId}.mp4`
-      
-      log.test(`📁 Upload started: ${file.originalname}`)
-      log.test(`📁 File size: ${file.size} bytes`)
-      log.test(`📁 File mimetype: ${file.mimetype}`)
-      log.test(`📁 Module ID: ${moduleId}`)
-      
-      // Validate file type
-      if (!file.mimetype.startsWith('video/')) {
-        throw new Error('Only video files are allowed')
-      }
-      
-      // Upload to cloud storage (required)
-      if (!isS3Configured()) {
-        throw new Error('❌ Cloud storage is required but not configured. Please check AWS environment variables.')
-      }
-      
-      log.test(`📁 Uploading to cloud storage: ${filename}`)
-      const videoUrl = await uploadToS3(file.buffer, filename, file.mimetype)
-      log.test(`📁 Video URL: ${videoUrl}`)
-      
-      // Normalize video URL to use consistent base URL
-      const baseUrl = process.env.FRONTEND_URL || 'http://localhost:8000'
-      const normalizedVideoUrl = `${baseUrl}/uploads/${filename}`
-      
-      console.log(`[TEST] 📁 Normalized video URL: ${normalizedVideoUrl}`)
-      
-      console.log(`[TEST] ✅ Video upload completed successfully`)
-      
-      // Save filename to database for cleanup operations
-      try {
-        await DatabaseService.updateModule(moduleId, { 
-          videoUrl, 
-          filename 
-        })
-        console.log(`[TEST] ✅ Filename saved to database: ${filename}`)
-      } catch (dbError) {
-        console.error('[TEST] ❌ Failed to save filename to database:', dbError)
-        // Don't fail the upload, but log the error
-      }
-      
-      return {
-        moduleId,
-        videoUrl: normalizedVideoUrl
-      }
-    } catch (error) {
-      console.error('[TEST] ❌ Error uploading video:', error)
-      throw new Error(`Failed to upload video: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  },
+  
 
   /**
    * Get module from database

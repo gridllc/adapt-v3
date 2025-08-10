@@ -8,8 +8,6 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
-import uploadRoutes from './routes/uploadRoutes.js'
-import enhancedUploadRoutes from './routes/enhancedUploadRoutes.js'
 import { multipartRoutes } from './routes/multipartRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
@@ -157,9 +155,9 @@ const configureMiddleware = () => {
 
   // Note: Rate limiting is applied at the route level for better control
 
-  // Body parsing middleware (increased for larger video uploads)
-  app.use(express.json({ limit: '200mb' }))
-  app.use(express.urlencoded({ extended: true, limit: '200mb' }))
+  // Body parsing middleware (reduced since we're not receiving file bytes anymore)
+  app.use(express.json({ limit: '10mb' }))
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
   // Request logging middleware
   app.use((req, res, next) => {
@@ -175,9 +173,7 @@ const configureMiddleware = () => {
 // Route configuration
 const configureRoutes = () => {
   // Protected Routes (require authentication)
-  app.use('/api/upload', requireAuth, uploadRoutes)
-  app.use('/api/upload-enhanced', requireAuth, enhancedUploadRoutes)
-  app.use('/api/uploads/multipart', requireAuth, multipartRoutes) // NEW: Multipart upload endpoints
+  app.use('/api/uploads/multipart', requireAuth, multipartRoutes) // Multipart upload endpoints
   app.use('/api/modules', optionalAuth, moduleRoutes) // Temporarily optional for debugging
   
   // Steps routes with auth for generation
@@ -212,7 +208,7 @@ const configureRoutes = () => {
       description: 'This is the backend API server. The frontend is hosted separately.',
       endpoints: {
         health: '/api/health',
-        upload: '/api/upload',
+        uploads: '/api/uploads/multipart',
         modules: '/api/modules',
         ai: '/api/ai',
         status: '/api/status/:moduleId'
@@ -472,7 +468,10 @@ const configureErrorHandling = () => {
       console.log(`   🔗 URL: http://localhost:${PORT}`)
     
     console.log('\n📚 Available API Endpoints:')
-    console.log('   POST /api/upload')
+    console.log('   POST /api/uploads/multipart/init')
+    console.log('   POST /api/uploads/multipart/sign-part')
+    console.log('   POST /api/uploads/multipart/complete')
+    console.log('   POST /api/uploads/multipart/abort')
     console.log('   POST /api/ai/chat')
     console.log('   GET  /api/modules')
     console.log('   GET  /api/modules/:id')
