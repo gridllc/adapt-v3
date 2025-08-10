@@ -33,17 +33,9 @@ export function useModuleStatus(moduleId: string, enabled = true) {
       try {
         console.log(`🔍 Checking status for module: ${moduleId}`)
         
-        // Try the new status endpoint first
-        let data: any
-        try {
-          data = await api(`/api/status/${moduleId}`)
-          console.log(`📊 Module status from status endpoint:`, data)
-        } catch (statusError) {
-          console.log(`⚠️ Status endpoint failed, falling back to upload status:`, statusError)
-          // Fallback to the original upload status endpoint
-          data = await api(`/api/upload/status/${moduleId}`)
-          console.log(`📊 Module status from upload endpoint:`, data)
-        }
+        // Get module status from the status endpoint
+        const data = await api(`/api/status/${moduleId}`)
+        console.log(`📊 Module status from status endpoint:`, data)
         
         setStatus(data)
         setLoading(false)

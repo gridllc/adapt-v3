@@ -2,11 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://adapt-v3.onrender.com/api/$1"
-    },
-    {
-      "source": "/((?!api).*)",
-      "destination": "/index.html"
+      "destination": "https://adapt-v3-backend.onrender.com/api/$1"
     }
   ],
   "headers": [
