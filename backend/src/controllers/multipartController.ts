@@ -1,82 +1,151 @@
 import { Request, Response } from 'express'
-import { v4 as uuidv4 } from 'uuid'
-import {
-  createMultipartUpload,
-  getSignedUploadPartUrl,
-  completeMultipartUpload,
-  abortMultipartUpload,
-} from '../services/s3Uploader.js'
+import { multipartService } from '../services/multipartService.js'
+import { z } from 'zod'
 
-const MAX_FILE_SIZE_MB = parseInt(process.env.MAX_FILE_SIZE_MB || '250', 10)
-const PART_SIZE_MB = parseInt(process.env.S3_MULTIPART_PART_SIZE_MB || '8', 10)
+const InitSchema = z.object({
+  filename: z.string().min(1),
+  contentType: z.string().min(1),
+  fileSize: z.number().positive(),
+  isMobile: z.boolean().optional().default(false),
+})
 
-function isVideo(mime: string | undefined) {
-  return !!mime && mime.startsWith('video/')
-}
+const SignPartSchema = z.object({
+  key: z.string().min(1),
+  uploadId: z.string().min(1),
+  partNumber: z.number().int().min(1).max(10000),
+})
 
-function safeName(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_')
-}
+const CompleteSchema = z.object({
+  key: z.string().min(1),
+  uploadId: z.string().min(1),
+  parts: z.array(z.object({
+    partNumber: z.number().int().min(1),
+    etag: z.string().min(1),
+  })).min(1),
+})
+
+const AbortSchema = z.object({
+  key: z.string().min(1),
+  uploadId: z.string().min(1),
+})
 
 export const multipartController = {
-  async startUpload(req: Request, res: Response) {
+  async initUpload(req: Request, res: Response) {
     try {
-      const userId = (req as any).userId || 'anonymous'
-      const { filename, contentType, size } = req.body as { filename?: string; contentType?: string; size?: number }
-      if (!filename || !isVideo(contentType) || typeof size !== 'number') {
-        return res.status(400).json({ success: false, error: 'Invalid request' })
+      const { filename, contentType, fileSize, isMobile } = InitSchema.parse(req.body)
+      
+      // Validate file type
+      if (!contentType.startsWith('video/')) {
+        return res.status(400).json({ 
+          error: 'Only video files are supported' 
+        })
       }
-      if (size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        return res.status(413).json({ success: false, error: `File exceeds ${MAX_FILE_SIZE_MB}MB` })
-      }
-      const moduleId = uuidv4()
-      const key = `videos/${userId}/${moduleId}/${uuidv4()}-${safeName(filename)}`
-      const uploadId = await createMultipartUpload(key, contentType!)
-      return res.json({ success: true, uploadId, key, partSizeBytes: PART_SIZE_MB * 1024 * 1024 })
-    } catch (error: any) {
-      console.error('startUpload error:', error)
-      return res.status(500).json({ success: false, error: error.message || 'Failed to start upload' })
+
+      // Initialize multipart upload with device-specific optimization
+      const result = await multipartService.initializeUpload(
+        filename, 
+        contentType,
+        fileSize,
+        isMobile
+      )
+
+      res.json({
+        success: true,
+        ...result,
+        message: 'Multipart upload initialized successfully'
+      })
+    } catch (error) {
+      console.error('Init upload error:', error)
+      res.status(400).json({ 
+        error: error instanceof Error ? error.message : 'Invalid request',
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      })
     }
   },
 
   async signPart(req: Request, res: Response) {
     try {
-      const { key, uploadId, partNumber } = req.body as { key?: string; uploadId?: string; partNumber?: number }
-      if (!key || !uploadId || !partNumber) return res.status(400).json({ success: false, error: 'Missing fields' })
-      const url = await getSignedUploadPartUrl(key, uploadId, Number(partNumber))
-      return res.json({ success: true, url, expiresIn: 600 })
-    } catch (error: any) {
-      console.error('signPart error:', error)
-      return res.status(500).json({ success: false, error: error.message || 'Failed to sign part' })
+      const { key, uploadId, partNumber } = SignPartSchema.parse(req.body)
+      
+      const url = await multipartService.getSignedPartUrl(
+        key, 
+        uploadId, 
+        partNumber
+      )
+
+      res.json({ 
+        success: true,
+        url,
+        message: `Signed URL generated for part ${partNumber}`
+      })
+    } catch (error) {
+      console.error('Sign part error:', error)
+      res.status(400).json({ 
+        error: error instanceof Error ? error.message : 'Failed to sign part',
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      })
     }
   },
 
   async completeUpload(req: Request, res: Response) {
     try {
-      const { key, uploadId, parts } = req.body as { key?: string; uploadId?: string; parts?: { partNumber: number; etag: string }[] }
-      if (!key || !uploadId || !Array.isArray(parts) || parts.length === 0 || parts.length > 10000) {
-        return res.status(400).json({ success: false, error: 'Invalid completion payload' })
+      const { key, uploadId, parts } = CompleteSchema.parse(req.body)
+      
+      // Validate parts before completion
+      const expectedPartCount = parts.length
+      if (!multipartService.validateParts(parts, expectedPartCount)) {
+        return res.status(400).json({
+          error: 'Invalid parts configuration. Parts must be sequential and complete.'
+        })
       }
-      const sdkParts = parts.map(p => ({ PartNumber: p.partNumber, ETag: p.etag }))
-      await completeMultipartUpload(key!, uploadId!, sdkParts)
-      return res.json({ success: true, key })
-    } catch (error: any) {
-      console.error('completeUpload error:', error)
-      return res.status(500).json({ success: false, error: error.message || 'Failed to complete upload' })
+      
+      const result = await multipartService.completeUpload(key, uploadId, parts)
+      
+      // Here you would typically:
+      // 1. Save video metadata to database
+      // 2. Trigger AI processing
+      // 3. Create training module
+      
+      const videoUrl = result.location
+      
+      // For now, return mock module data
+      // TODO: Integrate with actual AI processing
+      const moduleId = `module_${Date.now()}`
+      
+      res.json({
+        success: true,
+        moduleId,
+        videoUrl,
+        key,
+        etag: result.etag,
+        message: 'Multipart upload completed successfully'
+      })
+    } catch (error) {
+      console.error('Complete upload error:', error)
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to complete upload',
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      })
     }
   },
 
   async abortUpload(req: Request, res: Response) {
     try {
-      const { key, uploadId } = req.body as { key?: string; uploadId?: string }
-      if (!key || !uploadId) return res.status(400).json({ success: false, error: 'Missing fields' })
-      await abortMultipartUpload(key, uploadId)
-      return res.json({ success: true })
-    } catch (error: any) {
-      console.error('abortUpload error:', error)
-      return res.status(500).json({ success: false, error: error.message || 'Failed to abort upload' })
+      const { key, uploadId } = AbortSchema.parse(req.body)
+      
+      await multipartService.abortUpload(key, uploadId)
+      
+      res.json({ 
+        success: true,
+        message: 'Multipart upload aborted successfully'
+      })
+    } catch (error) {
+      console.error('Abort upload error:', error)
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to abort upload',
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      })
     }
   },
 }
-
 

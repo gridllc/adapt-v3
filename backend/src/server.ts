@@ -10,6 +10,7 @@ import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 import uploadRoutes from './routes/uploadRoutes.js'
 import enhancedUploadRoutes from './routes/enhancedUploadRoutes.js'
+import { multipartRoutes } from './routes/multipartRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
@@ -176,6 +177,7 @@ const configureRoutes = () => {
   // Protected Routes (require authentication)
   app.use('/api/upload', requireAuth, uploadRoutes)
   app.use('/api/upload-enhanced', requireAuth, enhancedUploadRoutes)
+  app.use('/api/uploads/multipart', requireAuth, multipartRoutes) // NEW: Multipart upload endpoints
   app.use('/api/modules', optionalAuth, moduleRoutes) // Temporarily optional for debugging
   
   // Steps routes with auth for generation
