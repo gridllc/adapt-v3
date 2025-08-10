@@ -37,7 +37,7 @@ export class ModuleService {
 
       return {
         success: true,
-        modules: modules.map(module => ({
+        modules: modules.map((module: any) => ({
           ...module,
           stepCount: module._count.steps,
           feedbackCount: module._count.feedbacks

@@ -125,8 +125,8 @@ export async function getLearningStats() {
   try {
     const stats = await DatabaseService.getActivityLogs(undefined, 1000)
     
-    const aiInteractions = stats.filter(log => log.action === 'AI_INTERACTION')
-    const reusedCount = aiInteractions.filter(log => {
+    const aiInteractions = stats.filter((log: any) => log.action === 'AI_INTERACTION')
+    const reusedCount = aiInteractions.filter((log: any) => {
       const metadata = log.metadata as any
       return metadata?.reused === true
     }).length
