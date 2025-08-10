@@ -32,11 +32,12 @@ export async function initializeUpload(
   fileSize: number,
   isMobile: boolean = false
 ): Promise<MultipartUploadInit> {
+  const token = await getAuthToken()
   const response = await fetch(`${API_BASE}/init`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getAuthToken()}`
+      'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({
       filename,
@@ -63,11 +64,12 @@ export async function getSignedPartUrl(
   uploadId: string,
   partNumber: number
 ): Promise<string> {
+  const token = await getAuthToken()
   const response = await fetch(`${API_BASE}/sign-part`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getAuthToken()}`
+      'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({
       key,
@@ -93,11 +95,12 @@ export async function completeUpload(
   uploadId: string,
   parts: MultipartPart[]
 ): Promise<MultipartUploadResult> {
+  const token = await getAuthToken()
   const response = await fetch(`${API_BASE}/complete`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getAuthToken()}`
+      'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({
       key,
@@ -122,11 +125,12 @@ export async function abortUpload(
   key: string,
   uploadId: string
 ): Promise<void> {
+  const token = await getAuthToken()
   const response = await fetch(`${API_BASE}/abort`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getAuthToken()}`
+      'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({
       key,
@@ -144,15 +148,21 @@ export async function abortUpload(
  * Get authentication token from storage
  * This should be implemented based on your auth system
  */
-function getAuthToken(): string {
-  // TODO: Implement based on your authentication system
-  // Examples:
-  // - localStorage.getItem('authToken')
-  // - sessionStorage.getItem('authToken')
-  // - getToken() from auth context
-  
-  // For now, return empty string - you'll need to implement this
-  return localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || ''
+async function getAuthToken(): Promise<string> {
+  // Try to get token from Clerk if available
+  try {
+    // Check if Clerk is available in the global scope
+    if (typeof window !== 'undefined' && (window as any).Clerk) {
+      const token = await (window as any).Clerk.session?.getToken()
+      if (token) return token
+    }
+    
+    // Fallback to localStorage/sessionStorage
+    return localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || ''
+  } catch (error) {
+    console.warn('Failed to get auth token:', error)
+    return ''
+  }
 }
 
 /**
@@ -160,7 +170,7 @@ function getAuthToken(): string {
  */
 export function isMultipartSupported(): boolean {
   // Check if File.slice is supported (required for chunking)
-  if (!File.prototype.slice && !File.prototype.mozSlice && !File.prototype.webkitSlice) {
+  if (!File.prototype.slice) {
     return false
   }
 

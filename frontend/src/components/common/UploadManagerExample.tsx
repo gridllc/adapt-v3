@@ -24,7 +24,7 @@ const realUpload = async (
   
   // 🎯 Use the real upload helper
   return uploadFileWithProgress(file, onProgress || (() => {}), {
-    url: '/api/upload',
+    url: '/api/uploads/multipart',
     timeout: 60000,
     headers: {
       'X-Upload-Source': 'UploadManagerExample'

@@ -22,6 +22,7 @@ import { useNetworkStatus, getMaxRecommendedFileSize } from '../hooks/useNetwork
 import { VideoProcessingErrorBoundary, AIProcessingErrorBoundary } from '../components/common/ErrorBoundaries'
 import { EnhancedUploadProgress } from '../components/common/EnhancedUploadProgress'
 import { useAuth } from '@clerk/clerk-react'
+import { MultipartUploadManager } from '../utils/multipartUpload'
 
 export const UploadPage: React.FC = () => {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'compressing' | 'uploading' | 'processing' | 'success' | 'error'>('idle')
@@ -296,61 +297,29 @@ export const UploadPage: React.FC = () => {
 
   // Enhanced upload function that integrates with retry system
   const performActualUpload = async (file: File, onProgress?: (progress: number) => void): Promise<any> => {
-    const formData = new FormData()
-    formData.append('file', file)
-    
     const token = await getToken().catch(() => null)
     
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100
-          onProgress?.(percentComplete)
-        }
-      })
-      
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const result = JSON.parse(xhr.responseText)
-            resolve(result)
-          } catch (e) {
-            reject({ 
-              status: xhr.status, 
-              message: 'Invalid JSON response',
-              type: UploadErrorType.SERVER_ERROR 
-            })
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Use the new multipart upload system
+        const multipartUploadManager = new MultipartUploadManager(
+          file,
+          file.name,
+          file.type,
+          {
+            onProgress: (progress, loaded, total) => {
+              onProgress?.(progress)
+            },
+            signal: undefined
           }
-        } else {
-          reject({ 
-            status: xhr.status, 
-            message: xhr.statusText || `HTTP ${xhr.status}`,
-            responseText: xhr.responseText
-          })
-        }
+        )
+        
+        // Start the multipart upload
+        const result = await multipartUploadManager.start()
+        resolve(result)
+      } catch (error) {
+        reject(error)
       }
-      
-      xhr.onerror = () => reject({ 
-        message: 'Network error during upload',
-        type: UploadErrorType.NETWORK_TIMEOUT 
-      })
-      
-      xhr.ontimeout = () => reject({ 
-        message: 'Upload timeout',
-        type: UploadErrorType.NETWORK_TIMEOUT 
-      })
-      
-      xhr.timeout = 180000 // 180 second timeout
-      xhr.open('POST', API_CONFIG.getApiUrl(API_ENDPOINTS.UPLOAD))
-      
-      // Attach Clerk bearer token if available
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-      }
-      
-      xhr.send(formData)
     })
   }
 
