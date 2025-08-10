@@ -32,14 +32,7 @@
       ]
     }
   ],
-  "functions": {
-    "frontend/src/**/*.ts": {
-      "maxDuration": 30
-    },
-    "frontend/src/**/*.tsx": {
-      "maxDuration": 30
-    }
-  },
+
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
