@@ -29,6 +29,10 @@ export interface UploadEntry {
   parts?: UploadPart[]
   totalProgress: number
   
+  // Result fields
+  moduleId?: string
+  videoUrl?: string
+  
   // Metadata
   createdAt: Date
   startedAt?: Date

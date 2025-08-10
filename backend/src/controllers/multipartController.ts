@@ -1,151 +1,256 @@
 import { Request, Response } from 'express'
-import { multipartService } from '../services/multipartService.js'
 import { z } from 'zod'
+import { multipartService } from '../services/multipartService.js'
 
-const InitSchema = z.object({
-  filename: z.string().min(1),
+// Validation schemas
+const initializeSchema = z.object({
+  filename: z.string().min(1).max(255),
   contentType: z.string().min(1),
   fileSize: z.number().positive(),
-  isMobile: z.boolean().optional().default(false),
+  isMobile: z.boolean().optional().default(false)
 })
 
-const SignPartSchema = z.object({
+const signPartSchema = z.object({
   key: z.string().min(1),
   uploadId: z.string().min(1),
-  partNumber: z.number().int().min(1).max(10000),
+  partNumber: z.number().int().min(1).max(10000)
 })
 
-const CompleteSchema = z.object({
+const completeSchema = z.object({
   key: z.string().min(1),
   uploadId: z.string().min(1),
   parts: z.array(z.object({
-    partNumber: z.number().int().min(1),
-    etag: z.string().min(1),
-  })).min(1),
+    partNumber: z.number().int().min(1).max(10000),
+    etag: z.string().min(1)
+  })).min(1)
 })
 
-const AbortSchema = z.object({
+const abortSchema = z.object({
   key: z.string().min(1),
-  uploadId: z.string().min(1),
+  uploadId: z.string().min(1)
 })
 
-export const multipartController = {
-  async initUpload(req: Request, res: Response) {
+export class MultipartController {
+  /**
+   * Initialize a multipart upload
+   * POST /api/uploads/multipart/init
+   */
+  async initialize(req: Request, res: Response) {
     try {
-      const { filename, contentType, fileSize, isMobile } = InitSchema.parse(req.body)
-      
-      // Validate file type
-      if (!contentType.startsWith('video/')) {
-        return res.status(400).json({ 
-          error: 'Only video files are supported' 
-        })
-      }
+      const { filename, contentType, fileSize, isMobile } = initializeSchema.parse(req.body)
 
-      // Initialize multipart upload with device-specific optimization
-      const result = await multipartService.initializeUpload(
-        filename, 
+      console.log(`🚀 Multipart upload init request:`, {
+        filename,
         contentType,
-        fileSize,
-        isMobile
-      )
+        fileSize: `${(fileSize / 1024 / 1024).toFixed(2)}MB`,
+        isMobile,
+        userAgent: req.headers['user-agent']?.slice(0, 50)
+      })
 
-      res.json({
+      const result = await multipartService.initializeUpload(filename, contentType, fileSize, isMobile)
+
+      // Also return upload metrics for client optimization
+      const metrics = multipartService.getUploadMetrics(fileSize, isMobile)
+
+      res.status(200).json({
         success: true,
         ...result,
-        message: 'Multipart upload initialized successfully'
+        metrics
       })
     } catch (error) {
-      console.error('Init upload error:', error)
-      res.status(400).json({ 
-        error: error instanceof Error ? error.message : 'Invalid request',
-        details: process.env.NODE_ENV === 'development' ? error : undefined
-      })
-    }
-  },
-
-  async signPart(req: Request, res: Response) {
-    try {
-      const { key, uploadId, partNumber } = SignPartSchema.parse(req.body)
+      console.error('❌ Multipart init error:', error)
       
-      const url = await multipartService.getSignedPartUrl(
-        key, 
-        uploadId, 
-        partNumber
-      )
-
-      res.json({ 
-        success: true,
-        url,
-        message: `Signed URL generated for part ${partNumber}`
-      })
-    } catch (error) {
-      console.error('Sign part error:', error)
-      res.status(400).json({ 
-        error: error instanceof Error ? error.message : 'Failed to sign part',
-        details: process.env.NODE_ENV === 'development' ? error : undefined
-      })
-    }
-  },
-
-  async completeUpload(req: Request, res: Response) {
-    try {
-      const { key, uploadId, parts } = CompleteSchema.parse(req.body)
-      
-      // Validate parts before completion
-      const expectedPartCount = parts.length
-      if (!multipartService.validateParts(parts, expectedPartCount)) {
+      if (error instanceof z.ZodError) {
         return res.status(400).json({
-          error: 'Invalid parts configuration. Parts must be sequential and complete.'
+          success: false,
+          error: 'Invalid request data',
+          details: error.errors
         })
       }
-      
-      const result = await multipartService.completeUpload(key, uploadId, parts)
-      
-      // Here you would typically:
-      // 1. Save video metadata to database
-      // 2. Trigger AI processing
-      // 3. Create training module
-      
-      const videoUrl = result.location
-      
-      // For now, return mock module data
-      // TODO: Integrate with actual AI processing
-      const moduleId = `module_${Date.now()}`
-      
-      res.json({
-        success: true,
-        moduleId,
-        videoUrl,
-        key,
-        etag: result.etag,
-        message: 'Multipart upload completed successfully'
-      })
-    } catch (error) {
-      console.error('Complete upload error:', error)
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : 'Failed to complete upload',
-        details: process.env.NODE_ENV === 'development' ? error : undefined
-      })
-    }
-  },
 
-  async abortUpload(req: Request, res: Response) {
-    try {
-      const { key, uploadId } = AbortSchema.parse(req.body)
-      
-      await multipartService.abortUpload(key, uploadId)
-      
-      res.json({ 
-        success: true,
-        message: 'Multipart upload aborted successfully'
-      })
-    } catch (error) {
-      console.error('Abort upload error:', error)
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : 'Failed to abort upload',
-        details: process.env.NODE_ENV === 'development' ? error : undefined
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to initialize upload'
       })
     }
-  },
+  }
+
+  /**
+   * Get signed URL for uploading a part
+   * POST /api/uploads/multipart/sign-part
+   */
+  async signPart(req: Request, res: Response) {
+    try {
+      const { key, uploadId, partNumber } = signPartSchema.parse(req.body)
+
+      console.log(`🔗 Signing part ${partNumber} for upload:`, {
+        key,
+        uploadId: uploadId.slice(0, 16) + '...',
+        partNumber
+      })
+
+      const url = await multipartService.getSignedPartUrl(key, uploadId, partNumber)
+
+      res.status(200).json({
+        success: true,
+        url,
+        partNumber
+      })
+    } catch (error) {
+      console.error(`❌ Part signing error:`, error)
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid request data',
+          details: error.errors
+        })
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to sign part URL'
+      })
+    }
+  }
+
+  /**
+   * Complete multipart upload
+   * POST /api/uploads/multipart/complete
+   */
+  async complete(req: Request, res: Response) {
+    try {
+      const { key, uploadId, parts } = completeSchema.parse(req.body)
+
+      console.log(`🏁 Completing multipart upload:`, {
+        key,
+        uploadId: uploadId.slice(0, 16) + '...',
+        partCount: parts.length
+      })
+
+      const result = await multipartService.completeUpload(key, uploadId, parts)
+
+      res.status(200).json(result)
+    } catch (error) {
+      console.error('❌ Multipart complete error:', error)
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid request data',
+          details: error.errors
+        })
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to complete upload'
+      })
+    }
+  }
+
+  /**
+   * Abort multipart upload
+   * POST /api/uploads/multipart/abort
+   */
+  async abort(req: Request, res: Response) {
+    try {
+      const { key, uploadId } = abortSchema.parse(req.body)
+
+      console.log(`🗑️ Aborting multipart upload:`, {
+        key,
+        uploadId: uploadId.slice(0, 16) + '...'
+      })
+
+      const result = await multipartService.abortUpload(key, uploadId)
+
+      res.status(200).json(result)
+    } catch (error) {
+      console.error('❌ Multipart abort error:', error)
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid request data',
+          details: error.errors
+        })
+      }
+
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to abort upload'
+      })
+    }
+  }
+
+  /**
+   * Get upload metrics and recommendations
+   * POST /api/uploads/multipart/metrics
+   */
+  async getMetrics(req: Request, res: Response) {
+    try {
+      const { fileSize, isMobile } = z.object({
+        fileSize: z.number().positive(),
+        isMobile: z.boolean().optional().default(false)
+      }).parse(req.body)
+
+      const metrics = multipartService.getUploadMetrics(fileSize, isMobile)
+
+      res.status(200).json({
+        success: true,
+        metrics
+      })
+    } catch (error) {
+      console.error('❌ Metrics error:', error)
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid request data',
+          details: error.errors
+        })
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get metrics'
+      })
+    }
+  }
+
+  /**
+   * Health check endpoint for multipart upload service
+   * GET /api/uploads/multipart/health
+   */
+  async health(req: Request, res: Response) {
+    try {
+      // Check if S3 is configured
+      const { isS3Configured } = await import('../services/s3Uploader.js')
+      
+      if (!isS3Configured()) {
+        return res.status(503).json({
+          success: false,
+          error: 'S3 not configured',
+          service: 'multipart-upload'
+        })
+      }
+
+      res.status(200).json({
+        success: true,
+        service: 'multipart-upload',
+        status: 'healthy',
+        timestamp: new Date().toISOString()
+      })
+    } catch (error) {
+      console.error('❌ Multipart health check failed:', error)
+      res.status(503).json({
+        success: false,
+        error: 'Service unavailable',
+        service: 'multipart-upload'
+      })
+    }
+  }
 }
 
+// Export singleton instance
+export const multipartController = new MultipartController()

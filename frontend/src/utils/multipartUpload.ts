@@ -1,5 +1,5 @@
 // frontend/src/utils/multipartUpload.ts
-import { multipartService } from './multipartService'
+import * as multipartService from './multipartService'
 
 export interface MultipartUploadConfig {
   maxConcurrent?: number
@@ -282,6 +282,9 @@ export class MultipartUploadManager {
       this.state.isComplete = true
       this.saveResumeState()
 
+      // Clean up resume state on successful completion
+      setTimeout(() => this.cleanupResumeState(), 1000)
+
       return {
         success: true,
         moduleId: result.moduleId,
@@ -360,7 +363,7 @@ export class MultipartUploadManager {
   /**
    * Clean up resume state
    */
-  private cleanupResumeState(): void {
+  cleanupResumeState(): void {
     const key = `multipart-upload-${this.state.key}`
     localStorage.removeItem(key)
   }

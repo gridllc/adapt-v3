@@ -2,8 +2,8 @@ import React, { useCallback, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
-import { MultipartUploader } from '@utils/multipartUpload'
-import { Upload, CloudUpload, AlertCircle } from 'lucide-react'
+import { MultipartUploadManager as MultipartUploader } from '@utils/multipartUpload'
+import { Upload, Cloud, AlertCircle } from 'lucide-react'
 
 export const MultipartUploadManager: React.FC = () => {
   const { 
@@ -49,40 +49,36 @@ export const MultipartUploadManager: React.FC = () => {
       })
 
       // Create multipart uploader
-      const uploader = new MultipartUploader({
-        file: upload.file,
-        onProgress: (progress) => {
-          updateUpload(uploadId, { progress })
-        },
-        onSuccess: (result) => {
-          updateUpload(uploadId, { 
-            status: 'success',
-            completedAt: new Date(),
-            moduleId: result.moduleId,
-            key: result.key,
-            uploadId: result.uploadId
-          })
-          
-          // Clean up uploader reference
-          activeUploadsRef.current.delete(uploadId)
-        },
-        onError: (error) => {
-          updateUpload(uploadId, { 
-            status: 'error',
-            error: error.message
-          })
-          
-          // Clean up uploader reference
-          activeUploadsRef.current.delete(uploadId)
-        },
-        signal: new AbortController().signal
-      })
+      const abortController = new AbortController()
+      const uploader = new MultipartUploader(
+        upload.file,
+        upload.file.name,
+        upload.file.type,
+        {
+          onProgress: (progress) => {
+            updateUpload(uploadId, { progress })
+          },
+          signal: abortController.signal
+        }
+      )
 
       // Store reference for potential cancellation
       activeUploadsRef.current.set(uploadId, uploader)
 
       // Start the upload
-      await uploader.start()
+      const result = await uploader.start()
+      
+      // Handle success
+      updateUpload(uploadId, { 
+        status: 'success',
+        completedAt: new Date(),
+        moduleId: result.moduleId,
+        key: result.key,
+        progress: 100
+      })
+      
+      // Clean up uploader reference
+      activeUploadsRef.current.delete(uploadId)
 
     } catch (error) {
       console.error(`Failed to start upload ${uploadId}:`, error)
@@ -175,7 +171,7 @@ export const MultipartUploadManager: React.FC = () => {
         
         <div className="flex flex-col items-center space-y-4">
           {isDragActive ? (
-            <CloudUpload className="w-12 h-12 text-blue-500" />
+            <Cloud className="w-12 h-12 text-blue-500" />
           ) : (
             <Upload className="w-12 h-12 text-gray-400" />
           )}

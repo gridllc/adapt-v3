@@ -1,4 +1,27 @@
-s
+import { Request, Response, NextFunction } from 'express'
+import { getAuth } from '@clerk/clerk-sdk-node'
+
+declare global {
+  namespace Express {
+    interface Request {
+      userId?: string
+    }
+  }
+}
+
+/**
+ * Authentication middleware that requires a valid user
+ */
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { userId } = await getAuth(req)
+    
+    if (!userId) {
+      console.log('❌ No user ID found in request')
+      return res.status(401).json({ 
+        error: 'Unauthorized',
+        message: 'Authentication required. Please sign in.'
+      })
     }
     
     // Add userId to request for use in controllers
