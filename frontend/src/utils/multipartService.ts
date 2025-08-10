@@ -153,14 +153,27 @@ async function getAuthToken(): Promise<string> {
   try {
     // Check if Clerk is available in the global scope
     if (typeof window !== 'undefined' && (window as any).Clerk) {
-      const token = await (window as any).Clerk.session?.getToken()
-      if (token) return token
+      const session = (window as any).Clerk.session
+      if (session) {
+        const token = await session.getToken()
+        if (token) {
+          console.log('✅ Got Clerk token successfully')
+          return token
+        }
+      }
     }
     
     // Fallback to localStorage/sessionStorage
-    return localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || ''
+    const fallbackToken = localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || ''
+    if (fallbackToken) {
+      console.log('✅ Using fallback token from storage')
+      return fallbackToken
+    }
+    
+    console.warn('❌ No authentication token found')
+    return ''
   } catch (error) {
-    console.warn('Failed to get auth token:', error)
+    console.error('❌ Failed to get auth token:', error)
     return ''
   }
 }

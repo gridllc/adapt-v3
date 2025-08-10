@@ -2,7 +2,8 @@ import React, { useCallback, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
-import { MultipartUploadManager as MultipartUploader } from '@utils/multipartUpload'
+import { AuthenticatedMultipartUploadManager as MultipartUploader } from '@utils/multipartUploadWithAuth'
+import { useAuthToken } from '@hooks/useAuthToken'
 import { Upload, Cloud, AlertCircle } from 'lucide-react'
 
 export const MultipartUploadManager: React.FC = () => {
@@ -21,6 +22,7 @@ export const MultipartUploadManager: React.FC = () => {
     clearAllUploads
   } = useUploadStore()
 
+  const { getAuthToken, isSignedIn } = useAuthToken()
   const activeUploadsRef = useRef<Map<string, MultipartUploader>>(new Map())
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -41,7 +43,26 @@ export const MultipartUploadManager: React.FC = () => {
     const upload = uploads.get(uploadId)
     if (!upload || upload.status !== 'queued') return
 
+    // Check authentication
+    if (!isSignedIn) {
+      updateUpload(uploadId, { 
+        status: 'error',
+        error: 'You must be signed in to upload files'
+      })
+      return
+    }
+
     try {
+      // Get auth token
+      const authToken = await getAuthToken()
+      if (!authToken) {
+        updateUpload(uploadId, { 
+          status: 'error',
+          error: 'Failed to get authentication token'
+        })
+        return
+      }
+
       // Update status to uploading
       updateUpload(uploadId, { 
         status: 'uploading', 
@@ -55,6 +76,7 @@ export const MultipartUploadManager: React.FC = () => {
         upload.file.name,
         upload.file.type,
         {
+          authToken,
           onProgress: (progress) => {
             updateUpload(uploadId, { progress })
           },
@@ -86,8 +108,11 @@ export const MultipartUploadManager: React.FC = () => {
         status: 'error',
         error: error instanceof Error ? error.message : 'Unknown error'
       })
+      
+      // Clean up uploader reference
+      activeUploadsRef.current.delete(uploadId)
     }
-  }, [uploads, updateUpload])
+  }, [uploads, updateUpload, getAuthToken, isSignedIn])
 
   const cancelUpload = useCallback((uploadId: string) => {
     const uploader = activeUploadsRef.current.get(uploadId)
@@ -154,6 +179,17 @@ export const MultipartUploadManager: React.FC = () => {
         <p className="text-gray-600">
           Upload your training videos using multipart upload for reliable large file handling
         </p>
+        
+        {!isSignedIn && (
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-yellow-600 mr-2" />
+              <p className="text-yellow-800">
+                You must be signed in to upload files. Please sign in to continue.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Drop Zone */}
