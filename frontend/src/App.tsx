@@ -11,6 +11,7 @@ import EditStepsPage from '@pages/EditStepsPage'
 import SharePage from '@pages/SharePage'
 import DebugPage from '@pages/DebugPage'
 import { ApiDebug } from '@components/ApiDebug'
+import { ClerkDebug } from '@components/common/ClerkDebug'
 import { GlobalErrorBoundary, NavigationErrorBoundary, UploadErrorBoundary } from '@components/common/ErrorBoundaries'
 
 // Conditional Home Component
@@ -53,6 +54,9 @@ function App() {
     <GlobalErrorBoundary>
       {/* Debug panel temporarily disabled */}
       {/* <ApiDebug /> */}
+      
+      {/* Clerk Debug Component - Remove after fixing sign-in */}
+      <ClerkDebug />
       
       <Routes>
         {/* Always show home page at root */}

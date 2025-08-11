@@ -27,7 +27,9 @@ if (!pk) {
 // Debug: Environment variables
 console.log('🔧 Environment Check:', {
   VITE_CLERK_PUBLISHABLE_KEY: pk ? 'Set' : 'Missing',
-  NODE_ENV: import.meta.env.MODE
+  NODE_ENV: import.meta.env.MODE,
+  pk_length: pk ? pk.length : 0,
+  pk_prefix: pk ? pk.substring(0, 10) + '...' : 'N/A'
 })
 
 // Configuration Error Component
@@ -69,6 +71,8 @@ const AppWrapper: React.FC = () => {
             colorPrimary: "#2563eb"
           }
         }}
+        afterSignInUrl="/dashboard"
+        afterSignUpUrl="/dashboard"
       >
         <BrowserRouter
           future={{

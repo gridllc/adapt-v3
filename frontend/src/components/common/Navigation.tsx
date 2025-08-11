@@ -43,13 +43,29 @@ export const Navigation: React.FC = () => {
               <UserButton afterSignOutUrl="/" />
             ) : (
               <div className="flex items-center space-x-2">
-                <SignInButton redirectUrl="/dashboard">
-                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                <SignInButton 
+                  redirectUrl="/dashboard"
+                  mode="modal"
+                  afterSignInUrl="/dashboard"
+                  afterSignUpUrl="/dashboard"
+                >
+                  <button 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                    onClick={() => console.log('🔍 Sign In button clicked')}
+                  >
                     Sign In
                   </button>
                 </SignInButton>
-                <SignUpButton redirectUrl="/dashboard">
-                  <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                <SignUpButton 
+                  redirectUrl="/dashboard"
+                  mode="modal"
+                  afterSignInUrl="/dashboard"
+                  afterSignUpUrl="/dashboard"
+                >
+                  <button 
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                    onClick={() => console.log('🔍 Sign Up button clicked')}
+                  >
                     Get Started
                   </button>
                 </SignUpButton>
@@ -81,13 +97,29 @@ export const Navigation: React.FC = () => {
             <UserButton afterSignOutUrl="/" />
           ) : (
             <div className="space-y-2">
-              <SignInButton redirectUrl="/dashboard">
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+              <SignInButton 
+                redirectUrl="/dashboard"
+                mode="modal"
+                afterSignInUrl="/dashboard"
+                afterSignUpUrl="/dashboard"
+              >
+                <button 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  onClick={() => console.log('🔍 Mobile Sign In button clicked')}
+                >
                   Sign In
                 </button>
               </SignInButton>
-              <SignUpButton redirectUrl="/dashboard">
-                <button className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+              <SignUpButton 
+                redirectUrl="/dashboard"
+                mode="modal"
+                afterSignInUrl="/dashboard"
+                afterSignUpUrl="/dashboard"
+              >
+                <button 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  onClick={() => console.log('🔍 Mobile Sign Up button clicked')}
+                >
                   Get Started
                 </button>
               </SignUpButton>
