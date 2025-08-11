@@ -110,24 +110,5 @@ export const uploadController = {
     }
   },
 
-  /**
-   * Legacy multipart upload endpoint (kept for backward compatibility)
-   * POST /api/upload/video
-   */
-  async uploadVideo(req: Request, res: Response) {
-    try {
-      // This endpoint is deprecated - redirect to presigned upload
-      res.status(410).json({
-        success: false,
-        error: 'Multipart upload is deprecated. Please use presigned upload instead.',
-        message: 'This endpoint has been replaced with /api/upload/presigned-url'
-      })
-    } catch (error) {
-      console.error('❌ Legacy upload error:', error)
-      res.status(500).json({ 
-        success: false,
-        error: 'Legacy upload failed' 
-      })
-    }
-  }
+
 }

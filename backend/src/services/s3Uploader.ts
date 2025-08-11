@@ -142,7 +142,7 @@ export async function getUploadPresignedUrl(filename: string, contentType: strin
   }
 }
 
-// Multipart upload functions removed - using presigned upload system
+
 
 /**
  * Check if S3 is properly configured

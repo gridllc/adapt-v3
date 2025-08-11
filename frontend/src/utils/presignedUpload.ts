@@ -1,7 +1,11 @@
+// CREATE: frontend/src/utils/presignedUpload.ts
+
 export interface PresignedUploadResult {
   presignedUrl: string
   key: string
   fileUrl: string
+  expiresIn: number
+  maxFileSize: number
 }
 
 export async function uploadWithPresignedUrl({
@@ -13,6 +17,8 @@ export async function uploadWithPresignedUrl({
   onProgress: (percent: number) => void
   signal?: AbortSignal
 }) {
+  console.log('Starting presigned upload for:', file.name)
+  
   // Step 1: Get presigned URL
   const presignedResponse = await fetch('/api/upload/presigned-url', {
     method: 'POST',
@@ -24,17 +30,22 @@ export async function uploadWithPresignedUrl({
   })
 
   if (!presignedResponse.ok) {
-    const error = await presignedResponse.text()
-    throw new Error(`Failed to get upload URL: ${error}`)
+    const errorText = await presignedResponse.text()
+    console.error('Failed to get presigned URL:', errorText)
+    throw new Error(`Failed to get upload URL: ${errorText}`)
   }
 
   const { presignedUrl, key, fileUrl }: PresignedUploadResult = 
     await presignedResponse.json()
 
-  // Step 2: Upload to S3
+  console.log('Got presigned URL, uploading to S3...')
+
+  // Step 2: Upload directly to S3
   await uploadToS3({ file, presignedUrl, onProgress, signal })
 
-  // Step 3: Process video
+  console.log('S3 upload complete, processing video...')
+
+  // Step 3: Process video with AI
   const processResponse = await fetch('/api/upload/process', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -42,7 +53,9 @@ export async function uploadWithPresignedUrl({
   })
 
   if (!processResponse.ok) {
-    throw new Error(`Video processing failed: ${processResponse.status}`)
+    const errorText = await processResponse.text()
+    console.error('Video processing failed:', errorText)
+    throw new Error(`Video processing failed: ${errorText}`)
   }
 
   return processResponse.json()
@@ -71,58 +84,31 @@ async function uploadToS3({
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
+        console.log('S3 upload successful')
         resolve()
       } else {
+        console.error('S3 upload failed with status:', xhr.status)
         reject(new Error(`S3 upload failed: ${xhr.status}`))
       }
     }
 
-    xhr.onerror = () => reject(new Error('Network error'))
-    xhr.onabort = () => reject(new Error('Upload cancelled'))
+    xhr.onerror = () => {
+      console.error('Network error during S3 upload')
+      reject(new Error('Network error during S3 upload'))
+    }
+    
+    xhr.onabort = () => {
+      console.log('S3 upload cancelled')
+      reject(new Error('Upload cancelled'))
+    }
 
-    signal?.addEventListener('abort', () => xhr.abort())
+    signal?.addEventListener('abort', () => {
+      console.log('Aborting S3 upload')
+      xhr.abort()
+    })
 
     xhr.open('PUT', presignedUrl)
     xhr.setRequestHeader('Content-Type', file.type)
     xhr.send(file)
   })
-}
-
-/**
- * Validate file before upload
- */
-export function validateFileForUpload(file: File): { valid: boolean; error?: string } {
-  // Check file type
-  const validTypes = ['video/mp4', 'video/webm', 'video/avi', 'video/mov', 'video/wmv', 'video/flv']
-  if (!validTypes.includes(file.type)) {
-    return { 
-      valid: false, 
-      error: 'Unsupported file type. Please upload MP4, WebM, AVI, MOV, WMV, or FLV.' 
-    }
-  }
-
-  // Check file size (200MB limit)
-  const maxSize = 200 * 1024 * 1024
-  if (file.size > maxSize) {
-    return { 
-      valid: false, 
-      error: 'File too large. Please choose a file under 200MB.' 
-    }
-  }
-
-  return { valid: true }
-}
-
-/**
- * Format file size for display
- */
-export function formatFileSize(bytes: number): string {
-  if (isNaN(bytes) || bytes < 0) return "Unknown size"
-  if (bytes === 0) return "0 B"
-  
-  const units = ["B", "KB", "MB", "GB"]
-  const exponent = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
-  const size = bytes / Math.pow(1024, exponent)
-  
-  return `${Math.round(size * 10) / 10} ${units[exponent]}`
 }

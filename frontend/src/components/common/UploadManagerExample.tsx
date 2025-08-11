@@ -22,9 +22,9 @@ const realUpload = async (
     }
   }
   
-  // 🎯 Use the real upload helper
+  // 🎯 Use the presigned upload helper
   return uploadFileWithProgress(file, onProgress || (() => {}), {
-    url: '/api/uploads/multipart',
+    url: '/api/upload/presigned-url',
     timeout: 60000,
     headers: {
       'X-Upload-Source': 'UploadManagerExample'
