@@ -1,17 +1,17 @@
 import express from 'express'
 import multer from 'multer'
 import { uploadController } from '../controllers/uploadController.js'
-import { presignedUploadController } from '../controllers/presignedUploadController.js'
 
 const router = express.Router()
 
-const storage = multer.memoryStorage()
+// Configure multer for memory storage
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 200 * 1024 * 1024, // 200MB
   },
   fileFilter: (req, file, cb) => {
+    console.log('Multer file filter:', file.mimetype)
     if (file.mimetype.startsWith('video/')) {
       cb(null, true)
     } else {
@@ -20,14 +20,15 @@ const upload = multer({
   },
 })
 
-// ✅ THIS ROUTE MUST WORK - it uploads to S3 via your backend
-router.post('/', upload.single('file'), uploadController.uploadVideo)
+// Upload endpoint - NO AUTHENTICATION
+router.post('/', (req, res, next) => {
+  console.log('Upload route hit')
+  next()
+}, upload.single('file'), uploadController.uploadVideo)
 
-// Presigned upload routes
-router.post('/presigned-url', presignedUploadController.getPresignedUrl)
-router.post('/process', presignedUploadController.processVideo)
-router.post('/confirm', presignedUploadController.confirmUpload)
-router.get('/status/:key', presignedUploadController.getUploadStatus)
-router.get('/health', presignedUploadController.healthCheck)
+// Health check for uploads
+router.get('/health', (req, res) => {
+  res.json({ status: 'Upload service ready' })
+})
 
 export { router as uploadRoutes }

@@ -10,7 +10,6 @@ import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 
 import { uploadRoutes } from './routes/uploadRoutes.js'
-import { presignedUploadRoutes } from './routes/presignedUploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
@@ -175,12 +174,7 @@ const configureMiddleware = () => {
 // Route configuration
 const configureRoutes = () => {
   // Upload Routes (public - no authentication required)
-  app.use('/api/upload', uploadRoutes) // Presigned upload endpoints
-  app.use('/api/upload', presignedUploadRoutes) // Additional presigned upload endpoints
-  app.use('/api/modules', optionalAuth, moduleRoutes) // Temporarily optional for debugging
-  
-  // Steps routes with auth for generation
-  app.use('/api/steps', stepsRoutes) // Individual routes will be protected as needed
+  app.use('/api/upload', uploadRoutes) // Basic file upload endpoint
   
   // Public Routes (no authentication required)
   app.use('/api', healthRoutes)  // Mounts /api/health

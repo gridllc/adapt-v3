@@ -2,33 +2,52 @@ import React, { useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
-import { validateFileForUpload, uploadFileWithProgress } from '@utils/uploadFileWithProgress'
+import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 
 export const UploadManager: React.FC = () => {
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    console.log('Files dropped:', acceptedFiles)
+    
     for (const file of acceptedFiles) {
       try {
-        const validation = validateFileForUpload(file)
-        if (!validation.isValid) {
+        console.log('Processing file:', file.name)
+        
+        // Validate file
+        const validation = await validateFile(file)
+        if (!validation.valid) {
           throw new Error(validation.error)
         }
 
+        // Add to upload queue
         const uploadId = addUpload(file)
+        console.log('Added to queue:', uploadId)
 
+        // Start upload
         try {
-          // ✅ USE WORKING UPLOAD SYSTEM - NO MORE MISSING FILES
-          const result = await uploadFileWithProgress(
+          console.log('Starting upload to: http://localhost:8000/api/upload')
+          
+          const response = await uploadWithProgress({
             file,
-            (progress) => updateProgress(uploadId, progress),
-            {
-              url: '/api/upload',
-              onProgress: (progress) => updateProgress(uploadId, progress),
-            }
-          )
+            url: 'http://localhost:8000/api/upload', // Full URL
+            onProgress: (progress) => {
+              console.log(`Upload progress: ${progress}%`)
+              updateProgress(uploadId, progress)
+            },
+          })
 
-          markSuccess(uploadId, result.moduleId)
+          console.log('Upload response:', response)
+
+          if (response.ok) {
+            const result = await response.json()
+            console.log('Upload success:', result)
+            markSuccess(uploadId, result.moduleId)
+          } else {
+            const errorText = await response.text()
+            console.error('Upload failed:', response.status, errorText)
+            throw new Error(`Upload failed: ${response.status} - ${errorText}`)
+          }
         } catch (error) {
           console.error('Upload error:', error)
           markError(uploadId, error as Error)
@@ -47,14 +66,15 @@ export const UploadManager: React.FC = () => {
       'video/avi': ['.avi'],
       'video/mov': ['.mov'],
     },
-    maxSize: 200 * 1024 * 1024,
+    maxSize: 200 * 1024 * 1024, // 200MB
   })
 
   return (
     <div className="space-y-4">
+      {/* Drop Zone */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
           isDragActive
             ? 'border-blue-500 bg-blue-50'
             : 'border-gray-300 hover:border-gray-400'
@@ -72,6 +92,7 @@ export const UploadManager: React.FC = () => {
         </div>
       </div>
 
+      {/* Upload Queue */}
       {Object.keys(uploads).length > 0 && (
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
