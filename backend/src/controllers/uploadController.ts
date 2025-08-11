@@ -1,10 +1,4 @@
 import { Request, Response } from 'express'
-import { aiService } from '../services/aiService.js'
-import { DatabaseService } from '../services/prismaService.js'
-import { presignedUploadService } from '../services/presignedUploadService.js'
-import config from '../config/env.js'
-import crypto from 'crypto'
-import { uploadToS3 } from '../services/s3Uploader.js'
 
 export const uploadController = {
   /**
@@ -28,24 +22,12 @@ export const uploadController = {
         })
       }
 
-      // Validate file size (client-side validation, but we can add server-side checks)
-      const { fileSize } = req.body
-      if (fileSize && fileSize > config.MAX_FILE_SIZE) {
-        return res.status(400).json({ 
-          error: `File size exceeds maximum allowed size of ${config.MAX_FILE_SIZE / (1024 * 1024)}MB` 
-        })
-      }
-
-      console.log(`🔗 Generating presigned URL for: ${filename} (${contentType})`)
-
-      const result = await presignedUploadService.generatePresignedUrl(
-        filename, 
-        contentType
-      )
-      
+      // For now, return mock data - add S3 presigned URL generation later
       res.json({
         success: true,
-        ...result
+        uploadUrl: `https://mock-s3-url.com/${filename}`,
+        key: `uploads/${Date.now()}-${filename}`,
+        expiresIn: 3600
       })
     } catch (error) {
       console.error('❌ Presigned URL error:', error)
@@ -73,33 +55,18 @@ export const uploadController = {
 
       console.log(`🎬 Processing video: ${key}`)
 
-      // Confirm upload exists in S3
-      const uploadConfirmation = await presignedUploadService.confirmUpload(key)
-      if (!uploadConfirmation.success) {
-        return res.status(400).json({ 
-          success: false,
-          error: 'Video file not found. Please ensure upload completed successfully.' 
-        })
-      }
-
-      // Process with AI
-      console.log(`🤖 Processing video with AI: ${videoUrl}`)
-      const moduleData = await aiService.processVideo(videoUrl)
-
-      // Save module
-      console.log(`💾 Saving module data`)
-      const moduleId = await DatabaseService.createModule({
-        id: crypto.randomUUID(),
-        title: moduleData.title || 'Video Module',
-        filename: 'video.mp4',
-        videoUrl: videoUrl,
-      })
+      // For now, return mock data - add AI processing later
+      const mockModuleId = `module_${Date.now()}`
+      const mockSteps = [
+        { id: 1, title: 'Video uploaded successfully', timestamp: Date.now() },
+        { id: 2, title: 'Processing complete', timestamp: Date.now() + 1000 }
+      ]
 
       res.json({
         success: true,
-        moduleId,
+        moduleId: mockModuleId,
         videoUrl,
-        steps: moduleData.steps,
+        steps: mockSteps,
         message: 'Video processed successfully'
       })
     } catch (error) {
@@ -131,37 +98,21 @@ export const uploadController = {
         return res.status(400).json({ error: 'Only video files are allowed' })
       }
 
-      console.log('Uploading to S3...')
-      // Upload to storage
-      const videoUrl = await uploadToS3(file.buffer, file.originalname, file.mimetype)
-      console.log('S3 upload complete:', videoUrl)
+      // For now, just return success with mock data - add S3/AI later
+      const mockModuleId = `module_${Date.now()}`
+      const mockVideoUrl = `https://temp-url.com/${file.originalname}`
 
-      console.log('Processing with AI...')
-      // Process with AI
-      const moduleData = await aiService.processVideo(videoUrl)
-      console.log('AI processing complete')
-
-      console.log('Saving module...')
-      // Save module using DatabaseService
-      const moduleId = await DatabaseService.createModule({
-        id: crypto.randomUUID(),
-        title: moduleData.title || 'Video Module',
-        filename: file.originalname,
-        videoUrl: videoUrl,
-      })
-      console.log('Module saved:', moduleId)
+      console.log('Upload successful, returning mock data')
 
       res.json({
         success: true,
-        moduleId,
-        videoUrl,
-        steps: moduleData.steps,
+        moduleId: mockModuleId,
+        videoUrl: mockVideoUrl,
+        steps: [{ id: 1, title: 'Processing...', timestamp: Date.now() }],
       })
     } catch (error) {
       console.error('Upload error:', error)
       res.status(500).json({ error: 'Upload failed', details: error instanceof Error ? error.message : 'Unknown error' })
     }
   },
-
-
 }

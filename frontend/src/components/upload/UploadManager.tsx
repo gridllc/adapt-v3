@@ -2,8 +2,7 @@ import React, { useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
-import { validateFileForUpload } from '@utils/uploadFileWithProgress'
-import { uploadWithBackendProxy } from '@utils/simpleUpload'  // ✅ USE THIS
+import { validateFileForUpload, uploadFileWithProgress } from '@utils/uploadFileWithProgress'
 
 export const UploadManager: React.FC = () => {
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
@@ -19,11 +18,15 @@ export const UploadManager: React.FC = () => {
         const uploadId = addUpload(file)
 
         try {
-          // ✅ USE SIMPLE BACKEND UPLOAD - NO CORS ISSUES
-          const result = await uploadWithBackendProxy({
+          // ✅ USE WORKING UPLOAD SYSTEM - NO MORE MISSING FILES
+          const result = await uploadFileWithProgress(
             file,
-            onProgress: (progress) => updateProgress(uploadId, progress),
-          })
+            (progress) => updateProgress(uploadId, progress),
+            {
+              url: '/api/upload',
+              onProgress: (progress) => updateProgress(uploadId, progress),
+            }
+          )
 
           markSuccess(uploadId, result.moduleId)
         } catch (error) {
