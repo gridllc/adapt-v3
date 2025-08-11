@@ -137,7 +137,7 @@ export const presignedUploadController = {
       const finalModuleId = moduleId || crypto.randomUUID()
 
       // Save module to database
-      const savedModuleId = await DatabaseService.createModule({
+      const savedModule = await DatabaseService.createModule({
         id: finalModuleId,
         title: moduleData.title || 'Video Module',
         filename: 'video.mp4',
@@ -146,11 +146,11 @@ export const presignedUploadController = {
       })
 
       // Save steps if they exist
-      let savedSteps = []
+      let savedStepsCount = 0
       if (moduleData.steps && moduleData.steps.length > 0) {
         try {
-          savedSteps = await DatabaseService.createSteps(
-            savedModuleId, 
+          const stepResult = await DatabaseService.createSteps(
+            savedModule.id, 
             moduleData.steps.map(step => ({
               timestamp: step.timestamp,
               title: step.title,
@@ -158,14 +158,15 @@ export const presignedUploadController = {
               duration: step.duration
             }))
           )
+          savedStepsCount = stepResult.count || 0
           log.info('Steps saved successfully', { 
-            moduleId: savedModuleId, 
-            stepsCount: savedSteps.length,
+            moduleId: savedModule.id, 
+            stepsCount: savedStepsCount,
             userId 
           })
         } catch (stepError) {
           log.error('Failed to save steps', { 
-            moduleId: savedModuleId, 
+            moduleId: savedModule.id, 
             error: stepError instanceof Error ? stepError.message : 'Unknown error',
             userId 
           })
@@ -174,20 +175,20 @@ export const presignedUploadController = {
       }
 
       log.info('Video processing completed successfully', { 
-        moduleId: savedModuleId, 
+        moduleId: savedModule.id, 
         userId 
       })
 
       res.json({
         success: true,
-        moduleId: savedModuleId,
+        moduleId: savedModule.id,
         videoUrl,
         title: moduleData.title,
         description: moduleData.description,
         transcript: moduleData.transcript,
         steps: moduleData.steps,
         totalDuration: moduleData.totalDuration,
-        savedStepsCount: savedSteps.length
+        savedStepsCount: savedStepsCount
       })
     } catch (error) {
       log.error('Video processing failed', { 
