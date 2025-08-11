@@ -24,20 +24,20 @@ export const UploadManager: React.FC = () => {
         const uploadId = addUpload(file)
         console.log('Added to queue:', uploadId)
 
-        // Start upload
+        // Start upload - USE DIRECT URL (bypasses proxy)
         try {
-          console.log('Starting upload to: http://localhost:8000/api/upload')
+          console.log('Starting upload...')
           
           const response = await uploadWithProgress({
             file,
-            url: 'http://localhost:8000/api/upload', // Full URL
+            url: 'http://localhost:8000/api/upload', // DIRECT URL
             onProgress: (progress) => {
               console.log(`Upload progress: ${progress}%`)
               updateProgress(uploadId, progress)
             },
           })
 
-          console.log('Upload response:', response)
+          console.log('Upload response status:', response.status)
 
           if (response.ok) {
             const result = await response.json()
@@ -46,7 +46,7 @@ export const UploadManager: React.FC = () => {
           } else {
             const errorText = await response.text()
             console.error('Upload failed:', response.status, errorText)
-            throw new Error(`Upload failed: ${response.status} - ${errorText}`)
+            throw new Error(`Upload failed: ${response.status}`)
           }
         } catch (error) {
           console.error('Upload error:', error)
@@ -64,13 +64,19 @@ export const UploadManager: React.FC = () => {
       'video/mp4': ['.mp4'],
       'video/webm': ['.webm'],
       'video/avi': ['.avi'],
-      'video/mov': ['.mov'],
+      'video/quicktime': ['.mov'],
     },
     maxSize: 200 * 1024 * 1024, // 200MB
   })
 
   return (
     <div className="space-y-4">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p className="text-sm text-yellow-800">
+          <strong>Debug Info:</strong> Upload will go to http://localhost:8000/api/upload
+        </p>
+      </div>
+
       {/* Drop Zone */}
       <div
         {...getRootProps()}

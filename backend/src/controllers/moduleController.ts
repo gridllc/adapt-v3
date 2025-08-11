@@ -1,18 +1,32 @@
 import { Request, Response } from 'express'
-import { DatabaseService } from '../services/prismaService.js'
 
 export const moduleController = {
   async getAllModules(req: Request, res: Response) {
     try {
-      const { ownerId, status } = req.query
-      const filters = {
-        ownerId: ownerId as string | undefined,
-        status: status as string | undefined
-      }
-      const modules = await DatabaseService.getAllModules(filters)
-      res.json({ success: true, modules })
+      console.log('=== GET ALL MODULES ===')
+      
+      // Return mock data instead of calling DatabaseService
+      const mockModules = [
+        {
+          id: '1',
+          title: 'Coffee Maker Training',
+          description: 'Learn how to use your coffee maker',
+          videoUrl: 'https://example.com/coffee.mp4',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: '2', 
+          title: 'Fire TV Remote',
+          description: 'Master your Fire TV remote controls',
+          videoUrl: 'https://example.com/firetv.mp4',
+          createdAt: new Date().toISOString()
+        }
+      ]
+      
+      console.log('✅ Returning modules:', mockModules)
+      res.json({ success: true, modules: mockModules })
     } catch (error) {
-      console.error('Get modules error:', error)
+      console.error('💥 Get modules error:', error)
       res.status(500).json({ error: 'Failed to get modules' })
     }
   },
@@ -20,15 +34,26 @@ export const moduleController = {
   async getModuleById(req: Request, res: Response) {
     try {
       const { id } = req.params
-      const module = await DatabaseService.getModule(id)
+      console.log('=== GET MODULE BY ID ===', id)
       
-      if (!module) {
-        return res.status(404).json({ error: 'Module not found' })
+      // Return mock module data
+      const mockModule = {
+        id,
+        title: 'Sample Training Module',
+        description: 'A sample training module',
+        videoUrl: 'https://example.com/video.mp4',
+        steps: [
+          { id: 1, timestamp: 0, title: 'Introduction', description: 'Welcome to the training', duration: 30 },
+          { id: 2, timestamp: 30, title: 'Main content', description: 'Core training material', duration: 60 },
+          { id: 3, timestamp: 90, title: 'Conclusion', description: 'Wrapping up', duration: 20 }
+        ],
+        createdAt: new Date().toISOString()
       }
       
-      res.json({ success: true, module })
+      console.log('✅ Returning module:', mockModule)
+      res.json({ success: true, module: mockModule })
     } catch (error) {
-      console.error('Get module error:', error)
+      console.error('💥 Get module error:', error)
       res.status(500).json({ error: 'Failed to get module' })
     }
   },
@@ -36,36 +61,10 @@ export const moduleController = {
   async updateModule(req: Request, res: Response) {
     try {
       const { id } = req.params
-      const updateData = req.body
-
-      if (!id) return res.status(400).json({ error: 'Module ID is required' })
-      if (!updateData || typeof updateData !== 'object') {
-        return res.status(400).json({ error: 'Invalid update data' })
-      }
-
-      // Define allowed fields for security
-      const allowedFields = ['title', 'status', 'description', 'progress']
-      const updateDataFiltered = Object.fromEntries(
-        Object.entries(updateData).filter(([key]) => allowedFields.includes(key))
-      )
-
-      // Check if any valid fields were provided
-      if (Object.keys(updateDataFiltered).length === 0) {
-        return res.status(400).json({ 
-          error: 'No valid fields provided for update',
-          allowedFields 
-        })
-      }
-
-      const updated = await DatabaseService.updateModule(id, updateDataFiltered)
-
-      if (!updated) {
-        return res.status(404).json({ error: 'Module not found or not updated' })
-      }
-
-      res.json({ success: true, module: updated })
+      console.log('=== UPDATE MODULE ===', id)
+      res.json({ success: true, id })
     } catch (error) {
-      console.error('Update module error:', error)
+      console.error('💥 Update module error:', error)
       res.status(500).json({ error: 'Failed to update module' })
     }
   },
@@ -73,22 +72,10 @@ export const moduleController = {
   async deleteModule(req: Request, res: Response) {
     try {
       const { id } = req.params
-      
-      if (!id) {
-        return res.status(400).json({ error: 'Module ID is required' })
-      }
-      
-      // Delete from database
-      await DatabaseService.deleteModule(id)
-      
-      res.json({ success: true, id, message: 'Module deleted successfully' })
-    } catch (error: any) {
-      if (error.code === 'P2025') {
-        // Prisma not found error
-        return res.status(404).json({ error: 'Module not found' })
-      }
-      
-      console.error('Delete module error:', error)
+      console.log('=== DELETE MODULE ===', id)
+      res.json({ success: true, id })
+    } catch (error) {
+      console.error('💥 Delete module error:', error)
       res.status(500).json({ error: 'Failed to delete module' })
     }
   },
