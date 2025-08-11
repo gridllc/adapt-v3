@@ -1,33 +1,23 @@
 {
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://adapt-v3.onrender.com/api/$1"
-    }
+    { "source": "/api/(.*)", "destination": "https://adapt-v3.onrender.com/api/$1" },
+    { "source": "/(.*)", "destination": "/" }
   ],
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
         {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
         },
         {
-          "key": "Access-Control-Allow-Methods", 
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
+          "key": "X-Frame-Options",
+          "value": "DENY"
         },
         {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Accept, Content-Type, Authorization, Cache-Control, Pragma, X-Requested-With, Range, X-Upload-Source, X-File-Size, X-File-Type, X-Clerk-Auth, X-Clerk-Signature"
-        },
-        {
-          "key": "Access-Control-Expose-Headers",
-          "value": "X-Upload-Progress, X-Upload-Status, X-Module-ID, Content-Range, Accept-Ranges, ETag, Cache-Control"
-        },
-        {
-          "key": "Access-Control-Max-Age",
-          "value": "86400"
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
         }
       ]
     }
