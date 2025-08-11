@@ -10,12 +10,18 @@ let s3Client: S3Client | null = null
 let isS3Enabled = false
 
 try {
-  if (process.env.AWS_REGION && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_BUCKET_NAME) {
+  // Use optional chaining and provide fallbacks to prevent build-time errors
+  const awsRegion = process.env.AWS_REGION
+  const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID
+  const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+  const awsBucketName = process.env.AWS_BUCKET_NAME
+  
+  if (awsRegion && awsAccessKeyId && awsSecretAccessKey && awsBucketName) {
     s3Client = new S3Client({
-      region: process.env.AWS_REGION,
+      region: awsRegion,
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        accessKeyId: awsAccessKeyId,
+        secretAccessKey: awsSecretAccessKey,
       },
     })
     isS3Enabled = true
@@ -40,14 +46,21 @@ export const storageService = {
         console.log('🚀 Uploading to S3...')
         const key = `videos/${uuidv4()}-${file.originalname}`
         
+        // Use optional chaining to prevent build-time errors
+        const bucketName = process.env.AWS_BUCKET_NAME
+        if (!bucketName) {
+          throw new Error('AWS_BUCKET_NAME not configured')
+        }
+        
         await s3Client.send(new PutObjectCommand({
-          Bucket: process.env.AWS_BUCKET_NAME!,
+          Bucket: bucketName,
           Key: key,
           Body: file.buffer,
           ContentType: file.mimetype,
         }))
         
-        const s3Url = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`
+        const awsRegion = process.env.AWS_REGION || 'us-east-1'
+        const s3Url = `https://${bucketName}.s3.${awsRegion}.amazonaws.com/${key}`
         console.log('✅ S3 upload successful:', s3Url)
         return s3Url
       } else {
@@ -246,23 +259,31 @@ export const storageService = {
     console.log('🏥 Storage service health check:', checks)
     return checks
   },
+}
 
-  // Get signed URL for file access
-  async getSignedS3Url(filename: string): Promise<string> {
-    try {
-      if (this.isS3Enabled() && s3Client) {
-        console.log('🔗 Generating S3 signed URL for:', filename)
-        // For now, return the public S3 URL
-        // TODO: Implement proper presigned URL generation
-        return `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/videos/${filename}`
-      } else {
-        console.log('📁 S3 not configured, returning local URL for:', filename)
-        return `http://localhost:8000/uploads/${filename}`
+// Get signed URL for file access (exported separately for compatibility)
+export async function getSignedS3Url(filename: string): Promise<string> {
+  try {
+    if (storageService.isS3Enabled()) {
+      console.log('🔗 Generating S3 signed URL for:', filename)
+      // Use optional chaining to prevent build-time errors
+      const bucketName = process.env.AWS_BUCKET_NAME
+      const awsRegion = process.env.AWS_REGION
+      
+      if (!bucketName || !awsRegion) {
+        throw new Error('AWS configuration incomplete')
       }
-    } catch (error) {
-      console.error('❌ Failed to get signed URL:', error instanceof Error ? error.message : 'Unknown error')
-      // Fallback to local URL
+      
+      // For now, return the public S3 URL
+      // TODO: Implement proper presigned URL generation
+      return `https://${bucketName}.s3.${awsRegion}.amazonaws.com/videos/${filename}`
+    } else {
+      console.log('📁 S3 not configured, returning local URL for:', filename)
       return `http://localhost:8000/uploads/${filename}`
     }
+  } catch (error) {
+    console.error('❌ Failed to get signed URL:', error instanceof Error ? error.message : 'Unknown error')
+    // Fallback to local URL
+    return `http://localhost:8000/uploads/${filename}`
   }
 } 

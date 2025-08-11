@@ -6,7 +6,8 @@ import {
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-const BUCKET_NAME = (process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET)!
+// Use optional chaining to prevent build-time errors
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET
 
 /**
  * Get S3 client with validation
@@ -16,11 +17,19 @@ function getS3Client(): S3Client {
     throw new Error('S3 is not configured')
   }
 
+  // Validate required environment variables
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+  
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error('AWS credentials not configured')
+  }
+
   return new S3Client({
     region: process.env.AWS_REGION || 'us-west-1',
     credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
+      accessKeyId: accessKeyId,
+      secretAccessKey: secretAccessKey
     }
   })
 }
@@ -59,6 +68,10 @@ export async function uploadToS3(buffer: Buffer, filename: string, contentType?:
   try {
     console.log(`[TEST] 📁 Uploading to S3: ${filename}`)
     
+    if (!BUCKET_NAME) {
+      throw new Error('S3 bucket name not configured')
+    }
+    
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: filename,
@@ -86,6 +99,10 @@ export async function deleteFromS3(filename: string): Promise<boolean> {
   try {
     console.log(`[TEST] 🗑️ Deleting S3 object: ${filename}`)
     
+    if (!BUCKET_NAME) {
+      throw new Error('S3 bucket name not configured')
+    }
+    
     const command = new DeleteObjectCommand({
       Bucket: BUCKET_NAME,
       Key: filename
@@ -108,6 +125,10 @@ export async function getPresignedUrl(filename: string, expiresIn: number = 3600
   try {
     console.log(`[TEST] 🔗 Generating presigned URL for: ${filename}`)
     
+    if (!BUCKET_NAME) {
+      throw new Error('S3 bucket name not configured')
+    }
+    
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
       Key: filename
@@ -128,6 +149,10 @@ export async function getPresignedUrl(filename: string, expiresIn: number = 3600
  */
 export async function getUploadPresignedUrl(filename: string, contentType: string, expiresIn: number = 900): Promise<string> {
   try {
+    if (!BUCKET_NAME) {
+      throw new Error('S3 bucket name not configured')
+    }
+    
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: filename,
@@ -142,8 +167,6 @@ export async function getUploadPresignedUrl(filename: string, contentType: strin
   }
 }
 
-
-
 /**
  * Check if S3 is properly configured
  */
@@ -155,5 +178,8 @@ export function isS3Configured(): boolean {
  * Get the public S3 URL for a file
  */
 export function getPublicS3Url(filename: string): string {
+  if (!BUCKET_NAME) {
+    throw new Error('S3 bucket name not configured')
+  }
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com/${filename}`
 } 
