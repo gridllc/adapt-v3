@@ -11,6 +11,8 @@ import { UploadPage } from '@pages/UploadPage'
 import EditStepsPage from '@pages/EditStepsPage'
 import SharePage from '@pages/SharePage'
 import DebugPage from '@pages/DebugPage'
+import { SignInPage } from '@pages/SignInPage'
+import { SignUpPage } from '@pages/SignUpPage'
 import { ApiDebug } from '@components/ApiDebug'
 import { GlobalErrorBoundary, NavigationErrorBoundary, UploadErrorBoundary } from '@components/common/ErrorBoundaries'
 
@@ -60,12 +62,20 @@ function App() {
         <Route path="/" element={<HomePage />} />
         
         {/* Clerk authentication routes - using path-based routing */}
-        <Route path="/sign-in" element={<SignIn routing="path" path="/sign-in" redirectUrl="/dashboard" />} />
-        <Route path="/sign-up" element={<SignUp routing="path" path="/sign-up" redirectUrl="/dashboard" />} />
+        <Route path="/sign-in" element={<SignInPage />} />
+        <Route path="/sign-up" element={<SignUpPage />} />
         <Route path="/sso-callback" element={<div>Loading...</div>} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
+          <Route
+            path="/dashboard"
+            element={
+              <Layout>
+                <DashboardPage />
+              </Layout>
+            }
+          />
           <Route
             path="/edit-steps/:moduleId"
             element={
@@ -77,14 +87,6 @@ function App() {
         </Route>
         
         {/* Public routes for development - NO AUTH REQUIRED */}
-        <Route
-          path="/dashboard"
-          element={
-            <Layout>
-              <DashboardPage />
-            </Layout>
-          }
-        />
         <Route
           path="/upload"
           element={

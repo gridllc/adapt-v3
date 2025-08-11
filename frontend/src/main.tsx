@@ -71,8 +71,6 @@ const AppWrapper: React.FC = () => {
             colorPrimary: "#2563eb"
           }
         }}
-        afterSignInUrl="/dashboard"
-        afterSignUpUrl="/dashboard"
       >
         <BrowserRouter
           future={{
