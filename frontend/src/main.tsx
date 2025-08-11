@@ -18,11 +18,15 @@ if (import.meta.env.PROD) {
   }
 }
 
-const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+// Get Clerk publishable key with fail-fast validation
+const pk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY!
+if (!pk) {
+  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY environment variable')
+}
 
 // Debug: Environment variables
 console.log('🔧 Environment Check:', {
-  VITE_CLERK_PUBLISHABLE_KEY: CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
+  VITE_CLERK_PUBLISHABLE_KEY: pk ? 'Set' : 'Missing',
   NODE_ENV: import.meta.env.MODE
 })
 
@@ -45,11 +49,6 @@ const ConfigurationError: React.FC = () => (
 
 // Main App Wrapper with Error Handling
 const AppWrapper: React.FC = () => {
-  if (!CLERK_PUBLISHABLE_KEY) {
-    console.error('❌ Missing Clerk Publishable Key')
-    return <ConfigurationError />
-  }
-
   // Get the current domain for redirects
   const currentDomain = window.location.origin
   const dashboardUrl = `${currentDomain}/dashboard`
@@ -57,13 +56,13 @@ const AppWrapper: React.FC = () => {
   console.log('🔧 Clerk Configuration:', {
     currentDomain,
     dashboardUrl,
-    publishableKey: CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing'
+    publishableKey: pk ? 'Set' : 'Missing'
   })
 
   return (
     <ErrorBoundary>
       <ClerkProvider 
-        publishableKey={CLERK_PUBLISHABLE_KEY}
+        publishableKey={pk}
         appearance={{
           baseTheme: undefined,
           variables: {
@@ -84,8 +83,16 @@ const AppWrapper: React.FC = () => {
   )
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <AppWrapper />
-  </React.StrictMode>,
-) 
+// Create root and render with error boundary
+const root = ReactDOM.createRoot(document.getElementById('root')!)
+
+try {
+  root.render(
+    <React.StrictMode>
+      <AppWrapper />
+    </React.StrictMode>
+  )
+} catch (error) {
+  console.error('❌ Failed to render app:', error)
+  root.render(<ConfigurationError />)
+} 

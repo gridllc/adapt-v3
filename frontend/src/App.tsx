@@ -1,6 +1,6 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { useAuth, SignIn } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/clerk-react'
 import { ProtectedRoute } from '@components/common/ProtectedRoute'
 import { Layout } from '@components/common/Layout'
 import { HomePage } from '@pages/HomePage'
@@ -58,8 +58,7 @@ function App() {
         {/* Always show home page at root */}
         <Route path="/" element={<HomePage />} />
         
-        {/* Clerk authentication routes - for debugging with hosted portal */}
-        <Route path="/sign-in" element={<SignIn routing="path" path="/sign-in" />} />
+        {/* Clerk authentication routes - using hosted portal approach */}
         <Route path="/sso-callback" element={<div>Loading...</div>} />
 
         {/* Protected routes */}
