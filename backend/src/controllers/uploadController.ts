@@ -4,6 +4,7 @@ import { DatabaseService } from '../services/prismaService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
 import config from '../config/env.js'
 import crypto from 'crypto'
+import { uploadToS3 } from '../services/s3Uploader.js'
 
 export const uploadController = {
   /**
@@ -107,6 +108,58 @@ export const uploadController = {
         success: false,
         error: 'Video processing failed' 
       })
+    }
+  },
+
+  async uploadVideo(req: Request, res: Response) {
+    try {
+      console.log('Upload request received')
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' })
+      }
+
+      const file = req.file
+      console.log('File details:', { 
+        name: file.originalname, 
+        size: file.size, 
+        type: file.mimetype 
+      })
+      
+      // Validate file
+      if (!file.mimetype.startsWith('video/')) {
+        return res.status(400).json({ error: 'Only video files are allowed' })
+      }
+
+      console.log('Uploading to S3...')
+      // Upload to storage
+      const videoUrl = await uploadToS3(file.buffer, file.originalname, file.mimetype)
+      console.log('S3 upload complete:', videoUrl)
+
+      console.log('Processing with AI...')
+      // Process with AI
+      const moduleData = await aiService.processVideo(videoUrl)
+      console.log('AI processing complete')
+
+      console.log('Saving module...')
+      // Save module using DatabaseService
+      const moduleId = await DatabaseService.createModule({
+        id: crypto.randomUUID(),
+        title: moduleData.title || 'Video Module',
+        filename: file.originalname,
+        videoUrl: videoUrl,
+      })
+      console.log('Module saved:', moduleId)
+
+      res.json({
+        success: true,
+        moduleId,
+        videoUrl,
+        steps: moduleData.steps,
+      })
+    } catch (error) {
+      console.error('Upload error:', error)
+      res.status(500).json({ error: 'Upload failed', details: error instanceof Error ? error.message : 'Unknown error' })
     }
   },
 
