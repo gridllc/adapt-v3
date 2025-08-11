@@ -10,6 +10,7 @@ import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 // Multipart routes removed - using presigned upload system
 import { uploadRoutes } from './routes/uploadRoutes.js'
+import { presignedUploadRoutes } from './routes/presignedUploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
@@ -176,6 +177,7 @@ const configureRoutes = () => {
   // Protected Routes (require authentication)
   // Multipart upload endpoints removed - using presigned upload system
   app.use('/api/upload', requireAuth, uploadRoutes) // New presigned upload endpoints
+  app.use('/api/upload', requireAuth, presignedUploadRoutes) // ADD THIS LINE
   app.use('/api/modules', optionalAuth, moduleRoutes) // Temporarily optional for debugging
   
   // Steps routes with auth for generation

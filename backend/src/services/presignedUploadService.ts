@@ -1,40 +1,27 @@
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuidv4 } from 'uuid'
-import config from '../config/env.js'
 
 const s3Client = new S3Client({
-  region: config.AWS_REGION,
+  region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
-    accessKeyId: config.AWS_ACCESS_KEY_ID,
-    secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
 })
 
-const BUCKET_NAME = config.AWS_BUCKET_NAME
+const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adapt-videos'
 
 export const presignedUploadService = {
-  /**
-   * Generate presigned URL for direct S3 upload
-   */
   async generatePresignedUrl(filename: string, contentType: string) {
-    // Generate unique key with timestamp to avoid conflicts
-    const timestamp = Date.now()
-    const key = `videos/${timestamp}-${uuidv4()}-${filename}`
+    const key = `videos/${uuidv4()}-${filename}`
     
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
       ContentType: contentType,
-      // Add metadata for tracking
-      Metadata: {
-        'uploaded-by': 'adapt-app',
-        'upload-timestamp': timestamp.toString(),
-        'original-filename': filename
-      }
     })
 
-    // Generate presigned URL (expires in 1 hour)
     const presignedUrl = await getSignedUrl(s3Client, command, { 
       expiresIn: 3600 
     })
@@ -42,13 +29,10 @@ export const presignedUploadService = {
     return {
       presignedUrl,
       key,
-      fileUrl: `https://${BUCKET_NAME}.s3.${config.AWS_REGION}.amazonaws.com/${key}`
+      fileUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
     }
   },
 
-  /**
-   * Confirm upload completion by checking if file exists in S3
-   */
   async confirmUpload(key: string) {
     try {
       const command = new HeadObjectCommand({
@@ -60,7 +44,7 @@ export const presignedUploadService = {
       
       return {
         success: true,
-        fileUrl: `https://${BUCKET_NAME}.s3.${config.AWS_REGION}.amazonaws.com/${key}`
+        fileUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
       }
     } catch (error) {
       console.error('Failed to confirm upload:', error)
@@ -69,12 +53,5 @@ export const presignedUploadService = {
         error: 'File not found in S3'
       }
     }
-  },
-
-  /**
-   * Get public S3 URL for a file
-   */
-  getPublicUrl(key: string): string {
-    return `https://${BUCKET_NAME}.s3.${config.AWS_REGION}.amazonaws.com/${key}`
   }
 }

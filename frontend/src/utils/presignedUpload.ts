@@ -4,102 +4,50 @@ export interface PresignedUploadResult {
   fileUrl: string
 }
 
-export interface ProcessVideoResult {
-  success: boolean
-  moduleId: string
-  videoUrl: string
-  steps: any[]
-  message?: string
-}
-
-export interface UploadProgressCallback {
-  (percent: number): void
-}
-
-export interface UploadOptions {
-  file: File
-  onProgress: UploadProgressCallback
-  signal?: AbortSignal
-  authToken?: string
-}
-
-/**
- * Upload file directly to S3 using presigned URL
- */
 export async function uploadWithPresignedUrl({
   file,
   onProgress,
   signal,
-  authToken
-}: UploadOptions): Promise<ProcessVideoResult> {
-  try {
-    // Step 1: Get presigned URL
-    console.log('🔗 Requesting presigned URL for:', file.name)
-    
-    const presignedResponse = await fetch('/api/upload/presigned-url', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...(authToken && { 'Authorization': `Bearer ${authToken}` })
-      },
-      body: JSON.stringify({
-        filename: file.name,
-        contentType: file.type,
-        fileSize: file.size
-      }),
-    })
+}: {
+  file: File
+  onProgress: (percent: number) => void
+  signal?: AbortSignal
+}) {
+  // Step 1: Get presigned URL
+  const presignedResponse = await fetch('/api/upload/presigned-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filename: file.name,
+      contentType: file.type,
+    }),
+  })
 
-    if (!presignedResponse.ok) {
-      const errorData = await presignedResponse.json().catch(() => ({}))
-      throw new Error(`Failed to get upload URL: ${presignedResponse.status} - ${errorData.error || 'Unknown error'}`)
-    }
-
-    const { presignedUrl, key, fileUrl }: PresignedUploadResult = 
-      await presignedResponse.json()
-
-    console.log('✅ Presigned URL received, uploading to S3...')
-
-    // Step 2: Upload directly to S3
-    await uploadToS3({
-      file,
-      presignedUrl,
-      onProgress,
-      signal,
-    })
-
-    console.log('✅ S3 upload complete, processing video...')
-
-    // Step 3: Process video with AI
-    const processResponse = await fetch('/api/upload/process', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...(authToken && { 'Authorization': `Bearer ${authToken}` })
-      },
-      body: JSON.stringify({
-        videoUrl: fileUrl,
-        key,
-      }),
-    })
-
-    if (!processResponse.ok) {
-      const errorData = await processResponse.json().catch(() => ({}))
-      throw new Error(`Video processing failed: ${processResponse.status} - ${errorData.error || 'Unknown error'}`)
-    }
-
-    const result = await processResponse.json()
-    console.log('✅ Video processing complete:', result)
-    
-    return result
-  } catch (error) {
-    console.error('❌ Presigned upload failed:', error)
-    throw error
+  if (!presignedResponse.ok) {
+    const error = await presignedResponse.text()
+    throw new Error(`Failed to get upload URL: ${error}`)
   }
+
+  const { presignedUrl, key, fileUrl }: PresignedUploadResult = 
+    await presignedResponse.json()
+
+  // Step 2: Upload to S3
+  await uploadToS3({ file, presignedUrl, onProgress, signal })
+
+  // Step 3: Process video
+  const processResponse = await fetch('/api/upload/process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ videoUrl: fileUrl }),
+  })
+
+  if (!processResponse.ok) {
+    throw new Error(`Video processing failed: ${processResponse.status}`)
+  }
+
+  return processResponse.json()
 }
 
-/**
- * Upload file directly to S3 with progress tracking
- */
 async function uploadToS3({
   file,
   presignedUrl,
@@ -108,13 +56,12 @@ async function uploadToS3({
 }: {
   file: File
   presignedUrl: string
-  onProgress: UploadProgressCallback
+  onProgress: (percent: number) => void
   signal?: AbortSignal
 }): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
 
-    // Progress tracking
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 100)
@@ -122,33 +69,21 @@ async function uploadToS3({
       }
     }
 
-    // Success handling
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve()
       } else {
-        reject(new Error(`S3 upload failed: ${xhr.status} - ${xhr.statusText}`))
+        reject(new Error(`S3 upload failed: ${xhr.status}`))
       }
     }
 
-    // Error handling
-    xhr.onerror = () => reject(new Error('Network error during S3 upload'))
-    xhr.onabort = () => reject(new DOMException('Upload aborted', 'AbortError'))
+    xhr.onerror = () => reject(new Error('Network error'))
+    xhr.onabort = () => reject(new Error('Upload cancelled'))
 
-    // Setup abort handling
-    if (signal) {
-      signal.addEventListener('abort', () => {
-        xhr.abort()
-      })
-    }
+    signal?.addEventListener('abort', () => xhr.abort())
 
-    // Start upload
     xhr.open('PUT', presignedUrl)
     xhr.setRequestHeader('Content-Type', file.type)
-    
-    // Add additional headers for better compatibility
-    xhr.setRequestHeader('Cache-Control', 'no-cache')
-    
     xhr.send(file)
   })
 }

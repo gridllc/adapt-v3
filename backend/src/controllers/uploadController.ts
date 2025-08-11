@@ -1,8 +1,9 @@
-simport { Request, Response } from 'express'
+import { Request, Response } from 'express'
 import { aiService } from '../services/aiService.js'
-import { storageService } from '../services/storageService.js'
+import { DatabaseService } from '../services/prismaService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
 import config from '../config/env.js'
+import crypto from 'crypto'
 
 export const uploadController = {
   /**
@@ -86,7 +87,12 @@ export const uploadController = {
 
       // Save module
       console.log(`💾 Saving module data`)
-      const moduleId = await storageService.saveModule(moduleData)
+      const moduleId = await DatabaseService.createModule({
+        id: crypto.randomUUID(),
+        title: moduleData.title || 'Video Module',
+        filename: 'video.mp4',
+        videoUrl: videoUrl,
+      })
 
       res.json({
         success: true,
@@ -99,62 +105,29 @@ export const uploadController = {
       console.error('❌ Video processing error:', error)
       res.status(500).json({ 
         success: false,
-        error: 'Video processing failed',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Video processing failed' 
       })
     }
   },
 
   /**
-   * Legacy endpoint for backwards compatibility
-   * POST /api/upload
+   * Legacy multipart upload endpoint (kept for backward compatibility)
+   * POST /api/upload/video
    */
   async uploadVideo(req: Request, res: Response) {
     try {
-      if (!req.file) {
-        return res.status(400).json({ 
-          success: false,
-          error: 'No file uploaded' 
-        })
-      }
-
-      const file = req.file
-      
-      // Validate file
-      if (!file.mimetype.startsWith('video/')) {
-        return res.status(400).json({ 
-          success: false,
-          error: 'Only video files are allowed' 
-        })
-      }
-
-      console.log(`📁 Legacy upload: ${file.originalname} (${file.mimetype})`)
-
-      // Upload to storage
-      const videoUrl = await storageService.uploadVideo(file)
-
-      // Process with AI
-      console.log(`🤖 Processing legacy upload with AI: ${videoUrl}`)
-      const moduleData = await aiService.processVideo(videoUrl)
-
-      // Save module
-      console.log(`💾 Saving legacy module data`)
-      const moduleId = await storageService.saveModule(moduleData)
-
-      res.json({
-        success: true,
-        moduleId,
-        videoUrl,
-        steps: moduleData.steps,
-        message: 'Video uploaded and processed successfully (legacy method)'
+      // This endpoint is deprecated - redirect to presigned upload
+      res.status(410).json({
+        success: false,
+        error: 'Multipart upload is deprecated. Please use presigned upload instead.',
+        message: 'This endpoint has been replaced with /api/upload/presigned-url'
       })
     } catch (error) {
       console.error('❌ Legacy upload error:', error)
       res.status(500).json({ 
         success: false,
-        error: 'Upload failed',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Legacy upload failed' 
       })
     }
-  },
+  }
 }

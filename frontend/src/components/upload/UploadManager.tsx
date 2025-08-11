@@ -2,7 +2,8 @@ import React, { useCallback, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
-import { uploadWithPresignedUrl, validateFileForUpload } from '@utils/presignedUpload'
+import { uploadWithPresignedUrl } from '@utils/presignedUpload'
+import { validateFileForUpload } from '@utils/uploadFileWithProgress'
 import { useAuthToken } from '@hooks/useAuthToken'
 import { Upload, Cloud, AlertCircle } from 'lucide-react'
 
@@ -23,7 +24,7 @@ export const UploadManager: React.FC = () => {
       try {
         // Validate file
         const validation = validateFileForUpload(file)
-        if (!validation.valid) {
+        if (!validation.isValid) {
           console.warn(`File validation failed: ${validation.error}`)
           continue
         }
@@ -55,7 +56,6 @@ export const UploadManager: React.FC = () => {
             file,
             onProgress: (progress) => updateProgress(uploadId, progress),
             signal: abortController.signal,
-            authToken
           })
 
           markSuccess(uploadId, result.moduleId)
@@ -91,10 +91,6 @@ export const UploadManager: React.FC = () => {
     accept: {
       'video/mp4': ['.mp4'],
       'video/webm': ['.webm'],
-      'video/avi': ['.avi'],
-      'video/mov': ['.mov'],
-      'video/wmv': ['.wmv'],
-      'video/flv': ['.flv'],
     },
     maxSize: 200 * 1024 * 1024, // 200MB
     disabled: !isSignedIn
