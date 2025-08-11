@@ -1,6 +1,6 @@
 import React from 'react'
 import { useAuth } from '@clerk/clerk-react'
-import { MultipartUploadManager } from '../components/upload/MultipartUploadManager'
+import { UploadManager } from '../components/upload/UploadManager'
 import { CenteredSignIn } from '../components/common/CenteredSignIn'
 
 export const UploadPage: React.FC = () => {
@@ -38,5 +38,5 @@ export const UploadPage: React.FC = () => {
   )
   }
 
-  return <MultipartUploadManager />
+  return <UploadManager />
 }

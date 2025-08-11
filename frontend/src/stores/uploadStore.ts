@@ -1,16 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
-export interface UploadPart {
-  partNumber: number
-  start: number
-  end: number
-  size: number
-  etag?: string
-  uploaded: boolean
-  progress: number
-  error?: string
-}
+// UploadPart interface removed - using presigned upload system
 
 export interface UploadEntry {
   id: string
@@ -21,12 +12,8 @@ export interface UploadEntry {
   attempts: number
   maxAttempts: number
   
-  // Multipart upload specific fields
+  // Presigned upload specific fields
   key?: string
-  uploadId?: string
-  partSize?: number
-  partCount?: number
-  parts?: UploadPart[]
   totalProgress: number
   
   // Result fields
@@ -48,9 +35,9 @@ interface UploadState {
   addUpload: (file: File) => string
   removeUpload: (id: string) => void
   updateUpload: (id: string, updates: Partial<UploadEntry>) => void
-  updatePartProgress: (id: string, partNumber: number, progress: number) => void
-  markPartComplete: (id: string, partNumber: number, etag: string) => void
-  markPartError: (id: string, partNumber: number, error: string) => void
+  updateProgress: (id: string, progress: number) => void
+  markSuccess: (id: string, moduleId: string) => void
+  markError: (id: string, error: Error) => void
   cancelUpload: (id: string) => void
   retryUpload: (id: string) => void
   
@@ -136,83 +123,67 @@ export const useUploadStore = create<UploadState>()(
         })
       },
 
-      updatePartProgress: (id: string, partNumber: number, progress: number) => {
+      updateProgress: (id: string, progress: number) => {
         set((state) => {
           const upload = state.uploads.get(id)
-          if (!upload || !upload.parts) return state
-
-          const updatedParts = upload.parts.map(part => 
-            part.partNumber === partNumber 
-              ? { ...part, progress }
-              : part
-          )
-
-          // Calculate total progress
-          const totalProgress = updatedParts.reduce((sum, part) => {
-            return sum + (part.size * part.progress / 100)
-          }, 0)
-
-          const totalProgressPercent = Math.round((totalProgress / upload.file.size) * 100)
+          if (!upload) return state
 
           const newUploads = new Map(state.uploads)
           newUploads.set(id, {
             ...upload,
-            parts: updatedParts,
-            progress: totalProgressPercent,
-            totalProgress: totalProgressPercent
+            progress,
+            totalProgress: progress
           })
 
           return { uploads: newUploads }
         })
       },
 
-      markPartComplete: (id: string, partNumber: number, etag: string) => {
+      markSuccess: (id: string, moduleId: string) => {
         set((state) => {
           const upload = state.uploads.get(id)
-          if (!upload || !upload.parts) return state
-
-          const updatedParts = upload.parts.map(part => 
-            part.partNumber === partNumber 
-              ? { ...part, uploaded: true, etag, progress: 100, error: undefined }
-              : part
-          )
-
-          // Check if all parts are complete
-          const allPartsComplete = updatedParts.every(part => part.uploaded)
-          const newStatus = allPartsComplete ? 'success' : upload.status
+          if (!upload) return state
 
           const newUploads = new Map(state.uploads)
           newUploads.set(id, {
             ...upload,
-            parts: updatedParts,
-            status: newStatus,
-            completedAt: newStatus === 'success' ? new Date() : upload.completedAt
+            status: 'success',
+            progress: 100,
+            totalProgress: 100,
+            moduleId,
+            completedAt: new Date()
           })
 
-          return { uploads: newUploads }
+          const newActiveUploads = new Set(state.activeUploads)
+          newActiveUploads.delete(id)
+
+          return { 
+            uploads: newUploads,
+            activeUploads: newActiveUploads
+          }
         })
       },
 
-      markPartError: (id: string, partNumber: number, error: string) => {
+      markError: (id: string, error: Error) => {
         set((state) => {
           const upload = state.uploads.get(id)
-          if (!upload || !upload.parts) return state
-
-          const updatedParts = upload.parts.map(part => 
-            part.partNumber === partNumber 
-              ? { ...part, error, progress: 0 }
-              : part
-          )
+          if (!upload) return state
 
           const newUploads = new Map(state.uploads)
           newUploads.set(id, {
             ...upload,
-            parts: updatedParts,
             status: 'error',
-            error: `Part ${partNumber} failed: ${error}`
+            error: error.message,
+            completedAt: new Date()
           })
 
-          return { uploads: newUploads }
+          const newActiveUploads = new Set(state.activeUploads)
+          newActiveUploads.delete(id)
+
+          return { 
+            uploads: newUploads,
+            activeUploads: newActiveUploads
+          }
         })
       },
 

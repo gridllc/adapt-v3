@@ -35,7 +35,7 @@ export const API_CONFIG = {
 
 export const API_ENDPOINTS = {
   MODULES: '/api/modules',
-  UPLOAD: '/api/uploads/multipart',
+  UPLOAD: '/api/upload',
   STEPS: (moduleId: string) => `/api/steps/${moduleId}`,
   VIDEO_URL: (filename: string) => `/api/video-url/url/${filename}`,
   FEEDBACK_STATS: '/api/feedback/stats',
