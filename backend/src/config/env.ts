@@ -48,7 +48,7 @@ const envSchema = z.object({
   MAX_FILE_SIZE: z
     .union([z.string(), z.number()])
     .transform((val) => typeof val === 'string' ? parseInt(val, 10) : val)
-    .default(104857600), // 100MB in bytes
+    .default(209715200), // 200MB in bytes
   ALLOWED_VIDEO_TYPES: z.string().default('video/mp4,video/mov,video/webm,video/avi,video/wmv,video/flv'),
   UPLOAD_TIMEOUT: z
     .union([z.string(), z.number()])
@@ -138,13 +138,13 @@ export const hasGoogle = () => !!(config?.GOOGLE_CLIENT_EMAIL && config?.GOOGLE_
 
 // Upload configuration helpers
 export const getUploadConfig = () => ({
-  maxFileSize: config?.MAX_FILE_SIZE || 104857600, // 100MB default
+  maxFileSize: config?.MAX_FILE_SIZE || 209715200, // 200MB default
   allowedVideoTypes: config?.ALLOWED_VIDEO_TYPES?.split(',').map(t => t.trim()) || ['video/mp4', 'video/mov', 'video/webm'],
   uploadTimeout: config?.UPLOAD_TIMEOUT || 300000, // 5 minutes default
   enableCompression: config?.ENABLE_FILE_COMPRESSION !== false
 })
 
-export const getMaxFileSize = () => config?.MAX_FILE_SIZE || 104857600
+export const getMaxFileSize = () => config?.MAX_FILE_SIZE || 209715200
 export const getAllowedVideoTypes = () => config?.ALLOWED_VIDEO_TYPES?.split(',').map(t => t.trim()) || ['video/mp4', 'video/mov', 'video/webm']
 export const getUploadTimeout = () => config?.UPLOAD_TIMEOUT || 300000
 export const isCompressionEnabled = () => config?.ENABLE_FILE_COMPRESSION !== false

@@ -5,10 +5,19 @@ import { CheckCircle, XCircle, Loader2, X, AlertCircle, RefreshCw } from 'lucide
 interface UploadItemProps {
   id: string
   upload: UploadEntry
+  onCancel?: (id: string) => void
 }
 
-export const UploadItem: React.FC<UploadItemProps> = ({ id, upload }) => {
-  const { cancelUpload, removeUpload, retryUpload } = useUploadStore()
+export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) => {
+  const { cancelUpload: storeCancelUpload, removeUpload, retryUpload } = useUploadStore()
+
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel(id)
+    } else {
+      storeCancelUpload(id)
+    }
+  }
 
   const getStatusIcon = () => {
     switch (upload.status) {
@@ -97,7 +106,7 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload }) => {
           
           {canCancel && (
             <button
-              onClick={() => cancelUpload(id)}
+              onClick={handleCancel}
               className="p-1 hover:bg-gray-100 rounded"
               title="Cancel upload"
             >
@@ -147,30 +156,21 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload }) => {
         )}
       </div>
 
-      {/* Multipart Upload Details */}
-      {upload.status === 'uploading' && upload.parts && (
+      {/* Upload Progress Details */}
+      {upload.status === 'uploading' && (
         <div className="mt-3 pt-3 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-gray-700">Parts Progress</p>
+            <p className="text-xs font-medium text-gray-700">Upload Progress</p>
             <span className="text-xs text-gray-500">
-              {upload.parts.filter(p => p.uploaded).length}/{upload.parts.length} complete
+              {upload.progress}% complete
             </span>
           </div>
           
-          <div className="grid grid-cols-4 gap-1">
-            {upload.parts.map((part) => (
-              <div key={part.partNumber} className="text-center">
-                <div className="w-full bg-gray-200 rounded-full h-1 mb-1">
-                  <div
-                    className={`h-1 rounded-full transition-all duration-200 ${
-                      part.uploaded ? 'bg-green-500' : 'bg-blue-500'
-                    }`}
-                    style={{ width: `${part.progress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500">Part {part.partNumber}</p>
-              </div>
-            ))}
+          <div className="w-full bg-gray-200 rounded-full h-1">
+            <div
+              className="h-1 rounded-full transition-all duration-200 bg-blue-500"
+              style={{ width: `${upload.progress}%` }}
+            />
           </div>
         </div>
       )}
