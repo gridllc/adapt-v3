@@ -94,7 +94,7 @@ S3_REGION=us-west-1
 S3_BUCKET_NAME=your-bucket-name
 
 # Authentication
-CLERK_SECRET_KEY=sk_test_...
+CLERK_SECRET_KEY=sk_live...
 FRONTEND_URL=http://localhost:3000
 ```
 
@@ -120,7 +120,7 @@ npm run dev:frontend  # Frontend only
 npm run dev:backend   # Backend only
 ```
 
-Visit `http://localhost:3000` to see the app!
+Visit `http://localhost:8000` to see the app!
 
 ## 📁 Project Structure
 

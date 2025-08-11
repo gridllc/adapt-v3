@@ -5,10 +5,10 @@
 ### Frontend (.env)
 ```bash
 # Clerk Authentication (Required)
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_your-clerk-publishable-key-here
+VITE_CLERK_PUBLISHABLE_KEY=pk_live_your-clerk-publishable-key-here
 
 # Alternative environment variable name (for Next.js compatibility)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_your-clerk-publishable-key-here
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_your-clerk-publishable-key-here
 
 # API Configuration
 VITE_API_BASE_URL=http://localhost:8000
@@ -20,7 +20,7 @@ VITE_DEV_MODE=true
 ### Backend (.env)
 ```bash
 # Authentication (Required)
-CLERK_SECRET_KEY=sk_test_your-clerk-secret-key-here
+CLERK_SECRET_KEY=sk_live_your-clerk-secret-key-here
 FRONTEND_URL=http://localhost:3000
 ```
 
