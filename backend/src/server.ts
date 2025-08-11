@@ -8,7 +8,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
-import multipartRoutes from './routes/multipartRoutes.js'
+// Multipart routes removed - using presigned upload system
+import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
@@ -173,7 +174,8 @@ const configureMiddleware = () => {
 // Route configuration
 const configureRoutes = () => {
   // Protected Routes (require authentication)
-  app.use('/api/uploads/multipart', requireAuth, multipartRoutes) // Multipart upload endpoints
+  // Multipart upload endpoints removed - using presigned upload system
+  app.use('/api/upload', requireAuth, uploadRoutes) // New presigned upload endpoints
   app.use('/api/modules', optionalAuth, moduleRoutes) // Temporarily optional for debugging
   
   // Steps routes with auth for generation
@@ -208,7 +210,8 @@ const configureRoutes = () => {
       description: 'This is the backend API server. The frontend is hosted separately.',
       endpoints: {
         health: '/api/health',
-        uploads: '/api/uploads/multipart',
+        uploads: '/api/upload',
+        upload: '/api/upload',
         modules: '/api/modules',
         ai: '/api/ai',
         status: '/api/status/:moduleId'
@@ -468,10 +471,9 @@ const configureErrorHandling = () => {
       console.log(`   🔗 URL: http://localhost:${PORT}`)
     
     console.log('\n📚 Available API Endpoints:')
-    console.log('   POST /api/uploads/multipart/init')
-    console.log('   POST /api/uploads/multipart/sign-part')
-    console.log('   POST /api/uploads/multipart/complete')
-    console.log('   POST /api/uploads/multipart/abort')
+      console.log('   POST /api/upload/presigned-url')
+  console.log('   POST /api/upload/process')
+  console.log('   POST /api/upload (legacy)')
     console.log('   POST /api/ai/chat')
     console.log('   GET  /api/modules')
     console.log('   GET  /api/modules/:id')

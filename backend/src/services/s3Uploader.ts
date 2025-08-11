@@ -3,10 +3,6 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
-  CreateMultipartUploadCommand,
-  UploadPartCommand,
-  CompleteMultipartUploadCommand,
-  AbortMultipartUploadCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
@@ -146,37 +142,7 @@ export async function getUploadPresignedUrl(filename: string, contentType: strin
   }
 }
 
-/** Multipart upload helpers **/
-export async function createMultipartUpload(key: string, contentType: string): Promise<string> {
-  const command = new CreateMultipartUploadCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    ContentType: contentType,
-  })
-  const result = await getSharedS3Client().send(command)
-  if (!result.UploadId) throw new Error('Failed to create multipart upload')
-  return result.UploadId
-}
-
-export async function getSignedUploadPartUrl(key: string, uploadId: string, partNumber: number, expiresIn: number = 600): Promise<string> {
-  const command = new UploadPartCommand({ Bucket: BUCKET_NAME, Key: key, UploadId: uploadId, PartNumber: partNumber })
-  return await getSignedUrl(getSharedS3Client(), command, { expiresIn })
-}
-
-export async function completeMultipartUpload(key: string, uploadId: string, parts: { ETag: string; PartNumber: number }[]) {
-  const command = new CompleteMultipartUploadCommand({
-    Bucket: BUCKET_NAME,
-    Key: key,
-    UploadId: uploadId,
-    MultipartUpload: { Parts: parts.sort((a, b) => a.PartNumber - b.PartNumber) },
-  })
-  return await getSharedS3Client().send(command)
-}
-
-export async function abortMultipartUpload(key: string, uploadId: string) {
-  const command = new AbortMultipartUploadCommand({ Bucket: BUCKET_NAME, Key: key, UploadId: uploadId })
-  return await getSharedS3Client().send(command)
-}
+// Multipart upload functions removed - using presigned upload system
 
 /**
  * Check if S3 is properly configured
