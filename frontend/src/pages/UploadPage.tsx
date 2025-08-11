@@ -1,7 +1,6 @@
 import React from 'react'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth, SignInButton } from '@clerk/clerk-react'
 import { UploadManager } from '../components/upload/UploadManager'
-import { CenteredSignIn } from '../components/common/CenteredSignIn'
 
 export const UploadPage: React.FC = () => {
   const { isSignedIn, isLoaded } = useAuth()
@@ -31,7 +30,11 @@ export const UploadPage: React.FC = () => {
           </div>
           
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
-            <CenteredSignIn />
+            <SignInButton redirectUrl="/upload">
+              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg text-lg font-medium transition-colors">
+                Sign In to Upload
+              </button>
+            </SignInButton>
         </div>
       </div>
     </div>

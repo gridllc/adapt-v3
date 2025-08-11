@@ -18,6 +18,9 @@ export default defineConfig({
       '@config': path.resolve(__dirname, './src/config'),
     },
   },
+  define: {
+    'process.env': {},
+  },
   server: {
     proxy: {
       '/api': {

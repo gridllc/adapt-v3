@@ -1,7 +1,7 @@
 // ✅ Responsive sticky Navigation using emoji instead of lucide icons
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { UserButton, SignInButton, useAuth } from '@clerk/clerk-react'
+import { UserButton, SignInButton, SignUpButton, useAuth } from '@clerk/clerk-react'
 import { NetworkStatusBadge } from './NetworkStatusBadge'
 
 export const Navigation: React.FC = () => {
@@ -42,11 +42,18 @@ export const Navigation: React.FC = () => {
             {isSignedIn ? (
               <UserButton afterSignOutUrl="/" />
             ) : (
-              <SignInButton mode="modal">
-                <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                  Sign In
-                </button>
-              </SignInButton>
+              <div className="flex items-center space-x-2">
+                <SignInButton redirectUrl="/dashboard">
+                  <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    Sign In
+                  </button>
+                </SignInButton>
+                <SignUpButton redirectUrl="/dashboard">
+                  <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                    Get Started
+                  </button>
+                </SignUpButton>
+              </div>
             )}
           </div>
 
@@ -73,11 +80,18 @@ export const Navigation: React.FC = () => {
           {isSignedIn ? (
             <UserButton afterSignOutUrl="/" />
           ) : (
-            <SignInButton mode="modal">
-              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                Sign In
-              </button>
-            </SignInButton>
+            <div className="space-y-2">
+              <SignInButton redirectUrl="/dashboard">
+                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                  Sign In
+                </button>
+              </SignInButton>
+              <SignUpButton redirectUrl="/dashboard">
+                <button className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                  Get Started
+                </button>
+              </SignUpButton>
+            </div>
           )}
         </div>
       )}

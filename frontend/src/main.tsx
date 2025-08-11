@@ -18,13 +18,12 @@ if (import.meta.env.PROD) {
   }
 }
 
-const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 // Debug: Environment variables
 console.log('🔧 Environment Check:', {
-  VITE_CLERK_PUBLISHABLE_KEY: import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
-  CLERK_PUBLISHABLE_KEY: CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing'
+  VITE_CLERK_PUBLISHABLE_KEY: CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
+  NODE_ENV: import.meta.env.MODE
 })
 
 // Configuration Error Component
@@ -35,7 +34,7 @@ const ConfigurationError: React.FC = () => (
       <h1 className="text-2xl font-bold text-gray-900 mb-4">Configuration Error</h1>
       <p className="text-gray-600 mb-6">
         The Clerk authentication service is not properly configured. 
-        Please check that either <code className="bg-gray-100 px-2 py-1 rounded">VITE_CLERK_PUBLISHABLE_KEY</code> or <code className="bg-gray-100 px-2 py-1 rounded">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> environment variable is set.
+        Please check that <code className="bg-gray-100 px-2 py-1 rounded">VITE_CLERK_PUBLISHABLE_KEY</code> environment variable is set.
       </p>
       <div className="text-sm text-gray-500">
         If you're a developer, check the console for more details.
@@ -65,8 +64,6 @@ const AppWrapper: React.FC = () => {
     <ErrorBoundary>
       <ClerkProvider 
         publishableKey={CLERK_PUBLISHABLE_KEY}
-        afterSignInUrl={dashboardUrl}
-        afterSignUpUrl={dashboardUrl}
         appearance={{
           baseTheme: undefined,
           variables: {
