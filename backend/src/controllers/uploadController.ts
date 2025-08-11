@@ -1,4 +1,5 @@
 import { Request, Response } from 'express'
+import { storageService } from '../services/storageService.js'
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
@@ -29,17 +30,33 @@ export const uploadController = {
 
       console.log('✅ File validated successfully')
 
-      // Return success immediately 
-      const mockModuleId = `module_${Date.now()}`
-      const response = {
-        success: true,
-        moduleId: mockModuleId,
-        videoUrl: `http://localhost:8000/uploads/${file.originalname}`,
+      // Upload video using storageService (S3 or mock)
+      console.log('🚀 Starting video upload...')
+      const videoUrl = await storageService.uploadVideo(file)
+      console.log('✅ Video upload completed:', videoUrl)
+
+      // Create module data
+      const moduleData = {
+        title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
+        filename: file.originalname,
+        videoUrl: videoUrl,
         steps: [
           { id: 1, timestamp: 0, title: 'Introduction', description: 'Getting started', duration: 30 },
           { id: 2, timestamp: 30, title: 'Main content', description: 'Core training', duration: 60 },
           { id: 3, timestamp: 90, title: 'Conclusion', description: 'Wrapping up', duration: 20 }
         ],
+      }
+
+      // Save module using storageService (database or mock)
+      console.log('💾 Saving module data...')
+      const moduleId = await storageService.saveModule(moduleData)
+      console.log('✅ Module saved:', moduleId)
+
+      const response = {
+        success: true,
+        moduleId: moduleId,
+        videoUrl: videoUrl,
+        steps: moduleData.steps,
       }
 
       console.log('✅ Returning success response:', response)
