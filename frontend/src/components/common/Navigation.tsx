@@ -43,12 +43,7 @@ export const Navigation: React.FC = () => {
               <UserButton afterSignOutUrl="/" />
             ) : (
               <div className="flex items-center space-x-2">
-                <SignInButton 
-                  redirectUrl="/dashboard"
-                  mode="modal"
-                  afterSignInUrl="/dashboard"
-                  afterSignUpUrl="/dashboard"
-                >
+                <SignInButton mode="modal">
                   <button 
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
                     onClick={() => console.log('🔍 Sign In button clicked')}
@@ -56,12 +51,7 @@ export const Navigation: React.FC = () => {
                     Sign In
                   </button>
                 </SignInButton>
-                <SignUpButton 
-                  redirectUrl="/dashboard"
-                  mode="modal"
-                  afterSignInUrl="/dashboard"
-                  afterSignUpUrl="/dashboard"
-                >
+                <SignUpButton mode="modal">
                   <button 
                     className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
                     onClick={() => console.log('🔍 Sign Up button clicked')}
@@ -97,12 +87,7 @@ export const Navigation: React.FC = () => {
             <UserButton afterSignOutUrl="/" />
           ) : (
             <div className="space-y-2">
-              <SignInButton 
-                redirectUrl="/dashboard"
-                mode="modal"
-                afterSignInUrl="/dashboard"
-                afterSignUpUrl="/dashboard"
-              >
+              <SignInButton mode="modal">
                 <button 
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
                   onClick={() => console.log('🔍 Mobile Sign In button clicked')}
@@ -110,12 +95,7 @@ export const Navigation: React.FC = () => {
                   Sign In
                 </button>
               </SignInButton>
-              <SignUpButton 
-                redirectUrl="/dashboard"
-                mode="modal"
-                afterSignInUrl="/dashboard"
-                afterSignUpUrl="/dashboard"
-              >
+              <SignUpButton mode="modal">
                 <button 
                   className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
                   onClick={() => console.log('🔍 Mobile Sign Up button clicked')}
