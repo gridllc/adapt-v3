@@ -274,7 +274,9 @@ router.get('/env', (req, res) => {
         signingKey: process.env.QSTASH_CURRENT_SIGNING_KEY ? 'SET' : 'MISSING',
         
         // Alternative that might be in Render:
-        qstashUrl: process.env.QSTASH_URL || 'N/A'
+        qstashUrl: process.env.QSTASH_URL || 'N/A',
+        currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY ? 'SET' : 'MISSING',
+        nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY ? 'SET' : 'MISSING'
       },
       
       // AI Services

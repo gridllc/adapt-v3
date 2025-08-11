@@ -19,10 +19,11 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
   
   // QStash (Critical for async processing)
-  QSTASH_TOKEN: z.string().min(1, 'QSTASH_TOKEN is required'),
+  QSTASH_TOKEN: z.string().optional(),
   QSTASH_ENDPOINT: z.string().url().default('https://qstash.upstash.io/v1/publish'),
   QSTASH_WORKER_URL: z.string().url().optional(),
   QSTASH_CURRENT_SIGNING_KEY: z.string().optional(),
+  QSTASH_NEXT_SIGNING_KEY: z.string().optional(),
   
   // AI Services (At least one required)
   OPENAI_API_KEY: z.string().optional(),

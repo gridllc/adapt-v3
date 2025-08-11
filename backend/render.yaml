@@ -26,6 +26,8 @@ services:
         sync: false
       - key: QSTASH_CURRENT_SIGNING_KEY
         sync: false
+      - key: QSTASH_NEXT_SIGNING_KEY
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: GEMINI_API_KEY
@@ -47,4 +49,4 @@ services:
       - key: CLERK_SECRET_KEY
         sync: false
       - key: FRONTEND_URL
-        value: https://adapt-v3.vercel.app 
+        value: https://adapt-v3.vercel.app,https://adaptord.com,https://www.adaptord.com 

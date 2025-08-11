@@ -87,13 +87,9 @@ const configureMiddleware = () => {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }))
 
-  // CORS configuration - FIXED for preflight issues
-  const allowedOrigins = (process.env.FRONTEND_URL ?? '')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean)
-
-  const fallbackOrigins = [
+  // CORS configuration - REFACTORED for production deployment
+  const allowedOrigins = [
+    // Development origins
     'http://localhost:3000',
     'http://localhost:5173',
     'http://localhost:5174', 
@@ -108,27 +104,57 @@ const configureMiddleware = () => {
     'http://localhost:5183',
     'http://localhost:5184',
     'http://localhost:5185',
+    // Production origins
     'https://adapt-v3-sepia.vercel.app',
     'https://adapt-v3.vercel.app',
     'https://adaptord.com',
     'https://www.adaptord.com'
   ]
 
+  // Add FRONTEND_URL from environment if specified
+  if (process.env.FRONTEND_URL) {
+    const envOrigins = process.env.FRONTEND_URL
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+    
+    // Add environment origins to the list
+    allowedOrigins.push(...envOrigins)
+    
+    console.log('🌐 CORS: Added environment origins:', envOrigins)
+  }
+
+  // Remove duplicates and log final list
+  const uniqueOrigins = [...new Set(allowedOrigins)]
+  console.log('🌐 CORS: Allowed origins:', uniqueOrigins)
+
   const corsOptions: cors.CorsOptions = {
     origin(origin, cb) {
-      if (!origin) return cb(null, true) // allow server-to-server/tools
-      const list = allowedOrigins.length ? allowedOrigins : fallbackOrigins
-      return list.includes(origin) ? cb(null, true) : cb(new Error(`Not allowed by CORS: ${origin}`))
+      // Allow server-to-server requests and tools (no origin header)
+      if (!origin) {
+        console.log('🌐 CORS: Allowing request with no origin (server-to-server)')
+        return cb(null, true)
+      }
+      
+      // Check if origin is in allowed list
+      const isAllowed = uniqueOrigins.some(allowed => allowed === origin)
+      
+      if (isAllowed) {
+        console.log(`🌐 CORS: Allowing origin: ${origin}`)
+        return cb(null, true)
+      } else {
+        console.log(`🌐 CORS: Blocking origin: ${origin}`)
+        return cb(new Error(`Not allowed by CORS: ${origin}`), false)
+      }
     },
-    credentials: false, // was true – set to true only if you use cookies
+    credentials: false, // Set to true only if you use cookies/sessions
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    // Allow what browsers actually send on fetch()
     allowedHeaders: [
       'Accept',
       'Content-Type',
       'Authorization',
       'Cache-Control',
-      'Pragma',            // <-- add this
+      'Pragma',
       'X-Requested-With',
       'Range',
       'X-Upload-Source',
@@ -151,7 +177,7 @@ const configureMiddleware = () => {
   }
 
   app.use(cors(corsOptions))
-  // respond to all preflights quickly
+  // Respond to all preflight requests quickly
   app.options('*', cors(corsOptions))
 
   // Note: Rate limiting is applied at the route level for better control
@@ -186,6 +212,9 @@ const configureRoutes = () => {
   app.use('/api/qa', qaRoutes)
   app.use('/api/worker', workerRoutes)
   app.use('/api/share', shareRoutes)
+  
+  // Module Routes (temporarily optional for debugging - change back to requireAuth after testing)
+  app.use('/api/modules', optionalAuth, moduleRoutes)
   
   // Admin Routes (protected)
   app.use('/api/admin', requireAuth, adminRoutes)
