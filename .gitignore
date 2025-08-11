@@ -6,6 +6,10 @@ dist/
 .env.local
 .env.*.local
 .env.production
+.env.*
+*.pem
+*.key
+*.p8
 
 # Logs
 logs/
@@ -38,3 +42,8 @@ public/videos/"gcp-key.json"
 **/gcp-key.json
 **/secrets/*.json
 backend/env.production 
+.env
+.env.*
+*.pem
+*.key
+*.p8

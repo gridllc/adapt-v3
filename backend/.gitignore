@@ -6,6 +6,10 @@ dist/
 .env.local
 .env.*.local
 .env.production
+.env.*
+*.pem
+*.key
+*.p8
 
 # Logs
 logs/
