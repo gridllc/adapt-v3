@@ -174,9 +174,9 @@ const configureMiddleware = () => {
 
 // Route configuration
 const configureRoutes = () => {
-  // Protected Routes (require authentication)
-  app.use('/api/upload', requireAuth, uploadRoutes) // Presigned upload endpoints
-  app.use('/api/upload', requireAuth, presignedUploadRoutes) // Additional presigned upload endpoints
+  // Upload Routes (public - no authentication required)
+  app.use('/api/upload', uploadRoutes) // Presigned upload endpoints
+  app.use('/api/upload', presignedUploadRoutes) // Additional presigned upload endpoints
   app.use('/api/modules', optionalAuth, moduleRoutes) // Temporarily optional for debugging
   
   // Steps routes with auth for generation
