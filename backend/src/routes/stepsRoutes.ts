@@ -10,6 +10,9 @@ router.get('/:moduleId', stepsController.getSteps)
 // Create steps for a module (protected)
 router.post('/:moduleId', requireAuth, stepsController.createSteps)
 
+// Generate steps using AI for a module (protected) - Frontend expects this route
+router.post('/generate/:moduleId', requireAuth, stepsController.createSteps)
+
 // Update steps for a module (protected)
 router.put('/:moduleId', requireAuth, stepsController.updateSteps)
 

@@ -133,11 +133,47 @@ export const stepsController = {
       }
       
       if (!stepsData) {
+        console.log(`📁 No steps file found, checking database for steps...`)
+        
+        try {
+          // Try to get steps from database as fallback
+          const { DatabaseService } = await import('../services/prismaService.js')
+          const dbSteps = await DatabaseService.getSteps(moduleId)
+          
+          if (dbSteps && dbSteps.length > 0) {
+            console.log(`✅ Found ${dbSteps.length} steps in database for module: ${moduleId}`)
+            
+            // Convert database steps to frontend format
+            const normalizedSteps = dbSteps.map((step: any, index: number) => normalizeStep(step, index))
+            
+            return res.json({
+              success: true,
+              moduleId,
+              steps: normalizedSteps,
+              source: 'database',
+              metadata: {
+                totalSteps: normalizedSteps.length,
+                sourceFile: 'database',
+                hasEnhancedSteps: false,
+                hasStructuredSteps: false,
+                hasOriginalSteps: true
+              }
+            })
+          }
+        } catch (dbError) {
+          console.log(`⚠️ Database fallback failed:`, dbError)
+        }
+        
         console.error(`❌ Steps not found for moduleId: ${moduleId}`)
         return res.status(404).json({
           error: 'Steps not found',
           moduleId,
-          searchedPaths: STEPS_PATHS.map(basePath => path.join(basePath, `${moduleId}.json`))
+          searchedPaths: STEPS_PATHS.map(basePath => path.join(basePath, `${moduleId}.json`)),
+          suggestion: 'Try calling POST /api/steps/generate/:moduleId to generate steps using AI',
+          availableActions: [
+            'POST /api/steps/generate/:moduleId - Generate steps using AI',
+            'POST /api/steps/:moduleId - Manually create steps'
+          ]
         })
       }
       
@@ -196,6 +232,66 @@ export const stepsController = {
       const { steps, action, stepIndex } = req.body
 
       console.log(`📝 Creating/updating steps for module: ${moduleId}`, { action, stepIndex })
+
+      // Check if this is an AI generation request (no steps provided)
+      if (!steps && !action) {
+        console.log(`🤖 AI step generation requested for module: ${moduleId}`)
+        
+        try {
+          // Import AI service
+          const { aiService } = await import('../services/aiService.js')
+          
+          // Get module data to find video URL
+          const { DatabaseService } = await import('../services/prismaService.js')
+          const moduleData = await DatabaseService.getModule(moduleId)
+          
+          if (!moduleData) {
+            return res.status(404).json({ 
+              error: 'Module not found',
+              moduleId 
+            })
+          }
+
+          if (!moduleData.videoUrl) {
+            return res.status(400).json({ 
+              error: 'Module has no video URL for AI processing',
+              moduleId 
+            })
+          }
+
+          console.log(`🎬 Starting AI processing for video: ${moduleData.videoUrl}`)
+          
+          // Generate steps using AI
+          const aiResult = await aiService.generateStepsForModule(moduleId, moduleData.videoUrl)
+          
+          console.log(`✅ AI generated ${aiResult.steps.length} steps for module: ${moduleId}`)
+          
+          // Return the AI-generated steps
+          res.json({
+            success: true,
+            moduleId,
+            steps: aiResult.steps,
+            message: 'AI-generated steps created successfully',
+            source: 'ai',
+            metadata: {
+              totalSteps: aiResult.steps.length,
+              title: aiResult.title,
+              description: aiResult.description,
+              totalDuration: aiResult.totalDuration
+            }
+          })
+          
+          return
+          
+        } catch (aiError) {
+          console.error(`❌ AI step generation failed for module ${moduleId}:`, aiError)
+          return res.status(500).json({ 
+            error: 'AI step generation failed',
+            message: aiError instanceof Error ? aiError.message : 'Unknown error',
+            moduleId
+          })
+        }
+      }
 
       // Find existing steps file
       const projectRoot = path.resolve(__dirname, '..', '..')
