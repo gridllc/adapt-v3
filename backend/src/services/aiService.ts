@@ -1,5 +1,7 @@
 import { generateStepsFromVideo, VideoProcessingResult } from './ai/aiPipeline.js'
 import { ModuleService } from './moduleService.js'
+import { enhancedAiService } from './enhancedVideoProcessor.js'
+import { rewriteStepsWithGPT } from '../utils/transcriptFormatter.js'
 
 export const aiService = {
   /**
@@ -9,43 +11,72 @@ export const aiService = {
    */
   async generateStepsForModule(moduleId: string, videoUrl: string): Promise<VideoProcessingResult> {
     console.log(`🤖 [AI Service] Starting step generation for module: ${moduleId}`)
-
     try {
-      // Update module status to processing
       await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI analysis...')
-      
-      // Run the full AI pipeline
       const result = await generateStepsFromVideo(videoUrl, moduleId)
-      
-      // Save steps to module in DB
       await ModuleService.saveStepsToModule(moduleId, result.steps)
-      
-      // Update module status to ready
       await ModuleService.updateModuleStatus(moduleId, 'ready', 100, 'AI processing complete!')
-      
-      console.log(`✅ [AI Service] Successfully generated ${result.steps.length} steps for module ${moduleId}`)
       return result
-      
     } catch (err) {
-      console.error(`❌ [AI Service] Failed to generate steps for module ${moduleId}:`, err)
-      
-      // Update module status to failed
-      try {
-        await ModuleService.updateModuleStatus(moduleId, 'failed', 0, 'AI processing failed')
-      } catch (statusError) {
-        console.error(`❌ [AI Service] Failed to update module status to failed:`, statusError)
-      }
-      
+      await ModuleService.updateModuleStatus(moduleId, 'failed', 0, 'AI processing failed')
       throw new Error(`Step generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
   },
 
   /**
-   * Process video without saving to module (for testing/debugging)
+   * Process video without module context (for testing/development)
    */
   async processVideo(videoUrl: string): Promise<VideoProcessingResult> {
-    console.log(`🤖 [AI Service] Processing video: ${videoUrl}`)
     return await generateStepsFromVideo(videoUrl)
+  },
+
+  /**
+   * Chat with AI about video content
+   */
+  async chat(message: string, context: any): Promise<string> {
+    try {
+      return await enhancedAiService.chat(message, context)
+    } catch (error) {
+      console.error('❌ Chat error:', error)
+      throw new Error('Chat failed')
+    }
+  },
+
+  /**
+   * Generate contextual response based on video content
+   */
+  async generateContextualResponse(message: string, context: any): Promise<string> {
+    try {
+      return enhancedAiService.processor.generateContextualResponse(message, context)
+    } catch (error) {
+      console.error('❌ Contextual response error:', error)
+      throw new Error('Contextual response failed')
+    }
+  },
+
+  /**
+   * Rewrite step text using AI for clarity
+   */
+  async rewriteStep(text: string, style?: string): Promise<string> {
+    try {
+      // Create a mock step structure for the rewrite function
+      const mockStep = {
+        id: 'temp',
+        text: text,
+        start: 0,
+        end: 0,
+        confidence: 1.0,
+        duration: 0,
+        wordCount: text.split(' ').length,
+        type: 'instruction' as const
+      }
+      
+      const rewrittenSteps = await rewriteStepsWithGPT([mockStep])
+      return rewrittenSteps[0]?.rewrittenText || text
+    } catch (error) {
+      console.error('❌ Step rewrite error:', error)
+      return text // Return original text if rewrite fails
+    }
   }
 }
 

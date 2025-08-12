@@ -202,13 +202,13 @@ export const uploadController = {
         // 3. Start AI processing in background (don't await - let it run async)
         console.log('🧠 Starting AI processing in background...')
         aiService.generateStepsForModule(moduleId, signedVideoUrl)
-          .then(async (steps) => {
-            console.log(`✅ AI processing completed for ${moduleId}, generated ${steps?.length || 0} steps`)
+          .then(async (result) => {
+            console.log(`✅ AI processing completed for ${moduleId}, generated ${result.steps?.length || 0} steps`)
             
-            if (steps && Array.isArray(steps)) {
+            if (result.steps && Array.isArray(result.steps)) {
               // Update progress to 100% and status to ready
               await ModuleService.updateModuleStatus(moduleId, 'ready', 100, 'AI processing complete!')
-              console.log(`🎉 Module ${moduleId} is now ready with ${steps.length} steps`)
+              console.log(`🎉 Module ${moduleId} is now ready with ${result.steps.length} steps`)
             } else {
               throw new Error('AI processing returned invalid steps')
             }

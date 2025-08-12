@@ -58,38 +58,36 @@ router.post('/contextual-response', async (req: any, res: any) => {
     const userId = await UserService.getUserIdFromRequest(req)
     const aiResponse = await aiService.generateContextualResponse(
       userMessage,
-      currentStep,
-      allSteps,
-      videoTime,
-      moduleId,
-      userId || undefined
+      {
+        currentStep,
+        allSteps,
+        videoTime,
+        moduleId,
+        userId: userId || undefined
+      }
     )
 
-    console.log(`✅ AI response generated: ${aiResponse.answer.substring(0, 100)}...`)
-    console.log(`♻️ Reused: ${aiResponse.reused}, Similarity: ${aiResponse.similarity ? (aiResponse.similarity * 100).toFixed(1) + '%' : 'N/A'}`)
+    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
 
-    // Log activity with reuse information
+    // Log activity with basic information
     await DatabaseService.createActivityLog({
       userId: userId || undefined,
       action: 'AI_QUESTION',
       targetId: moduleId,
       metadata: {
         questionLength: userMessage.length,
-        answerLength: aiResponse.answer.length,
+        answerLength: aiResponse.length,
         videoTime,
-        stepId: currentStep?.id,
-        reused: aiResponse.reused,
-        similarity: aiResponse.similarity,
-        questionId: aiResponse.questionId
+        stepId: currentStep?.id
       }
     })
 
     res.json({ 
       success: true, 
-      answer: aiResponse.answer,
-      reused: aiResponse.reused,
-      similarity: aiResponse.similarity,
-      questionId: aiResponse.questionId
+      answer: aiResponse,
+      reused: false,
+      similarity: null,
+      questionId: null
     })
   } catch (error) {
     console.error('❌ Contextual AI response error:', error)
@@ -134,37 +132,34 @@ router.post('/ask', async (req: any, res: any) => {
     // Generate contextual response using the enhanced AI service with Shared Learning System
     const aiResponse = await aiService.generateContextualResponse(
       question,
-      null, // No current step for simple ask
-      steps,
-      0, // No video time for simple ask
-      moduleId,
-      userId || undefined
+      {
+        currentStep: null,
+        allSteps: steps,
+        videoTime: 0,
+        moduleId,
+        userId: userId || undefined
+      }
     )
 
-    console.log(`✅ AI response generated: ${aiResponse.answer.substring(0, 100)}...`)
-    console.log(`♻️ Reused: ${aiResponse.reused}, Similarity: ${aiResponse.similarity ? (aiResponse.similarity * 100).toFixed(1) + '%' : 'N/A'}`)
+    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
 
-    // Log activity with reuse information
+    // Log activity with basic information
     await DatabaseService.createActivityLog({
       userId: userId || undefined,
       action: 'AI_ASK',
       targetId: moduleId,
       metadata: {
         questionLength: question.length,
-        answerLength: aiResponse.answer.length,
-        reused: aiResponse.reused,
-        similarity: aiResponse.similarity,
-        questionId: aiResponse.questionId
+        answerLength: aiResponse.length
       }
     })
 
     res.json({ 
       success: true, 
-      answer: aiResponse.answer,
-      source: aiResponse.reused ? 'shared-memory' : 'ai-generated',
-      reused: aiResponse.reused,
-      similarity: aiResponse.similarity,
-      questionId: aiResponse.questionId
+      answer: aiResponse,
+      reused: false,
+      similarity: null,
+      questionId: null
     })
   } catch (error) {
     console.error('❌ AI ask error:', error)

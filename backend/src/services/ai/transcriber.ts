@@ -42,7 +42,8 @@ export async function transcribeAudio(audioPath: string, moduleId?: string): Pro
           text: seg.text.trim()
         })) || []
 
-        const text = jsonData.text || segments.map(s => s.text).join(' ')
+        // Extract text from segments if JSON parsing failed
+        const text = jsonData.text || segments.map((s: { start: number; end: number; text: string }) => s.text).join(' ')
 
         console.log(`✅ [Transcriber] Module ${moduleId || 'unknown'}: Transcription complete with segments`)
         return { text, segments }
