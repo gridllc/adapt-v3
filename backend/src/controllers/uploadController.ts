@@ -1,5 +1,7 @@
 import { Request, Response } from 'express'
 import { storageService } from '../services/storageService.js'
+import { createBasicSteps } from '../services/createBasicSteps.js'
+import { processVideoJob } from '../services/qstashQueue.js'
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
@@ -52,11 +54,33 @@ export const uploadController = {
       const moduleId = await storageService.saveModule(moduleData)
       console.log('✅ Module saved:', moduleId)
 
+      // 🚀 CRITICAL: Trigger AI processing pipeline
+      console.log('🤖 Starting AI processing pipeline...')
+      
+      try {
+        // 1. Create basic step files to prevent "Steps not found" errors
+        console.log('📝 Creating basic step files...')
+        await createBasicSteps(moduleId, file.originalname)
+        console.log('✅ Basic step files created')
+
+        // 2. Trigger background AI processing
+        console.log('🔄 Queuing AI processing job...')
+        await processVideoJob({ moduleId, videoUrl })
+        console.log('✅ AI processing job queued successfully')
+
+      } catch (processingError) {
+        console.error('⚠️ AI processing setup failed, but upload succeeded:', processingError)
+        // Don't fail the upload if AI processing setup fails
+        // The user can still view the video, just without AI-generated steps
+      }
+
       const response = {
         success: true,
         moduleId: moduleId,
         videoUrl: videoUrl,
         steps: moduleData.steps,
+        status: 'processing', // Indicate that AI processing is happening
+        message: 'Video uploaded successfully. AI processing started...'
       }
 
       console.log('✅ Returning success response:', response)
