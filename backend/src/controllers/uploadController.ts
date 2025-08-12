@@ -92,41 +92,6 @@ export const uploadController = {
       const videoUrl = await storageService.uploadVideo(file)
       console.log('✅ Video upload completed:', videoUrl)
 
-      // Verify S3 upload was successful
-      if (videoUrl.includes('localhost:8000')) {
-        console.log('⚠️ Using mock storage, skipping AI processing')
-        // Return success without AI processing for mock storage
-        const response = {
-          success: true,
-          moduleId: `mock_${Date.now()}`,
-          videoUrl: videoUrl,
-          steps: [
-            { id: 1, timestamp: 0, title: 'Mock Step', description: 'Development mode', duration: 30 }
-          ],
-          status: 'completed',
-          message: 'Video uploaded to mock storage (AI processing disabled)'
-        }
-        return res.json(response)
-      }
-
-      // Verify S3 file is accessible
-      try {
-        console.log('🔍 Verifying S3 file accessibility...')
-        const response = await fetch(videoUrl, { method: 'HEAD' })
-        if (!response.ok) {
-          throw new Error(`S3 file not accessible: ${response.status}`)
-        }
-        console.log('✅ S3 file verified and accessible')
-      } catch (error) {
-        console.error('❌ S3 file verification failed:', error)
-        return res.status(500).json({ 
-          error: 'S3 upload verification failed',
-          userMessage: 'Your video was uploaded but we cannot verify it is accessible. Please try uploading again or contact support if the problem persists.',
-          technicalDetails: error instanceof Error ? error.message : 'Unknown error',
-          code: 'S3_VERIFICATION_FAILED'
-        })
-      }
-
       // Create module data
       const moduleData = {
         title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
@@ -141,8 +106,19 @@ export const uploadController = {
 
       // Save module using storageService (database or mock)
       console.log('💾 Saving module data...')
-      const moduleId = await storageService.saveModule(moduleData)
-      console.log('✅ Module saved:', moduleId)
+      let moduleId: string
+      try {
+        moduleId = await storageService.saveModule(moduleData)
+        console.log('✅ Module saved:', moduleId)
+      } catch (saveError) {
+        console.error('❌ Failed to save module:', saveError)
+        return res.status(500).json({ 
+          error: 'Failed to save module',
+          userMessage: 'Your video was uploaded but we could not save the module data. Please try again.',
+          technicalDetails: saveError instanceof Error ? saveError.message : 'Unknown error',
+          code: 'MODULE_SAVE_FAILED'
+        })
+      }
 
       // 🚀 CRITICAL: Trigger AI processing pipeline DIRECTLY
       console.log('🤖 Starting AI processing pipeline...')
@@ -150,13 +126,23 @@ export const uploadController = {
       try {
         // 1. Create basic step files to prevent "Steps not found" errors
         console.log('📝 Creating basic step files...')
-        await createBasicSteps(moduleId, file.originalname)
-        console.log('✅ Basic step files created')
+        try {
+          await createBasicSteps(moduleId, file.originalname)
+          console.log('✅ Basic step files created')
+        } catch (stepsError) {
+          console.error('❌ Failed to create basic steps:', stepsError)
+          throw new Error(`Basic steps creation failed: ${stepsError instanceof Error ? stepsError.message : 'Unknown error'}`)
+        }
 
         // 2. Update module status to processing
         console.log('🔄 Updating module status to processing...')
-        await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI analysis...')
-        console.log('✅ Module status updated to processing')
+        try {
+          await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI analysis...')
+          console.log('✅ Module status updated to processing')
+        } catch (statusError) {
+          console.error('❌ Failed to update module status:', statusError)
+          throw new Error(`Status update failed: ${statusError instanceof Error ? statusError.message : 'Unknown error'}`)
+        }
 
         // 3. Start AI processing in background (don't await - let it run async)
         console.log('🧠 Starting AI processing in background...')
