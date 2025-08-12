@@ -304,8 +304,6 @@ router.get('/env', (req, res) => {
           !process.env.CLERK_SECRET_KEY && 'CLERK_SECRET_KEY'
         ].filter(Boolean),
         renderMismatches: [
-          !process.env.AWS_BUCKET_NAME && process.env.S3_BUCKET_NAME && 'S3_BUCKET_NAME→AWS_BUCKET_NAME',
-                      !process.env.AWS_REGION && process.env.S3_REGION && 'S3_REGION→AWS_REGION',
           !process.env.QSTASH_ENDPOINT && process.env.QSTASH_URL && 'QSTASH_URL→QSTASH_ENDPOINT'
         ].filter(Boolean)
       }
@@ -339,21 +337,14 @@ router.get('/s3', (req, res) => {
         secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
       },
       
-      // Alternative names that might be in Render:
-      s3: {
-        bucket: process.env.S3_BUCKET_NAME || 'MISSING',
-        region: process.env.S3_REGION || 'MISSING',
-      },
-      
       // Analysis
       analysis: {
         hasAllRequired: !!(process.env.AWS_BUCKET_NAME && process.env.AWS_REGION && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
-        hasAlternativeNames: !!(process.env.S3_BUCKET_NAME || process.env.S3_REGION),
         missing: [
-          !process.env.AWS_BUCKET_NAME && !process.env.S3_BUCKET_NAME && 'BUCKET_NAME',
-          !process.env.AWS_REGION && !process.env.S3_REGION && 'REGION',
-          !process.env.AWS_ACCESS_KEY_ID && 'ACCESS_KEY_ID',
-          !process.env.AWS_SECRET_ACCESS_KEY && 'SECRET_ACCESS_KEY'
+          !process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
+          !process.env.AWS_REGION && 'AWS_REGION',
+          !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
+          !process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY'
         ].filter(Boolean)
       }
     }
@@ -390,7 +381,7 @@ router.get('/s3-test', async (req, res) => {
     // Try to list buckets to test connection
     const { S3Client, ListBucketsCommand } = await import('@aws-sdk/client-s3')
     const testClient = new S3Client({
-      region: process.env.AWS_REGION || process.env.S3_REGION || 'us-west-1',
+      region: process.env.AWS_REGION || 'us-west-1',
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
@@ -405,8 +396,8 @@ router.get('/s3-test', async (req, res) => {
         success: true,
         message: 'S3 connection successful',
         buckets: bucketNames,
-        targetBucket: process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME,
-        targetBucketExists: bucketNames.includes(process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || ''),
+        targetBucket: process.env.AWS_BUCKET_NAME,
+        targetBucketExists: bucketNames.includes(process.env.AWS_BUCKET_NAME || ''),
         timestamp: new Date().toISOString()
       })
     } catch (s3Error: any) {
@@ -436,34 +427,28 @@ router.get('/s3-env', (req, res) => {
       // Raw environment variables
       raw: {
         AWS_REGION: process.env.AWS_REGION || 'MISSING',
-        S3_REGION: process.env.S3_REGION || 'MISSING',
         AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
         AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
         AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME || 'MISSING',
-        S3_BUCKET_NAME: process.env.S3_BUCKET_NAME || 'MISSING',
       },
       
       // Fallback values (what your code actually uses)
       fallback: {
-        region: process.env.AWS_REGION || process.env.S3_REGION || 'MISSING',
-        bucket: process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || 'MISSING',
+        region: process.env.AWS_REGION || 'MISSING',
+        bucket: process.env.AWS_BUCKET_NAME || 'MISSING',
         accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
         secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
       },
       
       // Analysis
       analysis: {
-        hasAllRequired: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && (process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME) && (process.env.AWS_REGION || process.env.S3_REGION)),
+        hasAllRequired: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_BUCKET_NAME && process.env.AWS_REGION),
         missing: [
           !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
           !process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY',
-          !process.env.AWS_BUCKET_NAME && !process.env.S3_BUCKET_NAME && 'BUCKET_NAME (AWS_BUCKET_NAME or S3_BUCKET_NAME)',
-          !process.env.AWS_REGION && !process.env.S3_REGION && 'REGION (AWS_REGION or S3_REGION)'
+          !process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
+          !process.env.AWS_REGION && 'AWS_REGION'
         ].filter(Boolean),
-        namingMismatches: [
-          !process.env.AWS_BUCKET_NAME && process.env.S3_BUCKET_NAME && 'Using S3_BUCKET_NAME instead of AWS_BUCKET_NAME',
-          !process.env.AWS_REGION && process.env.S3_REGION && 'Using S3_REGION instead of AWS_REGION'
-        ].filter(Boolean)
       },
       
       // What your code expects vs what's available
@@ -473,9 +458,7 @@ router.get('/s3-env', (req, res) => {
           process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
           process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY',
           process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
-          process.env.S3_BUCKET_NAME && 'S3_BUCKET_NAME',
-          process.env.AWS_REGION && 'AWS_REGION',
-          process.env.S3_REGION && 'S3_REGION'
+          process.env.AWS_REGION && 'AWS_REGION'
         ].filter(Boolean)
       }
     }

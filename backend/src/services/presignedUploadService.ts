@@ -10,7 +10,7 @@ const s3Client = new S3Client({
   },
 })
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adapt-videos'
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
 
 export const presignedUploadService = {
   async generatePresignedUrl(filename: string, contentType: string) {

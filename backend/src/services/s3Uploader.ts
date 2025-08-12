@@ -7,7 +7,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Use optional chaining to prevent build-time errors
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || process.env.AWS_S3_BUCKET
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
 
 /**
  * Get S3 client with validation
