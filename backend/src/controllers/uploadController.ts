@@ -1,7 +1,8 @@
 import { Request, Response } from 'express'
 import { storageService } from '../services/storageService.js'
 import { createBasicSteps } from '../services/createBasicSteps.js'
-import { processVideoJob } from '../services/qstashQueue.js'
+import { aiService } from '../services/aiService.js'
+import { ModuleService } from '../services/moduleService.js'
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
@@ -54,7 +55,7 @@ export const uploadController = {
       const moduleId = await storageService.saveModule(moduleData)
       console.log('✅ Module saved:', moduleId)
 
-      // 🚀 CRITICAL: Trigger AI processing pipeline
+      // 🚀 CRITICAL: Trigger AI processing pipeline DIRECTLY
       console.log('🤖 Starting AI processing pipeline...')
       
       try {
@@ -63,10 +64,31 @@ export const uploadController = {
         await createBasicSteps(moduleId, file.originalname)
         console.log('✅ Basic step files created')
 
-        // 2. Trigger background AI processing
-        console.log('🔄 Queuing AI processing job...')
-        await processVideoJob({ moduleId, videoUrl })
-        console.log('✅ AI processing job queued successfully')
+        // 2. Update module status to processing
+        console.log('🔄 Updating module status to processing...')
+        await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI analysis...')
+        console.log('✅ Module status updated to processing')
+
+        // 3. Start AI processing in background (don't await - let it run async)
+        console.log('🧠 Starting AI processing in background...')
+        aiService.generateStepsForModule(moduleId, videoUrl)
+          .then(async (steps) => {
+            console.log(`✅ AI processing completed for ${moduleId}, generated ${steps?.length || 0} steps`)
+            
+            if (steps && Array.isArray(steps)) {
+              // Update progress to 100% and status to ready
+              await ModuleService.updateModuleStatus(moduleId, 'ready', 100, 'AI processing complete!')
+              console.log(`🎉 Module ${moduleId} is now ready with ${steps.length} steps`)
+            } else {
+              throw new Error('AI processing returned invalid steps')
+            }
+          })
+          .catch(async (error) => {
+            console.error(`❌ AI processing failed for ${moduleId}:`, error)
+            await ModuleService.updateModuleStatus(moduleId, 'failed', 0, `AI processing failed: ${error.message}`)
+          })
+
+        console.log('✅ AI processing job started in background')
 
       } catch (processingError) {
         console.error('⚠️ AI processing setup failed, but upload succeeded:', processingError)

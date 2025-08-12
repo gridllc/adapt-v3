@@ -26,6 +26,7 @@ import { requireAuth, optionalAuth } from './middleware/auth.js'
 import { testAuthRoutes } from './routes/testAuth.js'
 import { debugRoutes } from './routes/debugRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
+import { processVideoJob } from './services/qstashQueue.js'
 
 // Import QStash queue to ensure it's initialized
 import './services/qstashQueue.js'
@@ -212,6 +213,27 @@ const configureRoutes = () => {
   app.use('/api/qa', qaRoutes)
   app.use('/api/worker', workerRoutes)
   app.use('/api/share', shareRoutes)
+  
+  // QStash webhook endpoint for processing video steps
+  app.post('/api/process-steps', async (req, res) => {
+    try {
+      console.log('📩 Incoming QStash request:', req.headers, req.body)
+      
+      const { moduleId, videoUrl } = req.body
+
+      if (!moduleId || !videoUrl) {
+        console.error('❌ Missing required fields:', { moduleId, videoUrl })
+        return res.status(400).json({ error: 'Missing moduleId or videoUrl' })
+      }
+
+      console.log(`📥 QStash webhook received for moduleId=${moduleId}`)
+      await processVideoJob({ moduleId, videoUrl })
+      res.status(200).json({ success: true })
+    } catch (err) {
+      console.error('❌ QStash processing failed:', err)
+      res.status(500).json({ error: 'Processing failed' })
+    }
+  })
   
   // Module Routes (temporarily optional for debugging - change back to requireAuth after testing)
   app.use('/api/modules', optionalAuth, moduleRoutes)
@@ -582,4 +604,4 @@ const initializeServer = async () => {
 initializeServer().catch(error => {
   console.error('❌ Failed to start server:', error)
   process.exit(1)
-}) 
+})
