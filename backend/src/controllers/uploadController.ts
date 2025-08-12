@@ -98,11 +98,20 @@ export const uploadController = {
         try {
           console.log('🔗 Generating signed URL for AI processing...')
           const { getPresignedUrl } = await import('../services/s3Uploader.js')
-          const filename = videoUrl.split('/').pop() || file.originalname
-          signedVideoUrl = await getPresignedUrl(filename)
-          console.log('✅ Signed URL generated for AI processing')
+          
+          // Extract the full S3 key from the URL (including videos/ prefix)
+          const urlParts = videoUrl.split('.com/')
+          if (urlParts.length > 1) {
+            const s3Key = urlParts[1] // This will be "videos/filename.mp4"
+            console.log('🔑 S3 Key for signed URL:', s3Key)
+            signedVideoUrl = await getPresignedUrl(s3Key)
+            console.log('✅ Signed URL generated for AI processing')
+          } else {
+            throw new Error('Could not extract S3 key from URL')
+          }
         } catch (signedUrlError) {
-          console.warn('⚠️ Failed to generate signed URL, using public URL:', signedUrlError)
+          console.error('❌ Failed to generate signed URL:', signedUrlError)
+          console.warn('⚠️ Using public URL for AI processing (may cause 403 errors)')
           // Continue with public URL if signed URL generation fails
         }
       }
