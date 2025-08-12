@@ -11,7 +11,20 @@ export const aiService = {
    */
   async generateStepsForModule(moduleId: string, videoUrl: string): Promise<VideoProcessingResult> {
     console.log(`🤖 [AI Service] Starting step generation for module: ${moduleId}`)
+    
+    // Safety check: Verify module exists and is not a mock ID
+    if (moduleId.startsWith('mock_module_')) {
+      throw new Error(`Cannot process mock module ID: ${moduleId}. Module must exist in database.`)
+    }
+    
     try {
+      // Verify module exists in database before proceeding
+      const module = await ModuleService.getModuleById(moduleId)
+      if (!module.success || !module.module) {
+        throw new Error(`Module ${moduleId} does not exist in database`)
+      }
+      console.log(`✅ Module verified in database: ${moduleId}`)
+      
       await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI analysis...')
       const result = await generateStepsFromVideo(videoUrl, moduleId)
       await ModuleService.saveStepsToModule(moduleId, result.steps)

@@ -1,9 +1,9 @@
 import express from 'express'
 import multer from 'multer'
 import { uploadController } from '../controllers/uploadController.js'
-import { createBasicSteps } from '../services/createBasicSteps.js'
 import { ModuleService } from '../services/moduleService.js'
 import { aiService } from '../services/aiService.js'
+import { optionalAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -23,8 +23,8 @@ const upload = multer({
   },
 })
 
-// Upload endpoint - NO AUTHENTICATION
-router.post('/', (req: express.Request, res: express.Response, next: express.NextFunction) => {
+// Upload endpoint - with optional authentication
+router.post('/', optionalAuth, (req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.log('Upload route hit')
   next()
 }, upload.single('file'), (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -54,7 +54,7 @@ router.post('/', (req: express.Request, res: express.Response, next: express.Nex
 }, uploadController.uploadVideo)
 
 // TEST ENDPOINT: Manually trigger AI processing for debugging
-router.post('/manual-process', async (req, res) => {
+router.post('/manual-process', optionalAuth, async (req, res) => {
   try {
     const { moduleId, videoUrl } = req.body
     
@@ -68,9 +68,8 @@ router.post('/manual-process', async (req, res) => {
 
     console.log(`🧪 [TEST] Manually triggering AI processing for module: ${moduleId}`)
     
-    // 1. Create basic step files
-    await createBasicSteps(moduleId, 'manual-test')
-    console.log('✅ Basic step files created')
+    // 1. Verify module exists in database (skip createBasicSteps since we're using DB now)
+    console.log('🔍 Verifying module exists in database...')
     
     // 2. Update status to processing
     await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Manual test - starting AI analysis...')

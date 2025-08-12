@@ -119,7 +119,7 @@ export const storageService = {
   },
 
   // Metadata goes to Prisma (queryable, relational) or mock storage
-  async saveModule(moduleData: any): Promise<string> {
+  async saveModule(moduleData: any, userId?: string): Promise<string> {
     try {
       if (process.env.DATABASE_URL) {
         console.log('💾 Saving module to database...')
@@ -129,17 +129,9 @@ export const storageService = {
             title: moduleData.title || 'Untitled Module',
             filename: moduleData.filename || 'video.mp4',
             videoUrl: moduleData.videoUrl,
-            status: 'completed',
-            progress: 100,
-            steps: {
-              create: (moduleData.steps || []).map((step: any, index: number) => ({
-                timestamp: step.timestamp || 0,
-                title: step.title || 'Step',
-                description: step.description || 'No description',
-                duration: step.duration || 0,
-                order: index + 1,
-              }))
-            },
+            status: 'processing', // Start with processing status
+            progress: 0, // Start with 0 progress
+            userId: userId || null, // Link to user if authenticated
           },
         })
         console.log('✅ Module saved to database:', module.id)
