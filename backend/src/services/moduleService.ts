@@ -229,6 +229,20 @@ export class ModuleService {
     message?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
+      // First, verify the module exists to prevent foreign key constraint violations
+      const module = await prisma.module.findUnique({
+        where: { id: moduleId },
+        select: { id: true }
+      })
+
+      if (!module) {
+        console.warn(`⚠️ [ModuleService] Cannot update status for non-existent module: ${moduleId}`)
+        return {
+          success: false,
+          error: `Module ${moduleId} not found`
+        }
+      }
+
       // Update module status
       await DatabaseService.updateModuleStatus(moduleId, status, progress, message)
 
