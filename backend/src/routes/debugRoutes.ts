@@ -427,4 +427,70 @@ router.get('/s3-test', async (req, res) => {
   }
 })
 
+// Comprehensive S3 Environment Check
+router.get('/s3-env', (req, res) => {
+  try {
+    console.log('[TEST] 🔍 S3 environment check requested')
+    
+    const s3EnvCheck = {
+      // Raw environment variables
+      raw: {
+        AWS_REGION: process.env.AWS_REGION || 'MISSING',
+        S3_REGION: process.env.S3_REGION || 'MISSING',
+        AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
+        AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
+        AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME || 'MISSING',
+        S3_BUCKET_NAME: process.env.S3_BUCKET_NAME || 'MISSING',
+      },
+      
+      // Fallback values (what your code actually uses)
+      fallback: {
+        region: process.env.AWS_REGION || process.env.S3_REGION || 'MISSING',
+        bucket: process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || 'MISSING',
+        accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
+        secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
+      },
+      
+      // Analysis
+      analysis: {
+        hasAllRequired: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && (process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME) && (process.env.AWS_REGION || process.env.S3_REGION)),
+        missing: [
+          !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
+          !process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY',
+          !process.env.AWS_BUCKET_NAME && !process.env.S3_BUCKET_NAME && 'BUCKET_NAME (AWS_BUCKET_NAME or S3_BUCKET_NAME)',
+          !process.env.AWS_REGION && !process.env.S3_REGION && 'REGION (AWS_REGION or S3_REGION)'
+        ].filter(Boolean),
+        namingMismatches: [
+          !process.env.AWS_BUCKET_NAME && process.env.S3_BUCKET_NAME && 'Using S3_BUCKET_NAME instead of AWS_BUCKET_NAME',
+          !process.env.AWS_REGION && process.env.S3_REGION && 'Using S3_REGION instead of AWS_REGION'
+        ].filter(Boolean)
+      },
+      
+      // What your code expects vs what's available
+      codeExpectations: {
+        expected: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_BUCKET_NAME', 'AWS_REGION'],
+        available: [
+          process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
+          process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY',
+          process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
+          process.env.S3_BUCKET_NAME && 'S3_BUCKET_NAME',
+          process.env.AWS_REGION && 'AWS_REGION',
+          process.env.S3_REGION && 'S3_REGION'
+        ].filter(Boolean)
+      }
+    }
+    
+    console.log(`[TEST] 🔍 S3 env analysis:`, s3EnvCheck.analysis)
+    
+    res.json(s3EnvCheck)
+    
+  } catch (error: any) {
+    console.error('[TEST] ❌ S3 env check failed:', error.message)
+    res.status(500).json({ 
+      error: 'S3 env check failed', 
+      details: error.message 
+    })
+  }
+})
+
 export { router as debugRoutes } 

@@ -22,6 +22,17 @@ try {
   console.log('  Secret Key:', awsSecretAccessKey ? `✅ ${awsSecretAccessKey.substring(0, 4)}...` : '❌ MISSING')
   console.log('  Bucket:', awsBucketName ? `✅ ${awsBucketName}` : '❌ MISSING')
   
+  // 🧪 ADDITIONAL DEBUG: Show raw environment values
+  console.log('🧪 Raw ENV values (startup):')
+  console.log({
+    AWS_REGION: process.env.AWS_REGION,
+    S3_REGION: process.env.S3_REGION,
+    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? `${process.env.AWS_ACCESS_KEY_ID.substring(0, 8)}...` : 'MISSING',
+    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? `${process.env.AWS_SECRET_ACCESS_KEY.substring(0, 4)}...` : 'MISSING',
+    AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME,
+    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
+  })
+  
   if (awsRegion && awsAccessKeyId && awsSecretAccessKey && awsBucketName) {
     console.log('🚀 All S3 credentials found, initializing client...')
     s3Client = new S3Client({
@@ -64,6 +75,31 @@ export const storageService = {
   // Videos go to S3 (unlimited storage) or mock storage
   async uploadVideo(file: Express.Multer.File): Promise<string> {
     try {
+      // 🧪 DEBUG: Print environment variables at upload time
+      console.log('🧪 Upload debug check — ENV values:')
+      console.log({
+        AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
+        AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
+        AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME ? 'SET' : 'MISSING',
+        S3_BUCKET_NAME: process.env.S3_BUCKET_NAME ? 'SET' : 'MISSING',
+        AWS_REGION: process.env.AWS_REGION ? 'SET' : 'MISSING',
+        S3_REGION: process.env.S3_REGION ? 'SET' : 'MISSING',
+      })
+      
+      // Check what the fallback logic sees
+      const fallbackRegion = process.env.AWS_REGION || process.env.S3_REGION
+      const fallbackBucket = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME
+      
+      console.log('🧪 Fallback values:')
+      console.log({
+        fallbackRegion,
+        fallbackBucket,
+        hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+        hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY,
+        s3ClientExists: !!s3Client,
+        isS3Enabled: isS3Enabled
+      })
+      
       if (this.isS3Enabled() && s3Client) {
         console.log('🚀 Uploading to S3...')
         const key = `videos/${uuidv4()}-${file.originalname}`
