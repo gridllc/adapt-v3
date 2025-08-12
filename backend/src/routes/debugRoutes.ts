@@ -371,4 +371,60 @@ router.get('/s3', (req, res) => {
   }
 })
 
+// Test S3 Connection - Actually tries to connect to S3
+router.get('/s3-test', async (req, res) => {
+  try {
+    console.log('[TEST] 🔍 S3 connection test requested')
+    
+    // Import storageService to test actual S3 connection
+    const { storageService } = await import('../services/storageService.js')
+    
+    if (!storageService.isS3Enabled()) {
+      return res.status(500).json({
+        error: 'S3 not enabled',
+        message: 'S3 client failed to initialize',
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    // Try to list buckets to test connection
+    const { S3Client, ListBucketsCommand } = await import('@aws-sdk/client-s3')
+    const testClient = new S3Client({
+      region: process.env.AWS_REGION || process.env.S3_REGION || 'us-west-1',
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    })
+    
+    try {
+      const result = await testClient.send(new ListBucketsCommand({}))
+      const bucketNames = result.Buckets?.map(b => b.Name) || []
+      
+      res.json({
+        success: true,
+        message: 'S3 connection successful',
+        buckets: bucketNames,
+        targetBucket: process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME,
+        targetBucketExists: bucketNames.includes(process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME || ''),
+        timestamp: new Date().toISOString()
+      })
+    } catch (s3Error: any) {
+      res.status(500).json({
+        error: 'S3 connection failed',
+        message: s3Error.message,
+        code: s3Error.Code,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+  } catch (error: any) {
+    console.error('[TEST] ❌ S3 test failed:', error.message)
+    res.status(500).json({ 
+      error: 'S3 test failed', 
+      details: error.message 
+    })
+  }
+})
+
 export { router as debugRoutes } 

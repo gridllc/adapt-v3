@@ -33,10 +33,60 @@ export const uploadController = {
 
       console.log('✅ File validated successfully')
 
+      // Additional file integrity check
+      console.log('🔍 File integrity check:', {
+        size: file.size,
+        sizeInMB: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+        bufferLength: file.buffer?.length || 0,
+        bufferValid: file.buffer && file.buffer.length > 0
+      })
+
+      // Check if file is too small (likely corrupted)
+      if (file.size < 1000) { // Less than 1KB
+        console.error('❌ File too small, likely corrupted:', file.size)
+        return res.status(400).json({ 
+          error: 'File appears to be corrupted or incomplete',
+          size: file.size 
+        })
+      }
+
       // Upload video using storageService (S3 or mock)
       console.log('🚀 Starting video upload...')
       const videoUrl = await storageService.uploadVideo(file)
       console.log('✅ Video upload completed:', videoUrl)
+
+      // Verify S3 upload was successful
+      if (videoUrl.includes('localhost:8000')) {
+        console.log('⚠️ Using mock storage, skipping AI processing')
+        // Return success without AI processing for mock storage
+        const response = {
+          success: true,
+          moduleId: `mock_${Date.now()}`,
+          videoUrl: videoUrl,
+          steps: [
+            { id: 1, timestamp: 0, title: 'Mock Step', description: 'Development mode', duration: 30 }
+          ],
+          status: 'completed',
+          message: 'Video uploaded to mock storage (AI processing disabled)'
+        }
+        return res.json(response)
+      }
+
+      // Verify S3 file is accessible
+      try {
+        console.log('🔍 Verifying S3 file accessibility...')
+        const response = await fetch(videoUrl, { method: 'HEAD' })
+        if (!response.ok) {
+          throw new Error(`S3 file not accessible: ${response.status}`)
+        }
+        console.log('✅ S3 file verified and accessible')
+      } catch (error) {
+        console.error('❌ S3 file verification failed:', error)
+        return res.status(500).json({ 
+          error: 'S3 upload verification failed',
+          message: 'File uploaded but not accessible for processing'
+        })
+      }
 
       // Create module data
       const moduleData = {
