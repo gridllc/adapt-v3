@@ -82,5 +82,5 @@ export const aiService = {
 
 // Re-export types for convenience
 export type { VideoProcessingResult } from './ai/aiPipeline.js'
-export type { Step } from './ai/stepGenerator.js'
+export type { Step } from './ai/types.js'
 export type { TranscriptionResult } from './ai/transcriber.js'

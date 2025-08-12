@@ -178,7 +178,23 @@ router.delete('/:id', async (req, res) => {
     // Find the module first to get S3 key
     const module = await prisma.module.findUnique({ 
       where: { id },
-      include: { steps: true, questions: true }
+      include: { 
+        steps: {
+          select: {
+            id: true,
+            text: true,
+            startTime: true,
+            endTime: true,
+            order: true
+          }
+        }, 
+        questions: {
+          select: {
+            id: true,
+            question: true
+          }
+        } 
+      }
     })
 
     if (!module) {

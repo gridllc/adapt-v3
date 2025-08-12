@@ -152,10 +152,9 @@ export const presignedUploadController = {
           const stepResult = await DatabaseService.createSteps(
             savedModule.id, 
             moduleData.steps.map(step => ({
-              timestamp: step.timestamp,
-              title: step.title,
-              description: step.description,
-              duration: step.duration
+              text: step.text || '',
+              startTime: step.startTime || 0,
+              endTime: step.endTime || step.startTime + 15
             }))
           )
           savedStepsCount = stepResult.count || 0

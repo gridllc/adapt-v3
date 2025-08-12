@@ -143,17 +143,19 @@ export class DatabaseService {
 
   // Step operations
   static async createSteps(moduleId: string, steps: Array<{
-    timestamp: number
-    title: string
-    description: string
-    duration: number
+    text?: string
+    title?: string
+    description?: string
+    startTime?: number
+    endTime?: number
+    timestamp?: number
+    duration?: number
   }>) {
     const stepData = steps.map((step, index) => ({
       moduleId,
-      timestamp: step.timestamp,
-      title: step.title,
-      description: step.description,
-      duration: step.duration,
+      text: step.text || step.title || step.description || '',
+      startTime: step.startTime || step.timestamp || 0,
+      endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),
       order: index + 1
     }))
 
@@ -313,7 +315,7 @@ export class DatabaseService {
       orderBy: { createdAt: 'desc' },
       include: {
         step: {
-          select: { title: true, timestamp: true }
+          select: { text: true, startTime: true }
         },
         user: {
           select: { email: true }
@@ -331,7 +333,7 @@ export class DatabaseService {
       orderBy: { createdAt: 'desc' },
       include: {
         step: {
-          select: { title: true, timestamp: true }
+          select: { text: true, startTime: true }
         }
       }
     })
@@ -445,7 +447,7 @@ export class DatabaseService {
         question: {
           include: {
             step: {
-              select: { title: true }
+              select: { text: true, startTime: true }
             }
           }
         }
@@ -530,7 +532,7 @@ export class DatabaseService {
       take: limit,
       include: {
         step: {
-          select: { title: true, timestamp: true }
+          select: { text: true, startTime: true }
         },
         user: {
           select: { email: true }

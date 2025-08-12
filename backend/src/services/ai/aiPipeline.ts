@@ -1,7 +1,8 @@
 import { downloadVideoFromUrl } from './videoDownloader.js'
 import { extractAudioFromVideo, getVideoMetadata, truncateVideo } from './audioProcessor.js'
 import { transcribeAudio, TranscriptionResult } from './transcriber.js'
-import { generateVideoSteps, VideoAnalysisResult } from './stepGenerator.js'
+import { generateVideoSteps } from './stepGenerator.js'
+import { VideoAnalysisResult, Step } from './types.js'
 import { saveVideoAnalysis, cleanupTempFiles } from './stepSaver.js'
 import { extractKeyFrames, cleanupKeyFrames } from './keyFrameExtractor.js'
 import { ModuleService } from '../moduleService.js'
@@ -16,15 +17,7 @@ export interface VideoProcessingResult {
   description: string
   transcript: string
   segments: Array<{ start: number; end: number; text: string }>
-  steps: Array<{
-    id: string
-    timestamp: number
-    title: string
-    description: string
-    duration: number
-    aliases?: string[]
-    notes?: string
-  }>
+  steps: Step[]
   totalDuration: number
 }
 
@@ -144,7 +137,7 @@ export async function generateStepsFromVideo(videoUrl: string, moduleId?: string
     
     console.log('✅ [AIPipeline] AI analysis completed successfully')
     console.log('🤖 [AIPipeline] Generated steps:', result.steps.length)
-    console.log('🤖 [AIPipeline] Steps preview:', result.steps.slice(0, 2).map(s => ({ title: s.title, duration: s.duration })))
+    console.log('🤖 [AIPipeline] Steps preview:', result.steps.slice(0, 2).map(s => ({ text: s.text, startTime: s.startTime, endTime: s.endTime })))
 
     // 6. Save results
     console.log('💾 [AIPipeline] Saving analysis results...')

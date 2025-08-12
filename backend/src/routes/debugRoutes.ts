@@ -89,11 +89,39 @@ router.get('/modules/:id/debug', async (req, res) => {
       where: { id },
       include: {
         steps: {
+          select: {
+            id: true,
+            text: true,
+            startTime: true,
+            endTime: true,
+            order: true
+          },
           orderBy: { order: 'asc' }
         },
-        feedbacks: true,
-        questions: true,
+        feedbacks: {
+          select: {
+            id: true,
+            type: true,
+            action: true,
+            createdAt: true
+          }
+        },
+        questions: {
+          select: {
+            id: true,
+            question: true,
+            answer: true,
+            createdAt: true
+          }
+        },
         statuses: {
+          select: {
+            id: true,
+            status: true,
+            progress: true,
+            message: true,
+            createdAt: true
+          },
           orderBy: { createdAt: 'desc' },
           take: 5
         }
@@ -118,7 +146,7 @@ router.get('/modules/:id/debug', async (req, res) => {
         count: module.steps.length,
         details: module.steps.map((step: any) => ({
           id: step.id,
-          title: step.title,
+          title: step.text,
           startTime: step.startTime,
           endTime: step.endTime,
           order: step.order
@@ -195,7 +223,11 @@ router.get('/modules/debug', async (_req, res) => {
     
     const modules = await prisma.module.findMany({
       include: { 
-        steps: true,
+        steps: {
+          select: {
+            id: true
+          }
+        },
         user: {
           select: {
             email: true,

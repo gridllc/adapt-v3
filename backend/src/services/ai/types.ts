@@ -8,10 +8,9 @@
  */
 export interface Step {
   id: string
-  timestamp: number
-  title: string
-  description: string
-  duration: number
+  text: string
+  startTime: number
+  endTime: number
   aliases?: string[]
   notes?: string
 }
@@ -20,10 +19,9 @@ export interface Step {
  * Parsed transcript step (used by transcriptParser.ts)
  */
 export interface ParsedStep {
-  timestamp: number
-  title: string
-  description: string
-  duration: number
+  text: string
+  startTime: number
+  endTime: number
 }
 
 /**

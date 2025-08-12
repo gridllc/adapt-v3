@@ -256,7 +256,13 @@ export class ModuleService {
     try {
       const module = await prisma.module.findUnique({
         where: { id: moduleId },
-        include: { steps: true }
+        include: { 
+          steps: {
+            select: {
+              id: true
+            }
+          } 
+        }
       })
 
       if (module && module.steps.length === 0) {
@@ -283,10 +289,13 @@ export class ModuleService {
     moduleId: string, 
     steps: Array<{
       id: string
-      timestamp: number
-      title: string
-      description: string
-      duration: number
+      text?: string
+      title?: string
+      description?: string
+      startTime?: number
+      endTime?: number
+      timestamp?: number
+      duration?: number
       aliases?: string[]
       notes?: string
     }>
@@ -311,15 +320,10 @@ export class ModuleService {
       const stepData = steps.map((step, index) => ({
         moduleId: moduleId,
         order: index + 1,
-        title: step.title || '',
-        description: step.description || '',
-        timestamp: step.timestamp || 0,
-        duration: step.duration || 0,
-        // TODO: Consider extending the Prisma schema to include:
-        // - aiGeneratedId: String (to preserve the AI-generated ID)
-        // - aliases: String[] (for step variations)
-        // - notes: String (for additional context)
-        // For now, we'll store additional info in the description if needed
+        text: step.text || step.title || step.description || '',
+        startTime: step.startTime || step.timestamp || 0,
+        endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),
+        // TODO: Consider extending the Prisma schema for aiGeneratedId, aliases, notes, metadata
       }))
       
       const createdSteps = await prisma.step.createMany({

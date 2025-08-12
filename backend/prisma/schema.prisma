@@ -42,14 +42,14 @@ model Module {
 model Step {
   id             String     @id @default(cuid())
   moduleId       String
-  timestamp      Int
-  title          String
-  description    String
-  duration       Int
   order          Int
-  confusionScore Float?     // calculated based on repeated questions
-  aiConfidence   Float?     // optional output from AI summary logic
   createdAt      DateTime   @default(now())
+  aiConfidence   Float?
+  confusionScore Float?
+  text           String
+  startTime      Int
+  endTime        Int
+  updatedAt      DateTime   @updatedAt
   questions      Question[]
   module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
@@ -87,10 +87,10 @@ model AIInteraction {
   userMessage String
   aiResponse  String
   source      String?
-  sourceModel String?  // openai or gemini
-  usedMemory  Boolean  @default(false) // whether shared memory was used
   context     Json?
   createdAt   DateTime @default(now())
+  sourceModel String?
+  usedMemory  Boolean  @default(false)
 
   @@map("ai_interactions")
 }
@@ -120,23 +120,23 @@ model ActivityLog {
 }
 
 model Question {
-  id          String          @id @default(cuid())
-  moduleId    String
-  stepId      String?
-  question    String
-  answer      String
-  videoTime   Float?
-  isFAQ       Boolean         @default(false)
-  reuseCount  Int             @default(0) // Track how many times this answer has been reused
-  lastUsedAt  DateTime?       // When this answer was last reused
-  userId      String?
-  createdAt   DateTime        @default(now())
-  vector      QuestionVector?
-  module      Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  step        Step?           @relation(fields: [stepId], references: [id])
-  user        User?           @relation(fields: [userId], references: [id])
+  id         String          @id @default(cuid())
+  moduleId   String
+  stepId     String?
+  question   String
+  answer     String
+  videoTime  Float?
+  isFAQ      Boolean         @default(false)
+  userId     String?
+  createdAt  DateTime        @default(now())
+  lastUsedAt DateTime?
+  reuseCount Int             @default(0)
+  vector     QuestionVector?
+  module     Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  step       Step?           @relation(fields: [stepId], references: [id])
+  user       User?           @relation(fields: [userId], references: [id])
 
-  @@index([reuseCount]) // For finding most reused answers
+  @@index([reuseCount])
   @@map("questions")
 }
 
@@ -144,8 +144,8 @@ model QuestionVector {
   id         String   @id @default(cuid())
   questionId String   @unique
   embedding  Float[]
-  modelName  String?  @default("openai-embedding-3-small") // Track which model generated this embedding
   createdAt  DateTime @default(now())
+  modelName  String?  @default("openai-embedding-3-small")
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@map("question_vectors")

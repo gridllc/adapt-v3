@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { Step, VideoAnalysisResult } from './stepGenerator.js'
+import { Step, VideoAnalysisResult } from './types.js'
 
 /**
  * Saves video analysis results to JSON files

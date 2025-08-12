@@ -1,22 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
-
-export interface Step {
-  id: string
-  timestamp: number
-  title: string
-  description: string
-  duration: number
-  aliases?: string[]
-  notes?: string
-}
-
-export interface VideoAnalysisResult {
-  title: string
-  description: string
-  steps: Step[]
-  totalDuration: number
-}
+import { Step, VideoAnalysisResult } from './types.js'
 
 // Initialize clients lazily
 let genAI: GoogleGenerativeAI | undefined
@@ -85,6 +69,26 @@ export async function generateVideoSteps(
   }
 }
 
+// Helper function to map AI response to new field names
+function mapStepFields(parsed: any): VideoAnalysisResult {
+  // Map old field names to new ones for backward compatibility
+  const mappedSteps = parsed.steps.map((step: any) => ({
+    id: step.id || `step-${Math.random().toString(36).substr(2, 9)}`,
+    text: step.text || step.title || step.description || 'Step description',
+    startTime: step.startTime || step.timestamp || 0,
+    endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),
+    aliases: step.aliases || [],
+    notes: step.notes || ''
+  }))
+
+  return {
+    title: parsed.title || 'Video Analysis',
+    description: parsed.description || 'AI-generated step-by-step guide',
+    steps: mappedSteps,
+    totalDuration: parsed.totalDuration || 0
+  }
+}
+
 async function generateWithGemini(
   transcript: string,
   segments: Array<{ start: number; end: number; text: string }>,
@@ -106,10 +110,9 @@ Create a JSON response with this exact structure:
   "steps": [
     {
       "id": "step-1",
-      "timestamp": 0,
-      "title": "Step title",
-      "description": "What happens in this step",
-      "duration": 15,
+      "text": "What happens in this step",
+      "startTime": 0,
+      "endTime": 15,
       "aliases": ["alternative names"],
       "notes": "optional additional info"
     }
@@ -122,7 +125,7 @@ Rules:
 - Each step should be 10-60 seconds
 - Use clear, actionable language
 - Ensure steps cover the entire video
-- Make titles concise but descriptive`
+- Make step text concise but descriptive`
 
   const result = await model.generateContent(prompt)
   const response = await result.response
@@ -144,7 +147,7 @@ Rules:
     }
     
     console.log(`✅ [StepGenerator] ${label}: Gemini analysis successful`)
-    return parsed
+    return mapStepFields(parsed)
   } catch (parseError) {
     throw new Error(`${label}: Failed to parse Gemini response: ${parseError}`)
   }
@@ -169,10 +172,9 @@ Create a JSON response with this exact structure:
   "steps": [
     {
       "id": "step-1",
-      "timestamp": 0,
-      "title": "Step title",
-      "description": "What happens in this step",
-      "duration": 15,
+      "text": "What happens in this step",
+      "startTime": 0,
+      "endTime": 15,
       "aliases": ["alternative names"],
       "notes": "optional additional info"
     }
@@ -185,7 +187,7 @@ Rules:
 - Each step should be 10-60 seconds
 - Use clear, actionable language
 - Ensure steps cover the entire video
-- Make titles concise but descriptive
+- Make step text concise but descriptive
 
 Return ONLY valid JSON.`
 
@@ -216,7 +218,7 @@ Return ONLY valid JSON.`
     }
     
     console.log(`✅ [StepGenerator] ${label}: OpenAI analysis successful`)
-    return parsed
+    return mapStepFields(parsed)
   } catch (parseError) {
     throw new Error(`${label}: Failed to parse OpenAI response: ${parseError}`)
   }
