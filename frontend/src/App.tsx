@@ -77,6 +77,16 @@ function App() {
             }
           />
           <Route
+            path="/upload"
+            element={
+              <Layout>
+                <UploadErrorBoundary>
+                  <UploadPage />
+                </UploadErrorBoundary>
+              </Layout>
+            }
+          />
+          <Route
             path="/edit-steps/:moduleId"
             element={
               <Layout>
@@ -88,24 +98,14 @@ function App() {
         
         {/* Public routes for development - NO AUTH REQUIRED */}
         <Route
-          path="/upload"
+          path="/training/:moduleId"
           element={
             <Layout>
-              <UploadErrorBoundary>
-                <UploadPage />
-              </UploadErrorBoundary>
+              <TrainingPage />
             </Layout>
           }
         />
-       <Route
-         path="/training/:moduleId"
-         element={
-           <Layout>
-             <TrainingPage />
-           </Layout>
-         }
-       />
-       
+      
        {/* Debug page for development/testing - NO AUTH REQUIRED */}
        <Route
          path="/debug"

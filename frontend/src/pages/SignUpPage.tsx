@@ -14,7 +14,7 @@ export const SignUpPage: React.FC = () => {
           <SignUp 
             routing="path" 
             path="/sign-up" 
-            redirectUrl="/dashboard"
+            redirectUrl="https://adaptord.com/dashboard"
             appearance={{
               elements: {
                 rootBox: "mx-auto",

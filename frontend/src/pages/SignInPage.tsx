@@ -14,7 +14,7 @@ export const SignInPage: React.FC = () => {
           <SignIn 
             routing="path" 
             path="/sign-in" 
-            redirectUrl="/dashboard"
+            redirectUrl="https://adaptord.com/dashboard"
             appearance={{
               elements: {
                 rootBox: "mx-auto",

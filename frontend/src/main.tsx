@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useNavigate } from 'react-router-dom'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { ErrorBoundary } from '@components/common/ErrorBoundary'
 import App from './App'
@@ -63,24 +63,24 @@ const AppWrapper: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <ClerkProvider 
-        publishableKey={pk}
-        appearance={{
-          baseTheme: undefined,
-          variables: {
-            colorPrimary: "#2563eb"
-          }
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
         }}
       >
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
+        <ClerkProvider 
+          publishableKey={pk}
+          appearance={{
+            baseTheme: undefined,
+            variables: {
+              colorPrimary: "#2563eb"
+            }
           }}
         >
           <App />
-        </BrowserRouter>
-      </ClerkProvider>
+        </ClerkProvider>
+      </BrowserRouter>
     </ErrorBoundary>
   )
 }

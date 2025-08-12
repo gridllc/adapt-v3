@@ -2,7 +2,7 @@
 const isDevelopment = import.meta.env.MODE === 'development'
 
 // API base URL - use domain in production, empty in development for proxy
-const baseURL = import.meta.env.VITE_API_URL || (isDevelopment ? '' : 'https://adaptord.com')
+const baseURL = import.meta.env.VITE_API_BASE_URL || (isDevelopment ? '' : 'https://adaptord.com')
 
 // Export the API base URL
 export const API_BASE_URL = baseURL
@@ -11,7 +11,7 @@ export const API_BASE_URL = baseURL
 console.log('🔧 API Configuration:', {
   mode: import.meta.env.MODE,
   isDevelopment,
-  VITE_API_URL: import.meta.env.VITE_API_URL,
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
   API_BASE_URL,
   NODE_ENV: import.meta.env.NODE_ENV,
   location: window.location.href

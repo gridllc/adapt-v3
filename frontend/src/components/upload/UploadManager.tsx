@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
+import { API_ENDPOINTS } from '../../config/api'
 
 export const UploadManager: React.FC = () => {
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
@@ -30,7 +31,7 @@ export const UploadManager: React.FC = () => {
           
           const response = await uploadWithProgress({
             file,
-            url: 'http://localhost:8000/api/upload', // DIRECT URL
+            url: API_ENDPOINTS.UPLOAD, // Use configured API endpoint
             onProgress: (progress) => {
               console.log(`Upload progress: ${progress}%`)
               updateProgress(uploadId, progress)
@@ -73,7 +74,7 @@ export const UploadManager: React.FC = () => {
     <div className="space-y-4">
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p className="text-sm text-yellow-800">
-          <strong>Debug Info:</strong> Upload will go to http://localhost:8000/api/upload
+          <strong>Debug Info:</strong> Upload will go to {API_ENDPOINTS.UPLOAD}
         </p>
       </div>
 
