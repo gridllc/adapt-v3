@@ -1,4 +1,4 @@
-import { useUser, useAuth as useClerkAuth } from 'react-clerk'
+import { useUser, useAuth as useClerkAuth } from '@clerk/clerk-react'
 import { useEffect } from 'react'
 
 export const useAuth = () => {
