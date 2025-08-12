@@ -72,8 +72,7 @@ export async function uploadToS3(buffer: Buffer, filename: string, contentType?:
       Bucket: BUCKET_NAME,
       Key: filename,
       Body: buffer,
-      ContentType: contentType || 'application/octet-stream',
-      ACL: 'bucket-owner-full-control'
+      ContentType: contentType || 'application/octet-stream'
     })
 
     await getSharedS3Client().send(command)

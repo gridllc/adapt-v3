@@ -2,6 +2,7 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { PrismaClient } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
+import { uploadToS3, getPresignedUrl } from './s3Uploader.js'
 
 const prisma = new PrismaClient()
 
@@ -100,21 +101,8 @@ export const storageService = {
         console.log('🚀 Uploading to S3...')
         const key = `videos/${uuidv4()}-${file.originalname}`
         
-        // Use optional chaining to prevent build-time errors
-        const bucketName = process.env.AWS_BUCKET_NAME
-        if (!bucketName) {
-          throw new Error('AWS_BUCKET_NAME not configured')
-        }
-        
-        await s3Client.send(new PutObjectCommand({
-          Bucket: bucketName,
-          Key: key,
-          Body: file.buffer,
-          ContentType: file.mimetype,
-        }))
-        
-        const awsRegion = process.env.AWS_REGION || 'us-east-1'
-        const s3Url = `https://${bucketName}.s3.${awsRegion}.amazonaws.com/${key}`
+        // Use the unified S3 upload helper
+        const s3Url = await uploadToS3(file.buffer, key, file.mimetype)
         console.log('✅ S3 upload successful:', s3Url)
         return s3Url
       } else {
@@ -318,25 +306,41 @@ export const storageService = {
 // Get signed URL for file access (exported separately for compatibility)
 export async function getSignedS3Url(filename: string): Promise<string> {
   try {
-    if (storageService.isS3Enabled()) {
+    if (storageService.isS3Enabled() && s3Client) {
       console.log('🔗 Generating S3 signed URL for:', filename)
-      // Use optional chaining to prevent build-time errors
+
       const bucketName = process.env.AWS_BUCKET_NAME
-      const awsRegion = process.env.AWS_REGION
+      if (!bucketName) throw new Error('Missing bucket')
+
+      // The filename parameter should be the full key (including videos/ prefix and UUID)
+      // If it's just the original filename, we need to find the actual S3 key
+      let key = filename
       
-      if (!bucketName || !awsRegion) {
-        throw new Error('AWS configuration incomplete (missing bucket or region)')
+      // If filename doesn't start with 'videos/', assume it's just the original filename
+      if (!filename.startsWith('videos/')) {
+        // We need to find the actual S3 key by searching for files with this original name
+        // For now, let's assume the frontend will pass the full key
+        console.warn('⚠️ getSignedS3Url called with filename that may not include full S3 key:', filename)
+        key = `videos/${filename}`
       }
-      
-      // For now, return the public S3 URL
-      // TODO: Implement proper presigned URL generation
-      return `https://${bucketName}.s3.${awsRegion}.amazonaws.com/videos/${filename}`
-    } else {
-      console.log('📁 S3 not configured, returning local URL for:', filename)
-      return `http://localhost:8000/uploads/${filename}`
+
+      console.log('🔑 Using S3 key for signed URL:', key)
+
+      const { GetObjectCommand } = await import('@aws-sdk/client-s3')
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+
+      const command = new GetObjectCommand({ Bucket: bucketName, Key: key })
+      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }) // 1 hour
+
+      console.log('✅ Signed URL generated successfully')
+      return url
     }
-  } catch (error) {
-    console.error('❌ Failed to get signed URL:', error instanceof Error ? error.message : 'Unknown error')
+
+    // Fallback to mock/local
+    console.log('📁 S3 not configured, returning local URL for:', filename)
+    return `http://localhost:8000/uploads/${filename}`
+  } catch (err) {
+    console.error('❌ Failed to generate signed URL:', err)
     // Fallback to local URL
     return `http://localhost:8000/uploads/${filename}`
   }

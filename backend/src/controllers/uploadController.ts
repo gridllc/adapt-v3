@@ -97,23 +97,54 @@ export const uploadController = {
       if (videoUrl.includes('s3.amazonaws.com')) {
         try {
           console.log('🔗 Generating signed URL for AI processing...')
-          const { getPresignedUrl } = await import('../services/s3Uploader.js')
+          console.log('🔗 Original video URL:', videoUrl)
           
-          // Extract the full S3 key from the URL (including videos/ prefix)
+          // Extract the full S3 key from the URL (including videos/ prefix and UUID)
           const urlParts = videoUrl.split('.com/')
+          console.log('🔗 URL parts:', urlParts)
+          
           if (urlParts.length > 1) {
-            const s3Key = urlParts[1] // This will be "videos/filename.mp4"
+            const s3Key = urlParts[1] // This will be "videos/uuid-filename.mp4"
             console.log('🔑 S3 Key for signed URL:', s3Key)
-            signedVideoUrl = await getPresignedUrl(s3Key)
+            
+            // Use the working S3 client from storageService
+            const { storageService } = await import('../services/storageService.js')
+            if (!storageService.isS3Enabled()) {
+              throw new Error('S3 not enabled in storageService')
+            }
+            
+            // Get the S3 client from storageService (this is the working one)
+            const s3Client = (storageService as any).s3Client
+            if (!s3Client) {
+              throw new Error('S3 client not available in storageService')
+            }
+            
+            console.log('🔗 Using S3 client from storageService for signed URL generation')
+            const { GetObjectCommand } = await import('@aws-sdk/client-s3')
+            const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
+            
+            const command = new GetObjectCommand({
+              Bucket: process.env.AWS_BUCKET_NAME,
+              Key: s3Key
+            })
+            
+            signedVideoUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
             console.log('✅ Signed URL generated for AI processing')
+            console.log('🔗 Signed URL preview:', signedVideoUrl.substring(0, 100) + '...')
           } else {
             throw new Error('Could not extract S3 key from URL')
           }
         } catch (signedUrlError) {
           console.error('❌ Failed to generate signed URL:', signedUrlError)
+          console.error('❌ Signed URL error details:', {
+            message: signedUrlError instanceof Error ? signedUrlError.message : 'Unknown error',
+            stack: signedUrlError instanceof Error ? signedUrlError.stack : 'No stack trace'
+          })
           console.warn('⚠️ Using public URL for AI processing (may cause 403 errors)')
           // Continue with public URL if signed URL generation fails
         }
+      } else {
+        console.log('🔗 Not an S3 URL, skipping signed URL generation')
       }
 
       // Create module data
