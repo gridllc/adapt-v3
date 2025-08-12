@@ -15,6 +15,7 @@ import { SignInPage } from '@pages/SignInPage'
 import { SignUpPage } from '@pages/SignUpPage'
 import { ApiDebug } from '@components/ApiDebug'
 import { GlobalErrorBoundary, NavigationErrorBoundary, UploadErrorBoundary } from '@components/common/ErrorBoundaries'
+import { LoadingSpinner } from '@components/common/LoadingSpinner'
 
 // Conditional Home Component
 const ConditionalHome = () => {
@@ -56,6 +57,14 @@ function App() {
     <GlobalErrorBoundary>
       {/* Debug panel temporarily disabled */}
       {/* <ApiDebug /> */}
+      
+      {/* TEMPORARY: Test spinner visibility - remove this after testing */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-4 right-4 z-50 bg-white p-4 border rounded-lg shadow-lg">
+          <p className="text-sm text-gray-600 mb-2">Test Spinner:</p>
+          <LoadingSpinner />
+        </div>
+      )}
       
       <Routes>
         {/* Always show home page at root */}
@@ -103,6 +112,18 @@ function App() {
             <Layout>
               <TrainingPage />
             </Layout>
+          }
+        />
+        
+        {/* Test route for spinner debugging */}
+        <Route
+          path="/test-spinner"
+          element={
+            <div className="min-h-screen bg-gray-100 p-8">
+              <h1 className="text-2xl font-bold mb-4">Spinner Test Page</h1>
+              <p className="mb-4">This page tests the LoadingSpinner component in isolation.</p>
+              <LoadingSpinner />
+            </div>
           }
         />
       

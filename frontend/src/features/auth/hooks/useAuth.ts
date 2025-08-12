@@ -1,12 +1,28 @@
-import { useUser, useAuth as useClerkAuth } from '@clerk/clerk-react'
+import { useUser, useAuth as useClerkAuth } from 'react-clerk'
+import { useEffect } from 'react'
 
 export const useAuth = () => {
   const { isLoaded, isSignedIn } = useClerkAuth()
   const { user } = useUser()
 
-  // Debug logging
+  // Enhanced debug logging with timestamps
+  useEffect(() => {
+    console.log(`[useAuth] State changed at ${new Date().toISOString()}:`, { 
+      isLoaded, 
+      isSignedIn, 
+      user: user?.id,
+      timestamp: Date.now()
+    })
+  }, [isLoaded, isSignedIn, user])
+
+  // Immediate debug logging
   if (process.env.NODE_ENV === 'development') {
-    console.log('Auth State:', { isLoaded, isSignedIn, user: user?.id })
+    console.log(`[useAuth] Current state:`, { 
+      isLoaded, 
+      isSignedIn, 
+      user: user?.id,
+      timestamp: Date.now()
+    })
   }
 
   return {
