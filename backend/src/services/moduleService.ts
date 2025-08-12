@@ -1,11 +1,13 @@
 import { prisma } from '../config/database.js'
 import { DatabaseService } from './prismaService.js'
+import { Prisma } from '@prisma/client'
 
 export class ModuleService {
   /**
    * Get all modules with their basic info for dashboard
+   * @returns Promise<{ success: boolean; modules?: any[]; error?: string }>
    */
-  static async getAllModules() {
+  static async getAllModules(): Promise<{ success: boolean; modules?: any[]; error?: string }> {
     try {
       const modules = await prisma.module.findMany({
         select: {
@@ -54,8 +56,9 @@ export class ModuleService {
 
   /**
    * Get orphaned modules (ready status but no steps)
+   * @returns Promise<{ success: boolean; orphanedModules?: any[]; count?: number; error?: string }>
    */
-  static async getOrphanedModules() {
+  static async getOrphanedModules(): Promise<{ success: boolean; orphanedModules?: any[]; count?: number; error?: string }> {
     try {
       const orphanedModules = await prisma.module.findMany({
         where: {
@@ -169,8 +172,9 @@ export class ModuleService {
 
   /**
    * Get module statistics for dashboard
+   * @returns Promise<{ success: boolean; stats?: any; error?: string }>
    */
-  static async getModuleStats() {
+  static async getModuleStats(): Promise<{ success: boolean; stats?: any; error?: string }> {
     try {
       const [
         totalModules,
@@ -212,28 +216,25 @@ export class ModuleService {
 
   /**
    * Update module status and handle orphaned detection
+   * @param moduleId - The ID of the module to update
+   * @param status - New status value
+   * @param progress - Progress percentage (0-100)
+   * @param message - Optional status message
+   * @returns Promise<{ success: boolean; error?: string }>
    */
-  static async updateModuleStatus(moduleId: string, status: string, progress: number, message?: string) {
+  static async updateModuleStatus(
+    moduleId: string, 
+    status: string, 
+    progress: number, 
+    message?: string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       // Update module status
       await DatabaseService.updateModuleStatus(moduleId, status, progress, message)
 
       // If status is 'ready', check if it has steps
       if (status === 'ready') {
-        const module = await prisma.module.findUnique({
-          where: { id: moduleId },
-          include: { steps: true }
-        })
-
-        if (module && module.steps.length === 0) {
-          // Mark as orphaned if no steps
-          await prisma.module.update({
-            where: { id: moduleId },
-            data: { status: 'orphaned', progress: 0 }
-          })
-
-          console.log(`⚠️ Module ${moduleId} marked as orphaned (no steps)`)
-        }
+        await this.checkAndMarkOrphaned(moduleId)
       }
 
       return { success: true }
@@ -245,4 +246,246 @@ export class ModuleService {
       }
     }
   }
+
+  /**
+   * Check if a module is orphaned (ready status but no steps) and mark it accordingly
+   * @param moduleId - The ID of the module to check
+   * @returns Promise<void>
+   */
+  private static async checkAndMarkOrphaned(moduleId: string): Promise<void> {
+    try {
+      const module = await prisma.module.findUnique({
+        where: { id: moduleId },
+        include: { steps: true }
+      })
+
+      if (module && module.steps.length === 0) {
+        // Mark as orphaned if no steps
+        await prisma.module.update({
+          where: { id: moduleId },
+          data: { status: 'orphaned', progress: 0 }
+        })
+
+        console.log(`⚠️ Module ${moduleId} marked as orphaned (no steps)`)
+      }
+    } catch (error) {
+      console.error(`❌ Error checking orphaned status for module ${moduleId}:`, error)
+    }
+  }
+
+  /**
+   * Save AI-generated steps to a module
+   * @param moduleId - The ID of the module to save steps to
+   * @param steps - Array of step data to save (from AI service)
+   * @returns Promise<{ success: boolean; stepCount?: number; createdSteps?: any[]; message?: string; error?: string }>
+   */
+  static async saveStepsToModule(
+    moduleId: string, 
+    steps: Array<{
+      id: string
+      timestamp: number
+      title: string
+      description: string
+      duration: number
+      aliases?: string[]
+      notes?: string
+    }>
+  ): Promise<{ 
+    success: boolean; 
+    stepCount?: number; 
+    createdSteps?: any[]; 
+    message?: string; 
+    error?: string 
+  }> {
+    try {
+      console.log(`💾 [ModuleService] Saving ${steps.length} steps to module ${moduleId}`)
+      
+      // First, delete any existing steps for this module
+      await prisma.step.deleteMany({
+        where: { moduleId: moduleId }
+      })
+      
+      // Create new steps with proper data mapping
+      // Note: Prisma Step model doesn't have aliases/notes fields, so we'll store
+      // the AI-generated ID in the description or create a metadata field later
+      const stepData = steps.map((step, index) => ({
+        moduleId: moduleId,
+        order: index + 1,
+        title: step.title || '',
+        description: step.description || '',
+        timestamp: step.timestamp || 0,
+        duration: step.duration || 0,
+        // TODO: Consider extending the Prisma schema to include:
+        // - aiGeneratedId: String (to preserve the AI-generated ID)
+        // - aliases: String[] (for step variations)
+        // - notes: String (for additional context)
+        // For now, we'll store additional info in the description if needed
+      }))
+      
+      const createdSteps = await prisma.step.createMany({
+        data: stepData
+      })
+      
+      // Fetch the created steps for return data
+      const savedSteps = await prisma.step.findMany({
+        where: { moduleId: moduleId },
+        orderBy: { order: 'asc' }
+      })
+      
+      console.log(`✅ [ModuleService] Successfully saved ${createdSteps.count} steps to module ${moduleId}`)
+      
+      return {
+        success: true,
+        stepCount: createdSteps.count,
+        createdSteps: savedSteps,
+        message: `Saved ${steps.length} steps to module`
+      }
+    } catch (error) {
+      console.error(`❌ [ModuleService] Failed to save steps to module ${moduleId}:`, error)
+      return {
+        success: false,
+        error: 'Failed to save steps to module: ' + (error instanceof Error ? error.message : 'Unknown error')
+      }
+    }
+  }
+
+  /**
+   * Get a module by its ID with optional relations
+   * @param id - The module ID to fetch
+   * @param includeRelations - Whether to include related data (steps, feedbacks, etc.)
+   * @returns Promise<{ success: boolean; module?: any; error?: string }>
+   */
+  static async getModuleById(
+    id: string, 
+    includeRelations: boolean = false
+  ): Promise<{ success: boolean; module?: any; error?: string }> {
+    try {
+      const module = await prisma.module.findUnique({
+        where: { id },
+        include: includeRelations ? {
+          steps: true,
+          feedbacks: true,
+          statuses: true,
+          user: {
+            select: {
+              email: true,
+              clerkId: true
+            }
+          }
+        } : undefined
+      })
+
+      if (!module) {
+        return {
+          success: false,
+          error: 'Module not found'
+        }
+      }
+
+      return {
+        success: true,
+        module
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching module ${id}:`, error)
+      return {
+        success: false,
+        error: 'Failed to fetch module'
+      }
+    }
+  }
+
+  /**
+   * Get steps for a specific module
+   * @param moduleId - The ID of the module to get steps for
+   * @returns Promise<{ success: boolean; steps?: any[]; error?: string }>
+   */
+  static async getModuleSteps(moduleId: string): Promise<{ success: boolean; steps?: any[]; error?: string }> {
+    try {
+      const steps = await prisma.step.findMany({
+        where: { moduleId: moduleId },
+        orderBy: { order: 'asc' }
+      })
+
+      return {
+        success: true,
+        steps
+      }
+    } catch (error) {
+      console.error(`❌ Error fetching steps for module ${moduleId}:`, error)
+      return {
+        success: false,
+        error: 'Failed to fetch module steps'
+      }
+    }
+  }
+
+  /**
+   * Delete a module and all its related data
+   * @param id - The module ID to delete
+   * @returns Promise<{ success: boolean; message?: string; error?: string }>
+   */
+  static async deleteModule(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      // Check if module exists
+      const module = await prisma.module.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: {
+              steps: true,
+              feedbacks: true,
+              questions: true
+            }
+          }
+        }
+      })
+
+      if (!module) {
+        return {
+          success: false,
+          error: 'Module not found'
+        }
+      }
+
+      // Delete the module (cascade will handle related records)
+      await prisma.module.delete({
+        where: { id }
+      })
+
+      console.log(`🗑️ [ModuleService] Deleted module ${id} with ${module._count.steps} steps, ${module._count.feedbacks} feedbacks, ${module._count.questions} questions`)
+
+      return {
+        success: true,
+        message: `Module deleted successfully`
+      }
+    } catch (error) {
+      console.error(`❌ Error deleting module ${id}:`, error)
+      return {
+        success: false,
+        error: 'Failed to delete module'
+      }
+    }
+  }
+
+  /**
+   * Schema Extension Recommendation:
+   * 
+   * To better support AI-generated steps, consider extending the Prisma Step model:
+   * 
+   * ```prisma
+   * model Step {
+   *   // ... existing fields ...
+   *   aiGeneratedId String?  // Preserve AI-generated ID for reference
+   *   aliases      String[]  // Step variations/aliases
+   *   notes        String?   // Additional context from AI
+   *   metadata     Json?     // Flexible metadata storage
+   * }
+   * ```
+   * 
+   * This would allow:
+   * - Better traceability between AI generation and database storage
+   * - Support for step variations and aliases
+   * - Flexible metadata storage for future AI enhancements
+   */
 } 
