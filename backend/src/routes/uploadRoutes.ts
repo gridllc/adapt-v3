@@ -24,10 +24,34 @@ const upload = multer({
 })
 
 // Upload endpoint - NO AUTHENTICATION
-router.post('/', (req, res, next) => {
+router.post('/', (req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.log('Upload route hit')
   next()
-}, upload.single('file'), uploadController.uploadVideo)
+}, upload.single('file'), (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Handle multer errors
+  if (err && err.code && typeof err.code === 'string') {
+    console.error('❌ Multer error:', err)
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ 
+        error: 'File too large',
+        message: 'File size exceeds 200MB limit',
+        code: 'FILE_TOO_LARGE'
+      })
+    }
+    return res.status(400).json({ 
+      error: 'File upload error',
+      message: err.message,
+      code: err.code
+    })
+  } else if (err) {
+    console.error('❌ Upload middleware error:', err)
+    return res.status(500).json({ 
+      error: 'Upload failed',
+      message: err.message || 'Unknown upload error'
+    })
+  }
+  next()
+}, uploadController.uploadVideo)
 
 // TEST ENDPOINT: Manually trigger AI processing for debugging
 router.post('/manual-process', async (req, res) => {
