@@ -90,8 +90,8 @@ GEMINI_API_KEY=AIza...
 # AWS S3
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
-S3_REGION=us-west-1
-S3_BUCKET_NAME=your-bucket-name
+AWS_REGION=us-west-1
+AWS_BUCKET_NAME=your-bucket-name
 
 # Authentication
 CLERK_SECRET_KEY=sk_live...

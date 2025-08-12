@@ -11,10 +11,10 @@ let isS3Enabled = false
 
 try {
   // Use optional chaining and provide fallbacks to prevent build-time errors
-  const awsRegion = process.env.AWS_REGION
+  const awsRegion = process.env.AWS_REGION || process.env.S3_REGION
   const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID
   const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
-  const awsBucketName = process.env.AWS_BUCKET_NAME
+  const awsBucketName = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME
   
   if (awsRegion && awsAccessKeyId && awsSecretAccessKey && awsBucketName) {
     s3Client = new S3Client({
@@ -26,8 +26,16 @@ try {
     })
     isS3Enabled = true
     console.log('✅ S3 client initialized successfully')
+    console.log(`📦 Using bucket: ${awsBucketName}`)
+    console.log(`🌍 Using region: ${awsRegion}`)
   } else {
     console.log('⚠️ S3 credentials not found, using mock storage')
+    console.log('🔍 Missing:', {
+      region: !awsRegion ? 'AWS_REGION/S3_REGION' : 'OK',
+      accessKey: !awsAccessKeyId ? 'AWS_ACCESS_KEY_ID' : 'OK',
+      secretKey: !awsSecretAccessKey ? 'AWS_SECRET_ACCESS_KEY' : 'OK',
+      bucket: !awsBucketName ? 'AWS_BUCKET_NAME/S3_BUCKET_NAME' : 'OK'
+    })
   }
 } catch (error) {
   console.log('⚠️ Failed to initialize S3 client, using mock storage:', error instanceof Error ? error.message : 'Unknown error')
@@ -47,9 +55,9 @@ export const storageService = {
         const key = `videos/${uuidv4()}-${file.originalname}`
         
         // Use optional chaining to prevent build-time errors
-        const bucketName = process.env.AWS_BUCKET_NAME
+        const bucketName = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME
         if (!bucketName) {
-          throw new Error('AWS_BUCKET_NAME not configured')
+          throw new Error('AWS_BUCKET_NAME or S3_BUCKET_NAME not configured')
         }
         
         await s3Client.send(new PutObjectCommand({
@@ -267,11 +275,11 @@ export async function getSignedS3Url(filename: string): Promise<string> {
     if (storageService.isS3Enabled()) {
       console.log('🔗 Generating S3 signed URL for:', filename)
       // Use optional chaining to prevent build-time errors
-      const bucketName = process.env.AWS_BUCKET_NAME
-      const awsRegion = process.env.AWS_REGION
+      const bucketName = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME
+      const awsRegion = process.env.AWS_REGION || process.env.S3_REGION
       
       if (!bucketName || !awsRegion) {
-        throw new Error('AWS configuration incomplete')
+        throw new Error('AWS configuration incomplete (missing bucket or region)')
       }
       
       // For now, return the public S3 URL
