@@ -92,6 +92,21 @@ export const uploadController = {
       const videoUrl = await storageService.uploadVideo(file)
       console.log('✅ Video upload completed:', videoUrl)
 
+      // Generate a signed URL for AI processing to avoid 403 errors
+      let signedVideoUrl = videoUrl
+      if (videoUrl.includes('s3.amazonaws.com')) {
+        try {
+          console.log('🔗 Generating signed URL for AI processing...')
+          const { getPresignedUrl } = await import('../services/s3Uploader.js')
+          const filename = videoUrl.split('/').pop() || file.originalname
+          signedVideoUrl = await getPresignedUrl(filename)
+          console.log('✅ Signed URL generated for AI processing')
+        } catch (signedUrlError) {
+          console.warn('⚠️ Failed to generate signed URL, using public URL:', signedUrlError)
+          // Continue with public URL if signed URL generation fails
+        }
+      }
+
       // Create module data
       const moduleData = {
         title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
@@ -146,7 +161,7 @@ export const uploadController = {
 
         // 3. Start AI processing in background (don't await - let it run async)
         console.log('🧠 Starting AI processing in background...')
-        aiService.generateStepsForModule(moduleId, videoUrl)
+        aiService.generateStepsForModule(moduleId, signedVideoUrl)
           .then(async (steps) => {
             console.log(`✅ AI processing completed for ${moduleId}, generated ${steps?.length || 0} steps`)
             
