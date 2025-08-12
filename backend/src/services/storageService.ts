@@ -16,7 +16,14 @@ try {
   const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
   const awsBucketName = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET_NAME
   
+  console.log('🔍 S3 Configuration Check:')
+  console.log('  Region:', awsRegion ? `✅ ${awsRegion}` : '❌ MISSING')
+  console.log('  Access Key:', awsAccessKeyId ? `✅ ${awsAccessKeyId.substring(0, 8)}...` : '❌ MISSING')
+  console.log('  Secret Key:', awsSecretAccessKey ? `✅ ${awsSecretAccessKey.substring(0, 4)}...` : '❌ MISSING')
+  console.log('  Bucket:', awsBucketName ? `✅ ${awsBucketName}` : '❌ MISSING')
+  
   if (awsRegion && awsAccessKeyId && awsSecretAccessKey && awsBucketName) {
+    console.log('🚀 All S3 credentials found, initializing client...')
     s3Client = new S3Client({
       region: awsRegion,
       credentials: {
@@ -39,12 +46,19 @@ try {
   }
 } catch (error) {
   console.log('⚠️ Failed to initialize S3 client, using mock storage:', error instanceof Error ? error.message : 'Unknown error')
+  console.log('💥 Full error:', error)
 }
 
 export const storageService = {
   // Check if S3 is available
   isS3Enabled() {
-    return isS3Enabled && s3Client !== null
+    const enabled = isS3Enabled && s3Client !== null
+    console.log('🔍 isS3Enabled() check:', {
+      isS3Enabled,
+      s3ClientExists: s3Client !== null,
+      result: enabled
+    })
+    return enabled
   },
 
   // Videos go to S3 (unlimited storage) or mock storage

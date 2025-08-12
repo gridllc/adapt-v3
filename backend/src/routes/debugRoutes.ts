@@ -325,4 +325,50 @@ router.get('/env', (req, res) => {
   }
 })
 
+// S3 Debug - Shows S3 configuration specifically
+router.get('/s3', (req, res) => {
+  try {
+    console.log('[TEST] 🔍 S3 debug requested')
+    
+    const s3Debug = {
+      // What your code expects:
+      aws: {
+        bucket: process.env.AWS_BUCKET_NAME || 'MISSING',
+        region: process.env.AWS_REGION || 'MISSING',
+        accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
+        secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
+      },
+      
+      // Alternative names that might be in Render:
+      s3: {
+        bucket: process.env.S3_BUCKET_NAME || 'MISSING',
+        region: process.env.S3_REGION || 'MISSING',
+      },
+      
+      // Analysis
+      analysis: {
+        hasAllRequired: !!(process.env.AWS_BUCKET_NAME && process.env.AWS_REGION && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
+        hasAlternativeNames: !!(process.env.S3_BUCKET_NAME || process.env.S3_REGION),
+        missing: [
+          !process.env.AWS_BUCKET_NAME && !process.env.S3_BUCKET_NAME && 'BUCKET_NAME',
+          !process.env.AWS_REGION && !process.env.S3_REGION && 'REGION',
+          !process.env.AWS_ACCESS_KEY_ID && 'ACCESS_KEY_ID',
+          !process.env.AWS_SECRET_ACCESS_KEY && 'SECRET_ACCESS_KEY'
+        ].filter(Boolean)
+      }
+    }
+    
+    console.log(`[TEST] 🔍 S3 config analysis:`, s3Debug.analysis)
+    
+    res.json(s3Debug)
+    
+  } catch (error: any) {
+    console.error('[TEST] ❌ S3 debug failed:', error.message)
+    res.status(500).json({ 
+      error: 'S3 debug failed', 
+      details: error.message 
+    })
+  }
+})
+
 export { router as debugRoutes } 
