@@ -6,7 +6,12 @@ import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 import { API_ENDPOINTS } from '../../config/api'
 
 export const UploadManager: React.FC = () => {
-  const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
+  const { uploads, addUpload, updateProgress, markSuccess, markError, startUpload } = useUploadStore()
+
+  // Check if any uploads are in progress
+  const hasActiveUploads = Object.values(uploads).some(upload => upload.status === 'uploading')
+  const hasQueuedUploads = Object.values(uploads).some(upload => upload.status === 'queued')
+  const isUploading = hasActiveUploads || hasQueuedUploads
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     console.log('Files dropped:', acceptedFiles)
@@ -28,6 +33,9 @@ export const UploadManager: React.FC = () => {
         // Start upload - USE DIRECT URL (bypasses proxy)
         try {
           console.log('Starting upload...')
+          
+          // Start the upload status
+          startUpload(uploadId)
           
           const response = await uploadWithProgress({
             file,
@@ -57,7 +65,7 @@ export const UploadManager: React.FC = () => {
         console.error('File processing error:', error)
       }
     }
-  }, [addUpload, updateProgress, markSuccess, markError])
+  }, [addUpload, updateProgress, markSuccess, markError, startUpload])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -81,20 +89,32 @@ export const UploadManager: React.FC = () => {
       {/* Drop Zone */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-          isDragActive
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-gray-300 hover:border-gray-400'
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          isUploading 
+            ? 'border-gray-300 bg-gray-50 cursor-not-allowed opacity-50'
+            : isDragActive
+            ? 'border-blue-500 bg-blue-50 cursor-pointer'
+            : 'border-gray-300 hover:border-gray-400 cursor-pointer'
         }`}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} disabled={isUploading} />
         <div className="space-y-2">
-          <div className="text-2xl">📹</div>
+          <div className="text-2xl">
+            {isUploading ? '⏳' : '📹'}
+          </div>
           <p className="text-lg font-medium text-gray-900">
-            {isDragActive ? 'Drop the video here' : 'Drag & drop video here'}
+            {isUploading 
+              ? 'Upload in progress...' 
+              : isDragActive 
+              ? 'Drop the video here' 
+              : 'Drag & drop video here'
+            }
           </p>
           <p className="text-sm text-gray-500">
-            or click to select a file (MP4, WebM, AVI, MOV, max 200MB)
+            {isUploading 
+              ? 'Please wait for current uploads to complete'
+              : 'or click to select a file (MP4, WebM, AVI, MOV, max 200MB)'
+            }
           </p>
         </div>
       </div>
@@ -103,6 +123,25 @@ export const UploadManager: React.FC = () => {
       {Object.keys(uploads).length > 0 && (
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
+          
+          {/* Upload Status Summary */}
+          {isUploading && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
+                <span className="text-sm font-medium text-blue-800">
+                  {hasActiveUploads ? 'Uploading...' : 'Preparing upload...'}
+                </span>
+              </div>
+              <p className="text-xs text-blue-600 mt-1">
+                {hasActiveUploads 
+                  ? 'Your video is being uploaded to our servers'
+                  : 'Getting ready to upload your video'
+                }
+              </p>
+            </div>
+          )}
+          
           {Object.entries(uploads).map(([id, upload]) => (
             <UploadItem key={id} id={id} upload={upload} />
           ))}

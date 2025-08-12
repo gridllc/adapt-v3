@@ -40,6 +40,7 @@ interface UploadState {
   markError: (id: string, error: Error) => void
   cancelUpload: (id: string) => void
   retryUpload: (id: string) => void
+  startUpload: (id: string) => void
   
   // Getters
   getUpload: (id: string) => UploadEntry | undefined
@@ -136,6 +137,28 @@ export const useUploadStore = create<UploadState>()(
           })
 
           return { uploads: newUploads }
+        })
+      },
+
+      startUpload: (id: string) => {
+        set((state) => {
+          const upload = state.uploads.get(id)
+          if (!upload) return state
+
+          const newUploads = new Map(state.uploads)
+          newUploads.set(id, {
+            ...upload,
+            status: 'uploading',
+            startedAt: new Date()
+          })
+
+          const newActiveUploads = new Set(state.activeUploads)
+          newActiveUploads.add(id)
+
+          return { 
+            uploads: newUploads,
+            activeUploads: newActiveUploads
+          }
         })
       },
 

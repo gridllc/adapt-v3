@@ -46,7 +46,44 @@ export const uploadController = {
         console.error('❌ File too small, likely corrupted:', file.size)
         return res.status(400).json({ 
           error: 'File appears to be corrupted or incomplete',
-          size: file.size 
+          userMessage: 'The uploaded file is too small and appears to be corrupted. Please try uploading the video again.',
+          size: file.size,
+          code: 'FILE_CORRUPTED'
+        })
+      }
+
+      // Check if file is unreasonably large (likely corrupted)
+      if (file.size > 500 * 1024 * 1024) { // More than 500MB
+        console.error('❌ File too large, likely corrupted:', file.size)
+        return res.status(400).json({ 
+          error: 'File size exceeds reasonable limits',
+          userMessage: 'The uploaded file is unusually large and may be corrupted. Please check the file and try again.',
+          size: file.size,
+          maxSize: '500MB',
+          code: 'FILE_TOO_LARGE'
+        })
+      }
+
+      // Check if buffer is valid
+      if (!file.buffer || file.buffer.length === 0) {
+        console.error('❌ File buffer is empty or invalid')
+        return res.status(400).json({ 
+          error: 'File buffer is empty or invalid',
+          userMessage: 'The uploaded file could not be read properly. Please try uploading the video again.',
+          bufferLength: file.buffer?.length || 0,
+          code: 'FILE_BUFFER_INVALID'
+        })
+      }
+
+      // Check if buffer size matches file size
+      if (file.buffer.length !== file.size) {
+        console.error('❌ Buffer size mismatch:', { bufferLength: file.buffer.length, fileSize: file.size })
+        return res.status(400).json({ 
+          error: 'File size mismatch detected',
+          userMessage: 'The uploaded file appears to be incomplete. Please try uploading the video again.',
+          bufferLength: file.buffer.length,
+          fileSize: file.size,
+          code: 'FILE_SIZE_MISMATCH'
         })
       }
 
@@ -84,7 +121,9 @@ export const uploadController = {
         console.error('❌ S3 file verification failed:', error)
         return res.status(500).json({ 
           error: 'S3 upload verification failed',
-          message: 'File uploaded but not accessible for processing'
+          userMessage: 'Your video was uploaded but we cannot verify it is accessible. Please try uploading again or contact support if the problem persists.',
+          technicalDetails: error instanceof Error ? error.message : 'Unknown error',
+          code: 'S3_VERIFICATION_FAILED'
         })
       }
 
@@ -144,6 +183,26 @@ export const uploadController = {
         console.error('⚠️ AI processing setup failed, but upload succeeded:', processingError)
         // Don't fail the upload if AI processing setup fails
         // The user can still view the video, just without AI-generated steps
+        
+        // Update module status to indicate AI processing failed
+        try {
+          await ModuleService.updateModuleStatus(moduleId, 'failed', 0, `AI processing setup failed: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`)
+        } catch (statusError) {
+          console.error('❌ Failed to update module status after AI processing failure:', statusError)
+        }
+        
+        // Return success but with warning about AI processing
+        const response = {
+          success: true,
+          moduleId: moduleId,
+          videoUrl: videoUrl,
+          steps: moduleData.steps,
+          status: 'completed_without_ai',
+          message: 'Video uploaded successfully, but AI processing could not be started. You can still view the video.',
+          warning: 'AI-generated steps are not available for this video.',
+          code: 'AI_PROCESSING_SETUP_FAILED'
+        }
+        return res.json(response)
       }
 
       const response = {
@@ -162,10 +221,32 @@ export const uploadController = {
       console.error('💥 Upload controller error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       const errorStack = error instanceof Error ? error.stack : undefined
+      
+      // Provide user-friendly error messages based on error type
+      let userMessage = 'An unexpected error occurred during upload. Please try again.'
+      let errorCode = 'UNKNOWN_ERROR'
+      
+      if (errorMessage.includes('ENOENT') || errorMessage.includes('no such file')) {
+        userMessage = 'The upload system encountered a file system error. Please try uploading again.'
+        errorCode = 'FILE_SYSTEM_ERROR'
+      } else if (errorMessage.includes('permission') || errorMessage.includes('access denied')) {
+        userMessage = 'The upload system does not have permission to process your file. Please contact support.'
+        errorCode = 'PERMISSION_ERROR'
+      } else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+        userMessage = 'The upload took too long and timed out. Please try uploading a smaller file or check your internet connection.'
+        errorCode = 'TIMEOUT_ERROR'
+      } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
+        userMessage = 'A network error occurred during upload. Please check your internet connection and try again.'
+        errorCode = 'NETWORK_ERROR'
+      }
+      
       res.status(500).json({ 
         error: 'Upload failed',
-        message: errorMessage,
-        stack: errorStack 
+        userMessage: userMessage,
+        technicalDetails: errorMessage,
+        errorCode: errorCode,
+        timestamp: new Date().toISOString(),
+        ...(process.env.NODE_ENV === 'development' && { stack: errorStack })
       })
     }
   },
