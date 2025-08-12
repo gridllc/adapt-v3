@@ -476,4 +476,51 @@ router.get('/s3-env', (req, res) => {
   }
 })
 
+// Check specific module status
+router.get('/module/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    console.log(`[TEST] 🔍 Checking module status for: ${id}`)
+    
+    // Import storageService to check module
+    const { storageService } = await import('../services/storageService.js')
+    
+    const module = await storageService.getModule(id)
+    
+    if (!module) {
+      console.log(`[TEST] ❌ Module ${id} not found`)
+      return res.status(404).json({ 
+        error: 'Module not found',
+        moduleId: id,
+        timestamp: new Date().toISOString()
+      })
+    }
+    
+    console.log(`[TEST] ✅ Module ${id} found:`, {
+      status: module.status,
+      progress: module.progress,
+      steps: module.steps?.length || 0,
+      videoUrl: module.videoUrl
+    })
+    
+    res.json({
+      moduleId: id,
+      status: module.status,
+      progress: module.progress,
+      steps: module.steps || [],
+      videoUrl: module.videoUrl,
+      createdAt: module.createdAt,
+      updatedAt: module.updatedAt,
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error: any) {
+    console.error('[TEST] ❌ Module check failed:', error.message)
+    res.status(500).json({ 
+      error: 'Module check failed', 
+      details: error.message 
+    })
+  }
+})
+
 export { router as debugRoutes } 
