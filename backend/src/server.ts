@@ -209,6 +209,7 @@ const configureRoutes = () => {
   app.use('/api/video-url', videoRoutes)
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
+  app.use('/api/steps', stepsRoutes)  // ✅ ADD THIS - Fixes 404 for /api/steps/:moduleId
   app.use('/api/reprocess', reprocessRoutes)
   app.use('/api/qa', qaRoutes)
   app.use('/api/worker', workerRoutes)
@@ -260,6 +261,7 @@ const configureRoutes = () => {
         upload: '/api/upload',
         modules: '/api/modules',
         ai: '/api/ai',
+        steps: '/api/steps/:moduleId',  // ✅ ADD THIS
         status: '/api/status/:moduleId'
       },
       frontend: 'https://adapt-v3.vercel.app',
