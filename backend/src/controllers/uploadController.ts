@@ -91,11 +91,11 @@ export const uploadController = {
       const videoUrl = await storageService.uploadVideo(file)
       console.log('✅ Video upload completed:', videoUrl)
 
-      // Generate a signed URL for AI processing to avoid 403 errors
-      let signedVideoUrl = videoUrl
+      // Extract S3 key from the URL for storage and AI processing
+      let s3Key = videoUrl
       if (videoUrl.includes('s3.amazonaws.com')) {
         try {
-          console.log('🔗 Generating signed URL for AI processing...')
+          console.log('🔗 Extracting S3 key from URL...')
           console.log('🔗 Original video URL:', videoUrl)
           
           // Extract the full S3 key from the URL (including videos/ prefix and UUID)
@@ -103,54 +103,24 @@ export const uploadController = {
           console.log('🔗 URL parts:', urlParts)
           
           if (urlParts.length > 1) {
-            const s3Key = urlParts[1] // This will be "videos/uuid-filename.mp4"
-            console.log('🔑 S3 Key for signed URL:', s3Key)
-            
-            // Use the working S3 client from storageService
-            const { storageService } = await import('../services/storageService.js')
-            if (!storageService.isS3Enabled()) {
-              throw new Error('S3 not enabled in storageService')
-            }
-            
-            // Get the S3 client from storageService (this is the working one)
-            const s3Client = (storageService as any).s3Client
-            if (!s3Client) {
-              throw new Error('S3 client not available in storageService')
-            }
-            
-            console.log('🔗 Using S3 client from storageService for signed URL generation')
-            const { GetObjectCommand } = await import('@aws-sdk/client-s3')
-            const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
-            
-            const command = new GetObjectCommand({
-              Bucket: process.env.AWS_BUCKET_NAME,
-              Key: s3Key
-            })
-            
-            signedVideoUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 })
-            console.log('✅ Signed URL generated for AI processing')
-            console.log('🔗 Signed URL preview:', signedVideoUrl.substring(0, 100) + '...')
+            s3Key = urlParts[1] // This will be "videos/uuid-filename.mp4"
+            console.log('🔑 S3 Key extracted:', s3Key)
           } else {
             throw new Error('Could not extract S3 key from URL')
           }
-        } catch (signedUrlError) {
-          console.error('❌ Failed to generate signed URL:', signedUrlError)
-          console.error('❌ Signed URL error details:', {
-            message: signedUrlError instanceof Error ? signedUrlError.message : 'Unknown error',
-            stack: signedUrlError instanceof Error ? signedUrlError.stack : 'No stack trace'
-          })
-          console.warn('⚠️ Using public URL for AI processing (may cause 403 errors)')
-          // Continue with public URL if signed URL generation fails
+        } catch (keyError) {
+          console.error('❌ Failed to extract S3 key:', keyError)
+          console.warn('⚠️ Using full URL as key (fallback)')
         }
       } else {
-        console.log('🔗 Not an S3 URL, skipping signed URL generation')
+        console.log('🔗 Not an S3 URL, using full URL as key')
       }
 
       // Create module data
       const moduleData = {
         title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
         filename: file.originalname,
-        videoUrl: videoUrl,
+        videoUrl: s3Key, // Store S3 key instead of full URL
       }
 
       // Save module using storageService (database or mock)
@@ -199,9 +169,9 @@ export const uploadController = {
           moduleId: moduleId,
           moduleIdType: typeof moduleId,
           isMock: moduleId.startsWith('mock_module_'),
-          videoUrl: signedVideoUrl ? 'SET' : 'MISSING'
+          videoUrl: s3Key ? 'SET' : 'MISSING'
         })
-        aiService.generateStepsForModule(moduleId, signedVideoUrl)
+        aiService.generateStepsForModule(moduleId, s3Key)
           .then(async (result) => {
             console.log(`✅ AI processing completed for ${moduleId}, generated ${result.steps?.length || 0} steps`)
             
@@ -236,7 +206,7 @@ export const uploadController = {
         const response = {
           success: true,
           moduleId: moduleId,
-          videoUrl: videoUrl,
+          videoUrl: s3Key, // Return S3 key instead of full URL
           steps: [], // No steps available yet
           status: 'completed_without_ai',
           message: 'Video uploaded successfully, but AI processing could not be started. You can still view the video.',
@@ -249,7 +219,7 @@ export const uploadController = {
       const response = {
         success: true,
         moduleId: moduleId,
-        videoUrl: videoUrl,
+        videoUrl: s3Key, // Return S3 key instead of full URL
         steps: [], // Steps will be generated by AI
         status: 'processing', // Indicate that AI processing is happening
         message: 'Video uploaded successfully. AI processing started...'

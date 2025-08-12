@@ -1,5 +1,6 @@
 // backend/src/services/storageService.ts
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { PrismaClient } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
 import { uploadToS3, getPresignedUrl } from './s3Uploader.js'
@@ -69,6 +70,30 @@ export const storageService = {
       result: enabled
     })
     return enabled
+  },
+
+  // Generate signed URL for reading S3 objects
+  async generateSignedUrl(key: string, expiresIn = 900): Promise<string> {
+    try {
+      if (!this.isS3Enabled() || !s3Client) {
+        console.log('📁 S3 not configured, returning local URL for:', key)
+        return `http://localhost:8000/uploads/${key}`
+      }
+
+      console.log('🔗 Generating S3 signed URL for:', key)
+      const bucketName = process.env.AWS_BUCKET_NAME
+      if (!bucketName) throw new Error('Missing bucket')
+
+      const command = new GetObjectCommand({ Bucket: bucketName, Key: key })
+      const url = await getSignedUrl(s3Client, command, { expiresIn }) // seconds
+
+      console.log('✅ Signed URL generated successfully')
+      return url
+    } catch (err) {
+      console.error('❌ Failed to generate signed URL:', err)
+      // Fallback to local URL
+      return `http://localhost:8000/uploads/${key}`
+    }
   },
 
   // Videos go to S3 (unlimited storage) or mock storage

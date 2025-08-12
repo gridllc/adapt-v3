@@ -124,6 +124,7 @@ let fallbackCount = 0
 const FALLBACK_LIMIT = 5
 
 // Enqueue job to QStash with retry logic
+// videoUrl can be either an S3 key (e.g., "videos/abc.mp4") or full URL for backward compatibility
 export async function enqueueProcessVideoJob({ moduleId, videoUrl }: { moduleId: string; videoUrl: string }) {
   if (!QSTASH_TOKEN || !QSTASH_WORKER_URL) {
     console.warn('⚠️ QStash not configured - falling back to immediate processing')
@@ -190,6 +191,7 @@ export async function enqueueProcessVideoJob({ moduleId, videoUrl }: { moduleId:
 }
 
 // Process video job (called by QStash worker)
+// videoUrl can be either an S3 key (e.g., "videos/abc.mp4") or full URL for backward compatibility
 export async function processVideoJob(jobData: { moduleId: string; videoUrl: string }) {
   const { moduleId, videoUrl } = jobData
   

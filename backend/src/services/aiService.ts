@@ -7,9 +7,9 @@ export const aiService = {
   /**
    * Full pipeline to generate steps from a video and save them to the module.
    * @param moduleId - ID of the module in DB
-   * @param videoUrl - Signed/public S3 video URL
+   * @param videoKey - S3 key (e.g., "videos/abc.mp4") or full URL for backward compatibility
    */
-  async generateStepsForModule(moduleId: string, videoUrl: string): Promise<VideoProcessingResult> {
+  async generateStepsForModule(moduleId: string, videoKey: string): Promise<VideoProcessingResult> {
     console.log(`🤖 [AI Service] Starting step generation for module: ${moduleId}`)
     
     // Safety check: Verify module exists and is not a mock ID
@@ -26,7 +26,7 @@ export const aiService = {
       console.log(`✅ Module verified in database: ${moduleId}`)
       
       await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI analysis...')
-      const result = await generateStepsFromVideo(videoUrl, moduleId)
+      const result = await generateStepsFromVideo(videoKey, moduleId)
       await ModuleService.saveStepsToModule(moduleId, result.steps)
       await ModuleService.updateModuleStatus(moduleId, 'ready', 100, 'AI processing complete!')
       return result

@@ -8,6 +8,7 @@ const envSchema = z.object({
     .union([z.string(), z.number()])
     .transform((val) => typeof val === 'string' ? parseInt(val, 10) : val)
     .default(8000),
+  API_BASE_URL: z.string().url().optional(),
   
   // Database (Critical)
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
@@ -149,6 +150,7 @@ export const getMaxFileSize = () => config?.MAX_FILE_SIZE || 209715200
 export const getAllowedVideoTypes = () => config?.ALLOWED_VIDEO_TYPES?.split(',').map(t => t.trim()) || ['video/mp4', 'video/mov', 'video/webm']
 export const getUploadTimeout = () => config?.UPLOAD_TIMEOUT || 300000
 export const isCompressionEnabled = () => config?.ENABLE_FILE_COMPRESSION !== false
+export const getApiBaseUrl = () => config?.API_BASE_URL || 'http://localhost:8000'
 
 export const getAllowedEmails = (): string[] => {
   return config?.ALLOWED_EMAILS

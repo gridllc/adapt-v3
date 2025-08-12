@@ -26,6 +26,7 @@ import { requireAuth, optionalAuth } from './middleware/auth.js'
 import { testAuthRoutes } from './routes/testAuth.js'
 import { debugRoutes } from './routes/debugRoutes.js'
 import healthRoutes from './routes/healthRoutes.js'
+import { storageRoutes } from './routes/storageRoutes.js'
 import { processVideoJob } from './services/qstashQueue.js'
 
 // Import QStash queue to ensure it's initialized
@@ -214,6 +215,7 @@ const configureRoutes = () => {
   app.use('/api/qa', qaRoutes)
   app.use('/api/worker', workerRoutes)
   app.use('/api/share', shareRoutes)
+  app.use('/api/storage', storageRoutes)
   
   // QStash webhook endpoint for processing video steps
   app.post('/api/process-steps', async (req, res) => {
