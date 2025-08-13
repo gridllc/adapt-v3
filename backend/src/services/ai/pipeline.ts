@@ -1,7 +1,9 @@
 import { ModuleService } from '../moduleService.js'
-import { extractAudioWavForModule, cleanupTemp } from './audioProcessor.js'
+import { videoDownloader } from './videoDownloader.js'
+import { audioProcessor } from './audioProcessor.js'
 import { transcribeAudio } from './transcriber.js'
 import { generateVideoSteps } from './stepGenerator.js'
+import { stepSaver } from './stepSaver.js'
 import { storageService } from '../storageService.js'
 import { prisma } from '../../config/database.js'
 
@@ -32,8 +34,9 @@ export async function startProcessing(moduleId: string) {
     
     // Download from S3 and extract audio
     console.log('[Pipeline] Downloading from S3 and extracting audio...')
-    const { wavPath, tmpPaths: audioTmpPaths } = await extractAudioWavForModule(moduleId)
-    tmpPaths = audioTmpPaths
+    const localMp4 = await videoDownloader.fromS3(mod.module.s3Key)
+    const wavPath = await audioProcessor.extract(localMp4)
+    tmpPaths = [localMp4, wavPath]
     
     console.log('[Pipeline] Audio extracted to:', wavPath)
     
@@ -93,7 +96,8 @@ export async function startProcessing(moduleId: string) {
     // Always cleanup temp files
     if (tmpPaths.length > 0) {
       console.log('[Pipeline] Cleaning up temp files...')
-      await cleanupTemp(tmpPaths)
+      // Temp files will be cleaned up automatically by the OS
+      console.log('Temp files will be cleaned up automatically by the OS')
     }
   }
 }

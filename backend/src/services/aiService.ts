@@ -1,4 +1,4 @@
-import { generateStepsFromVideo, VideoProcessingResult } from './ai/aiPipeline.js'
+import { aiPipeline } from './ai/aiPipeline.js'
 import { ModuleService } from './moduleService.js'
 import { rewriteStepsWithGPT } from '../utils/transcriptFormatter.js'
 
@@ -22,7 +22,7 @@ export const aiService = {
    * @param moduleId - ID of the module in DB
    * @param videoKey - S3 key (e.g., "videos/abc.mp4") or full URL for backward compatibility
    */
-  async generateStepsForModule(moduleId: string, videoKey: string): Promise<VideoProcessingResult> {
+  async generateStepsForModule(moduleId: string, videoKey: string): Promise<void> {
     console.log(`🤖 [AI Service] Starting step generation for module: ${moduleId}`)
     
     // Safety check: Verify module exists and is not a mock ID
@@ -38,11 +38,8 @@ export const aiService = {
       }
       console.log(`✅ Module verified in database: ${moduleId}`)
       
-      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Starting AI analysis...')
-      const result = await generateStepsFromVideo(videoKey, moduleId)
-      await ModuleService.saveStepsToModule(moduleId, result.steps)
-      await ModuleService.updateModuleStatus(moduleId, 'READY', 100, 'AI processing complete!')
-      return result
+      // Use the new pipeline
+      await aiPipeline.processModule(moduleId)
     } catch (err) {
       await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, 'AI processing failed')
       throw new Error(`Step generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -52,8 +49,8 @@ export const aiService = {
   /**
    * Process video without module context (for testing/development)
    */
-  async processVideo(videoKey: string): Promise<VideoProcessingResult> {
-    return await generateStepsFromVideo(videoKey)
+  async processVideo(videoKey: string): Promise<void> {
+    throw new Error('processVideo without moduleId is no longer supported. Use generateStepsForModule instead.')
   },
 
   /**
@@ -151,6 +148,5 @@ export const aiService = {
 }
 
 // Re-export types for convenience
-export type { VideoProcessingResult } from './ai/aiPipeline.js'
 export type { Step } from './ai/types.js'
 export type { TranscriptionResult } from './ai/transcriber.js'

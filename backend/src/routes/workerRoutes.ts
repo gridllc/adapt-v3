@@ -1,5 +1,5 @@
 import express from 'express'
-import { processVideoJob } from '../services/qstashQueue.js'
+import { startProcessing } from '../services/ai/pipeline.js'
 import crypto from 'crypto'
 
 const router = express.Router()
@@ -44,7 +44,7 @@ router.post('/process-video', async (req, res) => {
     console.log(`🎬 [${moduleId}] Starting video processing via QStash worker`)
     
     // Process the video job
-    await processVideoJob({ moduleId, videoUrl })
+    await startProcessing(moduleId)
     
     console.log(`✅ [${moduleId}] Video processing completed successfully`)
     
@@ -83,7 +83,7 @@ router.post('/internal/qstash-process', async (req, res) => {
     console.log(`🎬 [${moduleId}] Starting video processing via QStash worker (internal)`)
     
     // Process the video job
-    await processVideoJob({ moduleId, videoUrl })
+    await startProcessing(moduleId)
     
     console.log(`✅ [${moduleId}] Video processing completed successfully`)
     

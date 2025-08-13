@@ -2,6 +2,7 @@ import { Request, Response } from 'express'
 import { ModuleService } from '../services/moduleService.js'
 import { storageService } from '../services/storageService.js'
 import { startProcessing } from '../services/ai/pipeline.js'
+import { enqueueProcessModule, processModuleDirectly } from '../services/qstashQueue.js'
 import { v4 as uuidv4 } from 'uuid'
 
 export const uploadController = {
@@ -155,7 +156,34 @@ export const uploadController = {
       queueMicrotask(async () => {
         try {
           console.log('[Upload] Auto-enqueue processing for', savedModuleId)
-          await startProcessing(savedModuleId)
+          
+          // mark as processing
+          await ModuleService.updateModuleStatus(savedModuleId, 'PROCESSING', 0, 'Starting AI processing...')
+          
+          // try queue first if present
+          try {
+            if (process.env.QSTASH_TOKEN) {
+              const jobId = await enqueueProcessModule(savedModuleId)
+              console.log('📬 Enqueued processing job', { moduleId: savedModuleId, jobId })
+            } else {
+              // fallback: run in-process so it's always automatic
+              setImmediate(() =>
+                startProcessing(savedModuleId).catch(async (e: any) => {
+                  console.error('bg processing failed', e)
+                  await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${e?.message ?? String(e)}`)
+                })
+              )
+            }
+          } catch (e: any) {
+            console.error('enqueue failed, running inline', e?.message)
+            setImmediate(() =>
+              startProcessing(savedModuleId).catch(async (err: any) => {
+                console.error('bg processing failed', err)
+                await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${err?.message ?? String(err)}`)
+              })
+            )
+          }
+          
         } catch (err) {
           console.error('Auto-enqueue failed:', err)
           // Update module status to failed if processing fails

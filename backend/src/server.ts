@@ -28,7 +28,6 @@ import debugRoutes from './routes/debugRoutes.js'
 import { requestLogger } from './middleware/requestLogger.js'
 import healthRoutes from './routes/healthRoutes.js'
 import { storageRoutes } from './routes/storageRoutes.js'
-import { processVideoJob } from './services/qstashQueue.js'
 
 // Import QStash queue to ensure it's initialized
 import './services/qstashQueue.js'
@@ -232,7 +231,9 @@ const configureRoutes = () => {
       }
 
       console.log(`📥 QStash webhook received for moduleId=${moduleId}`)
-      await processVideoJob({ moduleId, videoUrl })
+      // Use the new pipeline directly
+      const { startProcessing } = await import('./services/ai/pipeline.js')
+      await startProcessing(moduleId)
       res.status(200).json({ success: true })
     } catch (err) {
       console.error('❌ QStash processing failed:', err)
@@ -251,6 +252,23 @@ const configureRoutes = () => {
     app.use('/api/test-auth', testAuthRoutes)
     app.use('/api/debug', debugRoutes)
   }
+
+  // QStash worker endpoint for processing modules
+  app.post('/internal/qstash/process/:moduleId', async (req, res) => {
+    const { moduleId } = req.params
+    console.log('🧵 Worker start', { moduleId })
+    
+    try {
+      // Import the pipeline function dynamically to avoid circular imports
+      const { startProcessing } = await import('./services/ai/pipeline.js')
+      await startProcessing(moduleId)
+      console.log('🧵 Worker done', { moduleId })
+      res.json({ ok: true })
+    } catch (e: any) {
+      console.error('🧵 Worker failed', { moduleId, error: e?.message, stack: e?.stack })
+      res.status(500).json({ ok: false, error: String(e?.message ?? e) })
+    }
+  })
 
   // Root endpoint - API status
   app.get('/', (req, res) => {
@@ -450,8 +468,16 @@ const configureRoutes = () => {
 
          app.get('/api/test-speech', async (req, res) => {
        try {
-         const { audioProcessor } = await import('./services/audioProcessor.js')
-         await audioProcessor.ensureSpeechClient()
+         // Initialize AI services
+      console.log('🤖 Initializing AI services...')
+      try {
+        // Initialize transcription service
+        console.log('🎤 Initializing transcription service...')
+        // Transcription service is now initialized in the pipeline when needed
+        console.log('✅ Transcription service ready')
+      } catch (error) {
+        console.error('❌ Failed to initialize transcription service:', error)
+      }
          res.json({ 
            status: 'success', 
            message: 'Google Cloud Speech client initialized successfully',

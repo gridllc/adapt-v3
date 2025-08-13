@@ -1,32 +1,26 @@
-import fs from 'node:fs'
-import fsp from 'node:fs/promises'
-import path from 'node:path'
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
 
-const TEMP_DIR = process.env.TEMP_DIR || '/app/temp'
-const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'us-west-1',
-  credentials: process.env.AWS_ACCESS_KEY_ID
-    ? { accessKeyId: process.env.AWS_ACCESS_KEY_ID!, secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY! }
-    : undefined
-})
+const s3 = new S3Client({ region: process.env.AWS_REGION! })
+const bucket = process.env.AWS_BUCKET_NAME!
 
-async function ensureTempDir() {
-  await fsp.mkdir(TEMP_DIR, { recursive: true })
+export const videoDownloader = {
+  async fromS3(key: string): Promise<string> {
+    const local = join(tmpdir(), `${randomUUID()}.mp4`)
+    const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
+    if (!res.Body) throw new Error('Empty S3 body')
+    await pipeline(res.Body as any, createWriteStream(local))
+    return local
+  },
 }
 
+// Keep the old functions for backward compatibility
 export async function s3DownloadToTemp(key: string, fileName: string): Promise<string> {
-  await ensureTempDir()
-  const outPath = path.join(TEMP_DIR, fileName)
-  const res = await s3.send(new GetObjectCommand({ Bucket: process.env.AWS_BUCKET_NAME!, Key: key }))
-  if (!res.Body) throw new Error(`S3 getObject empty: ${key}`)
-  await new Promise<void>((resolve, reject) => {
-    const ws = fs.createWriteStream(outPath)
-    ;(res.Body as any).pipe(ws)
-    ws.on('finish', () => resolve())
-    ws.on('error', reject)
-  })
-  return outPath
+  return videoDownloader.fromS3(key)
 }
 
 export function inferS3KeyForModule(opts: { id: string, s3Key?: string | null, videoUrl?: string | null }) {
