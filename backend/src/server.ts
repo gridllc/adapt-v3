@@ -58,6 +58,14 @@ const validateEnvironment = () => {
   console.log(`🤖 OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`)
   console.log(`🔮 GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET'}`)
   
+  // Ensure temp directory exists for S3-first pipeline
+  const tempDir = process.env.TEMP_DIR || '/app/temp'
+  if (!fs.existsSync(tempDir)) {
+    console.log(`📁 Creating temp directory: ${tempDir}`)
+    fs.mkdirSync(tempDir, { recursive: true })
+  }
+  console.log(`📁 Temp directory ready: ${tempDir}`)
+  
   // Check for critical environment variables
   const missingCritical = []
   const missingOptional = []

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express'
-import { ModuleStatus } from '@prisma/client'
+import { ModuleService } from '../services/moduleService.js'
 import { storageService } from '../services/storageService.js'
 import { aiService } from '../services/aiService.js'
-import { ModuleService } from '../services/moduleService.js'
+import { processVideoJob } from '../services/qstashQueue.js'
 import { v4 as uuidv4 } from 'uuid'
 
 export const uploadController = {
@@ -146,7 +146,7 @@ export const uploadController = {
         // 1. Update module status to processing
         console.log('🔄 Updating module status to processing...')
         try {
-          await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.PROCESSING, 0, 'Starting AI analysis...')
+          await ModuleService.updateModuleStatus(savedModuleId, 'PROCESSING', 0, 'Starting AI analysis...')
           console.log('✅ Module status updated to processing')
         } catch (statusError) {
           console.error('❌ Failed to update module status:', statusError)
@@ -167,7 +167,7 @@ export const uploadController = {
             
             if (result.steps && Array.isArray(result.steps)) {
               // Update progress to 100% and status to ready
-              await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.READY, 100, 'AI processing complete!')
+              await ModuleService.updateModuleStatus(savedModuleId, 'READY', 100, 'AI processing complete!')
               console.log(`🎉 Module ${savedModuleId} is now ready with ${result.steps.length} steps`)
             } else {
               throw new Error('AI processing returned invalid steps')
@@ -175,7 +175,7 @@ export const uploadController = {
           })
           .catch(async (error) => {
             console.error(`❌ AI processing failed for ${savedModuleId}:`, error)
-            await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.FAILED, 0, `AI processing failed: ${error.message}`)
+            await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `AI processing failed: ${error.message}`)
           })
 
         console.log('✅ AI processing job started in background')
@@ -187,7 +187,7 @@ export const uploadController = {
         
         // Update module status to indicate AI processing failed
         try {
-          await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.FAILED, 0, `AI processing setup failed: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`)
+          await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `AI processing setup failed: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`)
         } catch (statusError) {
           console.error('❌ Failed to update module status after AI processing failure:', statusError)
         }

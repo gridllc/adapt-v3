@@ -1,8 +1,7 @@
 import express from 'express'
 import multer from 'multer'
-import { ModuleStatus } from '@prisma/client'
-import { uploadController } from '../controllers/uploadController.js'
 import { ModuleService } from '../services/moduleService.js'
+import { uploadController } from '../controllers/uploadController.js'
 import { aiService } from '../services/aiService.js'
 import { optionalAuth } from '../middleware/auth.js'
 
@@ -73,7 +72,7 @@ router.post('/manual-process', optionalAuth, async (req, res) => {
     console.log('🔍 Verifying module exists in database...')
     
     // 2. Update status to processing
-    await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 0, 'Manual test - starting AI analysis...')
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Manual test - starting AI analysis...')
     console.log('✅ Status updated to processing')
     
     // 3. Start AI processing
@@ -81,7 +80,7 @@ router.post('/manual-process', optionalAuth, async (req, res) => {
     console.log(`✅ AI processing completed, generated ${result.steps?.length || 0} steps`)
     
     // 4. Update status to ready
-    await ModuleService.updateModuleStatus(moduleId, ModuleStatus.READY, 100, 'Manual test - AI processing complete!')
+    await ModuleService.updateModuleStatus(moduleId, 'READY', 100, 'Manual test - AI processing complete!')
     console.log('✅ Status updated to ready')
     
     res.json({ 

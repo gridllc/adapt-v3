@@ -1,7 +1,20 @@
 import { generateStepsFromVideo, VideoProcessingResult } from './ai/aiPipeline.js'
 import { ModuleService } from './moduleService.js'
-import { enhancedAiService } from './enhancedVideoProcessor.js'
 import { rewriteStepsWithGPT } from '../utils/transcriptFormatter.js'
+
+// Stub for enhanced AI service since the original file was renamed
+const enhancedAiService = {
+  chat: async (message: string, context: any): Promise<string> => {
+    console.log('⚠️ [AI Service] Enhanced AI chat not available, returning placeholder response')
+    return `I'm sorry, but the enhanced AI service is not currently available. Your message was: "${message}"`
+  },
+  processor: {
+    generateContextualResponse: async (message: string, context: any): Promise<string> => {
+      console.log('⚠️ [AI Service] Enhanced AI contextual response not available, returning placeholder response')
+      return `I'm sorry, but the enhanced AI contextual response service is not currently available. Your message was: "${message}"`
+    }
+  }
+}
 
 export const aiService = {
   /**

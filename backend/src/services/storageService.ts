@@ -153,6 +153,35 @@ export const storageService = {
     }
   },
 
+  // Store JSON content to S3 object
+  async putJson(key: string, data: any): Promise<void> {
+    try {
+      if (!this.isS3Enabled() || !s3Client) {
+        console.log('📁 S3 not configured, mock storing JSON for:', key)
+        return
+      }
+
+      console.log('💾 Storing JSON to S3 for:', key)
+      const bucketName = process.env.AWS_BUCKET_NAME
+      if (!bucketName) throw new Error('Missing bucket')
+
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3')
+      const jsonString = JSON.stringify(data, null, 2)
+      const command = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        Body: jsonString,
+        ContentType: 'application/json'
+      })
+      
+      await s3Client.send(command)
+      console.log('✅ JSON stored successfully to S3:', key)
+    } catch (err) {
+      console.error('❌ Failed to store JSON to S3:', err)
+      throw err
+    }
+  },
+
   // Videos go to S3 (unlimited storage) or mock storage
   async uploadVideo(file: Express.Multer.File): Promise<string> {
     try {
