@@ -1,558 +1,70 @@
-import express from 'express'
+// routes/debugRoutes.ts
+import { Router } from 'express'
+import crypto from 'crypto'
+import fetch from 'node-fetch'
+
+const router = Router()
+
+// TODO: replace with your actual services
 import { prisma } from '../config/database.js'
+import { storageService } from '../services/storageService.js' // must expose headObject(key) & getSignedUrl(key)
+import { aiService } from '../services/aiService.js'           // must expose getSteps(moduleId) and getJobStatus(moduleId)
 
-const router = express.Router()
-
-// Debug endpoint to list all modules with summary
-// Query params: ?status=failed&limit=50&stuck=true
-router.get('/modules/debug', async (req, res) => {
-  try {
-    console.log('[TEST] Debug modules requested')
-    
-    const { status, limit = '20', stuck } = req.query
-    const maxLimit = Math.min(parseInt(limit as string) || 20, 100)
-    
-    // Build query filters
-    const whereClause: any = {}
-    if (status) {
-      whereClause.status = status
-    }
-    
-    const modules = await prisma.module.findMany({
-      where: whereClause,
-      include: { 
-        steps: true,
-        _count: {
-          select: {
-            steps: true,
-            feedbacks: true,
-            questions: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: maxLimit
-    })
-
-    let filteredModules = modules
-    
-    // Filter for "stuck" modules (status ready but no steps)
-    if (stuck === 'true') {
-      filteredModules = modules.filter((mod: any) => 
-        mod.status === 'ready' && mod.steps.length === 0
-      )
-    }
-
-    const summary = filteredModules.map((mod: any) => ({
-      id: mod.id,
-      title: mod.title || 'Untitled',
-      status: mod.status,
-      steps: mod.steps.length,
-      feedbacks: mod._count.feedbacks,
-      questions: mod._count.questions,
-      createdAt: mod.createdAt,
-      updatedAt: mod.updatedAt,
-      userId: mod.userId || 'No user',
-      // Helper flags for tester convenience
-      isStuck: mod.status === 'ready' && mod.steps.length === 0,
-      needsAttention: mod.status === 'failed' || (mod.status === 'ready' && mod.steps.length === 0),
-      trainingUrl: `/training/${mod.id}`
-    }))
-
-    console.log(`[TEST] Debug modules response: ${summary.length} modules (filtered from ${modules.length})`)
-    res.json({
-      modules: summary,
-      total: summary.length,
-      filters: { status, stuck: stuck === 'true', limit: maxLimit },
-      helpful_queries: {
-        all_failed: '/api/debug/modules/debug?status=failed',
-        stuck_modules: '/api/debug/modules/debug?stuck=true',
-        recent_50: '/api/debug/modules/debug?limit=50'
-      }
-    })
-  } catch (err) {
-    console.error('[TEST] Debug modules error:', err)
-    res.status(500).json({ 
-      error: 'Failed to fetch module summaries',
-      details: err instanceof Error ? err.message : 'Unknown error'
-    })
-  }
-})
-
-// Debug endpoint to get detailed module info
-router.get('/modules/:id/debug', async (req, res) => {
-  try {
-    const { id } = req.params
-    console.log(`[TEST] Debug module requested: ${id}`)
-    
-    const module = await prisma.module.findUnique({
-      where: { id },
-      include: {
-        steps: {
-          select: {
-            id: true,
-            text: true,
-            startTime: true,
-            endTime: true,
-            order: true
-          },
-          orderBy: { order: 'asc' }
-        },
-        feedbacks: {
-          select: {
-            id: true,
-            type: true,
-            action: true,
-            createdAt: true
-          }
-        },
-        questions: {
-          select: {
-            id: true,
-            question: true,
-            answer: true,
-            createdAt: true
-          }
-        },
-        statuses: {
-          select: {
-            id: true,
-            status: true,
-            progress: true,
-            message: true,
-            createdAt: true
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 5
-        }
-      }
-    })
-
-    if (!module) {
-      return res.status(404).json({ error: 'Module not found' })
-    }
-
-    const debugInfo = {
-      id: module.id,
-      title: module.title,
-      filename: module.filename,
-      videoUrl: module.videoUrl,
-      status: module.status,
-      progress: module.progress,
-      userId: module.userId,
-      createdAt: module.createdAt,
-      updatedAt: module.updatedAt,
-      steps: {
-        count: module.steps.length,
-        details: module.steps.map((step: any) => ({
-          id: step.id,
-          title: step.text,
-          startTime: step.startTime,
-          endTime: step.endTime,
-          order: step.order
-        }))
-      },
-      feedbacks: {
-        count: module.feedbacks.length,
-        recent: module.feedbacks.slice(0, 3)
-      },
-      questions: {
-        count: module.questions.length,
-        recent: module.questions.slice(0, 3)
-      },
-      statuses: module.statuses
-    }
-
-    console.log(`[TEST] Debug module response for ${id}`)
-    res.json(debugInfo)
-  } catch (err) {
-    console.error('[TEST] Debug module error:', err)
-    res.status(500).json({ 
-      error: 'Failed to fetch module debug info',
-      details: err instanceof Error ? err.message : 'Unknown error'
-    })
-  }
-})
-
-// Debug endpoint to list orphaned modules (no steps)
-router.get('/modules/orphaned/debug', async (req, res) => {
-  try {
-    console.log('[TEST] Debug orphaned modules requested')
-    
-    const orphanedModules = await prisma.module.findMany({
-      where: {
-        status: 'ready',
-        steps: {
-          none: {}
-        }
-      },
-      include: {
-        _count: {
-          select: {
-            steps: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    })
-
-    const summary = orphanedModules.map((mod: any) => ({
-      id: mod.id,
-      title: mod.title || 'Untitled',
-      status: mod.status,
-      steps: mod._count.steps,
-      createdAt: mod.createdAt,
-      updatedAt: mod.updatedAt
-    }))
-
-    console.log(`[TEST] Debug orphaned modules response: ${summary.length} orphaned modules`)
-    res.json(summary)
-  } catch (err) {
-    console.error('[TEST] Debug orphaned modules error:', err)
-    res.status(500).json({ 
-      error: 'Failed to fetch orphaned modules',
-      details: err instanceof Error ? err.message : 'Unknown error'
-    })
-  }
-})
-
-// Admin Debug View - Quick overview of all modules
-router.get('/modules/debug', async (_req, res) => {
-  try {
-    console.log('[TEST] 🔍 Admin debug: Fetching module overview...')
-    
-    const modules = await prisma.module.findMany({
-      include: { 
-        steps: {
-          select: {
-            id: true
-          }
-        },
-        user: {
-          select: {
-            email: true,
-            clerkId: true
-          }
-        }
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50 // Limit to most recent 50 for performance
-    })
-
-    const summary = modules.map((m: any) => ({
-      id: m.id,
-      title: m.title || 'Untitled',
-      status: m.status,
-      stepCount: m.steps.length,
-      fileName: m.filename,
-      videoUrl: m.videoUrl,
-      createdAt: m.createdAt,
-      updatedAt: m.updatedAt,
-      progress: m.progress,
-      userEmail: m.user?.email || 'Unknown',
-      userId: m.userId
-    }))
-
-    console.log(`[TEST] ✅ Admin debug: Found ${summary.length} modules`)
-    res.json({
-      totalModules: summary.length,
-      modules: summary,
-      generatedAt: new Date().toISOString()
-    })
-    
-  } catch (err: any) {
-    console.error('[TEST] ❌ Admin debug failed:', err.message)
-    res.status(500).json({ 
-      error: 'Failed to fetch debug info', 
-      details: err.message 
-    })
-  }
-})
-
-// Environment Debug - Shows what backend actually sees
-router.get('/env', (req, res) => {
-  try {
-    console.log('[TEST] 🔍 Environment debug requested')
-    
-    const envDebug = {
-      nodeEnv: process.env.NODE_ENV,
-      port: process.env.PORT,
-      
-      // Database
-      database: {
-        url: process.env.DATABASE_URL ? 'SET' : 'MISSING',
-        urlPrefix: process.env.DATABASE_URL?.substring(0, 20) + '...' || 'N/A'
-      },
-      
-      // AWS S3 (checking both naming conventions)
-      s3: {
-        // What your code expects:
-        bucket: process.env.AWS_BUCKET_NAME || 'MISSING',
-                  region: process.env.AWS_REGION || 'MISSING',
-        accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
-        secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
-        
-        // Alternative names that might be in Render:
-        bucketAlt: process.env.AWS_BUCKET_NAME || 'N/A',
-        regionAlt: process.env.AWS_REGION || 'N/A'
-      },
-      
-      // QStash Queue
-      qstash: {
-        // What your code expects:
-        token: process.env.QSTASH_TOKEN ? 'SET' : 'MISSING',
-        endpoint: process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish',
-        workerUrl: process.env.QSTASH_WORKER_URL ? 'SET' : 'MISSING',
-        signingKey: process.env.QSTASH_CURRENT_SIGNING_KEY ? 'SET' : 'MISSING',
-        
-        // Alternative that might be in Render:
-        qstashUrl: process.env.QSTASH_URL || 'N/A',
-        currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY ? 'SET' : 'MISSING',
-        nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY ? 'SET' : 'MISSING'
-      },
-      
-      // AI Services
-      ai: {
-        openai: process.env.OPENAI_API_KEY ? 'SET' : 'MISSING',
-        gemini: process.env.GEMINI_API_KEY ? 'SET' : 'MISSING',
-        googleEmail: process.env.GOOGLE_CLIENT_EMAIL ? 'SET' : 'MISSING',
-        googleKey: process.env.GOOGLE_PRIVATE_KEY ? 'SET' : 'MISSING',
-        googleProject: process.env.GOOGLE_PROJECT_ID ? 'SET' : 'MISSING'
-      },
-      
-      // Auth
-      auth: {
-        clerkSecret: process.env.CLERK_SECRET_KEY ? 'SET' : 'MISSING',
-        frontendUrl: process.env.FRONTEND_URL || 'DEFAULT'
-      },
-      
-      // Environment analysis
-      analysis: {
-        totalEnvVars: Object.keys(process.env).length,
-        criticalMissing: [
-          !process.env.DATABASE_URL && 'DATABASE_URL',
-          !process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
-          !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
-          !process.env.CLERK_SECRET_KEY && 'CLERK_SECRET_KEY'
-        ].filter(Boolean),
-        renderMismatches: [
-          !process.env.QSTASH_ENDPOINT && process.env.QSTASH_URL && 'QSTASH_URL→QSTASH_ENDPOINT'
-        ].filter(Boolean)
-      }
-    }
-    
-    console.log(`[TEST] 🔍 Found ${envDebug.analysis.criticalMissing.length} critical missing vars`)
-    console.log(`[TEST] 🔍 Found ${envDebug.analysis.renderMismatches.length} potential naming mismatches`)
-    
-    res.json(envDebug)
-    
-  } catch (error: any) {
-    console.error('[TEST] ❌ Environment debug failed:', error.message)
-    res.status(500).json({ 
-      error: 'Environment debug failed', 
-      details: error.message 
-    })
-  }
-})
-
-// S3 Debug - Shows S3 configuration specifically
-router.get('/s3', (req, res) => {
-  try {
-    console.log('[TEST] 🔍 S3 debug requested')
-    
-    const s3Debug = {
-      // What your code expects:
-      aws: {
-        bucket: process.env.AWS_BUCKET_NAME || 'MISSING',
-        region: process.env.AWS_REGION || 'MISSING',
-        accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
-        secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
-      },
-      
-      // Analysis
-      analysis: {
-        hasAllRequired: !!(process.env.AWS_BUCKET_NAME && process.env.AWS_REGION && process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
-        missing: [
-          !process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
-          !process.env.AWS_REGION && 'AWS_REGION',
-          !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
-          !process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY'
-        ].filter(Boolean)
-      }
-    }
-    
-    console.log(`[TEST] 🔍 S3 config analysis:`, s3Debug.analysis)
-    
-    res.json(s3Debug)
-    
-  } catch (error: any) {
-    console.error('[TEST] ❌ S3 debug failed:', error.message)
-    res.status(500).json({ 
-      error: 'S3 debug failed', 
-      details: error.message 
-    })
-  }
-})
-
-// Test S3 Connection - Actually tries to connect to S3
-router.get('/s3-test', async (req, res) => {
-  try {
-    console.log('[TEST] 🔍 S3 connection test requested')
-    
-    // Import storageService to test actual S3 connection
-    const { storageService } = await import('../services/storageService.js')
-    
-    if (!storageService.isS3Enabled()) {
-      return res.status(500).json({
-        error: 'S3 not enabled',
-        message: 'S3 client failed to initialize',
-        timestamp: new Date().toISOString()
-      })
-    }
-    
-    // Try to list buckets to test connection
-    const { S3Client, ListBucketsCommand } = await import('@aws-sdk/client-s3')
-    const testClient = new S3Client({
-      region: process.env.AWS_REGION || 'us-west-1',
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-      },
-    })
-    
-    try {
-      const result = await testClient.send(new ListBucketsCommand({}))
-      const bucketNames = result.Buckets?.map(b => b.Name) || []
-      
-      res.json({
-        success: true,
-        message: 'S3 connection successful',
-        buckets: bucketNames,
-        targetBucket: process.env.AWS_BUCKET_NAME,
-        targetBucketExists: bucketNames.includes(process.env.AWS_BUCKET_NAME || ''),
-        timestamp: new Date().toISOString()
-      })
-    } catch (s3Error: any) {
-      res.status(500).json({
-        error: 'S3 connection failed',
-        message: s3Error.message,
-        code: s3Error.Code,
-        timestamp: new Date().toISOString()
-      })
-    }
-    
-  } catch (error: any) {
-    console.error('[TEST] ❌ S3 test failed:', error.message)
-    res.status(500).json({ 
-      error: 'S3 test failed', 
-      details: error.message 
-    })
-  }
-})
-
-// Comprehensive S3 Environment Check
-router.get('/s3-env', (req, res) => {
-  try {
-    console.log('[TEST] 🔍 S3 environment check requested')
-    
-    const s3EnvCheck = {
-      // Raw environment variables
-      raw: {
-        AWS_REGION: process.env.AWS_REGION || 'MISSING',
-        AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
-        AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
-        AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME || 'MISSING',
-      },
-      
-      // Fallback values (what your code actually uses)
-      fallback: {
-        region: process.env.AWS_REGION || 'MISSING',
-        bucket: process.env.AWS_BUCKET_NAME || 'MISSING',
-        accessKey: process.env.AWS_ACCESS_KEY_ID ? 'SET' : 'MISSING',
-        secretKey: process.env.AWS_SECRET_ACCESS_KEY ? 'SET' : 'MISSING',
-      },
-      
-      // Analysis
-      analysis: {
-        hasAllRequired: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_BUCKET_NAME && process.env.AWS_REGION),
-        missing: [
-          !process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
-          !process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY',
-          !process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
-          !process.env.AWS_REGION && 'AWS_REGION'
-        ].filter(Boolean),
-      },
-      
-      // What your code expects vs what's available
-      codeExpectations: {
-        expected: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_BUCKET_NAME', 'AWS_REGION'],
-        available: [
-          process.env.AWS_ACCESS_KEY_ID && 'AWS_ACCESS_KEY_ID',
-          process.env.AWS_SECRET_ACCESS_KEY && 'AWS_SECRET_ACCESS_KEY',
-          process.env.AWS_BUCKET_NAME && 'AWS_BUCKET_NAME',
-          process.env.AWS_REGION && 'AWS_REGION'
-        ].filter(Boolean)
-      }
-    }
-    
-    console.log(`[TEST] 🔍 S3 env analysis:`, s3EnvCheck.analysis)
-    
-    res.json(s3EnvCheck)
-    
-  } catch (error: any) {
-    console.error('[TEST] ❌ S3 env check failed:', error.message)
-    res.status(500).json({ 
-      error: 'S3 env check failed', 
-      details: error.message 
-    })
-  }
-})
-
-// Check specific module status
 router.get('/module/:id', async (req, res) => {
+  const traceId = crypto.randomBytes(6).toString('hex')
+  const log = (msg: string, extra: Record<string, any> = {}) =>
+    console.log(`[DEBUG ${traceId}] ${msg}`, extra)
+
   try {
     const { id } = req.params
-    console.log(`[TEST] 🔍 Checking module status for: ${id}`)
-    
-    // Import storageService to check module
-    const { storageService } = await import('../services/storageService.js')
-    
-    const module = await storageService.getModule(id)
-    
-    if (!module) {
-      console.log(`[TEST] ❌ Module ${id} not found`)
-      return res.status(404).json({ 
-        error: 'Module not found',
-        moduleId: id,
-        timestamp: new Date().toISOString()
-      })
-    }
-    
-    console.log(`[TEST] ✅ Module ${id} found:`, {
-      status: module.status,
-      progress: module.progress,
-      steps: module.steps?.length || 0,
-      videoUrl: module.videoUrl
+    log('start', { moduleId: id })
+
+    // 1) DB lookup
+    const moduleRec = await prisma.module.findUnique({ where: { id } })
+    if (!moduleRec) return res.status(404).json({ ok: false, traceId, step: 'db', error: 'Module not found' })
+    log('db.ok', { s3Key: moduleRec.videoUrl, status: moduleRec.status })
+
+    // 2) S3 HEAD
+    const key = moduleRec.videoUrl || `videos/${id}.mp4`
+    const head = await storageService.headObject(key) // should throw if missing
+    log('s3.head.ok', { contentLength: head.ContentLength, contentType: head.ContentType })
+
+    // 3) Presign
+    const url = await storageService.generateSignedUrl(key, 300)
+    log('s3.presign.ok')
+
+    // 4) Range GET first 1KB (proves Range support & CORS OK server-side)
+    const rangeResp = await fetch(url, { headers: { Range: 'bytes=0-1023' } })
+    const rangeOK = rangeResp.status === 206 || rangeResp.status === 200
+    log('s3.range', { status: rangeResp.status, rangeOK })
+
+    // 5) Steps existence
+    const steps = await aiService.getSteps(id) // return [] if none
+    log('steps.ok', { count: steps?.length ?? 0 })
+
+    // 6) Job status (QStash/queue/worker)
+    const job = await aiService.getJobStatus?.(id).catch(() => null)
+    log('job.status', job || { job: 'unknown' })
+
+    return res.json({
+      ok: true,
+      traceId,
+      module: {
+        id,
+        status: moduleRec.status,
+        s3Key: key,
+        contentLength: head.ContentLength,
+        contentType: head.ContentType,
+        signedUrlSample: url.split('?')[0],
+      },
+      s3: { rangeOK, headOk: true },
+      steps: { count: steps?.length ?? 0 },
+      job: job || null
     })
-    
-    res.json({
-      moduleId: id,
-      status: module.status,
-      progress: module.progress,
-      steps: module.steps || [],
-      videoUrl: module.videoUrl,
-      createdAt: module.createdAt,
-      updatedAt: module.updatedAt,
-      timestamp: new Date().toISOString()
-    })
-    
-  } catch (error: any) {
-    console.error('[TEST] ❌ Module check failed:', error.message)
-    res.status(500).json({ 
-      error: 'Module check failed', 
-      details: error.message 
-    })
+  } catch (err: any) {
+    console.error('[DEBUG ERROR]', err)
+    return res.status(500).json({ ok: false, error: err?.message || 'unknown', stack: err?.stack })
   }
 })
 
-export { router as debugRoutes } 
+export default router 

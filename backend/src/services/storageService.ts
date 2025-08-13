@@ -96,6 +96,33 @@ export const storageService = {
     }
   },
 
+  // Get S3 object metadata (HEAD request)
+  async headObject(key: string): Promise<any> {
+    try {
+      if (!this.isS3Enabled() || !s3Client) {
+        console.log('📁 S3 not configured, returning mock head for:', key)
+        return {
+          ContentLength: 1024 * 1024, // 1MB mock
+          ContentType: 'video/mp4'
+        }
+      }
+
+      console.log('🔍 Getting S3 object metadata for:', key)
+      const bucketName = process.env.AWS_BUCKET_NAME
+      if (!bucketName) throw new Error('Missing bucket')
+
+      const { HeadObjectCommand } = await import('@aws-sdk/client-s3')
+      const command = new HeadObjectCommand({ Bucket: bucketName, Key: key })
+      const result = await s3Client.send(command)
+
+      console.log('✅ S3 head successful:', { ContentLength: result.ContentLength, ContentType: result.ContentType })
+      return result
+    } catch (err) {
+      console.error('❌ Failed to get S3 object metadata:', err)
+      throw err
+    }
+  },
+
   // Videos go to S3 (unlimited storage) or mock storage
   async uploadVideo(file: Express.Multer.File): Promise<string> {
     try {

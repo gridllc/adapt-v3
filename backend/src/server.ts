@@ -24,7 +24,8 @@ import { qaRoutes } from './routes/qaRoutes.js'
 import { workerRoutes } from './routes/workerRoutes.js'
 import { requireAuth, optionalAuth } from './middleware/auth.js'
 import { testAuthRoutes } from './routes/testAuth.js'
-import { debugRoutes } from './routes/debugRoutes.js'
+import debugRoutes from './routes/debugRoutes.js'
+import { requestLogger } from './middleware/requestLogger.js'
 import healthRoutes from './routes/healthRoutes.js'
 import { storageRoutes } from './routes/storageRoutes.js'
 import { processVideoJob } from './services/qstashQueue.js'
@@ -188,15 +189,8 @@ const configureMiddleware = () => {
   app.use(express.json({ limit: '10mb' }))
   app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
-  // Request logging middleware
-  app.use((req, res, next) => {
-    const start = Date.now()
-    res.on('finish', () => {
-      const duration = Date.now() - start
-      console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`)
-    })
-    next()
-  })
+  // Request logging middleware with traceId
+  app.use(requestLogger)
 }
 
 // Route configuration

@@ -90,6 +90,50 @@ export const aiService = {
       console.error('❌ Step rewrite error:', error)
       return text // Return original text if rewrite fails
     }
+  },
+
+  /**
+   * Get steps for a module
+   */
+  async getSteps(moduleId: string): Promise<any[]> {
+    try {
+      const module = await ModuleService.getModuleById(moduleId)
+      if (!module.success || !module.module) {
+        console.log(`[DEBUG] Module not found for steps: ${moduleId}`)
+        return []
+      }
+      
+      // Get steps from the module
+      const stepsResult = await ModuleService.getModuleSteps(moduleId)
+      const steps = stepsResult.success ? stepsResult.steps : []
+      console.log(`[DEBUG] Found ${steps?.length || 0} steps for module: ${moduleId}`)
+      return steps || []
+    } catch (error) {
+      console.error(`[DEBUG] Error getting steps for module ${moduleId}:`, error)
+      return []
+    }
+  },
+
+  /**
+   * Get job status for a module (QStash/queue/worker)
+   */
+  async getJobStatus(moduleId: string): Promise<any> {
+    try {
+      const module = await ModuleService.getModuleById(moduleId)
+      if (!module.success || !module.module) {
+        return { status: 'not_found', moduleId }
+      }
+      
+      return {
+        status: module.module.status,
+        progress: module.module.progress,
+        moduleId,
+        updatedAt: module.module.updatedAt
+      }
+    } catch (error) {
+      console.error(`[DEBUG] Error getting job status for module ${moduleId}:`, error)
+      return { status: 'error', moduleId, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
   }
 }
 
