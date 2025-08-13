@@ -51,19 +51,27 @@ export class DatabaseService {
     title: string
     filename: string
     videoUrl: string
+    status?: string
+    progress?: number
     userId?: string
   }) {
-    return await prisma.module.create({
-      data: {
-        id: data.id,
-        title: data.title,
-        filename: data.filename,
-        videoUrl: data.videoUrl,
-        userId: data.userId,
-        s3Key: `videos/${data.id}.mp4`,
-        stepsKey: `training/${data.id}.json`
-      }
-    })
+    try {
+      const module = await prisma.module.create({
+        data: {
+          id: data.id,
+          title: data.title,
+          filename: data.filename,
+          videoUrl: data.videoUrl,
+          status: (data.status as any) || 'UPLOADED',
+          progress: data.progress || 0,
+          userId: data.userId || null,
+        }
+      })
+      return module
+    } catch (error) {
+      console.error('❌ Failed to create module:', error)
+      throw error
+    }
   }
 
   static async getModule(id: string) {
@@ -109,11 +117,11 @@ export class DatabaseService {
     })
   }
 
-  static async updateModuleStatus(id: string, status: ModuleStatus, progress: number, message?: string) {
+  static async updateModuleStatus(id: string, status: string, progress: number, message?: string) {
     // Update module status directly (no more moduleStatus table)
     return await prisma.module.update({
       where: { id },
-      data: { status, progress }
+      data: { status: status as any, progress }
     })
   }
 
@@ -534,12 +542,8 @@ export class DatabaseService {
   static async healthCheck() {
     try {
       // Test both connection and table access
-      // Only read rows with valid keys to avoid NULL constraint errors
+      // Simple health check - just try to find any module
       await prisma.module.findFirst({ 
-        where: { 
-          s3Key: { not: '' }, 
-          stepsKey: { not: '' } 
-        },
         select: { id: true } 
       })
       return true

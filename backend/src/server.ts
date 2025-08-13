@@ -17,7 +17,6 @@ import feedbackRoutes from './routes/feedbackRoutes.js'
 import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
-import { ModuleStatus } from '@prisma/client'
 import { DatabaseService } from './services/prismaService.js'
 import { prisma } from './config/database.js'
 import { adminRoutes } from './routes/adminRoutes.js'
@@ -305,7 +304,7 @@ const configureRoutes = () => {
         console.log(`⚠️ Module exists but has no status: ${moduleId}`)
         // Create a default status for modules that exist but have no status
         try {
-          await DatabaseService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 0, 'Status initialized')
+          await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Status initialized')
           console.log(`✅ Created default status for module: ${moduleId}`)
           
           // Fetch the module again to get the new status

@@ -236,12 +236,12 @@ export const storageService = {
             title: moduleData.title || 'Untitled Module',
             filename: moduleData.filename || 'video.mp4',
             videoUrl: moduleData.videoUrl,
-            s3Key: moduleData.s3Key,
-            stepsKey: moduleData.stepsKey,
-            status: moduleData.status || 'UPLOADED',
+            s3Key: (moduleData as any).s3Key || '',
+            stepsKey: (moduleData as any).stepsKey || `training/${moduleData.id || uuidv4()}.json`,
+            status: (moduleData.status as any) || 'UPLOADED',
             progress: moduleData.progress || 0,
             userId: userId || null, // Link to user if authenticated
-          },
+          } as any,
         })
         console.log('✅ Module saved to database:', module.id)
         return module.id

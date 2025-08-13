@@ -93,7 +93,8 @@ export const stepsController = {
         return res.status(404).json({ error: 'Module not found' })
       }
       
-      const key = m.stepsKey ?? `training/${moduleId}.json`
+      // Use stepsKey if it exists, otherwise generate a default key
+      const key = (m as any).stepsKey ?? `training/${moduleId}.json`
       console.log(`🔍 Using stepsKey: ${key}`)
       
       try {

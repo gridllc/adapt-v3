@@ -1,4 +1,3 @@
-import { ModuleStatus } from '@prisma/client'
 import { generateStepsFromVideo, VideoProcessingResult } from './ai/aiPipeline.js'
 import { ModuleService } from './moduleService.js'
 import { enhancedAiService } from './enhancedVideoProcessor.js'
@@ -26,13 +25,13 @@ export const aiService = {
       }
       console.log(`✅ Module verified in database: ${moduleId}`)
       
-      await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 0, 'Starting AI analysis...')
+      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Starting AI analysis...')
       const result = await generateStepsFromVideo(videoKey, moduleId)
       await ModuleService.saveStepsToModule(moduleId, result.steps)
-      await ModuleService.updateModuleStatus(moduleId, ModuleStatus.READY, 100, 'AI processing complete!')
+      await ModuleService.updateModuleStatus(moduleId, 'READY', 100, 'AI processing complete!')
       return result
     } catch (err) {
-      await ModuleService.updateModuleStatus(moduleId, ModuleStatus.FAILED, 0, 'AI processing failed')
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, 'AI processing failed')
       throw new Error(`Step generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
     }
   },
