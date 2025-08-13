@@ -176,14 +176,25 @@ export const uploadController = {
               console.log('⚙️ Running inline processing:', savedModuleId)
             }
           } catch (e: any) {
-            console.error('enqueue failed, running inline', e?.message)
-            setImmediate(() =>
-              startProcessing(savedModuleId).catch(async (err: any) => {
-                console.error('bg processing failed', err)
-                await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${err?.message ?? String(err)}`)
-              })
-            )
-            console.log('⚙️ Running inline processing (fallback):', savedModuleId)
+            // Handle QStash disabled gracefully, fall back to inline processing
+            if (e?.message === 'QSTASH_DISABLED') {
+              console.log('📬 QStash disabled, running inline processing:', savedModuleId)
+              setImmediate(() =>
+                startProcessing(savedModuleId).catch(async (err: any) => {
+                  console.error('bg processing failed', err)
+                  await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${err?.message ?? String(err)}`)
+                })
+              )
+            } else {
+              console.error('enqueue failed, running inline', e?.message)
+              setImmediate(() =>
+                startProcessing(savedModuleId).catch(async (err: any) => {
+                  console.error('bg processing failed', err)
+                  await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${err?.message ?? String(err)}`)
+                })
+              )
+              console.log('⚙️ Running inline processing (fallback):', savedModuleId)
+            }
           }
           
         } catch (err) {

@@ -1,6 +1,7 @@
 import { startProcessing } from './ai/aiPipeline.js'
 
 // QStash configuration
+const QSTASH_ENABLED = (process.env.QSTASH_ENABLED || '').toLowerCase() === 'true'
 const QSTASH_ENDPOINT = process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish'
 const QSTASH_TOKEN = process.env.QSTASH_TOKEN
 const BACKEND_URL = process.env.BACKEND_ORIGIN || 'http://localhost:3000'
@@ -10,13 +11,17 @@ const WORKER_JOB_SECRET = process.env.WORKER_JOB_SECRET
  * Check if QStash is enabled
  */
 export function isEnabled(): boolean {
-  return !!QSTASH_TOKEN
+  return QSTASH_ENABLED && !!QSTASH_TOKEN
 }
 
 /**
  * Enqueue a module for processing via QStash
  */
 export async function enqueueProcessModule(moduleId: string): Promise<string | null> {
+  if (!QSTASH_ENABLED) {
+    throw new Error('QSTASH_DISABLED')
+  }
+  
   if (!QSTASH_TOKEN) {
     console.log('⚠️ QStash not configured, falling back to direct processing')
     return null

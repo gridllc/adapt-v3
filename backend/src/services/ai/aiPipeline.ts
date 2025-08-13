@@ -21,6 +21,11 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
     throw new Error(`Module ${moduleId} missing s3Key/stepsKey`)
   }
 
+  // Prevent duplicate processing (no double charges)
+  if (mod.module.status === 'PROCESSING' && !opts?.force) {
+    throw new Error(`Module ${moduleId} is already being processed`)
+  }
+
   // If already ready and not forcing, bail
   if (!opts?.force && mod.module.status === "READY") return { ok: true, skipped: true }
 

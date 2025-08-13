@@ -1,9 +1,19 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import { Step, VideoAnalysisResult } from './types.js'
+import { smartTrimTranscript, getTranscriptCap } from './utils.js'
+
+// Gemini API gating - prevents any Gemini calls unless explicitly enabled
+const USE_GEMINI = 
+  (process.env.ENABLE_GEMINI || '').toLowerCase() === 'true' &&
+  !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim())
+
+const OAI_MODEL = process.env.OPENAI_MODEL_STEPS || 'gpt-4o-mini'
+const TEMP = Number(process.env.AI_TEMPERATURE ?? 0.2)
+const MAX_OUT = Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 800)
 
 // Initialize clients lazily
-let genAI: GoogleGenerativeAI | undefined
+let geminiClient: GoogleGenerativeAI | null = null
 let openai: OpenAI | undefined
 
 // Configurable model names
@@ -11,17 +21,22 @@ const openaiModel = process.env.OPENAI_MODEL || 'gpt-4'
 const geminiModel = process.env.GEMINI_MODEL || 'gemini-pro'
 
 function initializeClients() {
-  // Initialize Google Generative AI
-  if (!genAI && process.env.GEMINI_API_KEY) {
+  // Initialize Google Generative AI only if explicitly enabled
+  if (USE_GEMINI && !geminiClient && process.env.GEMINI_API_KEY) {
     try {
-      genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-      console.log('✅ [StepGenerator] Google Generative AI initialized')
+      geminiClient = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+      console.log('✅ [StepGenerator] Google Generative AI initialized (explicitly enabled)')
     } catch (error) {
       console.error(`❌ [StepGenerator] Failed to initialize Google Generative AI: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      geminiClient = null
     }
+  } else if (!USE_GEMINI) {
+    console.log('🚫 [StepGenerator] Gemini disabled via ENABLE_GEMINI=false - using OpenAI only')
+  } else if (!process.env.GEMINI_API_KEY) {
+    console.log('🚫 [StepGenerator] Gemini API key missing - using OpenAI only')
   }
 
-  // Initialize OpenAI
+  // Initialize OpenAI (always available as fallback)
   if (!openai && process.env.OPENAI_API_KEY) {
     try {
       openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -43,26 +58,39 @@ export async function generateVideoSteps(
 ): Promise<VideoAnalysisResult> {
   initializeClients()
   
+  // Smart transcript trimming to reduce AI costs
+  const cap = getTranscriptCap();
+  const trimmedTranscript = smartTrimTranscript(transcript, cap);
+  const wasTrimmed = transcript.length !== trimmedTranscript.length;
+  
   const label = `Module ${moduleId || 'unknown'}`
   console.log(`🤖 [StepGenerator] ${label}: Starting AI analysis...`)
-  console.log(`📝 [StepGenerator] ${label}: Transcript length: ${transcript.length} characters`)
+  console.log(`📝 [StepGenerator] ${label}: Transcript length: ${transcript.length} characters${wasTrimmed ? ` (trimmed to ${trimmedTranscript.length})` : ''}`)
   console.log(`📊 [StepGenerator] ${label}: Video duration: ${metadata.duration}s`)
+  console.log(`🔧 [StepGenerator] ${label}: Using OpenAI model: ${OAI_MODEL}`)
+  console.log(`🔧 [StepGenerator] ${label}: Gemini enabled: ${USE_GEMINI ? 'YES' : 'NO'}`)
 
   try {
-    // Try Gemini first, fallback to OpenAI
-    if (genAI) {
+    // Try OpenAI first (preferred), fallback to Gemini only if explicitly enabled
+    if (openai) {
       try {
-        return await generateWithGemini(transcript, segments, metadata, moduleId)
-      } catch (geminiError) {
-        console.log(`⚠️ [StepGenerator] ${label}: Gemini failed, falling back to OpenAI:`, geminiError)
+        return await generateWithOpenAI(trimmedTranscript, segments, metadata, moduleId)
+      } catch (openaiError) {
+        console.warn(`⚠️ [StepGenerator] ${label}: OpenAI failed:`, openaiError)
+        if (USE_GEMINI && geminiClient) {
+          console.log(`🔄 [StepGenerator] ${label}: Falling back to Gemini...`)
+          return await generateWithGemini(geminiClient, trimmedTranscript, segments, metadata, moduleId)
+        }
+        throw openaiError
       }
     }
 
-    if (openai) {
-      return await generateWithOpenAI(transcript, segments, metadata, moduleId)
+    // Only try Gemini if OpenAI is not available and Gemini is explicitly enabled
+    if (USE_GEMINI && geminiClient) {
+      return await generateWithGemini(geminiClient, trimmedTranscript, segments, metadata, moduleId)
     }
 
-    throw new Error('No AI service available (GEMINI_API_KEY or OPENAI_API_KEY required)')
+    throw new Error('No AI service available (OPENAI_API_KEY required)')
   } catch (error) {
     console.error(`❌ [StepGenerator] ${label}: AI analysis failed:`, error)
     throw new Error(`${label}: AI analysis failed: ` + (error instanceof Error ? error.message : 'Unknown error'))
@@ -90,13 +118,14 @@ function mapStepFields(parsed: any): VideoAnalysisResult {
 }
 
 async function generateWithGemini(
+  client: GoogleGenerativeAI,
   transcript: string,
   segments: Array<{ start: number; end: number; text: string }>,
   metadata: { duration: number },
   moduleId?: string
 ): Promise<VideoAnalysisResult> {
   const label = `Module ${moduleId || 'unknown'}`
-  const model = genAI!.getGenerativeModel({ model: geminiModel })
+  const model = client.getGenerativeModel({ model: geminiModel })
 
   const prompt = `Analyze this video transcript and create a structured step-by-step guide:
 
@@ -160,6 +189,7 @@ async function generateWithOpenAI(
   moduleId?: string
 ): Promise<VideoAnalysisResult> {
   const label = `Module ${moduleId || 'unknown'}`
+  console.log(`🤖 [StepGenerator] ${label}: OpenAI config - Model: ${OAI_MODEL}, Temp: ${TEMP}, Max Tokens: ${MAX_OUT}`)
   const prompt = `Analyze this video transcript and create a structured step-by-step guide:
 
 TRANSCRIPT: ${transcript}
@@ -192,9 +222,14 @@ Rules:
 Return ONLY valid JSON.`
 
   const completion = await openai!.chat.completions.create({
-    model: openaiModel,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.3,
+    model: OAI_MODEL,
+    temperature: TEMP,
+    response_format: { type: 'json_object' },
+    max_tokens: MAX_OUT,
+    messages: [
+      { role: 'system', content: 'Return strict JSON with steps only.' },
+      { role: 'user', content: prompt }
+    ]
   })
 
   const response = completion.choices[0]?.message?.content

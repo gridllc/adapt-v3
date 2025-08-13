@@ -20,6 +20,7 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().min(1, 'AWS_SECRET_ACCESS_KEY is required'),
   
   // QStash (Critical for async processing)
+  QSTASH_ENABLED: z.string().transform((val) => val === 'true').default('false'),
   QSTASH_TOKEN: z.string().optional(),
   QSTASH_ENDPOINT: z.string().url().default('https://qstash.upstash.io/v1/publish'),
   QSTASH_WORKER_URL: z.string().url().optional(),
@@ -28,7 +29,12 @@ const envSchema = z.object({
   
   // AI Services (At least one required)
   OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL_STEPS: z.string().default('gpt-4o-mini'),
+  AI_TEMPERATURE: z.string().transform((val) => Number(val)).default('0.2'),
+  AI_MAX_OUTPUT_TOKENS: z.string().transform((val) => Number(val)).default('800'),
+  ENABLE_GEMINI: z.string().transform((val) => val === 'true').default('false'),
   GEMINI_API_KEY: z.string().optional(),
+  MAX_TRANSCRIPT_CHARS: z.string().transform((val) => Number(val)).default('10000'),
   
   // Google Services (Optional)
   GOOGLE_CLIENT_EMAIL: z.string().optional(),
@@ -71,6 +77,11 @@ try {
   // Additional validation: At least one AI service required
   if (!env.OPENAI_API_KEY && !env.GEMINI_API_KEY) {
     throw new Error('At least one AI service (OPENAI_API_KEY or GEMINI_API_KEY) is required')
+  }
+  
+  // Additional validation: Gemini requires explicit enablement
+  if (env.ENABLE_GEMINI && !env.GEMINI_API_KEY) {
+    throw new Error('ENABLE_GEMINI=true requires GEMINI_API_KEY to be set')
   }
   
   console.log('✅ Environment validation passed')
@@ -135,8 +146,9 @@ export const isDevelopment = () => config?.NODE_ENV === 'development'
 export const hasQStash = () => !!config?.QSTASH_TOKEN
 export const hasS3 = () => !!(config?.AWS_ACCESS_KEY_ID && config?.AWS_SECRET_ACCESS_KEY && config?.AWS_BUCKET_NAME)
 export const hasOpenAI = () => !!config?.OPENAI_API_KEY
-export const hasGemini = () => !!config?.GEMINI_API_KEY
+export const hasGemini = () => config?.ENABLE_GEMINI && !!config?.GEMINI_API_KEY
 export const hasGoogle = () => !!(config?.GOOGLE_CLIENT_EMAIL && config?.GOOGLE_PRIVATE_KEY && config?.GOOGLE_PROJECT_ID)
+export const isQStashEnabled = () => config?.QSTASH_ENABLED === true
 
 // Upload configuration helpers
 export const getUploadConfig = () => ({
@@ -167,7 +179,7 @@ if (config) {
   console.log('🔧 Environment Configuration:')
   console.log(`  📊 Database: ${config.DATABASE_URL ? '✅' : '❌'}`)
   console.log(`  📦 S3: ${hasS3() ? '✅' : '❌'}`)
-  console.log(`  ⚡ QStash: ${hasQStash() ? '✅' : '❌'}`)
+  console.log(`  ⚡ QStash: ${isQStashEnabled() ? '✅' : '❌'}`)
   console.log(`  🤖 OpenAI: ${hasOpenAI() ? '✅' : '⚠️'}`)
   console.log(`  🔮 Gemini: ${hasGemini() ? '✅' : '⚠️'}`)
   console.log(`  🔒 Clerk: ${config.CLERK_SECRET_KEY ? '✅' : '❌'}`)
