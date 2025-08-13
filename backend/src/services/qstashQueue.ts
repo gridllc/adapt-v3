@@ -1,9 +1,17 @@
-import { startProcessing } from './ai/pipeline.js'
+import { startProcessing } from './ai/aiPipeline.js'
 
 // QStash configuration
 const QSTASH_ENDPOINT = process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish'
 const QSTASH_TOKEN = process.env.QSTASH_TOKEN
 const BACKEND_URL = process.env.BACKEND_ORIGIN || 'http://localhost:3000'
+const WORKER_JOB_SECRET = process.env.WORKER_JOB_SECRET
+
+/**
+ * Check if QStash is enabled
+ */
+export function isEnabled(): boolean {
+  return !!QSTASH_TOKEN
+}
 
 /**
  * Enqueue a module for processing via QStash
@@ -15,7 +23,7 @@ export async function enqueueProcessModule(moduleId: string): Promise<string | n
   }
 
   try {
-    const targetUrl = `${BACKEND_URL}/internal/qstash/process/${moduleId}`
+    const targetUrl = `${BACKEND_URL}/api/worker/process/${moduleId}`
     console.log('📬 Publishing to QStash:', { moduleId, targetUrl })
     
     const res = await fetch(`${QSTASH_ENDPOINT}`, {
@@ -26,7 +34,10 @@ export async function enqueueProcessModule(moduleId: string): Promise<string | n
       },
       body: JSON.stringify({ 
         url: targetUrl,
-        body: JSON.stringify({ moduleId })
+        body: JSON.stringify({ moduleId }),
+        headers: {
+          'x-job-secret': WORKER_JOB_SECRET || ''
+        }
       })
     })
     

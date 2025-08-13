@@ -86,11 +86,22 @@ export const stepsController = {
       const { moduleId } = req.params
       console.log(`📖 Getting steps for moduleId: ${moduleId}`)
       
-      // Get module to find stepsKey
+      // Get module to find stepsKey and check status
       const { DatabaseService } = await import('../services/prismaService.js')
       const m = await DatabaseService.getModule(moduleId)
       if (!m) {
         return res.status(404).json({ error: 'Module not found' })
+      }
+      
+      // Check if module is still processing
+      if (m.status && m.status !== 'READY') {
+        console.log(`⏳ Module ${moduleId} still processing, status: ${m.status}, progress: ${m.progress || 0}`)
+        return res.status(202).json({ 
+          processing: true, 
+          status: m.status, 
+          progress: m.progress ?? 0,
+          moduleId 
+        })
       }
       
       // Use stepsKey if it exists, otherwise generate a default key
@@ -140,23 +151,14 @@ export const stepsController = {
           console.log(`⚠️ Database fallback failed:`, dbError)
         }
         
-        // Return empty steps instead of 404 while processing
-        console.log(`📝 No steps found, returning empty array for module: ${moduleId}`)
-        return res.json({ 
-          success: true, 
-          steps: [],
-          source: 'none',
-          moduleId
+        // If we get here, the module is READY but no steps found - this is an error
+        console.log(`❌ Module ${moduleId} is READY but no steps found`)
+        return res.status(404).json({ 
+          error: 'Steps not found',
+          message: 'Module processing is complete but no steps were generated',
+          moduleId 
         })
       }
-      
-      // This code path is no longer reached since we handle everything above
-      // Keeping this for safety but it should never execute
-      console.log(`⚠️ Unexpected code path reached for moduleId: ${moduleId}`)
-      return res.status(500).json({ 
-        error: 'Unexpected error in steps retrieval',
-        moduleId 
-      })
     } catch (error) {
       console.error('❌ Get steps error:', error)
       res.status(500).json({ 
@@ -202,22 +204,23 @@ export const stepsController = {
           console.log(`🎬 Starting AI processing for video: ${moduleData.videoUrl}`)
           
           // Generate steps using AI
-          const aiResult = await aiService.generateStepsForModule(moduleId, moduleData.videoUrl)
+          await aiService.generateStepsForModule(moduleId, moduleData.videoUrl)
           
-          console.log(`✅ AI generated ${aiResult.steps.length} steps for module: ${moduleId}`)
+          console.log(`✅ AI processing started for module: ${moduleId}`)
           
-          // Return the AI-generated steps
+          // Return processing status since the function now handles everything internally
           res.json({
             success: true,
             moduleId,
-            steps: aiResult.steps,
-            message: 'AI-generated steps created successfully',
+            steps: [],
+            message: 'AI processing started successfully',
             source: 'ai',
+            status: 'processing',
             metadata: {
-              totalSteps: aiResult.steps.length,
-              title: aiResult.title,
-              description: aiResult.description,
-              totalDuration: aiResult.totalDuration
+              totalSteps: 0,
+              title: 'Processing',
+              description: 'AI is generating steps',
+              totalDuration: 0
             }
           })
           

@@ -1,8 +1,8 @@
 import { Request, Response } from 'express'
 import { ModuleService } from '../services/moduleService.js'
 import { storageService } from '../services/storageService.js'
-import { startProcessing } from '../services/ai/pipeline.js'
-import { enqueueProcessModule, processModuleDirectly } from '../services/qstashQueue.js'
+import { startProcessing } from '../services/ai/aiPipeline.js'
+import { enqueueProcessModule, processModuleDirectly, isEnabled } from '../services/qstashQueue.js'
 import { v4 as uuidv4 } from 'uuid'
 
 export const uploadController = {
@@ -162,7 +162,7 @@ export const uploadController = {
           
           // try queue first if present
           try {
-            if (process.env.QSTASH_TOKEN) {
+            if (isEnabled()) {
               const jobId = await enqueueProcessModule(savedModuleId)
               console.log('📬 Enqueued processing job', { moduleId: savedModuleId, jobId })
             } else {
@@ -173,6 +173,7 @@ export const uploadController = {
                   await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${e?.message ?? String(e)}`)
                 })
               )
+              console.log('⚙️ Running inline processing:', savedModuleId)
             }
           } catch (e: any) {
             console.error('enqueue failed, running inline', e?.message)
@@ -182,6 +183,7 @@ export const uploadController = {
                 await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${err?.message ?? String(err)}`)
               })
             )
+            console.log('⚙️ Running inline processing (fallback):', savedModuleId)
           }
           
         } catch (err) {

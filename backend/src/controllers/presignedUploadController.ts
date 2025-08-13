@@ -125,11 +125,9 @@ export const presignedUploadController = {
       })
 
       // Process with AI
-      const moduleData = await aiService.processVideo(videoUrl)
+      await aiService.processVideo(videoUrl)
 
       log.info('AI processing completed', { 
-        title: moduleData.title,
-        stepsCount: moduleData.steps?.length || 0,
         userId 
       })
 
@@ -139,40 +137,13 @@ export const presignedUploadController = {
       // Save module to database
       const savedModule = await DatabaseService.createModule({
         id: finalModuleId,
-        title: moduleData.title || 'Video Module',
+        title: 'Video Module',
         filename: 'video.mp4',
         videoUrl: videoUrl,
         userId: userId
       })
 
-      // Save steps if they exist
-      let savedStepsCount = 0
-      if (moduleData.steps && moduleData.steps.length > 0) {
-        try {
-          const stepResult = await DatabaseService.createSteps(
-            savedModule.id, 
-            moduleData.steps.map((step: any) => ({
-              text: step.text || '',
-              startTime: step.startTime || 0,
-              endTime: step.endTime || step.startTime + 15
-            }))
-          )
-          savedStepsCount = stepResult.count || 0
-          log.info('Steps saved successfully', { 
-            moduleId: savedModule.id, 
-            stepsCount: savedStepsCount,
-            userId 
-          })
-        } catch (stepError) {
-          log.error('Failed to save steps', { 
-            moduleId: savedModule.id, 
-            error: stepError instanceof Error ? stepError.message : 'Unknown error',
-            userId 
-          })
-          // Continue without failing the entire request
-        }
-      }
-
+      // Since processVideo now handles everything internally, we don't need to save steps here
       log.info('Video processing completed successfully', { 
         moduleId: savedModule.id, 
         userId 
@@ -182,12 +153,12 @@ export const presignedUploadController = {
         success: true,
         moduleId: savedModule.id,
         videoUrl,
-        title: moduleData.title,
-        description: moduleData.description,
-        transcript: moduleData.transcript,
-        steps: moduleData.steps,
-        totalDuration: moduleData.totalDuration,
-        savedStepsCount: savedStepsCount
+        title: 'Video Module',
+        description: 'AI processing completed',
+        transcript: '',
+        steps: [],
+        totalDuration: 0,
+        savedStepsCount: 0
       })
     } catch (error) {
       log.error('Video processing failed', { 

@@ -45,12 +45,12 @@ router.post('/:moduleId', async (req: Request, res: Response) => {
     
     // Process with AI
     const videoUrl = `http://localhost:8000/uploads/${moduleId}.mp4`
-    const moduleData = await aiService.processVideo(videoUrl)
+    await aiService.processVideo(videoUrl)
     console.log('✅ AI processing completed')
     
     // Generate steps
-    const result = await aiService.generateStepsForModule(moduleId, videoUrl)
-    console.log('✅ Steps generation completed:', result.steps.length, 'steps')
+    await aiService.generateStepsForModule(moduleId, videoUrl)
+    console.log('✅ Steps generation completed')
     
     // Start transcription in background
     transcribeS3Video(moduleId, `${moduleId}.mp4`)

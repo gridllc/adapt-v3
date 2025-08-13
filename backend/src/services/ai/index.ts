@@ -10,8 +10,7 @@ export type {
 } from './types.js'
 
 // Core pipeline
-export { aiPipeline, generateStepsFromVideo } from './aiPipeline.js'
-export { startProcessing } from './pipeline.js'
+export { startProcessing, generateStepsFromVideo } from './aiPipeline.js'
 
 // Individual services - updated for S3-first approach
 export { videoDownloader, s3DownloadToTemp, inferS3KeyForModule } from './videoDownloader.js'
@@ -19,6 +18,7 @@ export { audioProcessor, extractAudioWavForModule, cleanupTemp } from './audioPr
 export { stepSaver } from './stepSaver.js'
 export { transcribeAudio } from './transcriber.js'
 export { generateVideoSteps } from './stepGenerator.js'
+// Removed old exports: saveVideoAnalysis, cleanupTempFiles, uploadToS3, parseTranscriptToSteps, createStepsFromSegments, extractKeyFrames, cleanupKeyFrames
 
 // Main service interface
 export { aiService } from '../aiService.js'

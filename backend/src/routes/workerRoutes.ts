@@ -1,8 +1,12 @@
 import express from 'express'
-import { startProcessing } from '../services/ai/pipeline.js'
+import { startProcessing } from '../services/ai/aiPipeline.js'
+import { ModuleService } from '../services/moduleService.js'
 import crypto from 'crypto'
 
 const router = express.Router()
+
+// optional shared secret to avoid public abuse
+const JOB_SECRET = process.env.WORKER_JOB_SECRET
 
 // QStash signature verification function
 function isSignatureValid(req: express.Request): boolean {
@@ -19,7 +23,27 @@ function isSignatureValid(req: express.Request): boolean {
   return signature === expected
 }
 
-// QStash worker endpoint for processing video jobs
+// Main worker endpoint for processing modules
+router.post('/process/:moduleId', async (req, res) => {
+  if (JOB_SECRET && req.get('x-job-secret') !== JOB_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+  const { moduleId } = req.params
+
+  try {
+    console.log('🧵 Worker start', { moduleId })
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
+    await startProcessing(moduleId)
+    console.log('🧵 Worker done', { moduleId })
+    return res.json({ ok: true })
+  } catch (err: any) {
+    console.error('Worker process error:', err)
+    await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, err?.message || 'processing failed')
+    return res.status(500).json({ error: 'processing failed' })
+  }
+})
+
+// QStash worker endpoint for processing video jobs (legacy compatibility)
 router.post('/process-video', async (req, res) => {
   try {
     console.log('📥 QStash worker received request:', req.body)
@@ -32,18 +56,18 @@ router.post('/process-video', async (req, res) => {
     
     const { moduleId, videoUrl } = req.body
     
-    if (!moduleId || !videoUrl) {
-      console.error('❌ Missing required fields:', { moduleId, videoUrl })
+    if (!moduleId) {
+      console.error('❌ Missing moduleId:', { moduleId, videoUrl })
       return res.status(400).json({ 
-        error: 'Missing required fields',
-        required: ['moduleId', 'videoUrl'],
+        error: 'Missing moduleId',
+        required: ['moduleId'],
         received: Object.keys(req.body)
       })
     }
     
     console.log(`🎬 [${moduleId}] Starting video processing via QStash worker`)
     
-    // Process the video job
+    // Process the video job using the new pipeline
     await startProcessing(moduleId)
     
     console.log(`✅ [${moduleId}] Video processing completed successfully`)
@@ -59,40 +83,6 @@ router.post('/process-video', async (req, res) => {
       message: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     })
-  }
-})
-
-// Alternative QStash endpoint (as suggested in example)
-router.post('/internal/qstash-process', async (req, res) => {
-  try {
-    console.log('📥 QStash worker received request (internal):', req.body)
-    
-    // Verify QStash signature for security
-    if (!isSignatureValid(req)) {
-      console.warn('🔒 Invalid QStash signature')
-      return res.status(401).send('Invalid signature')
-    }
-    
-    const { moduleId, videoUrl } = req.body
-    
-    if (!moduleId || !videoUrl) {
-      console.error('❌ Missing required fields:', { moduleId, videoUrl })
-      return res.status(400).send('Missing required fields')
-    }
-    
-    console.log(`🎬 [${moduleId}] Starting video processing via QStash worker (internal)`)
-    
-    // Process the video job
-    await startProcessing(moduleId)
-    
-    console.log(`✅ [${moduleId}] Video processing completed successfully`)
-    
-    // Return simple OK response as QStash expects
-    res.status(200).send('OK')
-    
-  } catch (error) {
-    console.error('❌ QStash worker error (internal):', error)
-    res.status(500).send('Job failed')
   }
 })
 

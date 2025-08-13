@@ -15,8 +15,8 @@ router.post('/generate/:moduleId', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' })
   }
   const { moduleId } = req.params
-  const { aiPipeline } = await import('../services/ai/aiPipeline.js')
-  setImmediate(() => aiPipeline.processModule(moduleId).catch(e => console.error('manual gen fail', e)))
+  const { startProcessing } = await import('../services/ai/aiPipeline.js')
+  setImmediate(() => startProcessing(moduleId).catch((e: any) => console.error('manual gen fail', e)))
   res.json({ ok: true, moduleId })
 })
 

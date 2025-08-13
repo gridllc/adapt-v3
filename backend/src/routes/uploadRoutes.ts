@@ -76,8 +76,8 @@ router.post('/manual-process', optionalAuth, async (req, res) => {
     console.log('✅ Status updated to processing')
     
     // 3. Start AI processing
-    const result = await aiService.generateStepsForModule(moduleId, videoUrl)
-    console.log(`✅ AI processing completed, generated ${result.steps?.length || 0} steps`)
+    await aiService.generateStepsForModule(moduleId, videoUrl)
+    console.log('✅ AI processing completed')
     
     // 4. Update status to ready
     await ModuleService.updateModuleStatus(moduleId, 'READY', 100, 'Manual test - AI processing complete!')
@@ -86,7 +86,7 @@ router.post('/manual-process', optionalAuth, async (req, res) => {
     res.json({ 
       success: true, 
       moduleId, 
-      stepsGenerated: result.steps?.length || 0,
+      stepsGenerated: 0,
       message: 'Manual AI processing completed successfully'
     })
     

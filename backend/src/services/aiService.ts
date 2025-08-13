@@ -1,5 +1,8 @@
-import { aiPipeline } from './ai/aiPipeline.js'
+import { startProcessing } from './ai/aiPipeline.js'
 import { ModuleService } from './moduleService.js'
+import { storageService } from './storageService.js'
+import { DatabaseService } from './prismaService.js'
+import { v4 as uuidv4 } from 'uuid'
 import { rewriteStepsWithGPT } from '../utils/transcriptFormatter.js'
 
 // Stub for enhanced AI service since the original file was renamed
@@ -39,7 +42,7 @@ export const aiService = {
       console.log(`✅ Module verified in database: ${moduleId}`)
       
       // Use the new pipeline
-      await aiPipeline.processModule(moduleId)
+      await startProcessing(moduleId)
     } catch (err) {
       await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, 'AI processing failed')
       throw new Error(`Step generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -149,4 +152,3 @@ export const aiService = {
 
 // Re-export types for convenience
 export type { Step } from './ai/types.js'
-export type { TranscriptionResult } from './ai/transcriber.js'

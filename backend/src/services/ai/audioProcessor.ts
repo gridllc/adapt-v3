@@ -1,11 +1,16 @@
+// ESM-safe __filename / __dirname
 import { fileURLToPath } from 'url'
+import { dirname } from 'path'
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
 const exec = promisify(execFile)
+
+console.log('[AudioProcessor] ESM ready:', __filename)
 
 export const audioProcessor = {
   async extract(videoPath: string): Promise<string> {
