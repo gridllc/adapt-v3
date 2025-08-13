@@ -21,16 +21,18 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
     throw new Error(`Module ${moduleId} missing s3Key/stepsKey`)
   }
 
-  // Prevent duplicate processing (no double charges)
-  if (mod.module.status === 'PROCESSING' && !opts?.force) {
-    throw new Error(`Module ${moduleId} is already being processed`)
-  }
-
   // If already ready and not forcing, bail
   if (!opts?.force && mod.module.status === "READY") return { ok: true, skipped: true }
 
-  // Processing start
-  await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 5, "Starting AI processing...")
+  // Try to acquire processing lock (atomic status flip)
+  console.log(`🔒 [AIPipeline] Attempting to acquire processing lock for module: ${moduleId}`)
+  const gotLock = await ModuleService.tryLockForProcessing(moduleId)
+  if (!gotLock) {
+    console.log(`🔒 [AIPipeline] Processing lock not acquired for module: ${moduleId} - another worker is processing`)
+    return { ok: true, skipped: true, reason: 'Already being processed' }
+  }
+
+  console.log(`🔒 [AIPipeline] Processing lock acquired for module: ${moduleId} - starting work`)
 
   try {
     // 1) Download MP4 from S3 to temp
@@ -65,10 +67,12 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
       steps: steps.steps,
     })
 
-    await ModuleService.updateModuleStatus(moduleId, "READY", 100, "AI processing complete!")
+    await ModuleService.markReady(moduleId)
+    console.log(`✅ [AIPipeline] Module ${moduleId} processing complete`)
     return { ok: true, moduleId }
   } catch (err: any) {
-    await ModuleService.updateModuleStatus(moduleId, "FAILED", 0, String(err?.message ?? err))
+    console.error(`❌ [AIPipeline] Module ${moduleId} processing failed:`, err)
+    await ModuleService.markFailed(moduleId, String(err?.message ?? err))
     throw err
   }
 }

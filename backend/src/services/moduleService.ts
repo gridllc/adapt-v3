@@ -294,6 +294,85 @@ export class ModuleService {
   }
 
   /**
+   * Atomic lock for processing - only one worker can acquire PROCESSING status
+   * @param id - Module ID to lock
+   * @returns Promise<boolean> - true if lock acquired, false if already processing
+   */
+  static async tryLockForProcessing(id: string): Promise<boolean> {
+    try {
+      console.log(`🔒 [ModuleService] Attempting to acquire processing lock for module: ${id}`)
+      
+      // Only flip to PROCESSING if not already PROCESSING
+      const res = await prisma.module.updateMany({
+        where: {
+          id,
+          status: { in: ['UPLOADED', 'READY', 'FAILED'] }, // allowed starting points
+        },
+        data: { 
+          status: 'PROCESSING', 
+          progress: 0, 
+          error: null, 
+          updatedAt: new Date() 
+        },
+      })
+      
+      const gotLock = res.count === 1
+      console.log(`🔒 [ModuleService] Processing lock ${gotLock ? 'ACQUIRED' : 'NOT ACQUIRED'} for module: ${id}`)
+      
+      return gotLock
+    } catch (error) {
+      console.error(`❌ [ModuleService] Error acquiring processing lock for module ${id}:`, error)
+      return false
+    }
+  }
+
+  /**
+   * Mark module as ready (processing complete)
+   * @param id - Module ID to mark ready
+   * @returns Promise<void>
+   */
+  static async markReady(id: string): Promise<void> {
+    try {
+      console.log(`✅ [ModuleService] Marking module ${id} as READY`)
+      await prisma.module.update({
+        where: { id },
+        data: { 
+          status: 'READY', 
+          progress: 100, 
+          updatedAt: new Date() 
+        }
+      })
+    } catch (error) {
+      console.error(`❌ [ModuleService] Error marking module ${id} as ready:`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Mark module as failed (processing failed)
+   * @param id - Module ID to mark failed
+   * @param reason - Reason for failure
+   * @returns Promise<void>
+   */
+  static async markFailed(id: string, reason: string): Promise<void> {
+    try {
+      console.log(`❌ [ModuleService] Marking module ${id} as FAILED: ${reason}`)
+      await prisma.module.update({
+        where: { id },
+        data: { 
+          status: 'FAILED', 
+          progress: 0, 
+          error: reason, 
+          updatedAt: new Date() 
+        }
+      })
+    } catch (error) {
+      console.error(`❌ [ModuleService] Error marking module ${id} as failed:`, error)
+      throw error
+    }
+  }
+
+  /**
    * Save AI-generated steps to a module
    * @param moduleId - The ID of the module to save steps to
    * @param steps - Array of step data to save (from AI service)

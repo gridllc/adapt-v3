@@ -5,6 +5,30 @@ import { startProcessing } from '../services/ai/aiPipeline.js'
 import { enqueueProcessModule, processModuleDirectly, isEnabled } from '../services/qstashQueue.js'
 import { v4 as uuidv4 } from 'uuid'
 
+// Single processing function - either enqueue or run inline
+async function queueOrInline(moduleId: string) {
+  try {
+    // If QStash is enabled, try to enqueue
+    if (isEnabled()) {
+      const jobId = await enqueueProcessModule(moduleId)
+      console.log('📬 Enqueued processing job', { moduleId, jobId })
+    } else {
+      // QStash disabled - run inline processing
+      console.log('⚙️ QStash disabled, running inline processing:', moduleId)
+      await startProcessing(moduleId)
+    }
+  } catch (e: any) {
+    // Handle QStash disabled gracefully, fall back to inline processing
+    if (e?.message === 'QSTASH_DISABLED') {
+      console.log('📬 QStash disabled, running inline processing:', moduleId)
+      await startProcessing(moduleId)
+    } else {
+      console.error('Processing error:', e)
+      throw e
+    }
+  }
+}
+
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
     try {
@@ -144,9 +168,9 @@ export const uploadController = {
         success: true,
         moduleId: savedModuleId,
         videoUrl: s3Key,        // keep canonical key, not a local path
-        status: 'processing',
+        status: 'uploaded',
         steps: [],
-        message: 'Video uploaded successfully. AI processing started...'
+        message: 'Video uploaded successfully. AI processing will start shortly...'
       }
 
       console.log('✅ Returning success response:', response)
@@ -155,56 +179,14 @@ export const uploadController = {
       // fire-and-forget AFTER sending the response
       queueMicrotask(async () => {
         try {
-          console.log('[Upload] Auto-enqueue processing for', savedModuleId)
+          console.log('[Upload] Starting inline processing for', savedModuleId)
           
-          // mark as processing
-          await ModuleService.updateModuleStatus(savedModuleId, 'PROCESSING', 0, 'Starting AI processing...')
-          
-          // try queue first if present
-          try {
-            if (isEnabled()) {
-              const jobId = await enqueueProcessModule(savedModuleId)
-              console.log('📬 Enqueued processing job', { moduleId: savedModuleId, jobId })
-            } else {
-              // fallback: run in-process so it's always automatic
-              setImmediate(() =>
-                startProcessing(savedModuleId).catch(async (e: any) => {
-                  console.error('bg processing failed', e)
-                  await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${e?.message ?? String(e)}`)
-                })
-              )
-              console.log('⚙️ Running inline processing:', savedModuleId)
-            }
-          } catch (e: any) {
-            // Handle QStash disabled gracefully, fall back to inline processing
-            if (e?.message === 'QSTASH_DISABLED') {
-              console.log('📬 QStash disabled, running inline processing:', savedModuleId)
-              setImmediate(() =>
-                startProcessing(savedModuleId).catch(async (err: any) => {
-                  console.error('bg processing failed', err)
-                  await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${err?.message ?? String(err)}`)
-                })
-              )
-            } else {
-              console.error('enqueue failed, running inline', e?.message)
-              setImmediate(() =>
-                startProcessing(savedModuleId).catch(async (err: any) => {
-                  console.error('bg processing failed', err)
-                  await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `Processing failed: ${err?.message ?? String(err)}`)
-                })
-              )
-              console.log('⚙️ Running inline processing (fallback):', savedModuleId)
-            }
-          }
+          // Single processing function - no duplicate calls
+          await queueOrInline(savedModuleId)
           
         } catch (err) {
           console.error('Auto-enqueue failed:', err)
-          // Update module status to failed if processing fails
-          try {
-            await ModuleService.updateModuleStatus(savedModuleId, 'FAILED', 0, `AI processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
-          } catch (statusError) {
-            console.error('Failed to update status after processing failure:', statusError)
-          }
+          // Don't update status here - let the pipeline handle it
         }
       })
 

@@ -22,10 +22,11 @@ This refactor disables Gemini AI by default and implements several cost-saving m
 - **Graceful fallback**: When disabled, throws `QSTASH_DISABLED` error for inline processing
 - **No more 410 errors**: Prevents QStash V1 removal errors
 
-### 4. Duplicate Processing Prevention (`services/ai/aiPipeline.ts`)
-- **Status check**: Added check for `PROCESSING` status before starting new processing
-- **No double charges**: Prevents accidental duplicate AI processing runs
-- **Force override**: Still allows forced reprocessing with `opts.force`
+### 4. Atomic Processing Lock (`services/ai/aiPipeline.ts`)
+- **Atomic lock**: Added `tryLockForProcessing()` for race-condition-free status updates
+- **No more stuck modules**: Only one worker can acquire PROCESSING status
+- **Graceful handling**: Workers that don't get the lock return instead of throwing errors
+- **Status management**: Pipeline handles all status updates (READY/FAILED)
 
 ### 5. Upload Controller Updates (`controllers/uploadController.ts`)
 - **QStash disabled handling**: Gracefully handles `QSTASH_DISABLED` error
@@ -67,7 +68,7 @@ MAX_TRANSCRIPT_CHARS=10000             # Transcript character limit
 1. **Gemini disabled by default**: No more Gemini API calls unless explicitly enabled
 2. **Transcript capping**: Reduces AI token usage by 50-80% for long videos
 3. **OpenAI optimization**: Tighter JSON responses with `response_format: json_object`
-4. **Duplicate prevention**: Eliminates accidental double processing charges
+4. **Atomic processing lock**: Eliminates race conditions and stuck modules
 5. **QStash control**: Can disable async processing to reduce infrastructure costs
 
 ## How to Re-enable Gemini
@@ -130,3 +131,14 @@ node test-config.js
 ```
 
 This will show you exactly how the system is configured and whether Gemini is properly disabled.
+
+## Unstick Stuck Modules
+
+If you have modules stuck in PROCESSING status from previous failed runs:
+
+```bash
+cd backend
+node scripts/unstick-processing-modules.js
+```
+
+This will clear any stale processing locks older than 10 minutes.
