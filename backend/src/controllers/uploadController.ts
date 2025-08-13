@@ -1,7 +1,9 @@
 import { Request, Response } from 'express'
+import { ModuleStatus } from '@prisma/client'
 import { storageService } from '../services/storageService.js'
 import { aiService } from '../services/aiService.js'
 import { ModuleService } from '../services/moduleService.js'
+import { v4 as uuidv4 } from 'uuid'
 
 export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
@@ -88,56 +90,44 @@ export const uploadController = {
 
       // Upload video using storageService (S3 or mock)
       console.log('🚀 Starting video upload...')
-      const videoUrl = await storageService.uploadVideo(file)
+      
+      // Generate canonical S3 key first
+      const moduleId = uuidv4() // Generate UUID here for consistent key
+      const s3Key = `videos/${moduleId}.mp4`
+      const stepsKey = `training/${moduleId}.json`
+      
+      console.log('🔑 Generated canonical keys:', { s3Key, stepsKey })
+      
+      // Upload with the canonical key
+      const videoUrl = await storageService.uploadVideoWithKey(file, s3Key)
       console.log('✅ Video upload completed:', videoUrl)
 
-      // Extract S3 key from the URL for storage and AI processing
-      let s3Key = videoUrl
-      if (videoUrl.includes('s3.amazonaws.com')) {
-        try {
-          console.log('🔗 Extracting S3 key from URL...')
-          console.log('🔗 Original video URL:', videoUrl)
-          
-          // Extract the full S3 key from the URL (including videos/ prefix and UUID)
-          const urlParts = videoUrl.split('.com/')
-          console.log('🔗 URL parts:', urlParts)
-          
-          if (urlParts.length > 1) {
-            s3Key = urlParts[1] // This will be "videos/uuid-filename.mp4"
-            console.log('🔑 S3 Key extracted:', s3Key)
-          } else {
-            throw new Error('Could not extract S3 key from URL')
-          }
-        } catch (keyError) {
-          console.error('❌ Failed to extract S3 key:', keyError)
-          console.warn('⚠️ Using full URL as key (fallback)')
-        }
-      } else {
-        console.log('🔗 Not an S3 URL, using full URL as key')
-      }
-
-      // Create module data
+      // Create module data with canonical keys
       const moduleData = {
+        id: moduleId, // Use the pre-generated ID
         title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
         filename: file.originalname,
-        videoUrl: s3Key, // Store S3 key instead of full URL
+        videoUrl: videoUrl, // Keep original URL for compatibility
+        s3Key: s3Key, // Store canonical S3 key
+        stepsKey: stepsKey, // Store canonical steps key
+        status: 'UPLOADED' as const,
       }
 
       // Save module using storageService (database or mock)
       console.log('💾 Saving module data...')
-      let moduleId: string
+      let savedModuleId: string
       try {
         // Pass the user ID if authenticated
         const userId = (req as any).userId
         console.log('👤 User ID for module creation:', userId || 'No user authenticated')
         
-        moduleId = await storageService.saveModule(moduleData, userId)
-        console.log('✅ Module saved with ID:', moduleId)
+        savedModuleId = await storageService.saveModule(moduleData, userId)
+        console.log('✅ Module saved with ID:', savedModuleId)
         console.log('🔍 Module ID type check:', {
-          isMock: moduleId.startsWith('mock_module_'),
-          isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(moduleId),
-          length: moduleId.length,
-          value: moduleId
+          isMock: savedModuleId.startsWith('mock_module_'),
+          isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(savedModuleId),
+          length: savedModuleId.length,
+          value: savedModuleId
         })
       } catch (saveError) {
         console.error('❌ Failed to save module:', saveError)
@@ -153,10 +143,10 @@ export const uploadController = {
       console.log('🤖 Starting AI processing pipeline...')
       
       try {
-        // 1. Update module status to processing (skip createBasicSteps since we're using DB now)
+        // 1. Update module status to processing
         console.log('🔄 Updating module status to processing...')
         try {
-          await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI analysis...')
+          await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.PROCESSING, 0, 'Starting AI analysis...')
           console.log('✅ Module status updated to processing')
         } catch (statusError) {
           console.error('❌ Failed to update module status:', statusError)
@@ -166,26 +156,26 @@ export const uploadController = {
         // 3. Start AI processing in background (don't await - let it run async)
         console.log('🧠 Starting AI processing in background...')
         console.log('🔍 AI Service call details:', {
-          moduleId: moduleId,
-          moduleIdType: typeof moduleId,
-          isMock: moduleId.startsWith('mock_module_'),
-          videoUrl: s3Key ? 'SET' : 'MISSING'
+          moduleId: savedModuleId,
+          moduleIdType: typeof savedModuleId,
+          isMock: savedModuleId.startsWith('mock_module_'),
+          s3Key: s3Key ? 'SET' : 'MISSING'
         })
-        aiService.generateStepsForModule(moduleId, s3Key)
+        aiService.generateStepsForModule(savedModuleId, s3Key)
           .then(async (result) => {
-            console.log(`✅ AI processing completed for ${moduleId}, generated ${result.steps?.length || 0} steps`)
+            console.log(`✅ AI processing completed for ${savedModuleId}, generated ${result.steps?.length || 0} steps`)
             
             if (result.steps && Array.isArray(result.steps)) {
               // Update progress to 100% and status to ready
-              await ModuleService.updateModuleStatus(moduleId, 'ready', 100, 'AI processing complete!')
-              console.log(`🎉 Module ${moduleId} is now ready with ${result.steps.length} steps`)
+              await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.READY, 100, 'AI processing complete!')
+              console.log(`🎉 Module ${savedModuleId} is now ready with ${result.steps.length} steps`)
             } else {
               throw new Error('AI processing returned invalid steps')
             }
           })
           .catch(async (error) => {
-            console.error(`❌ AI processing failed for ${moduleId}:`, error)
-            await ModuleService.updateModuleStatus(moduleId, 'failed', 0, `AI processing failed: ${error.message}`)
+            console.error(`❌ AI processing failed for ${savedModuleId}:`, error)
+            await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.FAILED, 0, `AI processing failed: ${error.message}`)
           })
 
         console.log('✅ AI processing job started in background')
@@ -197,7 +187,7 @@ export const uploadController = {
         
         // Update module status to indicate AI processing failed
         try {
-          await ModuleService.updateModuleStatus(moduleId, 'failed', 0, `AI processing setup failed: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`)
+          await ModuleService.updateModuleStatus(savedModuleId, ModuleStatus.FAILED, 0, `AI processing setup failed: ${processingError instanceof Error ? processingError.message : 'Unknown error'}`)
         } catch (statusError) {
           console.error('❌ Failed to update module status after AI processing failure:', statusError)
         }
@@ -205,7 +195,7 @@ export const uploadController = {
         // Return success but with warning about AI processing
         const response = {
           success: true,
-          moduleId: moduleId,
+          moduleId: savedModuleId,
           videoUrl: s3Key, // Return S3 key instead of full URL
           steps: [], // No steps available yet
           status: 'completed_without_ai',
@@ -218,7 +208,7 @@ export const uploadController = {
 
       const response = {
         success: true,
-        moduleId: moduleId,
+        moduleId: savedModuleId,
         videoUrl: s3Key, // Return S3 key instead of full URL
         steps: [], // Steps will be generated by AI
         status: 'processing', // Indicate that AI processing is happening

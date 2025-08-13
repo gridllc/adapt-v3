@@ -170,6 +170,31 @@ export const storageService = {
     }
   },
 
+  // Upload video with a specific S3 key (for canonical naming)
+  async uploadVideoWithKey(file: Express.Multer.File, s3Key: string): Promise<string> {
+    try {
+      console.log('🚀 Uploading video with specific key:', s3Key)
+      
+      if (this.isS3Enabled() && s3Client) {
+        console.log('🚀 Uploading to S3 with key:', s3Key)
+        
+        // Use the unified S3 upload helper with the provided key
+        const s3Url = await uploadToS3(file.buffer, s3Key, file.mimetype)
+        console.log('✅ S3 upload successful with key:', s3Key)
+        return s3Url
+      } else {
+        console.log('📁 Using mock storage (S3 not configured)')
+        // Return mock URL for development
+        return `http://localhost:8000/uploads/${s3Key.split('/').pop() || file.originalname}`
+      }
+    } catch (error) {
+      console.error('❌ Video upload with key failed:', error instanceof Error ? error.message : 'Unknown error')
+      // Fallback to mock storage on S3 failure
+      console.log('📁 Falling back to mock storage')
+      return `http://localhost:8000/uploads/${s3Key.split('/').pop() || file.originalname}`
+    }
+  },
+
   // Metadata goes to Prisma (queryable, relational) or mock storage
   async saveModule(moduleData: any, userId?: string): Promise<string> {
     try {
@@ -177,12 +202,14 @@ export const storageService = {
         console.log('💾 Saving module to database...')
         const module = await prisma.module.create({
           data: {
-            id: uuidv4(),
+            id: moduleData.id || uuidv4(),
             title: moduleData.title || 'Untitled Module',
             filename: moduleData.filename || 'video.mp4',
             videoUrl: moduleData.videoUrl,
-            status: 'processing', // Start with processing status
-            progress: 0, // Start with 0 progress
+            s3Key: moduleData.s3Key,
+            stepsKey: moduleData.stepsKey,
+            status: moduleData.status || 'UPLOADED',
+            progress: moduleData.progress || 0,
             userId: userId || null, // Link to user if authenticated
           },
         })

@@ -1,3 +1,4 @@
+import { ModuleStatus } from '@prisma/client'
 import { downloadVideoFromUrl } from './videoDownloader.js'
 import { extractAudioFromVideo, getVideoMetadata, truncateVideo } from './audioProcessor.js'
 import { transcribeAudio, TranscriptionResult } from './transcriber.js'
@@ -41,7 +42,7 @@ export async function generateStepsFromVideo(videoUrl: string, moduleId?: string
     
     if (videoUrl.startsWith('http')) {
       console.log('📥 [AIPipeline] Downloading video from URL...')
-      if (moduleId) await ModuleService.updateModuleStatus(moduleId, 'processing', 10, 'Downloading video...')
+      if (moduleId) await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 10, 'Downloading video...')
              actualVideoPath = await downloadVideoFromUrl(videoUrl, moduleId)
       console.log('✅ [AIPipeline] Video downloaded successfully')
     } else {
@@ -54,13 +55,13 @@ export async function generateStepsFromVideo(videoUrl: string, moduleId?: string
 
     // 2. Extract audio
     console.log('🎵 [AIPipeline] Extracting audio from video...')
-    if (moduleId) await ModuleService.updateModuleStatus(moduleId, 'processing', 20, 'Extracting audio...')
+    if (moduleId) await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 20, 'Extracting audio...')
     await extractAudioFromVideo(actualVideoPath)
     console.log('✅ [AIPipeline] Audio extracted successfully')
 
     // 3. Get video metadata
     console.log('📊 [AIPipeline] Extracting video metadata...')
-    if (moduleId) await ModuleService.updateModuleStatus(moduleId, 'processing', 25, 'Analyzing video metadata...')
+    if (moduleId) await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 25, 'Analyzing video metadata...')
          const metadata = await getVideoMetadata(actualVideoPath, moduleId)
     console.log('✅ [AIPipeline] Metadata extracted:', metadata)
 
@@ -87,7 +88,7 @@ export async function generateStepsFromVideo(videoUrl: string, moduleId?: string
 
     // 4. Transcribe audio - CRITICAL STEP
     console.log('📝 [AIPipeline] Starting audio transcription...')
-    if (moduleId) await ModuleService.updateModuleStatus(moduleId, 'processing', 30, 'Transcribing audio...')
+    if (moduleId) await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 30, 'Transcribing audio...')
          const transcriptionResult = await transcribeAudio(currentAudioPath, moduleId)
     
     // CRITICAL VALIDATION: Check if transcription returned valid result
@@ -102,13 +103,13 @@ export async function generateStepsFromVideo(videoUrl: string, moduleId?: string
 
     // 5. Extract key frames
     console.log('🖼️ [AIPipeline] Extracting key frames...')
-    if (moduleId) await ModuleService.updateModuleStatus(moduleId, 'processing', 40, 'Extracting key frames...')
+    if (moduleId) await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 40, 'Extracting key frames...')
          const keyFrames = await extractKeyFrames(actualVideoPath, metadata.duration, 10, moduleId)
     console.log('✅ [AIPipeline] Key frames extracted:', keyFrames.length, 'frames')
 
     // 6. Analyze with AI - CRITICAL STEP
     console.log('🤖 [AIPipeline] Starting AI content analysis...')
-    if (moduleId) await ModuleService.updateModuleStatus(moduleId, 'processing', 50, 'Analyzing content with AI...')
+    if (moduleId) await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 50, 'Analyzing content with AI...')
          const aiResult = await generateVideoSteps(
        transcriptionResult.text, 
        transcriptionResult.segments, 
@@ -141,7 +142,7 @@ export async function generateStepsFromVideo(videoUrl: string, moduleId?: string
 
     // 6. Save results
     console.log('💾 [AIPipeline] Saving analysis results...')
-    if (moduleId) await ModuleService.updateModuleStatus(moduleId, 'processing', 80, 'Saving analysis results...')
+    if (moduleId) await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 80, 'Saving analysis results...')
          await saveVideoAnalysis(result, 'data', moduleId)
     console.log('✅ [AIPipeline] Results saved successfully')
 

@@ -1,4 +1,5 @@
 import { prisma } from '../config/database.js'
+import { ModuleStatus } from '@prisma/client'
 import { calculateCosineSimilarity } from '../utils/vectorUtils.js'
 
 // Type definitions for better type safety
@@ -58,7 +59,9 @@ export class DatabaseService {
         title: data.title,
         filename: data.filename,
         videoUrl: data.videoUrl,
-        userId: data.userId
+        userId: data.userId,
+        s3Key: `videos/${data.id}.mp4`,
+        stepsKey: `training/${data.id}.json`
       }
     })
   }
@@ -69,10 +72,6 @@ export class DatabaseService {
       include: {
         steps: {
           orderBy: { order: 'asc' }
-        },
-        statuses: {
-          orderBy: { createdAt: 'desc' },
-          take: 1
         }
       }
     })
@@ -84,7 +83,7 @@ export class DatabaseService {
     })
   }
 
-  static async getAllModules(filters?: { ownerId?: string; status?: string; userId?: string }) {
+  static async getAllModules(filters?: { ownerId?: string; status?: ModuleStatus; userId?: string }) {
     const where: any = {}
     
     if (filters?.userId) {
@@ -110,18 +109,8 @@ export class DatabaseService {
     })
   }
 
-  static async updateModuleStatus(id: string, status: string, progress: number, message?: string) {
-    // Create new status record
-    await prisma.moduleStatus.create({
-      data: {
-        moduleId: id,
-        status,
-        progress,
-        message
-      }
-    })
-
-    // Update module status
+  static async updateModuleStatus(id: string, status: ModuleStatus, progress: number, message?: string) {
+    // Update module status directly (no more moduleStatus table)
     return await prisma.module.update({
       where: { id },
       data: { status, progress }

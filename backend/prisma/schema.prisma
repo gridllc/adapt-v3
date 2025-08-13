@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ModuleStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
 model User {
   id           String        @id @default(cuid())
   email        String        @unique
@@ -21,20 +28,23 @@ model User {
 }
 
 model Module {
-  id        String         @id @default(cuid())
-  title     String
-  filename  String
-  videoUrl  String
-  status    String         @default("processing")
-  progress  Int            @default(0)
-  userId    String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  feedbacks Feedback[]
-  statuses  ModuleStatus[]
-  user      User?          @relation(fields: [userId], references: [id])
-  questions Question[]
-  steps     Step[]
+  id         String        @id @default(cuid())
+  title      String
+  filename   String
+  videoUrl   String
+  s3Key      String
+  stepsKey   String
+  status     ModuleStatus  @default(UPLOADED)
+  lastError  String?
+  progress   Int           @default(0)
+  userId     String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  user       User?         @relation(fields: [userId], references: [id])
+  feedbacks  Feedback[]
+  questions  Question[]
+  steps      Step[]
 
   @@map("modules")
 }
@@ -50,22 +60,11 @@ model Step {
   startTime      Int
   endTime        Int
   updatedAt      DateTime   @updatedAt
-  questions      Question[]
+
   module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  questions      Question[]
 
   @@map("steps")
-}
-
-model ModuleStatus {
-  id        String   @id @default(cuid())
-  moduleId  String
-  status    String
-  progress  Int
-  message   String?
-  createdAt DateTime @default(now())
-  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-
-  @@map("module_statuses")
 }
 
 model Feedback {
@@ -76,6 +75,7 @@ model Feedback {
   context   String?
   sessionId String?
   createdAt DateTime @default(now())
+
   module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@map("feedbacks")
@@ -114,6 +114,7 @@ model ActivityLog {
   targetId  String?
   metadata  Json?
   createdAt DateTime @default(now())
+
   user      User?    @relation(fields: [userId], references: [id])
 
   @@map("activity_logs")
@@ -131,6 +132,7 @@ model Question {
   createdAt  DateTime        @default(now())
   lastUsedAt DateTime?
   reuseCount Int             @default(0)
+
   vector     QuestionVector?
   module     Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   step       Step?           @relation(fields: [stepId], references: [id])
@@ -146,6 +148,7 @@ model QuestionVector {
   embedding  Float[]
   createdAt  DateTime @default(now())
   modelName  String?  @default("openai-embedding-3-small")
+
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@map("question_vectors")

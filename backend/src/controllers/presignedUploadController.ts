@@ -266,7 +266,7 @@ export const presignedUploadController = {
               module: {
                 id: module.id,
                 title: module.title,
-                status: module.statuses?.[0]?.status || 'unknown'
+                status: module.status || 'unknown'
               }
             }
             res.json(enhancedResult)

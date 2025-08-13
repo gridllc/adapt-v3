@@ -1,4 +1,5 @@
 import { prisma } from '../config/database.js'
+import { ModuleStatus } from '@prisma/client'
 import { DatabaseService } from './prismaService.js'
 import { Prisma } from '@prisma/client'
 
@@ -62,7 +63,7 @@ export class ModuleService {
     try {
       const orphanedModules = await prisma.module.findMany({
         where: {
-          status: 'ready',
+          status: ModuleStatus.READY,
           steps: {
             none: {}
           }
@@ -110,13 +111,13 @@ export class ModuleService {
     try {
       const result = await prisma.module.updateMany({
         where: {
-          status: 'ready',
+          status: ModuleStatus.READY,
           steps: {
             none: {}
           }
         },
         data: {
-          status: 'failed',
+          status: ModuleStatus.FAILED,
           progress: 0
         }
       })
@@ -147,7 +148,7 @@ export class ModuleService {
 
       const result = await prisma.module.deleteMany({
         where: {
-          status: 'failed',
+          status: ModuleStatus.FAILED,
           createdAt: {
             lt: cutoffDate
           }
@@ -184,12 +185,12 @@ export class ModuleService {
         orphanedModules
       ] = await Promise.all([
         prisma.module.count(),
-        prisma.module.count({ where: { status: 'processing' } }),
-        prisma.module.count({ where: { status: 'ready' } }),
-        prisma.module.count({ where: { status: 'failed' } }),
+        prisma.module.count({ where: { status: ModuleStatus.PROCESSING } }),
+        prisma.module.count({ where: { status: ModuleStatus.READY } }),
+        prisma.module.count({ where: { status: ModuleStatus.FAILED } }),
         prisma.module.count({
           where: {
-            status: 'ready',
+            status: ModuleStatus.READY,
             steps: { none: {} }
           }
         })
@@ -224,7 +225,7 @@ export class ModuleService {
    */
   static async updateModuleStatus(
     moduleId: string, 
-    status: string, 
+    status: ModuleStatus, 
     progress: number, 
     message?: string
   ): Promise<{ success: boolean; error?: string }> {
@@ -246,8 +247,8 @@ export class ModuleService {
       // Update module status
       await DatabaseService.updateModuleStatus(moduleId, status, progress, message)
 
-      // If status is 'ready', check if it has steps
-      if (status === 'ready') {
+      // If status is READY, check if it has steps
+      if (status === ModuleStatus.READY) {
         await this.checkAndMarkOrphaned(moduleId)
       }
 
@@ -280,10 +281,10 @@ export class ModuleService {
       })
 
       if (module && module.steps.length === 0) {
-        // Mark as orphaned if no steps
+        // Mark as FAILED if no steps (orphaned is not a valid enum value)
         await prisma.module.update({
           where: { id: moduleId },
-          data: { status: 'orphaned', progress: 0 }
+          data: { status: ModuleStatus.FAILED, progress: 0 }
         })
 
         console.log(`⚠️ Module ${moduleId} marked as orphaned (no steps)`)
@@ -383,7 +384,6 @@ export class ModuleService {
         include: includeRelations ? {
           steps: true,
           feedbacks: true,
-          statuses: true,
           user: {
             select: {
               email: true,

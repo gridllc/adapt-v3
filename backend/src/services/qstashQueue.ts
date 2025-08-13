@@ -1,3 +1,4 @@
+import { ModuleStatus } from '@prisma/client'
 import { aiService } from './aiService.js'
 import { DatabaseService } from './prismaService.js'
 import { ModuleService } from './moduleService.js'
@@ -202,7 +203,7 @@ export async function processVideoJob(jobData: { moduleId: string; videoUrl: str
     console.log(`🎬 [${moduleId}] Video URL: ${videoUrl}`)
     
     // Update status to processing
-    await ModuleService.updateModuleStatus(moduleId, 'processing', 0, 'Starting AI processing...')
+    await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 0, 'Starting AI processing...')
 
     perfLogger.logAIStart(moduleId)
 
@@ -211,7 +212,7 @@ export async function processVideoJob(jobData: { moduleId: string; videoUrl: str
     // It extracts high-level metadata AND generates final user-visible steps
     console.log(`[TEST] 🤖 Generating AI steps for module: ${moduleId}`)
     console.log(`[TEST] 🎬 Video URL: ${videoUrl}`)
-    await ModuleService.updateModuleStatus(moduleId, 'processing', 10, 'Starting AI analysis...')
+    await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 10, 'Starting AI analysis...')
     
     const steps = await aiService.generateStepsForModule(moduleId, videoUrl)
     
@@ -222,7 +223,7 @@ export async function processVideoJob(jobData: { moduleId: string; videoUrl: str
     console.log(`[TEST] 🧠 AI processing complete - generated ${steps.length} steps`)
     console.log(`📋 [${moduleId}] Generated ${steps.length} steps`)
     
-    await ModuleService.updateModuleStatus(moduleId, 'processing', 60, 'Steps extracted, saving to database...')
+    await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 60, 'Steps extracted, saving to database...')
 
     perfLogger.logTranscriptionComplete(moduleId)
     perfLogger.logStepsComplete(moduleId)
@@ -231,9 +232,9 @@ export async function processVideoJob(jobData: { moduleId: string; videoUrl: str
 
     // Step 3: Save final results
     console.log(`💾 [${moduleId}] Saving final results...`)
-    await ModuleService.updateModuleStatus(moduleId, 'processing', 80, 'Saving final results...')
+    await ModuleService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 80, 'Saving final results...')
     
-    await ModuleService.updateModuleStatus(moduleId, 'ready', 100, 'Processing complete! Your training module is ready.')
+            await ModuleService.updateModuleStatus(moduleId, ModuleStatus.READY, 100, 'Processing complete! Your training module is ready.')
 
     perfLogger.logStepSaveComplete(moduleId)
     perfLogger.logTotalComplete(moduleId)
@@ -247,7 +248,7 @@ export async function processVideoJob(jobData: { moduleId: string; videoUrl: str
     
     // Update status to failed
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    await ModuleService.updateModuleStatus(moduleId, 'failed', 0, `Processing failed: ${errorMessage}`)
+    await ModuleService.updateModuleStatus(moduleId, ModuleStatus.FAILED, 0, `Processing failed: ${errorMessage}`)
     
     // Ensure performance logging cleanup even on error
     perfLogger.logTotalComplete(moduleId)

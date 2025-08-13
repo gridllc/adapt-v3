@@ -17,6 +17,7 @@ import feedbackRoutes from './routes/feedbackRoutes.js'
 import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
 import shareRoutes from './routes/shareRoutes.js'
+import { ModuleStatus } from '@prisma/client'
 import { DatabaseService } from './services/prismaService.js'
 import { prisma } from './config/database.js'
 import { adminRoutes } from './routes/adminRoutes.js'
@@ -297,26 +298,24 @@ const configureRoutes = () => {
         })
       }
 
-      console.log(`✅ Module found: ${moduleId}, statuses count: ${module.statuses?.length || 0}`)
+      console.log(`✅ Module found: ${moduleId}, status: ${module.status}`)
 
-      // Prisma returns statuses ordered desc; pick first
-      const latest = module.statuses?.[0]
-      if (!latest) {
-        console.log(`⚠️ Module exists but has no status records: ${moduleId}`)
+      // Module now has direct status field
+      if (!module.status) {
+        console.log(`⚠️ Module exists but has no status: ${moduleId}`)
         // Create a default status for modules that exist but have no status
         try {
-          await DatabaseService.updateModuleStatus(moduleId, 'processing', 0, 'Status initialized')
+          await DatabaseService.updateModuleStatus(moduleId, ModuleStatus.PROCESSING, 0, 'Status initialized')
           console.log(`✅ Created default status for module: ${moduleId}`)
           
           // Fetch the module again to get the new status
           const updatedModule = await DatabaseService.getModule(moduleId)
-          const newLatest = updatedModule?.statuses?.[0]
           
-          if (newLatest) {
+          if (updatedModule?.status) {
             return res.json({
-              status: newLatest.status,
-              progress: newLatest.progress,
-              message: newLatest.message,
+              status: updatedModule.status,
+              progress: updatedModule.progress,
+              message: 'Status initialized',
               moduleId,
               timestamp: new Date().toISOString()
             })
@@ -332,11 +331,11 @@ const configureRoutes = () => {
         })
       }
 
-      console.log(`✅ Returning status for ${moduleId}: ${latest.status} (${latest.progress}%)`)
+      console.log(`✅ Returning status for ${moduleId}: ${module.status} (${module.progress}%)`)
       return res.json({
-        status: latest.status,
-        progress: latest.progress,
-        message: latest.message,
+        status: module.status,
+        progress: module.progress,
+        message: 'Current status',
         moduleId,
         timestamp: new Date().toISOString()
       })

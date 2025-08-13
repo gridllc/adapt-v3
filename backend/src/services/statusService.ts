@@ -1,7 +1,9 @@
 import fs from 'fs/promises'
 import path from 'path'
+import { ModuleStatus as PrismaModuleStatus } from '@prisma/client'
 
-export interface ModuleStatus {
+// Local status interface for file-based status tracking
+export interface LocalModuleStatus {
   status: 'processing' | 'complete' | 'error' | 'queued'
   message?: string
   timestamp: string
@@ -17,8 +19,8 @@ export const saveModuleStatus = async (moduleId: string, status: string, message
     // Ensure directory exists
     await fs.mkdir(path.dirname(statusPath), { recursive: true })
     
-    const statusData: ModuleStatus = {
-      status: status as ModuleStatus['status'],
+    const statusData: LocalModuleStatus = {
+      status: status as LocalModuleStatus['status'],
       message,
       timestamp: new Date().toISOString(),
       progress,
@@ -33,7 +35,7 @@ export const saveModuleStatus = async (moduleId: string, status: string, message
   }
 }
 
-export const getModuleStatus = async (moduleId: string): Promise<ModuleStatus | null> => {
+export const getModuleStatus = async (moduleId: string): Promise<LocalModuleStatus | null> => {
   try {
     // Use the correct path structure that matches the data directory
     const statusPath = path.join(process.cwd(), 'backend', 'src', 'data', 'status', `${moduleId}.json`)
