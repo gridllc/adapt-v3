@@ -123,6 +123,36 @@ export const storageService = {
     }
   },
 
+  // Get JSON content from S3 object
+  async getJson(key: string): Promise<any> {
+    try {
+      if (!this.isS3Enabled() || !s3Client) {
+        console.log('📁 S3 not configured, returning mock JSON for:', key)
+        return { steps: [] }
+      }
+
+      console.log('📖 Getting JSON from S3 for:', key)
+      const bucketName = process.env.AWS_BUCKET_NAME
+      if (!bucketName) throw new Error('Missing bucket')
+
+      const command = new GetObjectCommand({ Bucket: bucketName, Key: key })
+      const result = await s3Client.send(command)
+      
+      if (!result.Body) {
+        throw new Error('No body in S3 response')
+      }
+
+      const bodyContent = await result.Body.transformToString()
+      const jsonData = JSON.parse(bodyContent)
+
+      console.log('✅ JSON retrieved successfully from S3:', key)
+      return jsonData
+    } catch (err) {
+      console.error('❌ Failed to get JSON from S3:', err)
+      throw err
+    }
+  },
+
   // Videos go to S3 (unlimited storage) or mock storage
   async uploadVideo(file: Express.Multer.File): Promise<string> {
     try {

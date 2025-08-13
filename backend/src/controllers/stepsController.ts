@@ -1,11 +1,6 @@
 import { Request, Response } from 'express'
-import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
-
-// Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import fs from 'fs'
 
 // Helper function to normalize step format
 const normalizeStep = (step: any, index: number) => {
@@ -91,53 +86,33 @@ export const stepsController = {
       const { moduleId } = req.params
       console.log(`📖 Getting steps for moduleId: ${moduleId}`)
       
-      // Get current directory for debugging
-      const currentDir = process.cwd()
-      console.log(`🔍 Current directory: ${currentDir}`)
-      
-      // Define project root - use process.cwd() for consistent path resolution
-      const projectRoot = process.cwd()
-      console.log(`📁 Project root: ${projectRoot}`)
-      
-      // Define possible paths where steps might be stored - simplified and consistent
-      const STEPS_PATHS = [
-        path.join(projectRoot, 'data', 'steps'),
-        path.join(projectRoot, 'data', 'training'),
-        path.join(projectRoot, 'data', 'modules')
-      ]
-      
-      console.log(`🔍 STEPS_PATHS:`, STEPS_PATHS)
-      console.log(`🔍 Searching for steps file for moduleId: ${moduleId}`)
-      
-      let stepsData = null
-      let foundPath = null
-      
-      // Search for the steps file
-      for (const basePath of STEPS_PATHS) {
-        const filePath = path.join(basePath, `${moduleId}.json`)
-        console.log(`📁 Checking path: ${filePath}`)
-        
-        if (fs.existsSync(filePath)) {
-          console.log(`✅ Found steps file at: ${filePath}`)
-          try {
-            const rawData = await fs.promises.readFile(filePath, 'utf-8')
-            stepsData = JSON.parse(rawData)
-            foundPath = filePath
-            break
-          } catch (error) {
-            console.error(`❌ Error reading file ${filePath}:`, error)
-          }
-        } else {
-          console.log(`❌ File not found at: ${filePath}`)
-        }
+      // Get module to find stepsKey
+      const { DatabaseService } = await import('../services/prismaService.js')
+      const m = await DatabaseService.getModule(moduleId)
+      if (!m) {
+        return res.status(404).json({ error: 'Module not found' })
       }
       
-      if (!stepsData) {
-        console.log(`📁 No steps file found, checking database for steps...`)
+      const key = m.stepsKey ?? `training/${moduleId}.json`
+      console.log(`🔍 Using stepsKey: ${key}`)
+      
+      try {
+        // Try to get steps from S3 using storageService
+        const { storageService } = await import('../services/storageService.js')
+        const doc = await storageService.getJson(key)
+        console.log(`✅ Retrieved steps from S3: ${key}`)
+        
+        return res.json({ 
+          success: true, 
+          steps: doc?.steps ?? [],
+          source: 's3',
+          moduleId
+        })
+      } catch (s3Error) {
+        console.log(`⚠️ S3 retrieval failed, checking database fallback:`, s3Error)
         
         try {
           // Try to get steps from database as fallback
-          const { DatabaseService } = await import('../services/prismaService.js')
           const dbSteps = await DatabaseService.getSteps(moduleId)
           
           if (dbSteps && dbSteps.length > 0) {
@@ -164,59 +139,23 @@ export const stepsController = {
           console.log(`⚠️ Database fallback failed:`, dbError)
         }
         
-        console.error(`❌ Steps not found for moduleId: ${moduleId}`)
-        return res.status(404).json({
-          error: 'Steps not found',
-          moduleId,
-          searchedPaths: STEPS_PATHS.map(basePath => path.join(basePath, `${moduleId}.json`)),
-          suggestion: 'Try calling POST /api/steps/generate/:moduleId to generate steps using AI',
-          availableActions: [
-            'POST /api/steps/generate/:moduleId - Generate steps using AI',
-            'POST /api/steps/:moduleId - Manually create steps'
-          ]
+        // Return empty steps instead of 404 while processing
+        console.log(`📝 No steps found, returning empty array for module: ${moduleId}`)
+        return res.json({ 
+          success: true, 
+          steps: [],
+          source: 'none',
+          moduleId
         })
       }
       
-      console.log(`📄 Reading steps from: ${foundPath}`)
-      
-      // Extract and normalize steps from the data structure
-      let rawSteps = []
-      if (stepsData.steps) {
-        rawSteps = stepsData.steps
-      } else if (stepsData.enhancedSteps) {
-        rawSteps = stepsData.enhancedSteps
-      } else if (stepsData.structuredSteps) {
-        rawSteps = stepsData.structuredSteps
-      } else if (stepsData.originalSteps) {
-        rawSteps = stepsData.originalSteps
-      } else if (Array.isArray(stepsData)) {
-        rawSteps = stepsData
-      } else {
-        // If it's a module data object, extract steps
-        rawSteps = stepsData.originalSteps || stepsData.moduleSteps || []
-      }
-      
-      // Normalize all steps to consistent format
-      const steps = rawSteps.map((step: any, index: number) => normalizeStep(step, index))
-      
-      console.log(`✅ Found ${steps.length} steps for moduleId: ${moduleId}`)
-      console.log(`📊 File content keys:`, Object.keys(stepsData))
-      console.log(`🔧 Normalized step example:`, steps[0])
-      
-      res.json({
-        success: true,
-        moduleId,
-        steps,
-        metadata: {
-          totalSteps: steps.length,
-          sourceFile: foundPath,
-          hasEnhancedSteps: !!stepsData.enhancedSteps,
-          hasStructuredSteps: !!stepsData.structuredSteps,
-          hasOriginalSteps: !!stepsData.originalSteps,
-          stats: stepsData.stats || null
-        }
+      // This code path is no longer reached since we handle everything above
+      // Keeping this for safety but it should never execute
+      console.log(`⚠️ Unexpected code path reached for moduleId: ${moduleId}`)
+      return res.status(500).json({ 
+        error: 'Unexpected error in steps retrieval',
+        moduleId 
       })
-      
     } catch (error) {
       console.error('❌ Get steps error:', error)
       res.status(500).json({ 
