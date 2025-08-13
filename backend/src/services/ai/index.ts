@@ -11,6 +11,7 @@ export type {
 
 // Core pipeline
 export { generateStepsFromVideo } from './aiPipeline.js'
+export { startProcessing } from './pipeline.js'
 
 // Individual services - updated for S3-first approach
 export { s3DownloadToTemp, inferS3KeyForModule } from './videoDownloader.js'
