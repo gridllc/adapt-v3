@@ -10,9 +10,14 @@ RUN apk add --no-cache \
     g++ \
     && rm -rf /var/cache/apk/*
 
+# 1) Copy package files + prisma early (before npm ci)
 COPY package*.json ./
+COPY prisma ./prisma
+
+# 2) Install deps (postinstall can safely run prisma generate now)
 RUN npm ci
 
+# 3) Now copy the rest of the source
 COPY . .
 
 # Frontend will be built separately and copied if needed
@@ -24,6 +29,7 @@ ENV NODE_ENV=production
 ENV NPM_CONFIG_LOGLEVEL=verbose
 
 # Ensure clean builds with explicit steps
+# Note: prisma generate already ran during npm ci (postinstall), but running again ensures consistency
 RUN npx prisma generate
 RUN npm run build
 
