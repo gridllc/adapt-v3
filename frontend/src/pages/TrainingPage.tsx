@@ -577,7 +577,7 @@ Just ask me anything about the training!`
                   </button>
                   <button
                     onClick={handleProcessWithAI}
-                    disabled={processingAI || status === 'PROCESSING'}
+                    disabled={processingAI || status?.status === 'processing'}
                     className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg"
                   >
                     🤖 Re-run AI Step Detection
@@ -634,7 +634,7 @@ Just ask me anything about the training!`
                   </button>
                   <button
                     onClick={handleProcessWithAI}
-                    disabled={processingAI || status === 'PROCESSING'}
+                    disabled={processingAI || status?.status === 'processing'}
                     className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm"
                   >
                     🤖 Generate Steps with AI
