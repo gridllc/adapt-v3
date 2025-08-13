@@ -311,7 +311,7 @@ export class ModuleService {
         data: { 
           status: 'PROCESSING', 
           progress: 0, 
-          error: null, 
+          lastError: null, 
           updatedAt: new Date() 
         },
       })
@@ -362,7 +362,7 @@ export class ModuleService {
         data: { 
           status: 'FAILED', 
           progress: 0, 
-          error: reason, 
+          lastError: reason, 
           updatedAt: new Date() 
         }
       })
