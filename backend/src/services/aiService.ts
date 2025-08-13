@@ -39,8 +39,8 @@ export const aiService = {
   /**
    * Process video without module context (for testing/development)
    */
-  async processVideo(videoUrl: string): Promise<VideoProcessingResult> {
-    return await generateStepsFromVideo(videoUrl)
+  async processVideo(videoKey: string): Promise<VideoProcessingResult> {
+    return await generateStepsFromVideo(videoKey)
   },
 
   /**
