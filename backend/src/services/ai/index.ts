@@ -12,9 +12,9 @@ export type {
 // Core pipeline
 export { generateStepsFromVideo } from './aiPipeline.js'
 
-// Individual services
-export { downloadVideoFromUrl } from './videoDownloader.js'
-export { extractAudioFromVideo, getVideoMetadata, truncateVideo } from './audioProcessor.js'
+// Individual services - updated for S3-first approach
+export { s3DownloadToTemp, inferS3KeyForModule } from './videoDownloader.js'
+export { extractAudioWavForModule, cleanupTemp } from './audioProcessor.js'
 export { transcribeAudio } from './transcriber.js'
 export { generateVideoSteps } from './stepGenerator.js'
 export { saveVideoAnalysis, cleanupTempFiles, uploadToS3 } from './stepSaver.js'
