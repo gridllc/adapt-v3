@@ -7,7 +7,7 @@ import { s3DownloadToTemp, inferS3KeyForModule } from './videoDownloader.js'
 const TEMP_DIR = process.env.TEMP_DIR || '/app/temp'
 
 // Loud log to confirm this file is being used
-console.log('[AudioProcessor] Using S3-based extractor:', __filename)
+console.log('[AudioProcessor] Using S3-based extractor')
 
 function runFFmpeg(args: string[]) {
   return new Promise<void>((resolve, reject) => {

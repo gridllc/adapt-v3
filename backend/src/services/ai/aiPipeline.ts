@@ -6,7 +6,7 @@ import { transcribeAudio } from './transcriber.js'
 import { prisma } from '../../config/database.js'
 
 // Loud log to confirm this file is being used
-console.log('[AIPipeline] Using S3-first pipeline:', __filename)
+console.log('[AIPipeline] Using S3-first pipeline')
 
 export interface VideoProcessingResult {
   title: string
