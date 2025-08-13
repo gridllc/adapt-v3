@@ -1,0 +1,7 @@
+UPDATE public.modules
+SET "s3Key" = 'videos/' || id || '.mp4'
+WHERE "s3Key" IS NULL OR "s3Key" = '';
+
+UPDATE public.modules
+SET "stepsKey" = 'training/' || id || '.json'
+WHERE "stepsKey" IS NULL OR "stepsKey" = '';

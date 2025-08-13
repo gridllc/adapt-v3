@@ -14,7 +14,14 @@ router.get('/health', async (_req, res) => {
     
     // Test Database Connection
     try {
-      await prisma.module.findFirst()
+      // Only read rows with valid keys to avoid NULL constraint errors
+      const probe = await prisma.module.findFirst({
+        where: { 
+          s3Key: { not: '' }, 
+          stepsKey: { not: '' } 
+        },
+        select: { id: true, s3Key: true, stepsKey: true, status: true }
+      })
       healthStatus.postgres = '✅ Connected'
       console.log('[TEST] 📊 Database: OK')
     } catch (dbError: any) {

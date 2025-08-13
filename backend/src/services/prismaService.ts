@@ -534,7 +534,14 @@ export class DatabaseService {
   static async healthCheck() {
     try {
       // Test both connection and table access
-      await prisma.module.findFirst({ select: { id: true } })
+      // Only read rows with valid keys to avoid NULL constraint errors
+      await prisma.module.findFirst({ 
+        where: { 
+          s3Key: { not: '' }, 
+          stepsKey: { not: '' } 
+        },
+        select: { id: true } 
+      })
       return true
     } catch (error) {
       console.error('Database health check failed:', error)
