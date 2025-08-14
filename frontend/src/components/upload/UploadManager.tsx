@@ -29,14 +29,14 @@ export const UploadManager: React.FC = () => {
   const hasQueuedUploads = Object.values(uploads).some(upload => upload.status === 'queued')
   const isUploading = hasActiveUploads || hasQueuedUploads
 
-  // Get current upload for status display - show banner for queued and active uploads
+  // Get current upload for status display - show banner only for meaningful phases
   const currentUpload = Object.values(uploads).find(u => 
-    ['queued', 'uploading', 'success', 'error'].includes(u.status) && 
+    // must have a meaningful phase (not undefined/idle)
     ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(u.phase)
   )
 
-  // Show ProcessingBanner for all uploads that have a status (including queued)
-  const showStatus = !!currentUpload
+  // Show ProcessingBanner only for uploads with real phases
+  const showStatus = Boolean(currentUpload)
 
   // Use module status hook for processing uploads
   const processingUpload = Object.values(uploads).find(u => u.phase === 'processing')

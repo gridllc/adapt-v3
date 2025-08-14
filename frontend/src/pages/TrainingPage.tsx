@@ -637,7 +637,7 @@ export const TrainingPage: React.FC = () => {
                 <p className="text-gray-600">No steps available for this training</p>
                 
                 {/* Debug info for developers */}
-                {process.env.NODE_ENV === 'development' && (
+                {import.meta.env.DEV && (
                   <div className="text-xs text-gray-400 mt-2">
                     Debug: moduleId={moduleId}, url={url ? 'loaded' : 'not loaded'}, steps={steps.length}, hasTriedOnce={false} // Removed hasTriedOnce as it's not used in the new code
                   </div>

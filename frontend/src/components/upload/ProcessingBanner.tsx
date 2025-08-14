@@ -2,6 +2,10 @@ import React from 'react'
 import { Loader2, CheckCircle2 } from 'lucide-react'
 import { UploadPhase } from '../../types/upload'
 
+const showDebug =
+  import.meta.env.DEV &&
+  (import.meta.env.VITE_DEBUG_UI === '1' || import.meta.env.VITE_DEBUG_UI === 'true')
+
 export function ProcessingBanner({
   phase,
   progress,
@@ -11,13 +15,10 @@ export function ProcessingBanner({
   progress: number
   moduleId?: string 
 }) {
-  const uploading = phase === 'uploading'
+  const uploading  = phase === 'uploading'
   const finalizing = phase === 'finalizing'
   const processing = phase === 'processing'
-  const ready = phase === 'ready'
-  
-  // Detect when upload is queued (phase is 'uploading' but progress is 0)
-  const queued = phase === 'uploading' && progress === 0
+  const ready      = phase === 'ready'
 
   return (
     <div className="mb-4 rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-900">
@@ -28,11 +29,10 @@ export function ProcessingBanner({
           <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
         )}
         <span>
-          {queued && 'Preparing to upload…'}
-          {uploading && !queued && 'Uploading your video…'}
+          {uploading  && 'Uploading your video…'}
           {finalizing && 'Preparing processing…'}
           {processing && 'Processing your video…'}
-          {ready && 'Video is ready!'}
+          {ready      && 'Video is ready!'}
         </span>
       </div>
 
@@ -53,14 +53,18 @@ export function ProcessingBanner({
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="font-medium">Processing in progress...</span>
           </div>
-          {moduleId && (
+          
+          {showDebug && moduleId && (
             <div className="mt-2 text-sm text-blue-700">
               Module ID: <span className="font-mono">{moduleId}</span>
             </div>
           )}
-          <div className="mt-1 text-xs text-blue-600">
-            You'll be taken to training automatically when it's ready.
-          </div>
+          
+          {showDebug && (
+            <div className="mt-1 text-xs text-blue-600">
+              You'll be taken to training automatically when it's ready.
+            </div>
+          )}
         </div>
       )}
 

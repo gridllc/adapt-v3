@@ -16,7 +16,7 @@ export const useAuth = () => {
   }, [isLoaded, isSignedIn, user])
 
   // Immediate debug logging
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log(`[useAuth] Current state:`, { 
       isLoaded, 
       isSignedIn, 

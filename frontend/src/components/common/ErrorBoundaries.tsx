@@ -183,7 +183,7 @@ export const GlobalErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ c
   return (
     <SmartErrorBoundary
       onError={handleGlobalError}
-      showDetails={process.env.NODE_ENV === 'development'}
+      showDetails={import.meta.env.DEV}
     >
       {children}
     </SmartErrorBoundary>
