@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { InlineStepEditor, StepData } from './InlineStepEditor'
 import { api, API_ENDPOINTS } from '../config/api'
+import { getStart, getEnd, getDuration, toMmSs } from '../utils/timeUtils'
 
 interface Step {
   id: string
@@ -29,6 +30,7 @@ interface StepEditorProps {
   onSeek: (timestamp: number) => void
   canMoveUp?: boolean
   canMoveDown?: boolean
+  showRewrite?: boolean
 }
 
 export const StepEditor: React.FC<StepEditorProps> = ({
@@ -43,7 +45,8 @@ export const StepEditor: React.FC<StepEditorProps> = ({
   isVideoPlaying = false,
   onSeek,
   canMoveUp = true,
-  canMoveDown = true
+  canMoveDown = true,
+  showRewrite = false
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -210,7 +213,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
           </span>
           
           <span className="text-gray-500 text-sm">
-            {formatTime(step.start)}
+            {toMmSs(getStart(step))}
           </span>
           
           {step.isManual && (
@@ -251,7 +254,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
           )}
           
           <button
-            onClick={() => onSeek(step.start)}
+            onClick={() => onSeek(getStart(step))}
             className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-50 transition-colors"
             title="Seek to this step"
           >
@@ -266,14 +269,16 @@ export const StepEditor: React.FC<StepEditorProps> = ({
             ✏️ Edit
           </button>
           
-          {/* AI Rewrite Button */}
-          <button
-            onClick={handleAIRewrite}
-            className="text-purple-600 hover:text-purple-800 text-xs px-2 py-1 rounded hover:bg-purple-50 transition-colors"
-            title="Rewrite this step with AI"
-          >
-            🤖 Rewrite
-          </button>
+          {/* AI Rewrite Button - only show if showRewrite is true */}
+          {showRewrite && (
+            <button
+              onClick={handleAIRewrite}
+              className="text-purple-600 hover:text-purple-800 text-xs px-2 py-1 rounded hover:bg-purple-50 transition-colors"
+              title="Rewrite this step with AI"
+            >
+              🤖 Rewrite
+            </button>
+          )}
           
           <button
             onClick={handleDelete}
@@ -333,7 +338,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         )}
         
         <div className="text-xs text-gray-400">
-          Duration: {step.end - step.start}s
+          Duration: {toMmSs(getDuration(step))}
         </div>
       </div>
     </div>

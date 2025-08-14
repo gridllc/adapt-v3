@@ -638,6 +638,7 @@ Just ask me anything about the training!`
                     onSeek={seekToTime}
                     canMoveUp={index > 0}
                     canMoveDown={index < steps.length - 1}
+                    showRewrite={false}
                   />
                 ))}
               </div>

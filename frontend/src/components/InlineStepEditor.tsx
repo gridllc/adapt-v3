@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { formatSeconds, parseTime, isValidTimeFormat } from '../utils/timeUtils'
+import { toMmSs, fromMmSs, getStart, getEnd } from '../utils/timeUtils'
 
 export interface StepData {
   id: string
@@ -26,36 +26,22 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
   onAIRewrite,
   onAutoSave
 }) => {
-  // Convert backend step format to frontend format
+  // Convert backend step format to frontend format using time utilities
   const convertStepToFrontend = (backendStep: any): StepData => {
-    // Handle different backend formats
-    let startTime = 0
-    let endTime = 30
+    // Use the new time utilities to get consistent start/end times
+    const startTime = getStart(backendStep)
+    const endTime = getEnd(backendStep)
     
-    if (backendStep.timestamp !== undefined) {
-      // Backend format: { timestamp, duration, title, description }
-      startTime = backendStep.timestamp || 0
-      endTime = startTime + (backendStep.duration || 30)
-    } else if (backendStep.start !== undefined && backendStep.end !== undefined) {
-      // Already in frontend format
-      startTime = backendStep.start || 0
-      endTime = backendStep.end || 30
-    } else if (backendStep.startTime !== undefined && backendStep.endTime !== undefined) {
-      // Alternative frontend format
-      startTime = backendStep.startTime || 0
-      endTime = backendStep.endTime || 30
-    } else {
-      // Fallback with computed values
-      startTime = backendStep.timestamp || backendStep.start || backendStep.startTime || 0
-      endTime = startTime + (backendStep.duration || 30)
-    }
+    // Ensure we have valid times
+    const validStart = Math.max(0, startTime)
+    const validEnd = Math.max(validStart + 1, endTime)
     
     return {
       id: backendStep.id || step.id,
       title: backendStep.title || '',
       description: backendStep.description || '',
-      start: startTime,
-      end: endTime,
+      start: validStart,
+      end: validEnd,
       aliases: backendStep.aliases || [],
       notes: backendStep.notes || ''
     }
@@ -188,19 +174,12 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
   }
 
   const parseTimeToSeconds = (timeString: string): number | null => {
-    const match = timeString.match(/^(\d+):(\d{2})$/)
-    if (match) {
-      const minutes = parseInt(match[1])
-      const seconds = parseInt(match[2])
-      return minutes * 60 + seconds
-    }
-    return null
+    const seconds = fromMmSs(timeString)
+    return seconds >= 0 ? seconds : null
   }
 
   const formatSeconds = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+    return toMmSs(seconds)
   }
 
   const handleSave = () => {

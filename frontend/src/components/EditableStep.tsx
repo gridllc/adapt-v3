@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { formatSeconds, parseTime, isValidTimeFormat } from '@/utils/timeUtils';
+import { toMmSs, fromMmSs, isValidTimeFormat } from '@/utils/timeUtils';
 
 interface Step {
   id: string;
@@ -27,8 +27,8 @@ export const EditableStep: React.FC<EditableStepProps> = ({
 }) => {
   const [text, setText] = useState(step.text);
   const [editing, setEditing] = useState(false);
-  const [start, setStart] = useState(formatSeconds(step.start));
-  const [end, setEnd] = useState(formatSeconds(step.end));
+  const [start, setStart] = useState(toMmSs(step.start));
+  const [end, setEnd] = useState(toMmSs(step.end));
   const [aliases, setAliases] = useState(step.aliases?.join(', ') || '');
   const [notes, setNotes] = useState(step.notes || '');
   const [loadingAI, setLoadingAI] = useState(false);
@@ -46,8 +46,8 @@ export const EditableStep: React.FC<EditableStepProps> = ({
       return;
     }
 
-    const startSeconds = parseTime(start);
-    const endSeconds = parseTime(end);
+    const startSeconds = fromMmSs(start);
+    const endSeconds = fromMmSs(end);
     
     if (startSeconds >= endSeconds) {
       setEndError('End time must be after start time');
@@ -92,8 +92,8 @@ export const EditableStep: React.FC<EditableStepProps> = ({
 
   const handleCancel = () => {
     setText(step.text);
-    setStart(formatSeconds(step.start));
-    setEnd(formatSeconds(step.end));
+          setStart(toMmSs(step.start));
+      setEnd(toMmSs(step.end));
     setAliases(step.aliases?.join(', ') || '');
     setNotes(step.notes || '');
     setEditing(false);

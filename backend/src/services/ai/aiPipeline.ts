@@ -54,21 +54,22 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 55, "Transcribing audio...")
     const transcript = await transcribeAudio(wavPath, moduleId)
 
-    // 4) Turn transcript into steps
+    // 4) Get video duration for proper step timing
+    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 70, "Getting video duration...")
+    const durationSec = await videoDownloader.getVideoDurationSeconds(localMp4)
+    console.log(`📹 [AIPipeline] Video duration: ${durationSec}s`)
+
+    // 5) Turn transcript into steps with actual video duration
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 75, "Generating steps...")
     const steps = await generateVideoSteps(
       transcript.text,
       transcript.segments,
-      { duration: 0 }, // Mock duration since we don't have video metadata
+      { duration: durationSec }, // Pass actual video duration
       moduleId
     )
 
-    // 5) Save steps JSON to S3 + mark READY
+    // 6) Save steps JSON to S3 + mark READY
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 85, "Saving steps...")
-    
-    // Get video duration for proper step timing
-    const durationSec = await videoDownloader.getVideoDurationSeconds(localMp4)
-    console.log(`📹 [AIPipeline] Video duration: ${durationSec}s`)
     
     await stepSaver.saveStepsToS3({
       moduleId: moduleId,

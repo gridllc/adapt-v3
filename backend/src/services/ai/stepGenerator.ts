@@ -97,23 +97,74 @@ export async function generateVideoSteps(
   }
 }
 
+// Helper function to normalize step times and ensure consistency
+function toNumber(v: any, def = 0): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : def;
+}
+
+function normalizeSteps(
+  ai: { steps: any[]; totalDuration?: number },
+  videoDurationSec: number
+) {
+  const src = Array.isArray(ai.steps) ? ai.steps : [];
+  
+  // Find max end provided by LLM
+  const maxEndRaw = src.reduce((m, s) => {
+    const e = toNumber(s.end ?? s.endTime, 0);
+    return Math.max(m, e);
+  }, 0);
+
+  // If AI thinks the video is much longer than reality, scale all times.
+  const basis = ai.totalDuration && ai.totalDuration > 0 ? ai.totalDuration : maxEndRaw;
+  const needsScale = basis > videoDurationSec + 1;
+  const scale = needsScale && basis > 0 ? (videoDurationSec / basis) : 1;
+
+  console.log(`🔧 [StepGenerator] Time normalization: AI thinks ${basis}s, video is ${videoDurationSec}s, scaling by ${scale.toFixed(3)}`);
+
+  // Build normalized steps
+  let steps = src.map((s, i) => {
+    const rawStart = toNumber(s.start ?? s.startTime, 0);
+    const rawEnd = toNumber(s.end ?? s.endTime, (i < src.length - 1)
+      ? toNumber(src[i + 1].start ?? src[i + 1].startTime, rawStart) // next start fallback
+      : videoDurationSec);
+
+    // scale, clamp, and round to whole seconds
+    let start = Math.max(0, Math.min(videoDurationSec, Math.round(rawStart * scale)));
+    let end = Math.max(0, Math.min(videoDurationSec, Math.round(rawEnd * scale)));
+
+    if (end <= start) end = Math.min(videoDurationSec, start + 1);
+
+    return {
+      id: s.id || `step-${i + 1}`,
+      text: s.text || s.title || s.description || 'Step description',
+      aliases: s.aliases || [],
+      notes: s.notes || '',
+      // canonical fields:
+      start,
+      end,
+      // legacy mirror fields for anything that still reads the old names:
+      startTime: start,
+      endTime: end,
+    };
+  });
+
+  // ensure sorted by start
+  steps.sort((a, b) => a.start - b.start);
+
+  return steps;
+}
+
 // Helper function to map AI response to new field names
-function mapStepFields(parsed: any): VideoAnalysisResult {
-  // Map old field names to new ones for backward compatibility
-  const mappedSteps = parsed.steps.map((step: any) => ({
-    id: step.id || `step-${Math.random().toString(36).substr(2, 9)}`,
-    text: step.text || step.title || step.description || 'Step description',
-    startTime: step.startTime || step.timestamp || 0,
-    endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),
-    aliases: step.aliases || [],
-    notes: step.notes || ''
-  }))
+function mapStepFields(parsed: any, videoDurationSec: number): VideoAnalysisResult {
+  // Normalize the steps to ensure consistent timing
+  const normalizedSteps = normalizeSteps(parsed, videoDurationSec);
 
   return {
     title: parsed.title || 'Video Analysis',
     description: parsed.description || 'AI-generated step-by-step guide',
-    steps: mappedSteps,
-    totalDuration: parsed.totalDuration || 0
+    steps: normalizedSteps,
+    totalDuration: videoDurationSec
   }
 }
 
@@ -176,7 +227,7 @@ Rules:
     }
     
     console.log(`✅ [StepGenerator] ${label}: Gemini analysis successful`)
-    return mapStepFields(parsed)
+    return mapStepFields(parsed, metadata.duration)
   } catch (parseError) {
     throw new Error(`${label}: Failed to parse Gemini response: ${parseError}`)
   }
@@ -253,7 +304,7 @@ Return ONLY valid JSON.`
     }
     
     console.log(`✅ [StepGenerator] ${label}: OpenAI analysis successful`)
-    return mapStepFields(parsed)
+    return mapStepFields(parsed, metadata.duration)
   } catch (parseError) {
     throw new Error(`${label}: Failed to parse OpenAI response: ${parseError}`)
   }
