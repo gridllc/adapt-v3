@@ -117,6 +117,8 @@ export const stepsController = {
         return res.json({ 
           success: true, 
           steps: doc?.steps ?? [],
+          transcript: doc?.transcript ?? '',
+          meta: doc?.meta ?? {},
           source: 's3',
           moduleId
         })

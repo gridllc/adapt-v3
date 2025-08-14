@@ -24,6 +24,12 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
   // If already ready and not forcing, bail
   if (!opts?.force && mod.module.status === "READY") return { ok: true, skipped: true }
 
+  // If already processing and not forcing, skip (don't throw)
+  if (!opts?.force && mod.module.status === "PROCESSING") {
+    console.log(`⏳ [AIPipeline] Module ${moduleId} already PROCESSING; skipping duplicate trigger.`)
+    return { ok: true, skipped: true, reason: 'Already processing' }
+  }
+
   // Try to acquire processing lock (atomic status flip)
   console.log(`🔒 [AIPipeline] Attempting to acquire processing lock for module: ${moduleId}`)
   const gotLock = await ModuleService.tryLockForProcessing(moduleId)
@@ -59,12 +65,21 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
 
     // 5) Save steps JSON to S3 + mark READY
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 85, "Saving steps...")
-    await stepSaver.saveToS3(mod.module.stepsKey, {
-      moduleId,
-      title: mod.module.title ?? 'Training',
-      transcript: transcript.text,
-      segments: transcript.segments,
+    
+    // Get video duration for proper step timing
+    const durationSec = await videoDownloader.getVideoDurationSeconds(localMp4)
+    console.log(`📹 [AIPipeline] Video duration: ${durationSec}s`)
+    
+    await stepSaver.saveStepsToS3({
+      moduleId: moduleId,
+      s3Key: mod.module.stepsKey,
       steps: steps.steps,
+      transcript: transcript.text,
+      meta: {
+        durationSec,
+        stepCount: steps.steps.length,
+        segments: transcript.segments
+      }
     })
 
     await ModuleService.markReady(moduleId)

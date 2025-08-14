@@ -4,6 +4,10 @@ import { pipeline } from 'node:stream/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
 
 const s3 = new S3Client({ region: process.env.AWS_REGION! })
 const bucket = process.env.AWS_BUCKET_NAME!
@@ -15,6 +19,22 @@ export const videoDownloader = {
     if (!res.Body) throw new Error('Empty S3 body')
     await pipeline(res.Body as any, createWriteStream(local))
     return local
+  },
+
+  async getVideoDurationSeconds(localVideoPath: string): Promise<number> {
+    try {
+      const { stdout } = await execFileAsync('ffprobe', [
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        localVideoPath
+      ]);
+      const sec = parseFloat((stdout || '0').trim());
+      return Number.isFinite(sec) ? sec : 0;
+    } catch (error) {
+      console.warn('⚠️ Could not get video duration with ffprobe:', error);
+      return 0;
+    }
   },
 }
 

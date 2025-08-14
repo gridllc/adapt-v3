@@ -227,7 +227,23 @@ export const TrainingPage: React.FC = () => {
         }
         
         console.log(`✅ Successfully loaded ${data.steps.length} steps for ${moduleId}`)
-        setSteps(data.steps)
+        
+        // Load transcript and meta data if available
+        if (data.transcript) {
+          console.log(`📝 Transcript loaded: ${data.transcript.length} characters`)
+        }
+        if (data.meta) {
+          console.log(`📊 Meta data loaded:`, data.meta)
+        }
+        
+        // Enhance steps with transcript and duration info
+        const enhancedSteps = data.steps.map((step: any, index: number) => ({
+          ...step,
+          originalText: data.transcript || '', // Add transcript to each step
+          duration: data.meta?.durationSec ? Math.round(data.meta.durationSec / data.steps.length) : 15 // Calculate step duration
+        }))
+        
+        setSteps(enhancedSteps)
         setRetryCount(0)
         setHasTriedOnce(true)
       } catch (err: any) {
@@ -592,6 +608,21 @@ Just ask me anything about the training!`
               </div>
             ) : steps && steps.length > 0 ? (
               <div className="space-y-4">
+                {/* Transcript Display */}
+                {steps[0]?.originalText && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      📝 <span>Video Transcript</span>
+                      <span className="text-xs text-gray-500 font-normal">
+                        ({steps[0].originalText.length} characters)
+                      </span>
+                    </h3>
+                    <div className="text-sm text-gray-600 max-h-32 overflow-y-auto">
+                      {steps[0].originalText}
+                    </div>
+                  </div>
+                )}
+                
                 {steps.map((step, index) => (
                   <StepEditor
                     key={step.id || index}
