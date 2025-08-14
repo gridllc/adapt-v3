@@ -29,13 +29,16 @@ export const UploadManager: React.FC = () => {
   const hasQueuedUploads = Object.values(uploads).some(upload => upload.status === 'queued')
   const isUploading = hasActiveUploads || hasQueuedUploads
 
-  // Get current upload for status display
+  // Get current upload for status display - only show banner for active uploads
   const currentUpload = Object.values(uploads).find(u => 
-    ['uploading', 'success', 'error'].includes(u.status)
+    ['uploading', 'success', 'error'].includes(u.status) && 
+    ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(u.phase)
   )
 
+  // Only show ProcessingBanner for uploads that are actually in progress
   const showStatus = currentUpload && 
-    ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(currentUpload.phase)
+    ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(currentUpload.phase) &&
+    currentUpload.status !== 'queued' // Don't show banner for queued uploads
 
   // Use module status hook for processing uploads
   const processingUpload = Object.values(uploads).find(u => u.phase === 'processing')
@@ -138,7 +141,7 @@ export const UploadManager: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Processing Banner - shows upload and processing status */}
+      {/* Processing Banner - only shows for active uploads, not queued ones */}
       {showStatus && currentUpload && (
         <ProcessingBanner
           phase={currentUpload.phase}
@@ -185,7 +188,7 @@ export const UploadManager: React.FC = () => {
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
           
-          {/* Upload Status Summary */}
+          {/* Upload Status Summary - only show for active uploads */}
           {isUploading && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-center space-x-2">

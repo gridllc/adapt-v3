@@ -1,8 +1,8 @@
 // Environment detection and API base URL configuration  
 const isDevelopment = import.meta.env.MODE === 'development'
 
-// Debug UI flag - hide debug features in production
-export const DEBUG_UI = import.meta.env.VITE_DEBUG_UI === '1' || isDevelopment
+// Debug UI flag - hide debug features in production and development
+export const DEBUG_UI = false // Always disabled to prevent debug banners
 
 // API base URL - use domain in production, empty in development for proxy
 const baseURL = import.meta.env.VITE_API_BASE_URL || (isDevelopment ? '' : 'https://adaptord.com')
