@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api, API_ENDPOINTS } from '../config/api'
 import { EditableStep } from '../components/EditableStep'
+import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
 interface Step {
   id: string
@@ -135,11 +136,7 @@ export default function EditStepsPage() {
   if (loading) return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">Edit Steps</h1>
-      <div className="text-center py-8">
-        <div className="w-8 h-8 mx-auto animate-spin text-blue-600">⏳</div>
-        <p className="text-gray-600 mt-2">Loading steps...</p>
-        <p className="text-xs text-gray-400 mt-1">Module ID: {moduleId}</p>
-      </div>
+      <LoadingSpinner message="Loading steps..." fullScreen={false} />
     </div>
   )
   if (error) return (

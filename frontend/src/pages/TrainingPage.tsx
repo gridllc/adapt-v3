@@ -12,6 +12,7 @@ import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
 import { VoiceCoachOverlay } from '../components/voice/VoiceCoachOverlay'
 import { VoiceCoachControls } from '../components/voice/VoiceCoachControls'
+import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
 interface ChatMessage {
   type: 'user' | 'assistant'
@@ -498,10 +499,7 @@ export const TrainingPage: React.FC = () => {
         <div className="lg:col-span-2">
           {loading ? (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 mx-auto animate-spin text-2xl">⏳</div>
-                <p className="text-lg">Loading video...</p>
-              </div>
+              <LoadingSpinner message="Loading video..." fullScreen={false} />
             </div>
           ) : error ? (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-red-400">
@@ -539,8 +537,7 @@ export const TrainingPage: React.FC = () => {
           <div className="mt-6">
             {stepsLoading ? (
               <div className="text-center py-8">
-                <div className="w-8 h-8 mx-auto animate-spin text-blue-600">⏳</div>
-                <p className="text-gray-600 mt-2">Loading steps... Module ID: {moduleId}</p>
+                <LoadingSpinner message="Loading steps..." fullScreen={false} />
                 
                 {/* Prominent AI Processing Message */}
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mt-6 shadow-sm">

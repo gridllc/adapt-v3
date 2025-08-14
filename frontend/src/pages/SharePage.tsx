@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { api } from '../config/api'
+import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
 interface Step {
   id: string
@@ -93,10 +94,7 @@ export default function SharePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading training module...</p>
-        </div>
+        <LoadingSpinner message="Loading training module..." fullScreen={false} />
       </div>
     )
   }

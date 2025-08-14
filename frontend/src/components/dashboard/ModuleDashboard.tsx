@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { API_BASE_URL } from '../../config/api'
+import { LoadingSpinner } from '../common/LoadingSpinner'
 
 interface Module {
   id: string
@@ -166,7 +167,7 @@ export const ModuleDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <LoadingSpinner message="Loading module statistics..." fullScreen={false} />
       </div>
     )
   }

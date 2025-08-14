@@ -5,6 +5,7 @@ import { useModules } from '../hooks/useModules'
 import { useAuthenticatedApi } from '../hooks/useAuthenticatedApi'
 import { FeedbackDashboard } from '../components/common/FeedbackDashboard'
 import QRCodeGenerator from '../components/QRCodeGenerator'
+import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
 export const DashboardPage: React.FC = () => {
   const { modules, loading, error } = useModules()
@@ -61,7 +62,7 @@ export const DashboardPage: React.FC = () => {
         >List</button>
       </div>
 
-      {loading && <p className="text-gray-500">Loading modules...</p>}
+      {loading && <LoadingSpinner message="Loading modules..." fullScreen={false} />}
       {error && <p className="text-red-500">{error}</p>}
 
       {/* Feedback Dashboard */}

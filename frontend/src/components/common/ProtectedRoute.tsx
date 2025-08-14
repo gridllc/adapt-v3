@@ -8,7 +8,7 @@ export const ProtectedRoute: React.FC = () => {
 
   // Only show spinner while Clerk/auth is actually loading
   if (!isLoaded) {
-    return <LoadingSpinner message="Checking your session…" debug="ProtectedRoute: waiting for isLoaded" />
+    return <LoadingSpinner message="Checking your session…" />
   }
 
   if (!isSignedIn) {

@@ -14,6 +14,7 @@ import DebugPage from '@pages/DebugPage'
 import { SignInPage } from '@pages/SignInPage'
 import { SignUpPage } from '@pages/SignUpPage'
 import { GlobalErrorBoundary } from '@components/common/ErrorBoundaries'
+import { LoadingSpinner } from './components/common/LoadingSpinner'
 
 // Error page component for 404 routes
 const NotFoundPage = () => (
@@ -43,7 +44,7 @@ const ConditionalHome = () => {
   console.log('🌐 Current URL:', window.location.href)
   
   if (!isLoaded) {
-    return <div>Loading...</div>
+    return <LoadingSpinner message="Loading..." fullScreen={false} />
   }
   
   // For testing: allow direct access to dashboard if URL contains 'test'

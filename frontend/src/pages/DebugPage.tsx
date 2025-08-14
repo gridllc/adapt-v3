@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { api } from '../config/api'
 import { NetworkStatusBadge } from '../components/common/NetworkStatusBadge'
+import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
 interface Module {
   id: string
@@ -131,10 +132,7 @@ export default function DebugPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading debug information...</p>
-        </div>
+        <LoadingSpinner message="Loading debug information..." fullScreen={false} />
       </div>
     )
   }
