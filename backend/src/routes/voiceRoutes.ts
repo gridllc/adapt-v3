@@ -4,7 +4,7 @@ import { ttsHandler, sttHandler, voiceHealth } from "../controllers/voiceControl
 
 const router = Router();
 
-// Small, safe upload limits
+// Small, safe upload limits (v2.x compatible)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 12 * 1024 * 1024 }, // 12MB max audio

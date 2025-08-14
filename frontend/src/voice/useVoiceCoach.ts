@@ -27,6 +27,7 @@ export interface VoiceCoachState {
   confidenceLevel: 'high' | 'medium' | 'low';
   disambiguationPrompt: string | null;
   isSpeaking: boolean;
+  toast: string | null;
 }
 
 export function useVoiceCoach(options: VoiceCoachOptions) {
@@ -41,10 +42,11 @@ export function useVoiceCoach(options: VoiceCoachOptions) {
     confidenceLevel: 'low',
     disambiguationPrompt: null,
     isSpeaking: false,
+    toast: null,
   });
 
   const speechService = useRef<BrowserSpeechService | null>(null);
-  const toastTimeout = useRef<NodeJS.Timeout | null>(null);
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initialize speech service with options
   useEffect(() => {
@@ -84,10 +86,10 @@ export function useVoiceCoach(options: VoiceCoachOptions) {
 
     // Set new timeout
     toastTimeout.current = setTimeout(() => {
-      setState(prev => ({ ...prev, transcript: '', partialTranscript: '' }));
+      setState(prev => ({ ...prev, toast: null, partialTranscript: '' }));
     }, duration);
 
-    setState(prev => ({ ...prev, transcript: message }));
+    setState(prev => ({ ...prev, toast: message }));
   }, []);
 
   // Speak text and show toast
@@ -204,52 +206,11 @@ export function useVoiceCoach(options: VoiceCoachOptions) {
     setState(prev => ({ ...prev, isListening: false }));
   }, []);
 
-  // Start voice coach
-  const startVoiceCoach = useCallback(() => {
-    if (!speechService.current?.isSupported()) {
-      setState(prev => ({ ...prev, error: 'Voice features not supported in this browser' }));
-      return false;
-    }
-
-    setState(prev => ({ 
-      ...prev, 
-      isActive: true, 
-      error: null,
-      lastIntent: null,
-      confidenceLevel: 'low',
-      disambiguationPrompt: null,
-      partialTranscript: ''
-    }));
-    
-    speak("Voice coach activated. Say 'next step' to begin.");
-    return true;
-  }, [speak]);
-
-  // Stop voice coach
-  const stopVoiceCoach = useCallback(() => {
-    if (speechService.current) {
-      speechService.current.stopListening();
-      speechService.current.stopSpeaking();
-    }
-    setState(prev => ({ 
-      ...prev, 
-      isActive: false, 
-      isListening: false, 
-      transcript: '', 
-      partialTranscript: '',
-      error: null,
-      lastIntent: null,
-      confidenceLevel: 'low',
-      disambiguationPrompt: null,
-      isSpeaking: false
-    }));
-  }, []);
-
   // Start listening
-  const startListening = useCallback(() => {
-    if (!speechService.current || !state.isActive) return false;
+  const startListening = useCallback(async (forceStart = false) => {
+    if (!speechService.current || (!state.isActive && !forceStart)) return false;
 
-    const success = speechService.current.startListening(
+    const success = await speechService.current.startListening(
       handleSpeechResult,
       handleSpeechError,
       handleSpeechEnd,
@@ -272,6 +233,60 @@ export function useVoiceCoach(options: VoiceCoachOptions) {
     setState(prev => ({ ...prev, isListening: false }));
   }, []);
 
+  // Step label helper for consistent formatting
+  const titleOrSnippet = (s: any) => s?.title || s?.stepText || s?.description || 'Step';
+
+  // Start voice coach
+  const startVoiceCoach = useCallback(async () => {
+    if (!speechService.current?.isSupported()) {
+      setState(prev => ({ ...prev, error: 'Voice features not supported in this browser' }));
+      return false;
+    }
+
+    setState(prev => ({ 
+      ...prev, 
+      isActive: true, 
+      error: null,
+      lastIntent: null,
+      confidenceLevel: 'low',
+      disambiguationPrompt: null,
+      partialTranscript: ''
+    }));
+    
+    // CRITICAL: Start listening immediately in the same user gesture
+    // This ensures mobile browsers allow microphone access
+    const listeningStarted = await startListening(true);
+
+    if (listeningStarted) {
+      speak("Voice coach activated. Say 'next step' to begin.", { resumeSttAfter: true });
+    } else {
+      speak("Voice coach activated, but couldn't start microphone. Please check permissions.");
+    }
+    
+    return listeningStarted;
+  }, [speak, startListening]);
+
+  // Stop voice coach
+  const stopVoiceCoach = useCallback(() => {
+    if (speechService.current) {
+      speechService.current.stopListening();
+      speechService.current.stopSpeaking();
+    }
+    setState(prev => ({ 
+      ...prev, 
+      isActive: false, 
+      isListening: false, 
+      transcript: '', 
+      partialTranscript: '',
+      error: null,
+      lastIntent: null,
+      confidenceLevel: 'low',
+      disambiguationPrompt: null,
+      isSpeaking: false,
+      toast: null
+    }));
+  }, []);
+
   // Quick actions
   const nextStep = useCallback(() => {
     if (options.currentIndex < options.steps.length - 1) {
@@ -280,12 +295,12 @@ export function useVoiceCoach(options: VoiceCoachOptions) {
       const step = options.steps[nextIndex];
       if (step) {
         options.onSeek(step.start);
-        speak(`Step ${nextIndex + 1}. ${step.title || step.text}`);
+        speak(`Step ${nextIndex + 1}. ${titleOrSnippet(step)}`);
       }
     } else {
       speak("You're at the last step.");
     }
-  }, [options, speak]);
+  }, [options, speak, titleOrSnippet]);
 
   const previousStep = useCallback(() => {
     if (options.currentIndex > 0) {
@@ -294,27 +309,27 @@ export function useVoiceCoach(options: VoiceCoachOptions) {
       const step = options.steps[prevIndex];
       if (step) {
         options.onSeek(step.start);
-        speak(`Step ${prevIndex + 1}. ${step.title || step.text}`);
+        speak(`Step ${prevIndex + 1}. ${titleOrSnippet(step)}`);
       }
     } else {
       speak("You're at the first step.");
     }
-  }, [options, speak]);
+  }, [options, speak, titleOrSnippet]);
 
   const repeatStep = useCallback(() => {
     const step = options.steps[options.currentIndex];
     if (step) {
       options.onSeek(step.start);
-      speak(`Step ${options.currentIndex + 1}. ${step.title || step.text}`);
+      speak(`Step ${options.currentIndex + 1}. ${titleOrSnippet(step)}`);
     }
-  }, [options, speak]);
+  }, [options, speak, titleOrSnippet]);
 
   const currentStepInfo = useCallback(() => {
     const step = options.steps[options.currentIndex];
     if (step) {
-      speak(`You're on step ${options.currentIndex + 1} of ${options.steps.length}. ${step.title || step.text}`);
+      speak(`You're on step ${options.currentIndex + 1} of ${options.steps.length}. ${titleOrSnippet(step)}`);
     }
-  }, [options, speak]);
+  }, [options, speak, titleOrSnippet]);
 
   // Clear disambiguation prompt
   const clearDisambiguation = useCallback(() => {

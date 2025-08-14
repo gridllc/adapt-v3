@@ -6,7 +6,6 @@ import { ProcessingBanner } from './ProcessingBanner'
 import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 import { API_ENDPOINTS } from '../../config/api'
-import { DEBUG_UI } from '../../config/api'
 import { useModuleStatus } from '../../hooks/useModuleStatus'
 
 export const UploadManager: React.FC = () => {
@@ -82,8 +81,8 @@ export const UploadManager: React.FC = () => {
           // Start the upload status
           startUpload(uploadId)
           
-          // Optional small nudge to show the phase is moving
-          setTimeout(() => setPhase(uploadId, 'finalizing'), 300)
+          // Show finalizing phase early to indicate transition
+          setTimeout(() => setPhase(uploadId, 'finalizing'), 100)
           
           const response = await uploadWithProgress({
             file,
@@ -91,6 +90,11 @@ export const UploadManager: React.FC = () => {
             onProgress: (progress) => {
               console.log(`Upload progress: ${progress}%`)
               updateProgress(uploadId, progress)
+              
+              // Switch to processing phase when upload is nearly complete
+              if (progress >= 90) {
+                setPhase(uploadId, 'finalizing')
+              }
             },
           })
 
@@ -141,15 +145,6 @@ export const UploadManager: React.FC = () => {
           progress={currentUpload.progress}
           moduleId={currentUpload.moduleId}
         />
-      )}
-
-      {/* Debug Banner - only shown in development */}
-      {DEBUG_UI && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-sm text-yellow-800">
-            <strong>Debug Info:</strong> Upload will go to {API_ENDPOINTS.UPLOAD}
-          </p>
-        </div>
       )}
 
       {/* Drop Zone */}

@@ -25,7 +25,7 @@ try {
   console.error(`❌ Failed to initialize OpenAI in aiRoutes: ${error instanceof Error ? error.message : 'Unknown error'}`)
 }
 
-// Configure multer for audio uploads
+// Configure multer for audio uploads (v2.x compatible)
 const upload = multer({ 
   dest: '/tmp',
   limits: {

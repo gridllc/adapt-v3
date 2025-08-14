@@ -140,8 +140,8 @@ export const useUploadStore = create<UploadState>()(
           const upload = state.uploads.get(id)
           if (!upload) return state
 
-          // Determine next phase based on progress
-          const nextPhase: UploadPhase = progress >= 95 ? 'finalizing' : 'uploading'
+          // Determine next phase based on progress - switch earlier for better UX
+          const nextPhase: UploadPhase = progress >= 85 ? 'finalizing' : 'uploading'
 
           const newUploads = new Map(state.uploads)
           newUploads.set(id, {

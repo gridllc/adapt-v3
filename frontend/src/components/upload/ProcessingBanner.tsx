@@ -32,26 +32,40 @@ export function ProcessingBanner({
         </span>
       </div>
 
+      {/* Progress bar - show for uploading/finalizing phases */}
       {(uploading || finalizing) && (
         <div className="mt-3 h-2 w-full overflow-hidden rounded bg-zinc-200 dark:bg-zinc-800">
           <div
-            className="h-2 rounded bg-zinc-600 transition-all"
+            className="h-2 rounded bg-zinc-600 transition-all duration-300"
             style={{ width: `${Math.min(progress, 99)}%` }}
           />
         </div>
       )}
 
+      {/* Processing status - show prominently */}
       {processing && (
-        <div className="mt-2 text-sm text-zinc-500">
-          {moduleId ? (
-            <>
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 text-blue-800">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="font-medium">Processing in progress...</span>
+          </div>
+          {moduleId && (
+            <div className="mt-2 text-sm text-blue-700">
               Module ID: <span className="font-mono">{moduleId}</span>
-            </>
-          ) : (
-            <>Setting up module…</>
+            </div>
           )}
-          <div className="mt-1 text-xs">
+          <div className="mt-1 text-xs text-blue-600">
             You'll be taken to training automatically when it's ready.
+          </div>
+        </div>
+      )}
+
+      {/* Finalizing status */}
+      {finalizing && (
+        <div className="mt-2 text-sm text-zinc-500">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            <span>Preparing your video for processing...</span>
           </div>
         </div>
       )}

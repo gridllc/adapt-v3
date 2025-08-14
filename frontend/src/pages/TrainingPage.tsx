@@ -796,7 +796,12 @@ export const TrainingPage: React.FC = () => {
       {/* Voice Coach Overlay */}
       <VoiceCoachOverlay
         isVisible={showVoiceCoachOverlay}
-        onStart={() => setShowVoiceCoachOverlay(false)}
+        onStart={() => {
+          setShowVoiceCoachOverlay(false);
+          // Synchronous event => still in the click gesture
+          // This keeps the action inside the same user gesture for mobile compatibility
+          window.dispatchEvent(new Event('vc-start'));
+        }}
         onDismiss={() => setShowVoiceCoachOverlay(false)}
       />
     </div>

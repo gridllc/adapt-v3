@@ -6,25 +6,58 @@ import { SpeechService, PartialListener } from "./SpeechService";
  * Implement when you re-enable billing.
  */
 export class GoogleSpeechService implements SpeechService {
-  private onResultCb?: PartialListener<string>;
-  private onErrorCb?: PartialListener<string>;
+  private onResultCb?: PartialListener<{ transcript: string; confidence: number; isFinal?: boolean }>;
+  private onErrorCb?: PartialListener<{ error: string; message: string; raw?: any }>;
+  private onEndCb?: PartialListener<void>;
+  private onPartialCb?: PartialListener<{ transcript: string; confidence: number; isFinal?: boolean }>;
 
   isSttAvailable() { return true; }  // we'll support push-to-talk upload
   isTtsAvailable() { return true; }
 
-  async startListening() {
+  // New: compatibility used by your hook
+  isSupported() {
+    const secure = typeof window !== 'undefined' ? window.isSecureContext : true;
+    return secure && this.isSttAvailable() && this.isTtsAvailable();
+  }
+
+  async startListening(
+    onResult?: PartialListener<{ transcript: string; confidence: number; isFinal?: boolean }>,
+    onError?: PartialListener<{ error: string; message: string; raw?: any }>,
+    onEnd?: PartialListener<void>,
+    onPartial?: PartialListener<{ transcript: string; confidence: number; isFinal?: boolean }>
+  ) {
+    // Set callbacks
+    if (onResult) this.onResultCb = onResult;
+    if (onError) this.onErrorCb = onError;
+    if (onEnd) this.onEndCb = onEnd;
+    if (onPartial) this.onPartialCb = onPartial;
+
     // Placeholder: show a modal to record with MediaRecorder,
     // POST to /api/voice/stt (server uses Google STT), then:
-    // this.onResultCb?.(transcript)
-    this.onErrorCb?.("Google STT not implemented in this build.");
+    // this.onResultCb?.({ transcript, confidence: 0.9, isFinal: true })
+    this.onErrorCb?.({ error: "NOT_IMPLEMENTED", message: "Google STT not implemented in this build.", raw: null });
+    return false;
   }
 
   async stopListening() { /* noop for now */ }
 
-  onResult(cb: PartialListener<string>) { this.onResultCb = cb; }
-  onError(cb: PartialListener<string>) { this.onErrorCb = cb; }
+  onResult(cb: PartialListener<{ transcript: string; confidence: number; isFinal?: boolean }>) { 
+    this.onResultCb = cb; 
+  }
+  
+  onError(cb: PartialListener<{ error: string; message: string; raw?: any }>) { 
+    this.onErrorCb = cb; 
+  }
 
-  async speak(text: string) {
+  onEnd(cb: PartialListener<void>) {
+    this.onEndCb = cb;
+  }
+
+  onPartial(cb: PartialListener<{ transcript: string; confidence: number; isFinal?: boolean }>) {
+    this.onPartialCb = cb;
+  }
+
+  async speak(text: string, options?: { resumeSttAfter?: boolean }) {
     // Placeholder: POST {text} to /api/voice/tts → returns audio URL/arrayBuffer
     // Then play it:
     // const res = await fetch('/api/voice/tts', { method:'POST', body: JSON.stringify({text})});
@@ -34,6 +67,15 @@ export class GoogleSpeechService implements SpeechService {
     console.warn("Google TTS placeholder called:", text);
   }
 
+  async stopSpeaking() { /* noop for now */ }
+  
   cancelSpeak() { /* noop for now */ }
-  dispose() { /* noop for now */ }
+  
+  setLanguage(lang: string) { /* noop for now */ }
+  
+  async getVoices(): Promise<SpeechSynthesisVoice[]> {
+    return [];
+  }
+  
+  destroy() { /* noop for now */ }
 }

@@ -5,5 +5,5 @@ import { GoogleSpeechService } from "./GoogleSpeechService";
 export function createSpeechService(): SpeechService {
   const provider = (import.meta.env.VITE_VOICE_PROVIDER || "BROWSER").toUpperCase();
   if (provider === "GOOGLE") return new GoogleSpeechService();
-  return new BrowserSpeechService("en-US");
+  return new BrowserSpeechService({ lang: "en-US" });
 }

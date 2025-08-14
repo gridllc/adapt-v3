@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect, useState } from 'react';
+import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react';
 import { useVoiceCoach, VoiceCoachOptions } from '../../voice/useVoiceCoach';
 
 type Step = {
@@ -79,7 +79,12 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
     repeatStep,
     currentStepInfo,
     clearDisambiguation,
+    toast,
   } = useVoiceCoach(voiceOptions);
+
+  // Track muted state
+  const [isMuted, setIsMuted] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   if (!isSupported) return null;
 
@@ -88,9 +93,13 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
     if (!isActive) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle hotkeys when the voice coach panel is focused
-      const voiceCoachElement = document.querySelector('[data-testid="voice-coach"]');
-      if (!voiceCoachElement?.contains(document.activeElement)) return;
+      // ignore when focused on inputs/textareas/contenteditable
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || el?.isContentEditable;
+      if (isTyping) return;
+
+      if (!rootRef.current?.contains(el)) return;
 
       switch (e.key) {
         case 'ArrowRight':
@@ -112,6 +121,25 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isActive, nextStep, previousStep, repeatStep]);
+
+  // Listen for voice coach start event from overlay
+  useEffect(() => {
+    const handler = () => {
+      // prevent double-start while TTS may be speaking
+      if (!isActive && !isSpeaking) {
+        startVoiceCoach();
+      }
+    };
+    window.addEventListener('vc-start', handler);
+    return () => window.removeEventListener('vc-start', handler);
+  }, [isActive, isSpeaking, startVoiceCoach]);
+
+  // Haptic feedback on permission errors
+  useEffect(() => {
+    if (error && 'vibrate' in navigator) {
+      (navigator as any).vibrate?.(60);
+    }
+  }, [error]);
 
   const progressPct = useMemo(() => {
     if (!steps?.length) return 0;
@@ -140,9 +168,6 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
       ? ' Microphone permission may be blocked. Check site permissions and input device.'
       : '';
 
-  // Track muted state
-  const [isMuted, setIsMuted] = useState(false);
-
   const handleMuteToggle = useCallback(() => {
     if (isMuted) {
       onUnmute?.();
@@ -153,18 +178,21 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
     }
   }, [isMuted, onMute, onUnmute]);
 
-  // Press-to-talk handlers (optional)
-  const pttHandlers = pressToTalk
-    ? {
-        onMouseDown: () => !isSpeaking && startListening(),
-        onMouseUp: stopListening,
-        onTouchStart: () => !isSpeaking && startListening(),
-        onTouchEnd: stopListening,
-      }
-    : {};
+  // Unified PTT handlers with pointer events
+  const handlePTTDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    if (!isSpeaking) startListening();
+  }, [isSpeaking, startListening]);
+
+  const handlePTTUp = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    stopListening();
+  }, [stopListening]);
 
   return (
-    <div className="space-y-4" data-testid="voice-coach">
+    <div className="space-y-4" data-testid="voice-coach" ref={rootRef} aria-busy={isListening}>
       {/* Step Progress */}
       <div className="flex items-center justify-between text-sm text-gray-600">
         <span>
@@ -202,7 +230,7 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
         <button
           type="button"
           onClick={nextStep}
-          disabled={currentStepIndex >= steps.length - 1}
+          disabled={currentStepIndex >= steps.length - 1 || isSpeaking}
           className="px-4 py-3 bg-green-600 text-white rounded-full hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Next step"
         >
@@ -213,7 +241,8 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
         <button
           type="button"
           onClick={repeatStep}
-          className="px-4 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
+          disabled={isSpeaking}
+          className="px-4 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           title="Repeat current step"
         >
           🔁
@@ -245,8 +274,9 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
                 <button
                   type="button"
                   disabled={isSpeaking}
-                  className="px-3 py-1 bg-blue-600 text-white text-xs rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  {...pttHandlers}
+                  onPointerDown={handlePTTDown}
+                  onPointerUp={handlePTTUp}
+                  className="px-3 py-1 bg-blue-600 text-white text-xs rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Hold to Speak
                 </button>
@@ -261,7 +291,7 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
               ) : (
                 <button
                   type="button"
-                  onClick={startListening}
+                  onClick={() => startListening()}
                   disabled={isSpeaking}
                   className="px-3 py-1 bg-blue-600 text-white text-xs rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -347,25 +377,36 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="px-3 py-1 bg-white border border-yellow-300 text-yellow-700 text-xs rounded-full hover:bg-yellow-50 transition-colors"
+                  disabled={isSpeaking}
+                  className="px-3 py-1 bg-white border border-yellow-300 text-yellow-700 text-xs rounded-full hover:bg-yellow-50 transition-colors disabled:opacity-50"
                 >
                   Next
                 </button>
                 <button
                   type="button"
                   onClick={repeatStep}
-                  className="px-3 py-1 bg-white border border-yellow-300 text-yellow-700 text-xs rounded-full hover:bg-yellow-50 transition-colors"
+                  disabled={isSpeaking}
+                  className="px-3 py-1 bg-white border border-yellow-300 text-yellow-700 text-xs rounded-full hover:bg-yellow-50 transition-colors disabled:opacity-50"
                 >
                   Repeat
                 </button>
                 <button
                   type="button"
                   onClick={currentStepInfo}
-                  className="px-3 py-1 bg-white border border-yellow-300 text-yellow-700 text-xs rounded-full hover:bg-yellow-50 transition-colors"
+                  disabled={isSpeaking}
+                  className="px-3 py-1 bg-white border border-yellow-300 text-yellow-700 text-xs rounded-full hover:bg-yellow-50 transition-colors disabled:opacity-50"
                 >
                   Which step?
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Toast Messages */}
+          {toast && (
+            <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded" aria-live="polite">
+              <p className="text-xs text-green-700 mb-1">System:</p>
+              <p className="text-sm text-green-800">{toast}</p>
             </div>
           )}
 
@@ -400,28 +441,32 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
             <button
               type="button"
               onClick={nextStep}
-              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors"
+              disabled={isSpeaking}
+              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors disabled:opacity-50"
             >
               Next
             </button>
             <button
               type="button"
               onClick={repeatStep}
-              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors"
+              disabled={isSpeaking}
+              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors disabled:opacity-50"
             >
               Repeat
             </button>
             <button
               type="button"
               onClick={currentStepInfo}
-              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors"
+              disabled={isSpeaking}
+              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors disabled:opacity-50"
             >
               Which step?
             </button>
             <button
               type="button"
               onClick={handleRestart}
-              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors"
+              disabled={isSpeaking}
+              className="px-3 py-1 bg-white border border-blue-200 text-blue-700 text-xs rounded-full hover:bg-blue-50 transition-colors disabled:opacity-50"
             >
               Restart
             </button>

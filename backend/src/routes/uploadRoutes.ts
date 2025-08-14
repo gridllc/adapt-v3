@@ -7,7 +7,7 @@ import { optionalAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// Configure multer for memory storage
+// Configure multer for memory storage (v2.x compatible)
 const upload = multer({ 
   storage: multer.memoryStorage(), 
   limits: { 
