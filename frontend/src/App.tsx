@@ -13,8 +13,24 @@ import SharePage from '@pages/SharePage'
 import DebugPage from '@pages/DebugPage'
 import { SignInPage } from '@pages/SignInPage'
 import { SignUpPage } from '@pages/SignUpPage'
-import { ApiDebug } from '@components/ApiDebug'
-import { GlobalErrorBoundary, NavigationErrorBoundary, UploadErrorBoundary } from '@components/common/ErrorBoundaries'
+import { GlobalErrorBoundary } from '@components/common/ErrorBoundaries'
+
+// Error page component for 404 routes
+const NotFoundPage = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-center">
+      <h1 className="text-6xl font-bold text-gray-300 mb-4">404</h1>
+      <h2 className="text-2xl font-semibold text-gray-700 mb-4">Page Not Found</h2>
+      <p className="text-gray-600 mb-8">The page you're looking for doesn't exist.</p>
+      <a 
+        href="/" 
+        className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+      >
+        Go Home
+      </a>
+    </div>
+  </div>
+)
 
 // Conditional Home Component
 const ConditionalHome = () => {
@@ -62,16 +78,40 @@ function App() {
         
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<Layout><DashboardPage /></Layout>} />
-          <Route path="/upload" element={<Layout><UploadPage /></Layout>} />
-          <Route path="/training/:moduleId" element={<Layout><TrainingPage /></Layout>} />
-          <Route path="/edit/:moduleId" element={<Layout><EditStepsPage /></Layout>} />
-          <Route path="/share/:moduleId" element={<Layout><SharePage /></Layout>} />
-          <Route path="/debug" element={<Layout><DebugPage /></Layout>} />
+          <Route path="/dashboard" element={
+            <Layout>
+              <DashboardPage />
+            </Layout>
+          } />
+          <Route path="/upload" element={
+            <Layout>
+              <UploadPage />
+            </Layout>
+          } />
+          <Route path="/training/:moduleId" element={
+            <Layout>
+              <TrainingPage />
+            </Layout>
+          } />
+          <Route path="/edit/:moduleId" element={
+            <Layout>
+              <EditStepsPage />
+            </Layout>
+          } />
+          <Route path="/share/:moduleId" element={
+            <Layout>
+              <SharePage />
+            </Layout>
+          } />
+          <Route path="/debug" element={
+            <Layout>
+              <DebugPage />
+            </Layout>
+          } />
         </Route>
         
-        {/* Error Boundaries */}
-        <Route path="*" element={<NavigationErrorBoundary />} />
+        {/* 404 Route */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </GlobalErrorBoundary>
   )
