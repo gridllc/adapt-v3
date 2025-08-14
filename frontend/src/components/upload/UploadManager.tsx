@@ -29,16 +29,14 @@ export const UploadManager: React.FC = () => {
   const hasQueuedUploads = Object.values(uploads).some(upload => upload.status === 'queued')
   const isUploading = hasActiveUploads || hasQueuedUploads
 
-  // Get current upload for status display - only show banner for active uploads
+  // Get current upload for status display - show banner for queued and active uploads
   const currentUpload = Object.values(uploads).find(u => 
-    ['uploading', 'success', 'error'].includes(u.status) && 
+    ['queued', 'uploading', 'success', 'error'].includes(u.status) && 
     ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(u.phase)
   )
 
-  // Only show ProcessingBanner for uploads that are actually in progress
-  const showStatus = currentUpload && 
-    ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(currentUpload.phase) &&
-    currentUpload.status !== 'queued' // Don't show banner for queued uploads
+  // Show ProcessingBanner for all uploads that have a status (including queued)
+  const showStatus = !!currentUpload
 
   // Use module status hook for processing uploads
   const processingUpload = Object.values(uploads).find(u => u.phase === 'processing')
@@ -77,15 +75,15 @@ export const UploadManager: React.FC = () => {
         const uploadId = addUpload(file)
         console.log('Added to queue:', uploadId)
 
+        // Ensure the UI shows a status immediately
+        setPhase(uploadId, 'uploading')
+
         // Start upload - USE DIRECT URL (bypasses proxy)
         try {
           console.log('Starting upload...')
           
           // Start the upload status
           startUpload(uploadId)
-          
-          // Show finalizing phase early to indicate transition
-          setTimeout(() => setPhase(uploadId, 'finalizing'), 100)
           
           const response = await uploadWithProgress({
             file,
@@ -141,7 +139,7 @@ export const UploadManager: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Processing Banner - only shows for active uploads, not queued ones */}
+      {/* Processing Banner - shows for all uploads including queued ones */}
       {showStatus && currentUpload && (
         <ProcessingBanner
           phase={currentUpload.phase}
@@ -188,7 +186,7 @@ export const UploadManager: React.FC = () => {
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
           
-          {/* Upload Status Summary - only show for active uploads */}
+          {/* Upload Status Summary - show for all uploads */}
           {isUploading && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <div className="flex items-center space-x-2">

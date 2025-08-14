@@ -15,6 +15,9 @@ export function ProcessingBanner({
   const finalizing = phase === 'finalizing'
   const processing = phase === 'processing'
   const ready = phase === 'ready'
+  
+  // Detect when upload is queued (phase is 'uploading' but progress is 0)
+  const queued = phase === 'uploading' && progress === 0
 
   return (
     <div className="mb-4 rounded-xl border bg-white p-4 shadow-sm dark:bg-zinc-900">
@@ -25,7 +28,8 @@ export function ProcessingBanner({
           <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
         )}
         <span>
-          {uploading && 'Uploading your video…'}
+          {queued && 'Preparing to upload…'}
+          {uploading && !queued && 'Uploading your video…'}
           {finalizing && 'Preparing processing…'}
           {processing && 'Processing your video…'}
           {ready && 'Video is ready!'}
