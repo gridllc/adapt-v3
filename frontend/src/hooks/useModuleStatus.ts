@@ -1,16 +1,10 @@
 import { useState, useEffect } from 'react'
-import { api } from '../config/api'
+import { api, API_ENDPOINTS } from '../config/api'
 
 interface ModuleStatus {
-  status: 'processing' | 'ready' | 'failed' | 'complete' | 'error'
-  progress: number
-  message?: string
-  steps?: any[]
-  error?: string
-  title?: string
-  description?: string
-  totalDuration?: number
-  timestamp?: string
+  success: boolean
+  status: 'processing' | 'ready' | 'error'
+  moduleId: string
 }
 
 export function useModuleStatus(moduleId: string, enabled = true) {
@@ -33,34 +27,16 @@ export function useModuleStatus(moduleId: string, enabled = true) {
       try {
         console.log(`🔍 Checking status for module: ${moduleId}`)
         
-        // Get module status from the status endpoint
-        const data = await api(`/api/status/${moduleId}`)
+        // Get module status from the new status endpoint
+        const data = await api(API_ENDPOINTS.MODULE_STATUS(moduleId))
         console.log(`📊 Module status from status endpoint:`, data)
         
         setStatus(data)
         setLoading(false)
         setError(null)
 
-        // Track progress for stuck detection
-        const currentProgress = data.progress || 0
-        if (currentProgress === 0 && lastProgress === 0) {
-          if (!stuckStartTime) {
-            setStuckStartTime(Date.now())
-          } else {
-            const stuckDuration = Date.now() - stuckStartTime
-            if (stuckDuration > 20000) { // 20 seconds stuck at 0%
-              setStuckAtZero(true)
-              console.warn(`⚠️ Module ${moduleId} stuck at 0% for ${stuckDuration}ms`)
-            }
-          }
-        } else {
-          setStuckAtZero(false)
-          setStuckStartTime(null)
-        }
-        setLastProgress(currentProgress)
-
-        // Stop polling when ready, complete, or failed
-        if (data.status === 'ready' || data.status === 'failed' || data.status === 'complete' || data.status === 'error') {
+        // Stop polling when ready or error
+        if (data.status === 'ready' || data.status === 'error') {
           console.log(`✅ Module ${moduleId} processing complete: ${data.status}`)
           clearInterval(interval)
           if (stuckTimeout) clearTimeout(stuckTimeout)
@@ -70,35 +46,22 @@ export function useModuleStatus(moduleId: string, enabled = true) {
         console.error('❌ Status check failed:', err)
         setError(err instanceof Error ? err.message : 'Status check failed')
         setLoading(false)
-        
-        // If we can't reach the server, assume it might be stuck
-        if (!stuckAtZero) {
-          setStuckAtZero(true)
-        }
       }
     }
 
     // Check immediately
     checkStatus()
 
-    // Then poll every 3 seconds
-    interval = setInterval(checkStatus, 3000)
+    // Then poll every 4 seconds
+    interval = setInterval(checkStatus, 4000)
 
-    // Set up stuck detection timeout
-    stuckTimeout = setTimeout(() => {
-      if (lastProgress === 0) {
-        setStuckAtZero(true)
-        console.warn(`⚠️ Module ${moduleId} appears to be stuck at 0%`)
-      }
-    }, 15000) // 15 seconds
-
-    // Set up overall timeout (5 minutes)
+    // Set up overall timeout (3 minutes)
     timeoutTimer = setTimeout(() => {
       setTimeoutReached(true)
-      console.warn(`⏰ Module ${moduleId} processing timeout reached (5 minutes)`)
+      console.warn(`⏰ Module ${moduleId} processing timeout reached (3 minutes)`)
       clearInterval(interval)
       if (stuckTimeout) clearTimeout(stuckTimeout)
-    }, 300000) // 5 minutes
+    }, 180000) // 3 minutes
 
     return () => {
       clearInterval(interval)

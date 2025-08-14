@@ -169,6 +169,7 @@ export const uploadController = {
         moduleId: savedModuleId,
         videoUrl: s3Key,        // keep canonical key, not a local path
         status: 'uploaded',
+        processing: true,
         steps: [],
         message: 'Video uploaded successfully. AI processing will start shortly...'
       }

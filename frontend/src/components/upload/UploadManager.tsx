@@ -5,31 +5,11 @@ import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 import { API_ENDPOINTS } from '../../config/api'
-import { useModuleProcessing } from '../../hooks/useModuleProcessing'
 
 export const UploadManager: React.FC = () => {
   const { uploads, addUpload, updateProgress, markSuccess, markError, startUpload } = useUploadStore()
   
-  const [showProcessing, setShowProcessing] = useState(false)
-  const [justUploadedModuleId, setJustUploadedModuleId] = useState<string | null>(null)
-  
   const navigate = useNavigate()
-  const { status, progress, error } = useModuleProcessing(justUploadedModuleId || undefined)
-  
-  // Auto-redirect when ready
-  useEffect(() => {
-    if (!showProcessing || !justUploadedModuleId) return
-    if (status === "READY") {
-      navigate(`/training/${justUploadedModuleId}`)
-    }
-  }, [status, showProcessing, justUploadedModuleId, navigate])
-  
-  // Optional toast or console when failed
-  useEffect(() => {
-    if (status === "FAILED" && error) {
-      console.error("Processing failed:", error)
-    }
-  }, [status, error])
 
   // Check if any uploads are in progress
   const hasActiveUploads = Object.values(uploads).some(upload => upload.status === 'uploading')
@@ -76,9 +56,8 @@ export const UploadManager: React.FC = () => {
             console.log('Upload success:', result)
             markSuccess(uploadId, result.moduleId)
             
-            // Show processing panel and start monitoring
-            setJustUploadedModuleId(result.moduleId)
-            setShowProcessing(true)
+            // Navigate immediately to training page with processing state
+            navigate(`/training/${result.moduleId}?processing=true`)
           } else {
             const errorText = await response.text()
             console.error('Upload failed:', response.status, errorText)
@@ -92,7 +71,7 @@ export const UploadManager: React.FC = () => {
         console.error('File processing error:', error)
       }
     }
-  }, [addUpload, updateProgress, markSuccess, markError, startUpload])
+  }, [addUpload, updateProgress, markSuccess, markError, startUpload, navigate])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -108,49 +87,7 @@ export const UploadManager: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Processing Panel */}
-      {showProcessing && justUploadedModuleId && (
-        <div className="mt-4 mb-6 rounded-xl border p-4 bg-white/70">
-          <div className="flex items-center gap-3">
-            <div className="animate-spin h-5 w-5 rounded-full border-2 border-gray-300 border-t-transparent" />
-            <div className="font-medium">
-              {status === "FAILED" ? "Processing failed" : "Processing your video…"}
-            </div>
-          </div>
-
-          {status !== "FAILED" && (
-            <div className="mt-3">
-              <div className="text-sm text-gray-500 mb-1">
-                Module ID: {justUploadedModuleId}
-              </div>
-              <div className="h-2 w-full bg-gray-200 rounded">
-                <div
-                  className="h-2 bg-indigo-500 rounded transition-all"
-                  style={{ width: `${progress ?? 0}%` }}
-                />
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{Math.round(progress ?? 0)}%</div>
-              <div className="text-xs text-gray-500 mt-2">
-                You'll be taken to the training automatically when it's ready.
-              </div>
-            </div>
-          )}
-
-          {status === "FAILED" && (
-            <div className="mt-3 flex gap-8 items-center">
-              <div className="text-sm text-red-600">{error || "Processing failed."}</div>
-              <button
-                className="px-3 py-1 rounded bg-indigo-600 text-white"
-                onClick={() => {
-                  // Let users jump straight to Training (where they can click "Re-run AI Step Detection")
-                  navigate(`/training/${justUploadedModuleId}`)
-                }}
-              >
-                Open Training
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* The showProcessing and justUploadedModuleId state/effects are removed */}
 
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p className="text-sm text-yellow-800">

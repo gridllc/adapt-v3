@@ -2,27 +2,16 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useSignedVideoUrl } from '../hooks/useSignedVideoUrl'
 import { useModuleStatus } from '../hooks/useModuleStatus'
-import { api, API_ENDPOINTS } from '../config/api'
+import { useSteps, Step } from '../hooks/useSteps'
+import { useStepIndexAtTime } from '../hooks/useStepIndexAtTime'
+import { api, API_ENDPOINTS, DEBUG_UI } from '../config/api'
 import { AddStepForm } from '../components/AddStepForm'
 import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
-import { useVoiceCoach } from '../voice/useVoiceCoach'
-
-interface Step {
-  id: string
-  start: number
-  end: number
-  title: string
-  description: string
-  aliases?: string[]
-  notes?: string
-  isManual?: boolean
-  originalText?: string  // Original transcript text
-  aiRewrite?: string     // AI-rewritten version
-  stepText?: string      // Currently displayed text (original or rewritten)
-}
+import { VoiceCoachOverlay } from '../components/voice/VoiceCoachOverlay'
+import { VoiceCoachControls } from '../components/voice/VoiceCoachControls'
 
 interface ChatMessage {
   type: 'user' | 'assistant'
@@ -37,20 +26,29 @@ export const TrainingPage: React.FC = () => {
   const filename = moduleId ? `${moduleId}.mp4` : undefined
   const { url, loading, error } = useSignedVideoUrl(filename)
   
-  // Use module status hook for processing state - ensure moduleId is always defined
+  // Use module status hook for processing state
   const { status, loading: statusLoading, error: statusError, stuckAtZero, timeoutReached } = useModuleStatus(moduleId || '', isProcessing)
+  
+  // Use the new useSteps hook with enhanced features
+  const { 
+    steps, 
+    loading: stepsLoading, 
+    error: stepsError, 
+    reload: reloadSteps,
+    reorder: reorderSteps,
+    updateStep,
+    deleteStep,
+    addStep,
+    getIndexAt,
+    lastLoadedAt,
+    nextRetryIn
+  } = useSteps(moduleId, status)
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const chatHistoryRef = useRef<HTMLDivElement>(null)
+  const timeUpdateRaf = useRef<number | null>(null)
   
-  const [steps, setSteps] = useState<Step[]>([])
-  const [stepsLoading, setStepsLoading] = useState(false)
-  const [stepsError, setStepsError] = useState<string | null>(null)
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
-  const [hasTriedOnce, setHasTriedOnce] = useState(false)
-  const maxRetries = 5
-
   const [chatMessage, setChatMessage] = useState('')
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
@@ -63,6 +61,31 @@ export const TrainingPage: React.FC = () => {
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false)
+  const [showVoiceCoachOverlay, setShowVoiceCoachOverlay] = useState(false)
+
+  // Efficient step tracking using binary search
+  const getCurrentVideoTime = () => videoRef.current?.currentTime ?? 0
+  const currentIdx = useStepIndexAtTime(getIndexAt, getCurrentVideoTime, Boolean(url))
+  
+  // Update local state when efficient tracking changes
+  useEffect(() => {
+    setCurrentStepIndex(currentIdx)
+  }, [currentIdx])
+
+  // Determine if we should show processing state
+  const showProcessingState = isProcessing || (status && status.status === 'processing')
+  const isReady = status && status.status === 'ready'
+  const hasError = status && status.status === 'error'
+
+  // Check if we should show voice coach overlay (when coming from upload)
+  // Fixed: Show overlay when transitioning from processing to ready, not during processing
+  const prevStatusRef = useRef(status?.status)
+  useEffect(() => {
+    if (prevStatusRef.current === 'processing' && status?.status === 'ready') {
+      setShowVoiceCoachOverlay(true)
+    }
+    prevStatusRef.current = status?.status
+  }, [status?.status])
 
   // Video seeking function
   const seekToTime = (timeInSeconds: number) => {
@@ -73,21 +96,13 @@ export const TrainingPage: React.FC = () => {
     }
   }
 
-  // Voice coach hook
-  const voice = useVoiceCoach({
-    steps,
-    currentIndex: currentStepIndex || 0,
-    setCurrentIndex: setCurrentStepIndex,
-    seekTo: seekToTime,
-    pause: () => videoRef.current?.pause(),
-    play: () => videoRef.current?.play(),
-  });
-
-  // Video event handlers for smart sync
+  // Video event handlers with throttled time update
   const handleVideoTimeUpdate = () => {
-    if (videoRef.current) {
-      setVideoTime(videoRef.current.currentTime)
-    }
+    if (timeUpdateRaf.current) return
+    timeUpdateRaf.current = requestAnimationFrame(() => {
+      timeUpdateRaf.current = null
+      if (videoRef.current) setVideoTime(videoRef.current.currentTime)
+    })
   }
 
   const handleVideoPlay = () => {
@@ -98,190 +113,73 @@ export const TrainingPage: React.FC = () => {
     setIsVideoPlaying(false)
   }
 
-  // Auto-highlight current step based on video time
-  const getCurrentStepIndex = (): number | null => {
-    if (steps.length === 0) return null
-    
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i]
-      const stepStart = step.start
-      const stepEnd = step.end
-      
-      if (videoTime >= stepStart && videoTime < stepEnd) {
-        return i
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (timeUpdateRaf.current) {
+        cancelAnimationFrame(timeUpdateRaf.current)
       }
     }
-    
-    return null
-  }
+  }, [])
 
   // Handle step updates
   const handleStepUpdate = (index: number, updatedStep: Step) => {
-    const newSteps = [...steps]
-    newSteps[index] = updatedStep
-    setSteps(newSteps)
+    updateStep(index, updatedStep)
   }
 
   const handleStepDelete = (index: number) => {
-    const newSteps = steps.filter((_, i) => i !== index)
-    setSteps(newSteps)
+    deleteStep(index)
   }
 
   const handleAddStep = (newStep: Step) => {
-    setSteps(prev => [...prev, newStep])
+    addStep(newStep)
   }
 
-  // Step reordering functions
+  // Step reordering functions - now using the hook
   const handleMoveStepUp = async (index: number) => {
-    if (index === 0) return // Can't move first step up
-    
-    const newSteps = [...steps]
-    const [movedStep] = newSteps.splice(index, 1)
-    newSteps.splice(index - 1, 0, movedStep)
-    
-    setSteps(newSteps)
-    
-    // Save reordered steps to backend
+    if (index === 0) return
     try {
-      await api(API_ENDPOINTS.STEPS(moduleId || ''), {
-        method: 'POST',
-        body: JSON.stringify({ 
-          steps: newSteps,
-          action: 'reorder'
-        }),
-      })
+      await reorderSteps(index, index - 1)
     } catch (error) {
-      console.error('Failed to save reordered steps:', error)
-      // Revert on error
-      setSteps(steps)
+      console.error('Failed to move step up:', error)
     }
   }
 
   const handleMoveStepDown = async (index: number) => {
-    if (index === steps.length - 1) return // Can't move last step down
-    
-    const newSteps = [...steps]
-    const [movedStep] = newSteps.splice(index, 1)
-    newSteps.splice(index + 1, 0, movedStep)
-    
-    setSteps(newSteps)
-    
-    // Save reordered steps to backend
+    if (index === steps.length - 1) return
     try {
-      await api(API_ENDPOINTS.STEPS(moduleId || ''), {
-        method: 'POST',
-        body: JSON.stringify({ 
-          steps: newSteps,
-          action: 'reorder'
-        }),
-      })
+      await reorderSteps(index, index + 1)
     } catch (error) {
-      console.error('Failed to save reordered steps:', error)
-      // Revert on error
-      setSteps(steps)
+      console.error('Failed to move step down:', error)
     }
   }
 
-  // Handle seek parameter from URL
+  // Handle seek parameter from URL with proper cleanup
   useEffect(() => {
     const seekTime = searchParams.get('seek')
     if (seekTime && videoRef.current && url) {
       const timeInSeconds = parseFloat(seekTime)
       if (!isNaN(timeInSeconds)) {
-        // Wait for video to be ready, then seek
-        const handleCanPlay = () => {
-          seekToTime(timeInSeconds)
-          videoRef.current?.removeEventListener('canplay', handleCanPlay)
-        }
-        videoRef.current.addEventListener('canplay', handleCanPlay)
+        const doSeek = () => seekToTime(timeInSeconds)
         
-        // If video is already ready, seek immediately
-        if (videoRef.current.readyState >= 2) {
-          seekToTime(timeInSeconds)
+        // Wait for video to be ready, then seek
+        const v = videoRef.current
+        if (v.readyState >= 2) {
+          doSeek()
+        } else {
+          v.addEventListener('canplay', doSeek, { once: true })
         }
+        
+        return () => v.removeEventListener('canplay', doSeek)
       }
     }
   }, [url, searchParams])
-
-  // Fetch steps when video URL is ready AND module is ready
-  useEffect(() => {
-    if (!moduleId) return
-
-    // Don't fetch steps if module is still processing
-    if (status && status.status === 'processing') {
-      console.log(`⏳ Module ${moduleId} still processing, waiting for completion...`)
-      return
-    }
-
-    // Prevent auto-retries after refresh unless user manually retries
-    if (hasTriedOnce && retryCount === 0) {
-      console.log(`🔄 Skipping auto-retry for ${moduleId} - already tried once`)
-      return
-    }
-
-    const fetchSteps = async () => {
-      console.log(`[AI DEBUG] Attempting to fetch steps for ${moduleId}, retry ${retryCount}`)
-      setStepsLoading(true)
-      setStepsError(null)
-      try {
-        const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 10000))
-        const data = await Promise.race([api(freshUrl), timeoutPromise])
-        
-        if (!data.steps || data.steps.length === 0) {
-          // If no steps and module is ready, this might be an error
-          if (status && status.status === 'ready') {
-            throw new Error('Steps not found - module processing may have failed')
-          } else {
-            throw new Error('Steps not ready yet - module still processing')
-          }
-        }
-        
-        console.log(`✅ Successfully loaded ${data.steps.length} steps for ${moduleId}`)
-        
-        // Load transcript and meta data if available
-        if (data.transcript) {
-          console.log(`📝 Transcript loaded: ${data.transcript.length} characters`)
-        }
-        if (data.meta) {
-          console.log(`📊 Meta data loaded:`, data.meta)
-        }
-        
-        // Enhance steps with transcript and duration info
-        const enhancedSteps = data.steps.map((step: any, index: number) => ({
-          ...step,
-          originalText: data.transcript || '', // Add transcript to each step
-          duration: data.meta?.durationSec ? Math.round(data.meta.durationSec / data.steps.length) : 15 // Calculate step duration
-        }))
-        
-        setSteps(enhancedSteps)
-        setRetryCount(0)
-        setHasTriedOnce(true)
-      } catch (err: any) {
-        console.error(`❌ Error fetching steps for ${moduleId}:`, err)
-        if (retryCount < maxRetries) {
-          console.warn(`🔄 Retry ${retryCount + 1}/${maxRetries} for ${moduleId}...`)
-          setTimeout(() => setRetryCount(prev => prev + 1), 2000)
-        } else {
-          console.error(`💥 Max retries reached for ${moduleId}`)
-          setStepsError('Failed to load steps after multiple attempts')
-          setSteps([])
-          setHasTriedOnce(true)
-        }
-      } finally {
-        setStepsLoading(false)
-      }
-    }
-
-    fetchSteps()
-  }, [moduleId, retryCount, status?.status, hasTriedOnce]) // Added hasTriedOnce as dependency
 
   const handleProcessWithAI = async () => {
     if (!moduleId) return
     
     console.log(`[AI DEBUG] Processing AI steps for ${moduleId}`)
     setProcessingAI(true)
-    setStepsError(null) // Clear any previous errors
     
     try {
       console.log('🤖 AI processing requested for module:', moduleId)
@@ -296,19 +194,10 @@ export const TrainingPage: React.FC = () => {
       
       console.log('✅ AI processing completed:', result)
       
-      // Reset retry state and reload steps after successful processing
-      setRetryCount(0)
-      setHasTriedOnce(false) // Allow fresh attempt
-      
       // Reload steps after successful processing
-      setTimeout(() => {
-        console.log(`🔄 Triggering steps reload for ${moduleId} after AI processing`)
-        setRetryCount(0) // Reset retry count to trigger steps reload
-      }, 1000)
-      
+      reloadSteps()
     } catch (err) {
       console.error('❌ AI processing error:', err)
-      setStepsError(`AI processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setProcessingAI(false)
     }
@@ -380,69 +269,65 @@ export const TrainingPage: React.FC = () => {
     }
   }
 
-  const generateFallbackResponse = (userMessage: string, currentStep: any, allSteps: Step[]) => {
-    // Simple AI response logic based on keywords and context
-    const message = userMessage.toLowerCase()
-    
-    // Current step questions
-    if (currentStep && (message.includes('current step') || message.includes('this step') || message.includes('what step'))) {
-      return `You're currently on **Step ${currentStep.stepNumber}**: "${currentStep.title}". ${currentStep.description}`
+  // Fixed fallback response logic with proper field access
+  const generateFallbackResponse = (
+    userMessage: string,
+    currentStep: any,
+    allSteps: Step[]
+  ) => {
+    const msg = userMessage.toLowerCase()
+    const idx = currentStep ? steps.findIndex(s => s.id === currentStep.id) : -1
+
+    if (currentStep && (msg.includes('current step') || msg.includes('this step') || msg.includes('what step'))) {
+      return `You're currently on **Step ${idx + 1}**: "${currentStep.title}". ${currentStep.description}`
     }
-    
-    // Step navigation
-    if (message.includes('next step') || message.includes('previous step')) {
-      const totalSteps = allSteps.length
-      if (currentStep) {
-        if (message.includes('next') && currentStep.stepNumber < totalSteps) {
-          return `The next step is **Step ${currentStep.stepNumber + 1}**: "${allSteps[currentStep.stepNumber].title}". Click the "▶️ Seek" button to jump to it!`
-        } else if (message.includes('previous') && currentStep.stepNumber > 1) {
-          return `The previous step was **Step ${currentStep.stepNumber - 1}**: "${allSteps[currentStep.stepNumber - 2].title}". You can click "▶️ Seek" on any step to navigate.`
+
+    if (msg.includes('next step') || msg.includes('previous step')) {
+      const total = allSteps.length
+      if (idx >= 0) {
+        if (msg.includes('next') && idx + 1 < total) {
+          const nxt = allSteps[idx + 1]
+          return `The next step is **Step ${idx + 2}**: "${nxt.title}". Click "▶️ Seek" on that step to jump to it.`
+        } else if (msg.includes('previous') && idx - 1 >= 0) {
+          const prev = allSteps[idx - 1]
+          return `The previous step was **Step ${idx}**: "${prev.title}". You can click "▶️ Seek" on any step to navigate.`
         }
       }
-      return "You can click the '▶️ Seek' button on any step to navigate to it, or use the video controls to move around."
+      return `Use "▶️ Seek" on any step card to navigate, or the video controls.`
     }
-    
-    // Step count and overview
-    if (message.includes('how many steps') || message.includes('total steps') || message.includes('overview')) {
-      return `This training has **${allSteps.length} steps** total. You can see all steps listed below the video. Each step is clickable and will seek to that part of the video.`
-    }
-    
-    // Editing help
-    if (message.includes('edit') || message.includes('change') || message.includes('modify')) {
-      return `To edit a step, click the "✏️ Edit" button on any step. You can modify the title, description, timing, aliases, and AI teaching notes. Changes auto-save as you type!`
-    }
-    
-    // AI rewrite help
-    if (message.includes('ai rewrite') || message.includes('rewrite') || message.includes('improve')) {
-      return `Use the "✨ Rewrite" button in the editor to improve your step title. It will make it clearer, fix grammar, and add helpful details when needed - all while keeping it human and easy to understand!`
-    }
-    
-    // Timing questions
-    if (message.includes('time') || message.includes('duration') || message.includes('how long')) {
-      if (currentStep) {
-        const minutes = Math.floor(currentStep.timestamp / 60)
-        const seconds = currentStep.timestamp % 60
-        return `Step ${currentStep.stepNumber} starts at ${minutes}:${seconds.toString().padStart(2, '0')} and lasts ${currentStep.duration} seconds.`
-      }
-      return "Each step has specific timing. You can see the timestamp on each step, and click '▶️ Seek' to jump to that exact moment in the video."
-    }
-    
-    // General help
-    if (message.includes('help') || message.includes('how to') || message.includes('what can')) {
-      return `I can help you with:
-• **Navigation**: Ask about current, next, or previous steps
-• **Editing**: Learn how to modify steps and use AI rewrite
-• **Overview**: Get information about the training structure
-• **Timing**: Find out when steps occur in the video
 
-Just ask me anything about the training!`
+    if (msg.includes('how many steps') || msg.includes('total steps') || msg.includes('overview')) {
+      return `This training has **${allSteps.length} steps**. Each step is clickable and will seek to that part of the video.`
     }
-    
-    // Default response
-    return `I understand you're asking about "${userMessage}". I can help with step navigation, editing, timing, and general questions about this training. What would you like to know?`
+
+    if (msg.includes('time') || msg.includes('duration') || msg.includes('how long')) {
+      if (currentStep) {
+        const start = Math.max(0, Math.floor(currentStep.start))
+        const mins = Math.floor(start / 60)
+        const secs = String(start % 60).padStart(2, '0')
+        const dur = Math.max(0, Math.round(currentStep.end - currentStep.start))
+        return `Step ${idx + 1} starts at ${mins}:${secs} and runs for ~${dur}s.`
+      }
+      return `Each step shows its timestamp; click "▶️ Seek" to jump to that moment.`
+    }
+
+    if (msg.includes('edit') || msg.includes('change') || msg.includes('modify')) {
+      return `Click the "✏️ Edit" button on any step to modify title, description, timing, aliases, or notes—changes auto‑save.`
+    }
+
+    if (msg.includes('ai rewrite') || msg.includes('rewrite') || msg.includes('improve')) {
+      return `Use "✨ Rewrite" in the editor to improve a step title—clearer phrasing, grammar fixes, and helpful detail while keeping it human.`
+    }
+
+    if (msg.includes('help') || msg.includes('how to') || msg.includes('what can')) {
+      return `I can help with navigation, editing, overview, and timing. Ask "what step am I on?", "next step", or "how to edit a step".`
+    }
+
+    return `You asked: "${userMessage}". I can help with step navigation, editing, timing, and overview—what would you like to know?`
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  // Fixed: Use onKeyDown instead of deprecated onKeyPress
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSendMessage()
     }
@@ -462,8 +347,62 @@ Just ask me anything about the training!`
 
   // Update current step index when video time changes
   useEffect(() => {
-    setCurrentStepIndex(getCurrentStepIndex())
-  }, [videoTime, steps])
+    setCurrentStepIndex(currentIdx)
+  }, [currentIdx])
+
+  // Keyboard shortcuts for step navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts when not typing in chat
+      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
+        return
+      }
+
+      switch (e.key) {
+        case 'ArrowRight':
+          e.preventDefault()
+          if (currentStepIndex !== null && currentStepIndex < steps.length - 1) {
+            const nextStep = steps[currentStepIndex + 1]
+            if (nextStep) {
+              setCurrentStepIndex(currentStepIndex + 1)
+              seekToTime(nextStep.start)
+            }
+          }
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          if (currentStepIndex !== null && currentStepIndex > 0) {
+            const prevStep = steps[currentStepIndex - 1]
+            if (prevStep) {
+              setCurrentStepIndex(currentStepIndex - 1)
+              seekToTime(prevStep.start)
+            }
+          }
+          break
+        case 'r':
+        case 'R':
+          e.preventDefault()
+          if (currentStepIndex !== null) {
+            const currentStep = steps[currentStepIndex]
+            if (currentStep) {
+              seekToTime(currentStep.start)
+            }
+          }
+          break
+        case '?':
+          e.preventDefault()
+          // Focus chat input
+          const chatInput = document.querySelector('input[placeholder="Ask a question..."]') as HTMLInputElement
+          if (chatInput) {
+            chatInput.focus()
+          }
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentStepIndex, steps])
 
   console.log('🎬 TrainingPage render state:', {
     moduleId,
@@ -479,16 +418,16 @@ Just ask me anything about the training!`
   if (isProcessing && (statusLoading || (status && status.status === 'processing'))) {
     return (
       <ProcessingScreen 
-        progress={status?.progress || 0} 
-        message={status?.message}
-        stuckAtZero={stuckAtZero}
-        timeoutReached={timeoutReached}
+        progress={0} 
+        message="Processing video..."
+        stuckAtZero={false}
+        timeoutReached={false}
       />
     )
   }
 
   // Show error screen if processing failed
-  if (status && status.status === 'failed') {
+  if (status && status.status === 'error') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-8">
         <div className="max-w-md w-full space-y-6 text-center">
@@ -496,7 +435,7 @@ Just ask me anything about the training!`
           <h2 className="text-2xl font-bold text-red-600 mb-2">
             Processing Failed
           </h2>
-          <p className="text-gray-600 mb-4">{status.error || 'An error occurred during processing'}</p>
+          <p className="text-gray-600 mb-4">An error occurred during processing</p>
           <button 
             onClick={() => window.location.href = '/upload'}
             className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
@@ -511,7 +450,38 @@ Just ask me anything about the training!`
   return (
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Training: {moduleId}</h1>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold text-gray-900">Training: {moduleId}</h1>
+          
+          {/* Processing Status Header */}
+          {showProcessingState && !isReady && (
+            <div className="flex items-center gap-2 text-sm text-slate-500 mt-2">
+              <span className="animate-spin h-4 w-4 rounded-full border border-slate-300 border-t-transparent" />
+              {status?.status === 'processing' ? 'Processing video (transcribe → steps)…' : 'Starting processing...'}
+            </div>
+          )}
+          
+          {/* Error Status */}
+          {hasError && (
+            <div className="flex items-center gap-2 text-sm text-red-500 mt-2">
+              <span>⚠️</span>
+              <span>Processing failed. Please try again.</span>
+            </div>
+          )}
+          
+          {/* Status Hints from useSteps hook */}
+          {lastLoadedAt && (
+            <span className="text-xs text-slate-500 ml-2">
+              • loaded {new Date(lastLoadedAt).toLocaleTimeString()}
+            </span>
+          )}
+          {nextRetryIn !== undefined && (
+            <span className="text-xs text-slate-500 ml-2">
+              • retrying in {Math.ceil(nextRetryIn / 1000)}s…
+            </span>
+          )}
+        </div>
+        
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowQRCode(true)}
@@ -594,54 +564,22 @@ Just ask me anything about the training!`
 
                 <div className="mt-4 flex gap-3 justify-center">
                   <button
+                    type="button"
                     onClick={() => {
-                      setRetryCount(0)
-                      setHasTriedOnce(false) // Reset to allow fresh attempt
+                      reloadSteps() // Use reloadSteps from useSteps
                     }}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
                   >
                     🔁 Retry Loading Steps
                   </button>
                   <button
+                    type="button"
                     onClick={handleProcessWithAI}
                     disabled={processingAI || status?.status === 'processing'}
                     className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg"
                   >
                     🤖 Re-run AI Step Detection
                   </button>
-                  
-                  {/* Voice Controls */}
-                  {import.meta.env.VITE_ENABLE_VOICE === 'true' && (
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        disabled={!voice.sttAvailable}
-                        onClick={voice.listening ? voice.stop : voice.start}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          voice.listening 
-                            ? 'bg-red-600 hover:bg-red-700 text-white' 
-                            : 'bg-purple-600 hover:bg-purple-700 text-white'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        title={voice.listening ? 'Stop listening' : 'Start voice commands'}
-                      >
-                        {voice.listening ? '🎤 Stop' : '🎤 Voice Coach'}
-                      </button>
-                      
-                      <button 
-                        onClick={() => voice.speak(`You are on step ${(currentStepIndex || 0) + 1}`)}
-                        disabled={!voice.ttsAvailable}
-                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:cursor-not-allowed"
-                        title="Read current step"
-                      >
-                        🔊 Read Step
-                      </button>
-                      
-                      {voice.lastText && (
-                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                          Last: "{voice.lastText}"
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {processingAI && (
@@ -652,6 +590,16 @@ Just ask me anything about the training!`
               </div>
             ) : steps && steps.length > 0 ? (
               <div className="space-y-4">
+                {/* Voice Coach Controls */}
+                <VoiceCoachControls
+                  steps={steps}
+                  currentStepIndex={currentStepIndex || 0}
+                  onStepChange={setCurrentStepIndex}
+                  onSeek={seekToTime}
+                  onPause={() => videoRef.current?.pause()}
+                  onPlay={() => videoRef.current?.play()}
+                />
+
                 {/* Transcript Display */}
                 {steps[0]?.originalText && (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
@@ -694,21 +642,22 @@ Just ask me anything about the training!`
                 {/* Debug info for developers */}
                 {process.env.NODE_ENV === 'development' && (
                   <div className="text-xs text-gray-400 mt-2">
-                    Debug: moduleId={moduleId}, url={url ? 'loaded' : 'not loaded'}, steps={steps.length}, hasTriedOnce={hasTriedOnce.toString()}
+                    Debug: moduleId={moduleId}, url={url ? 'loaded' : 'not loaded'}, steps={steps.length}, hasTriedOnce={false} // Removed hasTriedOnce as it's not used in the new code
                   </div>
                 )}
                 
                 <div className="mt-4 flex gap-3 justify-center">
                   <button
+                    type="button"
                     onClick={() => {
-                      setRetryCount(0)
-                      setHasTriedOnce(false) // Reset to allow fresh attempt
+                      reloadSteps() // Use reloadSteps from useSteps
                     }}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm"
                   >
                     🔁 Retry Loading Steps
                   </button>
                   <button
+                    type="button"
                     onClick={handleProcessWithAI}
                     disabled={processingAI || status?.status === 'processing'}
                     className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm"
@@ -768,7 +717,12 @@ Just ask me anything about the training!`
               ].map((suggestion, index) => (
                 <button
                   key={index}
-                  onClick={() => setChatMessage(suggestion)}
+                  type="button"
+                  onClick={() => {
+                    setChatMessage(suggestion)
+                    // Optional: auto-send on click for better UX
+                    // handleSendMessage()
+                  }}
                   className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition"
                 >
                   {suggestion}
@@ -785,11 +739,14 @@ Just ask me anything about the training!`
           >
             {chatHistory.map((chat, index) => (
               <div key={index} className={`flex ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-xs p-3 rounded-lg ${
-                  chat.type === 'user' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-100 text-gray-700'
-                }`}>
+                <div 
+                  className={`max-w-xs p-3 rounded-lg ${
+                    chat.type === 'user' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                  aria-live={chat.type === 'assistant' ? 'polite' : undefined}
+                >
                   <p className="text-sm">
                     {chat.isTyping ? (
                       <span className="flex items-center gap-1">
@@ -811,13 +768,15 @@ Just ask me anything about the training!`
               type="text"
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyDown}
               placeholder="Ask a question..."
               className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
+              type="button"
               onClick={handleSendMessage}
               className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              title="Send message"
             >
               📤
             </button>
@@ -833,6 +792,13 @@ Just ask me anything about the training!`
           onClose={() => setShowQRCode(false)}
         />
       )}
+
+      {/* Voice Coach Overlay */}
+      <VoiceCoachOverlay
+        isVisible={showVoiceCoachOverlay}
+        onStart={() => setShowVoiceCoachOverlay(false)}
+        onDismiss={() => setShowVoiceCoachOverlay(false)}
+      />
     </div>
   )
 } 

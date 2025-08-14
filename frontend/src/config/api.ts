@@ -1,6 +1,9 @@
 // Environment detection and API base URL configuration  
 const isDevelopment = import.meta.env.MODE === 'development'
 
+// Debug UI flag - hide debug features in production
+export const DEBUG_UI = import.meta.env.VITE_DEBUG_UI === '1' || isDevelopment
+
 // API base URL - use domain in production, empty in development for proxy
 const baseURL = import.meta.env.VITE_API_BASE_URL || (isDevelopment ? '' : 'https://adaptord.com')
 
@@ -42,7 +45,8 @@ export const API_ENDPOINTS = {
   AI_CONTEXTUAL_RESPONSE: '/api/ai/contextual-response',
   HEALTH: '/api/health',
   AI_ASK: '/api/ai/ask',
-  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`
+  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
+  MODULE_STATUS: (moduleId: string) => `/api/modules/${moduleId}/status`
 }
 
 export function apiUrl(endpoint: string): string {

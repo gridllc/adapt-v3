@@ -168,6 +168,55 @@ router.get('/:id', async (req, res) => {
   }
 })
 
+// Get module status (processing/ready/error)
+router.get('/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const module = await prisma.module.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        steps: {
+          select: { id: true },
+          take: 1
+        }
+      }
+    })
+
+    if (!module) {
+      return res.status(404).json({
+        success: false,
+        error: 'Module not found'
+      })
+    }
+
+    // Determine status based on module status and steps existence
+    let status: 'processing' | 'ready' | 'error' = 'processing'
+    
+    if (module.status === 'FAILED') {
+      status = 'error'
+    } else if (module.status === 'READY' && module.steps.length > 0) {
+      status = 'ready'
+    } else if (module.status === 'UPLOADED' || module.status === 'PROCESSING') {
+      status = 'processing'
+    }
+
+    res.json({
+      success: true,
+      status,
+      moduleId: id
+    })
+  } catch (error) {
+    console.error('❌ Error in GET /api/modules/:id/status:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
+  }
+})
+
 // DELETE /api/modules/:id - Complete module cleanup (S3 + DB)
 router.delete('/:id', async (req, res) => {
   const { id } = req.params
