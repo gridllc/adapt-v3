@@ -28,6 +28,7 @@ import debugRoutes from './routes/debugRoutes.js'
 import { requestLogger } from './middleware/requestLogger.js'
 import healthRoutes from './routes/healthRoutes.js'
 import { storageRoutes } from './routes/storageRoutes.js'
+import voiceRoutes from './routes/voiceRoutes.js'
 
 // Import QStash queue to ensure it's initialized
 import './services/qstashQueue.js'
@@ -217,6 +218,7 @@ const configureRoutes = () => {
   app.use('/api/worker', workerRoutes)
   app.use('/api/share', shareRoutes)
   app.use('/api/storage', storageRoutes)
+app.use('/api/voice', voiceRoutes)
   
   // QStash webhook endpoint for processing video steps
   app.post('/api/process-steps', async (req, res) => {

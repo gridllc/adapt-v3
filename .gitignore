@@ -47,3 +47,43 @@ backend/env.production
 *.pem
 *.key
 *.p8
+
+# --- env files (monorepo friendly) ---
+.env
+.env.*
+frontend/.env
+frontend/.env.*
+backend/.env
+backend/.env.*
+# keep only examples tracked
+!*.example
+
+# --- credentials / keys ---
+# (tweak as needed; these are common offenders)
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+*service*account*.json
+*firebase*adminsdk*.json
+*google*credentials*.json
+
+# --- build + deps ---
+node_modules/
+dist/
+build/
+.vite/
+.next/
+out/
+coverage/
+*.log
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
