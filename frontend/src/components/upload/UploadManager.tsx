@@ -2,12 +2,26 @@ import React, { useCallback, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
+import { ProcessingBanner } from './ProcessingBanner'
 import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 import { API_ENDPOINTS } from '../../config/api'
+import { DEBUG_UI } from '../../config/api'
+import { useModuleStatus } from '../../hooks/useModuleStatus'
 
 export const UploadManager: React.FC = () => {
-  const { uploads, addUpload, updateProgress, markSuccess, markError, startUpload } = useUploadStore()
+  const { 
+    uploads, 
+    addUpload, 
+    updateProgress, 
+    markSuccess, 
+    markError, 
+    startUpload,
+    setPhase,
+    setModuleId,
+    markProcessing,
+    markReady
+  } = useUploadStore()
   
   const navigate = useNavigate()
 
@@ -15,6 +29,34 @@ export const UploadManager: React.FC = () => {
   const hasActiveUploads = Object.values(uploads).some(upload => upload.status === 'uploading')
   const hasQueuedUploads = Object.values(uploads).some(upload => upload.status === 'queued')
   const isUploading = hasActiveUploads || hasQueuedUploads
+
+  // Get current upload for status display
+  const currentUpload = Object.values(uploads).find(u => 
+    ['uploading', 'success', 'error'].includes(u.status)
+  )
+
+  const showStatus = currentUpload && 
+    ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(currentUpload.phase)
+
+  // Use module status hook for processing uploads
+  const processingUpload = Object.values(uploads).find(u => u.phase === 'processing')
+  const { status: moduleStatus } = useModuleStatus(
+    processingUpload?.moduleId || '', 
+    !!processingUpload?.moduleId
+  )
+
+  // Update upload status when module processing completes
+  useEffect(() => {
+    if (processingUpload && moduleStatus && processingUpload.moduleId) {
+      if (moduleStatus.status === 'ready') {
+        markReady(processingUpload.id)
+        // Navigate to training page
+        navigate(`/training/${processingUpload.moduleId}`)
+      } else if (moduleStatus.status === 'error') {
+        markError(processingUpload.id, new Error('Processing failed'))
+      }
+    }
+  }, [processingUpload, moduleStatus, markReady, markError, navigate])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     console.log('Files dropped:', acceptedFiles)
@@ -40,6 +82,9 @@ export const UploadManager: React.FC = () => {
           // Start the upload status
           startUpload(uploadId)
           
+          // Optional small nudge to show the phase is moving
+          setTimeout(() => setPhase(uploadId, 'finalizing'), 300)
+          
           const response = await uploadWithProgress({
             file,
             url: API_ENDPOINTS.UPLOAD, // Use configured API endpoint
@@ -54,10 +99,13 @@ export const UploadManager: React.FC = () => {
           if (response.ok) {
             const result = await response.json()
             console.log('Upload success:', result)
-            markSuccess(uploadId, result.moduleId)
             
-            // Navigate immediately to training page with processing state
-            navigate(`/training/${result.moduleId}?processing=true`)
+            // Set moduleId and switch to processing immediately
+            setModuleId(uploadId, result.moduleId)
+            markProcessing(uploadId)
+            
+            // Don't navigate immediately - let the status polling handle it
+            // navigate(`/training/${result.moduleId}?processing=true`)
           } else {
             const errorText = await response.text()
             console.error('Upload failed:', response.status, errorText)
@@ -71,7 +119,7 @@ export const UploadManager: React.FC = () => {
         console.error('File processing error:', error)
       }
     }
-  }, [addUpload, updateProgress, markSuccess, markError, startUpload, navigate])
+  }, [addUpload, updateProgress, markSuccess, markError, startUpload, setPhase, setModuleId, markProcessing, navigate])
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -86,14 +134,23 @@ export const UploadManager: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Processing Panel */}
-      {/* The showProcessing and justUploadedModuleId state/effects are removed */}
+      {/* Processing Banner - shows upload and processing status */}
+      {showStatus && currentUpload && (
+        <ProcessingBanner
+          phase={currentUpload.phase}
+          progress={currentUpload.progress}
+          moduleId={currentUpload.moduleId}
+        />
+      )}
 
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-sm text-yellow-800">
-          <strong>Debug Info:</strong> Upload will go to {API_ENDPOINTS.UPLOAD}
-        </p>
-      </div>
+      {/* Debug Banner - only shown in development */}
+      {DEBUG_UI && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-sm text-yellow-800">
+            <strong>Debug Info:</strong> Upload will go to {API_ENDPOINTS.UPLOAD}
+          </p>
+        </div>
+      )}
 
       {/* Drop Zone */}
       <div

@@ -20,32 +20,37 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
   }
 
   const getStatusIcon = () => {
-    switch (upload.status) {
-      case 'success':
+    switch (upload.phase) {
+      case 'ready':
         return <CheckCircle className="w-5 h-5 text-green-500" />
       case 'error':
         return <XCircle className="w-5 h-5 text-red-500" />
       case 'uploading':
+      case 'finalizing':
         return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-      case 'canceled':
-        return <AlertCircle className="w-5 h-5 text-gray-500" />
+      case 'processing':
+        return <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
+      case 'idle':
+        return <div className="w-5 h-5 rounded-full bg-gray-300" />
       default:
         return <div className="w-5 h-5 rounded-full bg-gray-300" />
     }
   }
 
   const getStatusText = () => {
-    switch (upload.status) {
-      case 'success':
+    switch (upload.phase) {
+      case 'ready':
         return 'Upload complete'
       case 'error':
         return upload.error || 'Upload failed'
       case 'uploading':
         return `Uploading... ${upload.progress}%`
-      case 'canceled':
-        return 'Upload canceled'
-      case 'queued':
-        return 'Queued for upload'
+      case 'finalizing':
+        return `Finalizing... ${upload.progress}%`
+      case 'processing':
+        return upload.moduleId ? 'Processing video...' : 'Preparing processing...'
+      case 'idle':
+        return upload.status === 'canceled' ? 'Upload canceled' : 'Queued for upload'
       default:
         return 'Unknown status'
     }
@@ -60,15 +65,18 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
   }
 
   const getProgressBarColor = () => {
-    switch (upload.status) {
-      case 'success':
+    switch (upload.phase) {
+      case 'ready':
         return 'bg-green-500'
       case 'error':
         return 'bg-red-500'
       case 'uploading':
+      case 'finalizing':
         return 'bg-blue-500'
-      case 'canceled':
-        return 'bg-gray-400'
+      case 'processing':
+        return 'bg-purple-500'
+      case 'idle':
+        return upload.status === 'canceled' ? 'bg-gray-400' : 'bg-gray-300'
       default:
         return 'bg-gray-300'
     }
@@ -100,7 +108,7 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
               className="p-1 hover:bg-gray-100 rounded"
               title="Retry upload"
             >
-              <RefreshCw className="w-4 h-4 text-blue-500" />
+              <RefreshCw className="w-4 h-4 text-gray-500" />
             </button>
           )}
           
@@ -126,73 +134,33 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
         </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="mb-2">
-        <div className="w-full bg-gray-200 rounded-full h-2">
+      <p className="text-sm text-gray-600 mb-3">
+        {getStatusText()}
+      </p>
+
+      {/* Progress bar - show for uploading/finalizing phases */}
+      {(upload.phase === 'uploading' || upload.phase === 'finalizing') && (
+        <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
           <div
             className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor()}`}
             style={{ width: `${upload.progress}%` }}
           />
         </div>
-      </div>
+      )}
 
-      {/* Status Text */}
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-600">{getStatusText()}</p>
-        
-        {upload.status === 'success' && upload.moduleId && (
-          <a
-            href={`/training/${upload.moduleId}`}
-            className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-          >
-            View Training →
-          </a>
-        )}
-        
-        {upload.status === 'error' && upload.attempts > 0 && (
-          <span className="text-xs text-gray-500">
-            Attempt {upload.attempts}/{upload.maxAttempts}
-          </span>
-        )}
-      </div>
-
-      {/* Upload Progress Details */}
-      {upload.status === 'uploading' && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-gray-700">Upload Progress</p>
-            <span className="text-xs text-gray-500">
-              {upload.progress}% complete
-            </span>
-          </div>
-          
-          <div className="w-full bg-gray-200 rounded-full h-1">
-            <div
-              className="h-1 rounded-full transition-all duration-200 bg-blue-500"
-              style={{ width: `${upload.progress}%` }}
-            />
-          </div>
+      {/* Processing info */}
+      {upload.phase === 'processing' && upload.moduleId && (
+        <div className="text-xs text-gray-500 mb-3">
+          Module ID: <span className="font-mono">{upload.moduleId}</span>
         </div>
       )}
 
-      {/* Error Details */}
-      {upload.status === 'error' && upload.error && (
-        <div className="mt-2 pt-2 border-t border-gray-100">
-          <p className="text-xs text-red-600 bg-red-50 p-2 rounded">
-            {upload.error}
-          </p>
+      {/* Error details */}
+      {upload.error && (
+        <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+          {upload.error}
         </div>
       )}
-
-      {/* Upload Metadata */}
-      <div className="mt-2 pt-2 border-t border-gray-100">
-        <div className="flex justify-between text-xs text-gray-400">
-          <span>Started: {upload.startedAt ? new Date(upload.startedAt).toLocaleTimeString() : 'Pending'}</span>
-          {upload.completedAt && (
-            <span>Completed: {new Date(upload.completedAt).toLocaleTimeString()}</span>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

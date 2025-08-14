@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { UploadPhase } from '../types/upload'
 
 // UploadPart interface removed - using presigned upload system
 
@@ -19,6 +20,9 @@ export interface UploadEntry {
   // Result fields
   moduleId?: string
   videoUrl?: string
+  
+  // New phase system for better UX
+  phase: UploadPhase
   
   // Metadata
   createdAt: Date
@@ -41,6 +45,12 @@ interface UploadState {
   cancelUpload: (id: string) => void
   retryUpload: (id: string) => void
   startUpload: (id: string) => void
+  
+  // New phase management actions
+  setPhase: (id: string, phase: UploadPhase) => void
+  setModuleId: (id: string, moduleId: string) => void
+  markProcessing: (id: string) => void
+  markReady: (id: string) => void
   
   // Getters
   getUpload: (id: string) => UploadEntry | undefined
@@ -73,6 +83,7 @@ export const useUploadStore = create<UploadState>()(
           attempts: 0,
           maxAttempts: 3,
           totalProgress: 0,
+          phase: 'idle',
           createdAt: new Date(),
         }
 
@@ -129,11 +140,15 @@ export const useUploadStore = create<UploadState>()(
           const upload = state.uploads.get(id)
           if (!upload) return state
 
+          // Determine next phase based on progress
+          const nextPhase: UploadPhase = progress >= 95 ? 'finalizing' : 'uploading'
+
           const newUploads = new Map(state.uploads)
           newUploads.set(id, {
             ...upload,
             progress,
-            totalProgress: progress
+            totalProgress: progress,
+            phase: nextPhase
           })
 
           return { uploads: newUploads }
@@ -149,11 +164,73 @@ export const useUploadStore = create<UploadState>()(
           newUploads.set(id, {
             ...upload,
             status: 'uploading',
+            phase: 'uploading',
             startedAt: new Date()
           })
 
           const newActiveUploads = new Set(state.activeUploads)
           newActiveUploads.add(id)
+
+          return { 
+            uploads: newUploads,
+            activeUploads: newActiveUploads
+          }
+        })
+      },
+
+      setPhase: (id: string, phase: UploadPhase) => {
+        set((state) => {
+          const upload = state.uploads.get(id)
+          if (!upload) return state
+
+          const newUploads = new Map(state.uploads)
+          newUploads.set(id, { ...upload, phase })
+
+          return { uploads: newUploads }
+        })
+      },
+
+      setModuleId: (id: string, moduleId: string) => {
+        set((state) => {
+          const upload = state.uploads.get(id)
+          if (!upload) return state
+
+          const newUploads = new Map(state.uploads)
+          newUploads.set(id, { ...upload, moduleId })
+
+          return { uploads: newUploads }
+        })
+      },
+
+      markProcessing: (id: string) => {
+        set((state) => {
+          const upload = state.uploads.get(id)
+          if (!upload) return state
+
+          const newUploads = new Map(state.uploads)
+          newUploads.set(id, { ...upload, phase: 'processing' })
+
+          return { uploads: newUploads }
+        })
+      },
+
+      markReady: (id: string) => {
+        set((state) => {
+          const upload = state.uploads.get(id)
+          if (!upload) return state
+
+          const newUploads = new Map(state.uploads)
+          newUploads.set(id, { 
+            ...upload, 
+            phase: 'ready', 
+            status: 'success',
+            progress: 100,
+            totalProgress: 100,
+            completedAt: new Date()
+          })
+
+          const newActiveUploads = new Set(state.activeUploads)
+          newActiveUploads.delete(id)
 
           return { 
             uploads: newUploads,
@@ -174,6 +251,7 @@ export const useUploadStore = create<UploadState>()(
             progress: 100,
             totalProgress: 100,
             moduleId,
+            phase: 'ready',
             completedAt: new Date()
           })
 
@@ -196,6 +274,7 @@ export const useUploadStore = create<UploadState>()(
           newUploads.set(id, {
             ...upload,
             status: 'error',
+            phase: 'error',
             error: error.message,
             completedAt: new Date()
           })
@@ -219,7 +298,8 @@ export const useUploadStore = create<UploadState>()(
           newUploads.set(id, {
             ...upload,
             status: 'canceled',
-            progress: 0
+            progress: 0,
+            phase: 'idle'
           })
 
           const newActiveUploads = new Set(state.activeUploads)
@@ -244,6 +324,7 @@ export const useUploadStore = create<UploadState>()(
             progress: 0,
             totalProgress: 0,
             error: undefined,
+            phase: 'idle',
             attempts: upload.attempts + 1,
             startedAt: undefined,
             completedAt: undefined
