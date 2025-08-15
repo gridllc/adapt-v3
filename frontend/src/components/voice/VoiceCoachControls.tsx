@@ -4,7 +4,7 @@ import { useVoiceCoach, type VoiceCoachOptions } from "@/voice/useVoiceCoach";
 
 type Props = VoiceCoachOptions & { className?: string };
 
-export default function VoiceCoachControls(props: Props) {
+function VoiceCoachControls(props: Props) {
   const vc = useVoiceCoach(props);                // stable hook order
   const [open, setOpen] = useState(false);
 
@@ -48,3 +48,6 @@ export default function VoiceCoachControls(props: Props) {
     </div>
   );
 }
+
+export default VoiceCoachControls;
+export { VoiceCoachControls };
