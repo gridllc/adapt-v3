@@ -10,7 +10,7 @@ import { api, API_ENDPOINTS, DEBUG_UI } from '../config/api'
 // import { StepEditor } from '../components/StepEditor'
 // import { FeedbackSection } from '../components/FeedbackSection'
 // import { ProcessingScreen } from '../components/ProcessingScreen'
-// import { ChatTutor } from '../components/ChatTutor'
+import ChatTutor from '../components/ChatTutor'
 
 // import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
@@ -50,8 +50,11 @@ export const TrainingPage: React.FC = () => {
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
 
-  // TEMP: disable ChatTutor to isolate React #310 error
-  const ENABLE_CHAT_TUTOR = false;
+  // TEMP: re-enable ChatTutor with stub to test isolation
+  const ENABLE_CHAT_TUTOR = true;
+  
+  // TEMP: disable video block to isolate React #310
+  const ENABLE_VIDEO = false;
 
 
   // Camera/mic functionality for Start Training
@@ -362,12 +365,19 @@ export const TrainingPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* TEMP: minimal div to isolate React #310 */}
+        {/* Video Player */}
         <div className="lg:col-span-2">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border">
-            <h2 className="text-xl font-semibold mb-4">Training Video</h2>
-            <div>minimal</div>
-          </div>
+          {ENABLE_VIDEO ? (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border">
+              <h2 className="text-xl font-semibold mb-4">Training Video</h2>
+              <div>Video player would go here</div>
+            </div>
+          ) : (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border">
+              <h2 className="text-xl font-semibold mb-4">Training Video</h2>
+              <div>[video stub]</div>
+            </div>
+          )}
 
           {/* Steps Display */}
           <div className="mt-6">
@@ -504,22 +514,22 @@ export const TrainingPage: React.FC = () => {
 
           </div>
 
-          {/* TEMP: AI Tutor disabled to isolate React #310 */}
-          {/* {ENABLE_CHAT_TUTOR && (
+          {/* AI Tutor – mobile (below video/steps) */}
+          {ENABLE_CHAT_TUTOR && (
             <div className="lg:hidden mt-6">
               {moduleId && <ChatTutor moduleId={moduleId} />}
             </div>
-          )} */}
+          )}
 
           {/* TEMP: Feedback section disabled to isolate React #310 */}
         </div>
 
-                  {/* TEMP: AI Tutor disabled to isolate React #310 */}
-          {/* {ENABLE_CHAT_TUTOR && (
+                  {/* AI Tutor – desktop sidebar */}
+          {ENABLE_CHAT_TUTOR && (
             <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
               {moduleId && <ChatTutor moduleId={moduleId} />}
             </div>
-          )} */}
+          )}
       </div>
 
 

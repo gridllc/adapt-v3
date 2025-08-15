@@ -35,7 +35,7 @@ interface UseStepsReturn extends StepsState {
   nextRetryIn?: number;
 }
 
-export function useSteps(moduleId: string | undefined, status: any): UseStepsReturn {
+sexport function useSteps(moduleId: string | undefined, status: any): UseStepsReturn {
   const [state, setState] = useState<StepsState>({
     steps: [],
     loading: false,
