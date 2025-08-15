@@ -5,13 +5,14 @@ import { useModuleStatus } from '../hooks/useModuleStatus'
 import { useSteps, Step } from '../hooks/useSteps'
 import { useStepIndexAtTime } from '../hooks/useStepIndexAtTime'
 import { api, API_ENDPOINTS, DEBUG_UI } from '../config/api'
-import { AddStepForm } from '../components/AddStepForm'
-import { StepEditor } from '../components/StepEditor'
-import { FeedbackSection } from '../components/FeedbackSection'
-import { ProcessingScreen } from '../components/ProcessingScreen'
-import { ChatTutor } from '../components/ChatTutor'
+// TEMP: imports disabled to isolate React #310 error
+// import { AddStepForm } from '../components/AddStepForm'
+// import { StepEditor } from '../components/StepEditor'
+// import { FeedbackSection } from '../components/FeedbackSection'
+// import { ProcessingScreen } from '../components/ProcessingScreen'
+// import { ChatTutor } from '../components/ChatTutor'
 
-import { LoadingSpinner } from '../components/common/LoadingSpinner'
+// import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
 
 export const TrainingPage: React.FC = () => {
@@ -291,12 +292,15 @@ export const TrainingPage: React.FC = () => {
   // Show processing screen if module is still being processed
   if (isProcessing && (statusLoading || (status && status.status === 'processing'))) {
     return (
-      <ProcessingScreen 
-        progress={0} 
-        message="Processing video..."
-        stuckAtZero={false}
-        timeoutReached={false}
-      />
+      <div className="flex flex-col items-center justify-center min-h-screen p-8">
+        <div className="max-w-md w-full space-y-6 text-center">
+          <div className="text-6xl mb-4">⏳</div>
+          <h2 className="text-2xl font-bold text-blue-600 mb-2">
+            Processing Video
+          </h2>
+          <p className="text-gray-600 mb-4">Processing video...</p>
+        </div>
+      </div>
     )
   }
 
@@ -358,56 +362,19 @@ export const TrainingPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Video Player */}
+        {/* TEMP: minimal div to isolate React #310 */}
         <div className="lg:col-span-2">
-          {loading ? (
-            <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
-              <LoadingSpinner message="Loading video..." fullScreen={false} />
-            </div>
-          ) : error ? (
-            <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-red-400">
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 mx-auto text-2xl">⚠️</div>
-                <div>
-                  <p className="text-lg font-semibold">Video Error</p>
-                  <p className="text-sm">{error}</p>
-                </div>
-              </div>
-            </div>
-          ) : url ? (
-            <div>
-              <video 
-                controls 
-                src={url} 
-                className="w-full rounded-2xl shadow-sm" 
-                ref={videoRef} 
-                onTimeUpdate={handleVideoTimeUpdate}
-                onPlay={async () => {
-                  await handleStartTraining();
-                  handleVideoPlay();
-                }}
-                onPause={handleVideoPause}
-              />
-              {/* Camera preview for Start Training */}
-              <video id="watchme-preview" className="w-24 h-24 rounded-lg mt-2" playsInline />
-            </div>
-          ) : (
-            <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 mx-auto text-2xl">📹</div>
-                <div>
-                  <p className="text-lg font-semibold">Video Unavailable</p>
-                  <p className="text-sm text-gray-400">Please check that the module exists and try again</p>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border">
+            <h2 className="text-xl font-semibold mb-4">Training Video</h2>
+            <div>minimal</div>
+          </div>
 
           {/* Steps Display */}
           <div className="mt-6">
             {stepsLoading ? (
               <div className="text-center py-8">
-                <LoadingSpinner message="Loading steps..." fullScreen={false} />
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading steps...</p>
                 
                 {/* Prominent AI Processing Message */}
                 <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mt-6 shadow-sm">
@@ -475,22 +442,14 @@ export const TrainingPage: React.FC = () => {
                 )}
                 
                 {steps.map((step, index) => (
-                  <StepEditor
-                    key={step.id || index}
-                    step={step}
-                    stepIndex={index + 1}
-                    moduleId={moduleId || ''}
-                    onUpdate={(updatedStep) => handleStepUpdate(index, updatedStep)}
-                    onDelete={() => handleStepDelete(index)}
-                    onMoveUp={() => handleMoveStepUp(index)}
-                    onMoveDown={() => handleMoveStepDown(index)}
-                    isCurrentStep={currentStepIndex === index}
-                    isVideoPlaying={isVideoPlaying}
-                    onSeek={seekToTime}
-                    canMoveUp={index > 0}
-                    canMoveDown={index < steps.length - 1}
-                    showRewrite={false}
-                  />
+                  <div key={step.id || index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="text-sm font-semibold text-gray-700 mb-2">
+                      Step {index + 1}: {step.title || 'Untitled Step'}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {step.description || 'No description'}
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : (
@@ -543,36 +502,24 @@ export const TrainingPage: React.FC = () => {
               </div>
             )}
 
-            {/* Add Step Form - Now at the bottom */}
-            <AddStepForm 
-              moduleId={moduleId || ''} 
-              onAdd={handleAddStep}
-              currentVideoTime={videoTime}
-            />
           </div>
 
-          {/* AI Tutor – mobile (below video/steps) */}
-          {ENABLE_CHAT_TUTOR && (
+          {/* TEMP: AI Tutor disabled to isolate React #310 */}
+          {/* {ENABLE_CHAT_TUTOR && (
             <div className="lg:hidden mt-6">
               {moduleId && <ChatTutor moduleId={moduleId} />}
             </div>
-          )}
+          )} */}
 
-          {/* Feedback Section */}
-          {steps.length > 0 && (
-            <FeedbackSection 
-              moduleId={moduleId || ''} 
-              stepsCount={steps.length}
-            />
-          )}
+          {/* TEMP: Feedback section disabled to isolate React #310 */}
         </div>
 
-                  {/* AI Tutor – desktop sidebar */}
-          {ENABLE_CHAT_TUTOR && (
+                  {/* TEMP: AI Tutor disabled to isolate React #310 */}
+          {/* {ENABLE_CHAT_TUTOR && (
             <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
               {moduleId && <ChatTutor moduleId={moduleId} />}
             </div>
-          )}
+          )} */}
       </div>
 
 
