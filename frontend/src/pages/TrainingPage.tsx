@@ -5,6 +5,7 @@ import { useModuleStatus } from '../hooks/useModuleStatus'
 import { useSteps, Step } from '../hooks/useSteps'
 import { useStepIndexAtTime } from '../hooks/useStepIndexAtTime'
 import { api, API_ENDPOINTS, DEBUG_UI } from '../config/api'
+import { CrashBoundary } from '../dev/CrashBoundary'
 // TEMP: imports disabled to isolate React #310 error
 // import { AddStepForm } from '../components/AddStepForm'
 // import { StepEditor } from '../components/StepEditor'
@@ -41,6 +42,8 @@ export const TrainingPage: React.FC = () => {
     lastLoadedAt,
     nextRetryIn
   } = useSteps(moduleId, status)
+
+
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const timeUpdateRaf = useRef<number | null>(null)
@@ -397,20 +400,23 @@ export const TrainingPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
         <div className="lg:col-span-2">
-          {ENABLE_VIDEO ? (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border">
-              <h2 className="text-xl font-semibold mb-4">Training Video</h2>
-              <div>Video player would go here</div>
-            </div>
-          ) : (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border">
-              <h2 className="text-xl font-semibold mb-4">Training Video</h2>
-              <div>[video stub]</div>
-            </div>
-          )}
+          <CrashBoundary name="Video">
+            {ENABLE_VIDEO ? (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                <h2 className="text-xl font-semibold mb-4">Training Video</h2>
+                <div>Video player would go here</div>
+              </div>
+            ) : (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                <h2 className="text-xl font-semibold mb-4">Training Video</h2>
+                <div>[video stub]</div>
+              </div>
+            )}
+          </CrashBoundary>
 
           {/* Steps Display */}
-          <div className="mt-6">
+          <CrashBoundary name="StepsPanel">
+            <div className="mt-6">
             {stepsLoading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -543,12 +549,15 @@ export const TrainingPage: React.FC = () => {
             )}
 
           </div>
+          </CrashBoundary>
 
           {/* AI Tutor – mobile (below video/steps) */}
           {ENABLE_CHAT_TUTOR && (
-            <div className="lg:hidden mt-6">
-              {moduleId && <ChatTutor moduleId={moduleId} />}
-            </div>
+            <CrashBoundary name="ChatTutor">
+              <div className="lg:hidden mt-6">
+                {moduleId && <ChatTutor moduleId={moduleId} />}
+              </div>
+            </CrashBoundary>
           )}
 
           {/* TEMP: Feedback section disabled to isolate React #310 */}
@@ -556,9 +565,11 @@ export const TrainingPage: React.FC = () => {
 
                   {/* AI Tutor – desktop sidebar */}
           {ENABLE_CHAT_TUTOR && (
-            <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
-              {moduleId && <ChatTutor moduleId={moduleId} />}
-            </div>
+            <CrashBoundary name="ChatTutor">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
+                {moduleId && <ChatTutor moduleId={moduleId} />}
+              </div>
+            </CrashBoundary>
           )}
       </div>
 
