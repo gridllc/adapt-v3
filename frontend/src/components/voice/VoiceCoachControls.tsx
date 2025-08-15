@@ -1,4 +1,5 @@
 // VoiceCoachControls.tsx — SAFE version (no conditional hooks)
+console.log("[VC-SAFE] VoiceCoachControls v2 loaded");
 import { useState, useCallback } from "react";
 import { useVoiceCoach, type VoiceCoachOptions } from "@/voice/useVoiceCoach";
 

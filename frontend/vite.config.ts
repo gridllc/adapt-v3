@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
+import path from 'node:path'
 
 export default defineConfig({
   plugins: [react()],
@@ -17,10 +17,10 @@ export default defineConfig({
       '@types': path.resolve(__dirname, './src/types'),
       '@config': path.resolve(__dirname, './src/config'),
       // Belt-and-suspenders: alias all VoiceCoach imports to the safe file
-      '@/components/voice/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
-      '@/components/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
-      '@/voice/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
-      '@/voice/VoiceCoachOverlay': path.resolve(__dirname, './src/components/voice/VoiceCoachOverlay.tsx'),
+      '@/components/voice/VoiceCoachControls': path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+      '@/components/VoiceCoachControls':      path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+      '@/voice/VoiceCoachControls':           path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+      '@/voice/VoiceCoachOverlay':            path.resolve(__dirname, 'src/components/voice/VoiceCoachOverlay.tsx'),
     },
   },
   define: {
