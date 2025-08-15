@@ -16,6 +16,9 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils'),
       '@types': path.resolve(__dirname, './src/types'),
       '@config': path.resolve(__dirname, './src/config'),
+      // Belt-and-suspenders: alias all VoiceCoach imports to the safe file
+      '@/components/voice/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
+      '@/components/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
     },
   },
   define: {

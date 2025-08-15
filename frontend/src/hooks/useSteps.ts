@@ -21,7 +21,10 @@ interface StepsState {
   error: string | null;
 }
 
+export type StepsStatus = "idle" | "loading" | "processing" | "ready" | "error";
+
 interface UseStepsReturn extends StepsState {
+  status: StepsStatus;                    // processing state for gating
   reload: () => void;
   reorder: (fromIndex: number, toIndex: number) => Promise<void>;
   updateStep: (index: number, updatedStep: Step) => void;
@@ -239,8 +242,18 @@ export function useSteps(moduleId: string | undefined, status: any): UseStepsRet
     setState(prev => ({ ...prev, steps: [...prev.steps, step] }));
   }, []);
 
+  // Compute status based on current state
+  const stepsStatus: StepsStatus = (() => {
+    if (state.error) return "error";
+    if (state.loading) return "loading";
+    if (status?.status === "processing") return "processing";
+    if (state.steps.length > 0) return "ready";
+    return "idle";
+  })();
+
   return { 
     ...state, 
+    status: stepsStatus,                 // processing state for gating
     reload, 
     reorder, 
     updateStep, 

@@ -28,6 +28,7 @@ export const TrainingPage: React.FC = () => {
   
   // Use the new useSteps hook with enhanced features
   const { 
+    status: stepsStatus,
     steps, 
     loading: stepsLoading, 
     error: stepsError, 
@@ -302,6 +303,35 @@ export const TrainingPage: React.FC = () => {
             Processing Video
           </h2>
           <p className="text-gray-600 mb-4">Processing video...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Gate rendering until steps are ready (prevents hook flips)
+  if (stepsStatus === "loading" || stepsStatus === "processing") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-8">
+        <div className="max-w-md w-full space-y-6 text-center">
+          <div className="text-6xl mb-4">⏳</div>
+          <h2 className="text-2xl font-bold text-blue-600 mb-2">
+            Loading Steps
+          </h2>
+          <p className="text-gray-600 mb-4">Processing video… extracting steps</p>
+        </div>
+      </div>
+    )
+  }
+  
+  if (stepsStatus === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-8">
+        <div className="max-w-md w-full space-y-6 text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">
+            Error Loading Steps
+          </h2>
+          <p className="text-gray-600 mb-4">Could not load steps: {stepsError}</p>
         </div>
       </div>
     )
