@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth, useUser } from '@clerk/clerk-react'
-import { API_CONFIG, API_ENDPOINTS, api } from '../config/api'
+import { API_CONFIG, API_ENDPOINTS, api, API_BASE_URL } from '../config/api'
+import { IS_MODE_DEV, CLERK_PUBLISHABLE_KEY } from '../config/app'
 
 export const ApiDebug: React.FC = () => {
   const [apiInfo, setApiInfo] = useState<any>({})
@@ -10,16 +11,16 @@ export const ApiDebug: React.FC = () => {
 
   useEffect(() => {
     setApiInfo({
-      isDev: import.meta.env.MODE === 'development',
+      isDev: IS_MODE_DEV,
       mode: import.meta.env.MODE,
       baseURL: API_CONFIG.baseURL,
-      envVar: import.meta.env.VITE_API_BASE_URL,
+      envVar: API_BASE_URL,
       modulesUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES),
       healthUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.HEALTH),
       origin: window.location.origin,
-          clerkKey: (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) ? 'Set' : 'Missing',
-    clerkKeyPrefix: (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)?.substring(0, 20) + '...',
-    clerkKeyLength: (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)?.length || 0,
+      clerkKey: CLERK_PUBLISHABLE_KEY ? 'Set' : 'Missing',
+      clerkKeyPrefix: CLERK_PUBLISHABLE_KEY ? CLERK_PUBLISHABLE_KEY.substring(0, 20) + '...' : 'Missing',
+      clerkKeyLength: CLERK_PUBLISHABLE_KEY?.length || 0,
       clerkLoaded: isLoaded,
       clerkSignedIn: isSignedIn,
       clerkUser: user?.emailAddresses?.[0]?.emailAddress || 'None',

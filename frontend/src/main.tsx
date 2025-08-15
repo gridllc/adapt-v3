@@ -5,9 +5,10 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import { ErrorBoundary } from '@components/common/ErrorBoundary'
 import App from './App'
 import './index.css'
+import { CLERK_PUBLISHABLE_KEY, IS_PROD } from './config/app'
 
 // Disable console errors in production to prevent Sentry-like rate limiting
-if (import.meta.env.PROD) {
+if (IS_PROD) {
   const originalError = console.error
   console.error = (...args) => {
     // Only log critical errors, suppress others
@@ -19,7 +20,7 @@ if (import.meta.env.PROD) {
 }
 
 // Get Clerk publishable key with fail-fast validation
-const pk = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY!
+const pk = CLERK_PUBLISHABLE_KEY
 if (!pk) {
   throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY environment variable')
 }

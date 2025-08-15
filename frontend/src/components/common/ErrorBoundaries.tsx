@@ -1,6 +1,7 @@
 import React from 'react'
 import SmartErrorBoundary from './SmartErrorBoundary'
 import { AlertTriangle, RefreshCw, Upload, Video, Brain } from 'lucide-react'
+import { DEBUG_UI } from '../../config/app'
 
 // 🎯 Upload-specific error boundary
 export const UploadErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -183,7 +184,7 @@ export const GlobalErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ c
   return (
     <SmartErrorBoundary
       onError={handleGlobalError}
-      showDetails={import.meta.env.DEV}
+      showDetails={DEBUG_UI}
     >
       {children}
     </SmartErrorBoundary>

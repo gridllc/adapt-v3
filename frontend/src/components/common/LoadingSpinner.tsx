@@ -1,4 +1,5 @@
 import React from 'react'
+import { DEBUG_UI } from '../../config/app'
 
 type Props = {
   message?: string
@@ -11,9 +12,7 @@ export const LoadingSpinner: React.FC<Props> = ({
   debug,
   fullScreen = true
 }) => {
-  const showDebug =
-    import.meta.env.DEV &&
-    (import.meta.env.VITE_DEBUG_UI === '1' || import.meta.env.VITE_DEBUG_UI === 'true')
+  const showDebug = DEBUG_UI
 
   return (
     <div className={`${fullScreen ? 'min-h-screen' : ''} flex items-center justify-center bg-gray-50`}>

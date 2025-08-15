@@ -1,5 +1,6 @@
 import { useUser, useAuth as useClerkAuth } from '@clerk/clerk-react'
 import { useEffect } from 'react'
+import { IS_DEV } from '../../../config/app'
 
 export const useAuth = () => {
   const { isLoaded, isSignedIn } = useClerkAuth()
@@ -16,7 +17,7 @@ export const useAuth = () => {
   }, [isLoaded, isSignedIn, user])
 
   // Immediate debug logging
-  if (import.meta.env.DEV) {
+  if (IS_DEV) {
     console.log(`[useAuth] Current state:`, { 
       isLoaded, 
       isSignedIn, 

@@ -75,8 +75,7 @@ export const UploadManager: React.FC = () => {
         const uploadId = addUpload(file)
         console.log('Added to queue:', uploadId)
 
-        // Ensure the UI shows a status immediately
-        setPhase(uploadId, 'uploading')
+        // Upload will be started by the onPhaseChange callback
 
         // Start upload - USE DIRECT URL (bypasses proxy)
         try {
@@ -91,11 +90,10 @@ export const UploadManager: React.FC = () => {
             onProgress: (progress) => {
               console.log(`Upload progress: ${progress}%`)
               updateProgress(uploadId, progress)
-              
-              // Switch to processing phase when upload is nearly complete
-              if (progress >= 90) {
-                setPhase(uploadId, 'finalizing')
-              }
+            },
+            onPhaseChange: (phase) => {
+              console.log(`Phase change: ${phase}`)
+              setPhase(uploadId, phase)
             },
           })
 

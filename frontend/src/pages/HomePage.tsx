@@ -12,14 +12,15 @@ import {
   Clock,
   BookOpen
 } from 'lucide-react'
+import { CLERK_PUBLISHABLE_KEY } from '../config/app'
 
 export const HomePage: React.FC = () => {
-  const clerkConfigured = !!(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
+  const clerkConfigured = !!CLERK_PUBLISHABLE_KEY
   const { isSignedIn, isLoaded } = useAuth()
   
   // Debug logging
   console.log('🔍 HomePage Debug:')
-  console.log('📧 CLERK_PUBLISHABLE_KEY:', (import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) ? 'SET' : 'NOT SET')
+  console.log('📧 CLERK_PUBLISHABLE_KEY:', CLERK_PUBLISHABLE_KEY ? 'SET' : 'NOT SET')
   console.log('🔧 clerkConfigured:', clerkConfigured)
   console.log('🔐 isSignedIn:', isSignedIn)
   console.log('📦 isLoaded:', isLoaded)

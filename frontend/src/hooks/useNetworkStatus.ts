@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { API_BASE_URL, IS_MODE_DEV } from '../config/app'
 
 export type ConnectionSpeed = 'fast' | 'medium' | 'slow' | 'offline' | 'testing'
 
@@ -34,7 +35,7 @@ export const useNetworkStatus = (): NetworkStatus => {
       const startTime = performance.now()
       
       // Use your backend's health endpoint for realistic speed test
-      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'development' ? 'http://localhost:8000' : 'https://adapt-v3.onrender.com')}/api/health`, {
+      const response = await fetch(`${API_BASE_URL || (IS_MODE_DEV ? 'http://localhost:8000' : 'https://adapt-v3.onrender.com')}/api/health`, {
         method: 'HEAD',
         cache: 'no-cache',
         headers: {

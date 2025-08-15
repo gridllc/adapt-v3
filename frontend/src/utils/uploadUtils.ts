@@ -18,6 +18,7 @@ export interface UploadOptions {
   file: File
   url: string
   onProgress: (progress: number) => void
+  onPhaseChange?: (phase: 'uploading' | 'finalizing' | 'processing') => void
 }
 
 export interface ValidationResult {
@@ -29,18 +30,34 @@ export interface ValidationResult {
  * Upload file with progress tracking
  */
 export const uploadWithProgress = async (options: UploadOptions): Promise<Response> => {
-  const { file, url, onProgress } = options
+  const { file, url, onProgress, onPhaseChange } = options
   
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     const formData = new FormData()
     formData.append('file', file)
 
+    // (A) Show uploading immediately
+    onPhaseChange?.('uploading')
+
     // Progress tracking
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 100)
         onProgress(percent)
+        
+        // (B) Switch to finalizing near the end
+        if (percent >= 95) {
+          onPhaseChange?.('finalizing')
+        }
+      }
+    }
+
+    // (C) As soon as the request is accepted by the server,
+    // flip to "Processing..." (this fires before 100% completes)
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 2) { // HEADERS_RECEIVED
+        onPhaseChange?.('processing')
       }
     }
 

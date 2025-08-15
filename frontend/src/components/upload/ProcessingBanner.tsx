@@ -1,10 +1,9 @@
 import React from 'react'
 import { Loader2, CheckCircle2 } from 'lucide-react'
 import { UploadPhase } from '../../types/upload'
+import { DEBUG_UI } from '../../config/app'
 
-const showDebug =
-  import.meta.env.DEV &&
-  (import.meta.env.VITE_DEBUG_UI === '1' || import.meta.env.VITE_DEBUG_UI === 'true')
+const showDebug = DEBUG_UI
 
 export function ProcessingBanner({
   phase,

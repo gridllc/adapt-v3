@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { api, API_ENDPOINTS } from '../config/api'
+import { IS_DEV } from '../config/app'
 
 interface AskResult {
   answer: string | null
@@ -59,7 +60,7 @@ export function useModuleAsk(): AskResult {
         })
 
         // Development logging for transparency
-        if (import.meta.env.DEV) {
+        if (IS_DEV) {
           console.log(
             `[AI ASK] Module: ${moduleId} | Q: "${question}"\n` +
             `↪️ Reused: ${data.reused ? '✅' : '❌'} | Similarity: ${data.similarity?.toFixed(3)} | QID: ${data.questionId}`
