@@ -7,7 +7,7 @@ import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 import { API_ENDPOINTS } from '../../config/api'
 import { useModuleStatus } from '../../hooks/useModuleStatus'
-import { primeMicOnce } from '@utils/micPrime'
+import { primeMicOnce } from '@/lib/micPrime'
 
 export const UploadManager: React.FC = () => {
   const { 

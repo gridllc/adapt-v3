@@ -13,6 +13,7 @@ import { CrashBoundary } from '../dev/CrashBoundary'
 // import { ProcessingScreen } from '../components/ProcessingScreen'
 import ChatTutor from '../components/ChatTutor'
 import { useAutoMic } from '../hooks/useAutoMic'
+import { handleVoiceChunk } from '../api/voiceChunk'
 
 // import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
@@ -48,11 +49,11 @@ export const TrainingPage: React.FC = () => {
   const shouldStart = searchParams.get("voicestart") === "1" && localStorage.getItem("mic_ok") === "1";
   const stepsReady = stepsStatus === 'ready' && steps.length > 0;
   
-  const { needsUserGesture, startWithGesture } = useAutoMic({
+  const { needsUserGesture, startWithGesture, isRecording } = useAutoMic({
     shouldStart: stepsReady && shouldStart,
-    onChunk: (blob) => { 
-      // TODO: POST to /api/ai/transcribe-stream
-      console.log("Audio chunk received:", blob.size, "bytes");
+    onChunk: (blob) => {
+      // For now, use mock handler; later replace with actual API call
+      handleVoiceChunk(blob);
     },
     onError: (e) => console.warn("mic error", e),
   });
@@ -587,13 +588,21 @@ export const TrainingPage: React.FC = () => {
 
           {/* Mic Fallback Button - shows when user gesture is needed */}
           {needsUserGesture && (
-            <button 
-              className="fixed bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg z-50"
+            <button
               onClick={startWithGesture}
+              style={{
+                position: "fixed", right: 16, bottom: 16,
+                padding: "10px 14px", borderRadius: 8, fontWeight: 600
+              }}
             >
-              🎤 Enable Mic
+              Enable Mic
             </button>
           )}
+          
+          {/* Optional tiny status */}
+          <div style={{position:"fixed",left:16,bottom:16,opacity:0.7,fontSize:12}}>
+            {isRecording ? "🎤 listening…" : "🔇"}
+          </div>
       </div>
 
 

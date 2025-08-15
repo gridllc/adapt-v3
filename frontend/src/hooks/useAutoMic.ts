@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 
 type AutoMicOpts = {
-  shouldStart: boolean;         // e.g. querystring voicestart=1 AND steps ready
-  onChunk?: (blob: Blob) => void; // stream to /api/ai/transcribe-stream
+  shouldStart: boolean;                 // e.g. stepsReady && qs flag
+  onChunk?: (blob: Blob) => void;       // where to send audio
   onStart?: () => void;
   onStop?: () => void;
-  onError?: (err: any) => void;
+  onError?: (e: any) => void;
 };
 
 export function useAutoMic({ shouldStart, onChunk, onStart, onStop, onError }: AutoMicOpts) {
   const recRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [needsUserGesture, setNeedsUserGesture] = useState(false);
+  const [isRecording, setRecording] = useState(false);
 
   useEffect(() => {
     if (!shouldStart) return;
@@ -19,7 +20,6 @@ export function useAutoMic({ shouldStart, onChunk, onStart, onStop, onError }: A
 
     (async () => {
       try {
-        // if we primed on upload, this will resolve without prompting
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
 
@@ -27,14 +27,14 @@ export function useAutoMic({ shouldStart, onChunk, onStart, onStop, onError }: A
         const rec = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
         recRef.current = rec;
 
-        rec.ondataavailable = (e) => { if (e.data.size && onChunk) onChunk(e.data); };
-        rec.onstart = () => onStart?.();
-        rec.onstop = () => onStop?.();
+        rec.onstart = () => { setRecording(true); onStart?.(); };
+        rec.onstop  = () => { setRecording(false); onStop?.(); };
+        rec.ondataavailable = e => { if (e.data?.size && onChunk) onChunk(e.data); };
 
-        // stream small chunks
+        // small chunks every 250ms
         rec.start(250);
       } catch (e: any) {
-        // NotAllowedError or gesture errors → show the one-tap fallback
+        // User denied or browser demands gesture → show fallback
         if (e?.name === "NotAllowedError" || String(e?.message).includes("gesture")) {
           setNeedsUserGesture(true);
         } else {
@@ -49,10 +49,10 @@ export function useAutoMic({ shouldStart, onChunk, onStart, onStop, onError }: A
       try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
       recRef.current = null;
       streamRef.current = null;
+      setRecording(false);
     };
   }, [shouldStart]);
 
-  // handler for the fallback button
   const startWithGesture = async () => {
     setNeedsUserGesture(false);
     try {
@@ -60,13 +60,18 @@ export function useAutoMic({ shouldStart, onChunk, onStart, onStop, onError }: A
       streamRef.current = stream;
       const rec = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
       recRef.current = rec;
-      rec.ondataavailable = (e) => { if (e.data.size && onChunk) onChunk(e.data); };
+      rec.onstart = () => { setRecording(true); onStart?.(); };
+      rec.onstop  = () => { setRecording(false); onStop?.(); };
+      rec.ondataavailable = e => { if (e.data?.size && onChunk) onChunk(e.data); };
       rec.start(250);
-      onStart?.();
     } catch (e) {
       onError?.(e);
     }
   };
 
-  return { needsUserGesture, startWithGesture };
+  const stop = () => {
+    try { recRef.current?.stop(); } catch {}
+  };
+
+  return { needsUserGesture, startWithGesture, isRecording, stop };
 }
