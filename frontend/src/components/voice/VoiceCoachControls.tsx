@@ -1,18 +1,20 @@
-// VoiceCoachControls.tsx — SAFE version (no conditional hooks)
+// SAFE version — stable hooks, no conditional hooks anywhere
+// Fingerprint so we can verify in Console:
 console.log("[VC-SAFE] VoiceCoachControls v2 loaded");
+
 import { useState, useCallback } from "react";
 import { useVoiceCoach, type VoiceCoachOptions } from "@/voice/useVoiceCoach";
 
 type Props = VoiceCoachOptions & { className?: string };
 
-function VoiceCoachControls(props: Props) {
-  const vc = useVoiceCoach(props);                // stable hook order
+export default function VoiceCoachControls(props: Props) {
+  const vc = useVoiceCoach(props);          // <- your hook (already stable)
   const [open, setOpen] = useState(false);
 
-  const onStart  = useCallback(() => vc.startVoiceCoach(), [vc]);
-  const onStop   = useCallback(() => vc.stopVoiceCoach(), [vc]);
+  const onStart = useCallback(() => vc.startVoiceCoach(), [vc]);
+  const onStop = useCallback(() => vc.stopVoiceCoach(), [vc]);
   const onListen = useCallback(() => vc.startListening(), [vc]);
-  const onStopL  = useCallback(() => vc.stopListening(), [vc]);
+  const onStopL = useCallback(() => vc.stopListening(), [vc]);
 
   if (!vc.isSupported) return null;
 
@@ -43,12 +45,11 @@ function VoiceCoachControls(props: Props) {
           {!!vc.toast && <div className="text-sm text-gray-700">{vc.toast}</div>}
           {!!vc.error && <div className="text-sm text-red-600">Error: {vc.error}</div>}
           {!!vc.partialTranscript && <div className="text-sm text-gray-500">…{vc.partialTranscript}</div>}
-          {!!vc.transcript && <div className="text-sm text-gray-900">You said: "{vc.transcript}"</div>}
+          {!!vc.transcript && <div className="text-sm text-gray-900">You said: “{vc.transcript}”</div>}
         </div>
       )}
     </div>
   );
 }
 
-export default VoiceCoachControls;
 export { VoiceCoachControls };
