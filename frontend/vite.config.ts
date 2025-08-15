@@ -16,11 +16,20 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils'),
       '@types': path.resolve(__dirname, './src/types'),
       '@config': path.resolve(__dirname, './src/config'),
-      // Belt-and-suspenders: alias all VoiceCoach imports to the safe file
-      '@/components/voice/VoiceCoachControls': path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
-      '@/components/VoiceCoachControls':      path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
-      '@/voice/VoiceCoachControls':           path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
-      '@/voice/VoiceCoachOverlay':            path.resolve(__dirname, 'src/components/voice/VoiceCoachOverlay.tsx'),
+      // Voice Coach imports - conditionally routed based on VITE_ENABLE_VOICE_COACH
+      ...(process.env.VITE_ENABLE_VOICE_COACH === 'true' ? {
+        // When enabled: route to actual voice components (future implementation)
+        '@/components/voice/VoiceCoachControls': path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+        '@/components/VoiceCoachControls':      path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+        '@/voice/VoiceCoachControls':           path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+        '@/voice/VoiceCoachOverlay':            path.resolve(__dirname, 'src/components/voice/VoiceCoachOverlay.tsx'),
+      } : {
+        // When disabled: route to safe stubs (current implementation)
+        '@/components/voice/VoiceCoachControls': path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+        '@/components/VoiceCoachControls':      path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+        '@/voice/VoiceCoachControls':           path.resolve(__dirname, 'src/components/voice/VoiceCoachControls.tsx'),
+        '@/voice/VoiceCoachOverlay':            path.resolve(__dirname, 'src/components/voice/VoiceCoachOverlay.tsx'),
+      }),
     },
   },
   define: {

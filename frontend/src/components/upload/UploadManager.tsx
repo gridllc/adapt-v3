@@ -7,6 +7,7 @@ import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 import { API_ENDPOINTS } from '../../config/api'
 import { useModuleStatus } from '../../hooks/useModuleStatus'
+import { primeMicOnce } from '@utils/micPrime'
 
 export const UploadManager: React.FC = () => {
   const { 
@@ -48,11 +49,11 @@ export const UploadManager: React.FC = () => {
   // Update upload status when module processing completes
   useEffect(() => {
     if (processingUpload && moduleStatus && processingUpload.moduleId) {
-      if (moduleStatus.status === 'ready') {
-        markReady(processingUpload.id)
-        // Navigate to training page
-        navigate(`/training/${processingUpload.moduleId}`)
-      } else if (moduleStatus.status === 'error') {
+              if (moduleStatus.status === 'ready') {
+          markReady(processingUpload.id)
+          // Navigate to training page with voice start flag
+          navigate(`/training/${processingUpload.moduleId}?voicestart=1`)
+        } else if (moduleStatus.status === 'error') {
         markError(processingUpload.id, new Error('Processing failed'))
       }
     }
@@ -60,6 +61,9 @@ export const UploadManager: React.FC = () => {
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     console.log('Files dropped:', acceptedFiles)
+    
+    // IMPORTANT: Prime mic inside the same click handler call stack
+    primeMicOnce().catch(() => { /* ignore; we'll show a fallback later */ });
     
     for (const file of acceptedFiles) {
       try {

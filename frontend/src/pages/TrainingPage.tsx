@@ -12,6 +12,7 @@ import { CrashBoundary } from '../dev/CrashBoundary'
 // import { FeedbackSection } from '../components/FeedbackSection'
 // import { ProcessingScreen } from '../components/ProcessingScreen'
 import ChatTutor from '../components/ChatTutor'
+import { useAutoMic } from '../hooks/useAutoMic'
 
 // import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
@@ -43,6 +44,18 @@ export const TrainingPage: React.FC = () => {
     nextRetryIn
   } = useSteps(moduleId, status)
 
+  // Auto-start microphone when steps are ready and voice start flag is set
+  const shouldStart = searchParams.get("voicestart") === "1" && localStorage.getItem("mic_ok") === "1";
+  const stepsReady = stepsStatus === 'ready' && steps.length > 0;
+  
+  const { needsUserGesture, startWithGesture } = useAutoMic({
+    shouldStart: stepsReady && shouldStart,
+    onChunk: (blob) => { 
+      // TODO: POST to /api/ai/transcribe-stream
+      console.log("Audio chunk received:", blob.size, "bytes");
+    },
+    onError: (e) => console.warn("mic error", e),
+  });
 
   
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -570,6 +583,16 @@ export const TrainingPage: React.FC = () => {
                 {moduleId && <ChatTutor moduleId={moduleId} />}
               </div>
             </CrashBoundary>
+          )}
+
+          {/* Mic Fallback Button - shows when user gesture is needed */}
+          {needsUserGesture && (
+            <button 
+              className="fixed bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg z-50"
+              onClick={startWithGesture}
+            >
+              🎤 Enable Mic
+            </button>
           )}
       </div>
 
