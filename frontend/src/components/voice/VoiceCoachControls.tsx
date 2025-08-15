@@ -1,16 +1,7 @@
 import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react';
-import { useVoiceCoach, VoiceCoachOptions } from '../../voice/useVoiceCoach';
+import { useVoiceCoach, VoiceCoachOptions, Step } from '../../voice/useVoiceCoach';
 import { MicDiagnostics } from './MicDiagnostics';
 import { SecureContextBanner } from '../common/SecureContextBanner';
-
-type Step = {
-  id: string;
-  start: number;
-  end: number;
-  title: string;
-  description: string;
-  notes?: string;
-};
 
 type SpeechOptions = {
   rate?: number;
@@ -484,7 +475,7 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
               )}
               {lastIntent && (
                 <p className="text-xs text-blue-600 mt-1">
-                  Intent: {lastIntent.type} {lastIntent.n ? `(${lastIntent.n})` : ''}
+                  Intent: {lastIntent.type} {lastIntent.type === 'goto' && 'n' in lastIntent ? `(${lastIntent.n})` : ''}
                 </p>
               )}
             </div>
