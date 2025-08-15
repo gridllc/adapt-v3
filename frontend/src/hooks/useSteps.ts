@@ -132,8 +132,12 @@ export function useSteps(moduleId: string | undefined, status: any): UseStepsRet
 
       const stepsPayload = data?.steps;
       if (!stepsPayload?.length) {
-        if (status?.status === 'ready') throw new Error('Steps not found - module processing may have failed');
-        throw new Error('Steps not ready yet - module still processing');
+        if (status?.status === 'ready') {
+          throw new Error('Steps not found - module processing may have failed');
+        }
+        // Don't throw for processing state, just set loading and return
+        setState(prev => ({ ...prev, loading: false }));
+        return;
       }
 
       const enhanced = normalizeSteps(stepsPayload, data?.transcript || '');
