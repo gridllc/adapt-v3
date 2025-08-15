@@ -49,6 +49,9 @@ export const TrainingPage: React.FC = () => {
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
 
+  // TEMP: disable ChatTutor to isolate React #310 error
+  const ENABLE_CHAT_TUTOR = false;
+
 
   // Camera/mic functionality for Start Training
   const requestSensors = async () => {
@@ -549,9 +552,11 @@ export const TrainingPage: React.FC = () => {
           </div>
 
           {/* AI Tutor – mobile (below video/steps) */}
-          <div className="lg:hidden mt-6">
-            {moduleId && <ChatTutor moduleId={moduleId} />}
-          </div>
+          {ENABLE_CHAT_TUTOR && (
+            <div className="lg:hidden mt-6">
+              {moduleId && <ChatTutor moduleId={moduleId} />}
+            </div>
+          )}
 
           {/* Feedback Section */}
           {steps.length > 0 && (
@@ -562,10 +567,12 @@ export const TrainingPage: React.FC = () => {
           )}
         </div>
 
-        {/* AI Tutor – desktop sidebar */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
-          {moduleId && <ChatTutor moduleId={moduleId} />}
-        </div>
+                  {/* AI Tutor – desktop sidebar */}
+          {ENABLE_CHAT_TUTOR && (
+            <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
+              {moduleId && <ChatTutor moduleId={moduleId} />}
+            </div>
+          )}
       </div>
 
 
