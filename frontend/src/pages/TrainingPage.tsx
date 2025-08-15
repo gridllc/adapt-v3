@@ -51,8 +51,8 @@ export const TrainingPage: React.FC = () => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [showVoiceCoachOverlay, setShowVoiceCoachOverlay] = useState(false)
 
-  // Voice coach is now fixed - re-enable
-  const ENABLE_VOICE_COACH = true;
+  // TEMP: disable voice coach until proper fix is implemented
+  const ENABLE_VOICE_COACH = false;
 
   // Camera/mic functionality for Start Training
   const requestSensors = async () => {
