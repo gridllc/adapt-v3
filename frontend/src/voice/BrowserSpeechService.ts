@@ -16,6 +16,14 @@ export class BrowserSpeechService implements SpeechService {
   private autoRestartTimeout?: TimeoutId;
   private maxListenTimeout?: TimeoutId;
 
+  // Debug logging for voice recognition diagnostics
+  private debug(tag: string, data?: any) {
+    const msg = `[VC:${new Date().toISOString().slice(11,23)}] ${tag} ${data ? JSON.stringify(data) : ""}`;
+    (window as any).__vcLogs = (window as any).__vcLogs || [];
+    (window as any).__vcLogs.push(msg);
+    if (localStorage.getItem("VC_DEBUG") === "1") console.log(msg);
+  }
+
   constructor(options: SpeechServiceOptions = {}) {
     this.options = {
       lang: 'en-US',
@@ -30,6 +38,7 @@ export class BrowserSpeechService implements SpeechService {
 
     // Use webkitSpeechRecognition for iOS Safari compatibility
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    this.debug("create.SR", { hasSR: !!SR });
     if (SR) {
       this.recognition = new SR();
       this.recognition.lang = this.options.lang;
@@ -43,6 +52,43 @@ export class BrowserSpeechService implements SpeechService {
       this.recognition.maxAlternatives = 1;
 
       // Set up event handlers
+      this.recognition.onstart = () => { 
+        this.debug("sr.onstart"); 
+        this.isListening = true; 
+      };
+      this.recognition.onend = () => { 
+        this.debug("sr.onend"); 
+        this.isListening = false; 
+        this.stopping = false; 
+        this.onEndCb?.();
+        
+        // Auto-restart based on flag, not isListening (which is false here)
+        if (this.options.autoRestart && this.shouldAutoRestart) {
+          if (this.autoRestartTimeout) window.clearTimeout(this.autoRestartTimeout);
+          this.autoRestartTimeout = window.setTimeout(() => {
+            // Avoid double starts
+            if (!this.isListening && !this.stopping) {
+              this.startListening().catch(() => {/* swallow */});
+            }
+          }, 350);
+        }
+      };
+      this.recognition.onerror = (e: any) => {
+        this.debug("sr.onerror", { error: e?.error });
+        const rawCode = e?.error || 'speech_error';
+        const map: Record<string, { code: string; message: string }> = {
+          'not-allowed': { code: 'NOT_ALLOWED', message: 'Microphone permission denied' },
+          'service-not-allowed': { code: 'SERVICE_NOT_ALLOWED', message: 'Speech service not allowed' },
+          'no-speech': { code: 'NO_SPEECH', message: 'No speech detected' },
+          'audio-capture': { code: 'AUDIO_CAPTURE', message: 'Microphone not available' },
+          'aborted': { code: 'ABORTED', message: 'Recognition aborted' },
+        };
+        const norm = map[rawCode] || { code: rawCode.toUpperCase(), message: e?.message || 'Speech recognition error' };
+        this.onErrorCb?.({ error: norm.code, message: norm.message, raw: e });
+        this.isListening = false;
+        this.stopping = false;
+      };
+
       this.recognition.onresult = (e: any) => {
         // Use the latest result index
         const idx = e.resultIndex ?? (e.results?.length ? e.results.length - 1 : 0);
@@ -61,46 +107,6 @@ export class BrowserSpeechService implements SpeechService {
           this.onPartialCb?.({ transcript, confidence, isFinal: false });
         }
       };
-
-      this.recognition.onerror = (e: any) => {
-        const rawCode = e?.error || 'speech_error';
-        const map: Record<string, { code: string; message: string }> = {
-          'not-allowed': { code: 'NOT_ALLOWED', message: 'Microphone permission denied' },
-          'service-not-allowed': { code: 'SERVICE_NOT_ALLOWED', message: 'Speech service not allowed' },
-          'no-speech': { code: 'NO_SPEECH', message: 'No speech detected' },
-          'audio-capture': { code: 'AUDIO_CAPTURE', message: 'Microphone not available' },
-          'aborted': { code: 'ABORTED', message: 'Recognition aborted' },
-        };
-        const norm = map[rawCode] || { code: rawCode.toUpperCase(), message: e?.message || 'Speech recognition error' };
-        this.onErrorCb?.({ error: norm.code, message: norm.message, raw: e });
-        this.isListening = false;
-        this.stopping = false;
-      };
-
-      this.recognition.onend = () => {
-        this.isListening = false;
-        this.stopping = false;
-        this.onEndCb?.();
-        
-        // Auto-restart based on flag, not isListening (which is false here)
-        if (this.options.autoRestart && this.shouldAutoRestart) {
-          if (this.autoRestartTimeout) window.clearTimeout(this.autoRestartTimeout);
-          this.autoRestartTimeout = window.setTimeout(() => {
-            // Avoid double starts
-            if (!this.isListening && !this.stopping) {
-              this.startListening().catch(() => {/* swallow */});
-            }
-          }, 350);
-        }
-      };
-
-      // Note: onstart may not be supported in all browsers
-      if ('onstart' in this.recognition) {
-        this.recognition.onstart = () => {
-          this.isListening = true;
-          this.stopping = false;
-        };
-      }
     }
   }
 
@@ -124,8 +130,10 @@ export class BrowserSpeechService implements SpeechService {
     onEnd?: PartialListener<void>,
     onPartial?: PartialListener<{ transcript: string; confidence: number; isFinal?: boolean }>
   ): Promise<boolean> {
+    this.debug("sr.startListening.call");
     if (!this.recognition) {
       const err = new Error('STT not supported');
+      this.debug("sr.startListening.error", { error: "NOT_SUPPORTED" });
       this.onErrorCb?.({ error: 'NOT_SUPPORTED', message: err.message, raw: err });
       throw err;
     }
@@ -151,7 +159,7 @@ export class BrowserSpeechService implements SpeechService {
       this.shouldAutoRestart = true;
       // Start listening
       this.recognition.start();
-      this.isListening = true;
+      this.debug("sr.start() invoked");
       
       // Set timeout for max listen duration
       if (this.options.maxListenMs) {
@@ -162,8 +170,14 @@ export class BrowserSpeechService implements SpeechService {
         }, this.options.maxListenMs);
       }
 
+      // Set timeout guard to check if onstart fired
+      setTimeout(() => {
+        if (!this.isListening) this.debug("sr.onstart.missed", { hint: "gesture/perm" });
+      }, 400);
+
       return true;
     } catch (e: any) {
+      this.debug("sr.start.throw", { msg: (e as Error).message });
       const code = (e?.name || '').toLowerCase();
       const norm = code.includes('notallowed') ? { error: 'NOT_ALLOWED', message: 'Microphone permission denied', raw: e }
                  : code.includes('invalidstate') ? { error: 'INVALID_STATE', message: 'Recognition already started', raw: e }

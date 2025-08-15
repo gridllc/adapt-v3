@@ -1,5 +1,6 @@
 import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react';
 import { useVoiceCoach, VoiceCoachOptions } from '../../voice/useVoiceCoach';
+import { MicDiagnostics } from './MicDiagnostics';
 
 type Step = {
   id: string;
@@ -163,6 +164,28 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
 
   const handleRestart = useCallback(() => onSeek(0), [onSeek]);
 
+  // User gesture probe to test if we're within a valid user gesture context
+  const userGestureProbe = useCallback(() => {
+    try {
+      // If this throws synchronously on iOS, you're outside a gesture
+      // (WebKit can be picky depending on call stacks and awaiting).
+      // This call won't prompt but may reveal "InvalidStateError".
+      // @ts-ignore
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SR) { 
+        const rec = new SR(); 
+        rec.lang = "en-US"; 
+        rec.start(); 
+        rec.stop(); 
+      }
+      console.log("[VC] gesture probe executed inside click handler");
+      return true;
+    } catch (e) {
+      console.log("[VC] gesture probe failed:", (e as Error).message);
+      return false;
+    }
+  }, []);
+
   const permissionHelp =
     error && /NOT_ALLOWED|SERVICE_NOT_ALLOWED|AUDIO_CAPTURE/i.test(error)
       ? ' Microphone permission may be blocked. Check site permissions and input device.'
@@ -182,8 +205,16 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
   const handlePTTDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    if (!isSpeaking) startListening();
-  }, [isSpeaking, startListening]);
+    if (!isSpeaking) {
+      const gestureOk = userGestureProbe();
+      if (gestureOk) {
+        startListening();
+      } else {
+        console.warn("[VC] Gesture probe failed for PTT down");
+        startListening(); // Still try
+      }
+    }
+  }, [isSpeaking, startListening, userGestureProbe]);
 
   const handlePTTUp = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -214,7 +245,21 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
         {/* Voice Coach Toggle */}
         <button
           type="button"
-          onClick={isActive ? stopVoiceCoach : startVoiceCoach}
+          onClick={() => {
+            if (isActive) {
+              stopVoiceCoach();
+            } else {
+              // Run gesture probe first to diagnose issues
+              const gestureOk = userGestureProbe();
+              if (gestureOk) {
+                startVoiceCoach();
+              } else {
+                console.warn("[VC] Gesture probe failed - voice coach may not work");
+                // Still try to start, but log the warning
+                startVoiceCoach();
+              }
+            }
+          }}
           aria-pressed={isActive}
           className={`flex-1 py-3 px-4 rounded-full font-medium transition-all ${
             isActive ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -247,6 +292,9 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
         >
           🔁
         </button>
+
+        {/* Mic Diagnostics */}
+        <MicDiagnostics />
       </div>
 
       {/* Voice Coach Status */}
@@ -291,7 +339,15 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
               ) : (
                 <button
                   type="button"
-                  onClick={() => startListening()}
+                  onClick={() => {
+                    const gestureOk = userGestureProbe();
+                    if (gestureOk) {
+                      startListening();
+                    } else {
+                      console.warn("[VC] Gesture probe failed for Speak button");
+                      startListening(); // Still try
+                    }
+                  }}
                   disabled={isSpeaking}
                   className="px-3 py-1 bg-blue-600 text-white text-xs rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
