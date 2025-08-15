@@ -51,6 +51,9 @@ export const TrainingPage: React.FC = () => {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [showVoiceCoachOverlay, setShowVoiceCoachOverlay] = useState(false)
 
+  // Voice coach is now fixed - re-enable
+  const ENABLE_VOICE_COACH = true;
+
   // Camera/mic functionality for Start Training
   const requestSensors = async () => {
     try {
@@ -463,15 +466,17 @@ export const TrainingPage: React.FC = () => {
               </div>
             ) : steps && steps.length > 0 ? (
               <div className="space-y-4">
-                {/* Voice Coach Controls */}
-                <VoiceCoachControls
-                  steps={steps}
-                  currentStepIndex={currentStepIndex || 0}
-                  onStepChange={setCurrentStepIndex}
-                  onSeek={seekToTime}
-                  onPause={() => videoRef.current?.pause()}
-                  onPlay={() => videoRef.current?.play()}
-                />
+                {/* TEMP hotfix – remove once VoiceCoachControls is refactored */}
+                {ENABLE_VOICE_COACH && (
+                  <VoiceCoachControls
+                    steps={steps}
+                    currentStepIndex={currentStepIndex || 0}
+                    onStepChange={setCurrentStepIndex}
+                    onSeek={seekToTime}
+                    onPause={() => videoRef.current?.pause()}
+                    onPlay={() => videoRef.current?.play()}
+                  />
+                )}
 
                 {/* Transcript Display */}
                 {steps[0]?.originalText && (
@@ -585,17 +590,19 @@ export const TrainingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Voice Coach Overlay */}
-      <VoiceCoachOverlay
-        isVisible={showVoiceCoachOverlay}
-        onStart={() => {
-          setShowVoiceCoachOverlay(false);
-          // Synchronous event => still in the click gesture
-          // This keeps the action inside the same user gesture for mobile compatibility
-          window.dispatchEvent(new Event('vc-start'));
-        }}
-        onDismiss={() => setShowVoiceCoachOverlay(false)}
-      />
+      {/* TEMP hotfix – remove once VoiceCoachControls is refactored */}
+      {ENABLE_VOICE_COACH && (
+        <VoiceCoachOverlay
+          isVisible={showVoiceCoachOverlay}
+          onStart={() => {
+            setShowVoiceCoachOverlay(false);
+            // Synchronous event => still in the click gesture
+            // This keeps the action inside the same user gesture for mobile compatibility
+            window.dispatchEvent(new Event('vc-start'));
+          }}
+          onDismiss={() => setShowVoiceCoachOverlay(false)}
+        />
+      )}
     </div>
   )
 } 

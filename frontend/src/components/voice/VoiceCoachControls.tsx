@@ -88,11 +88,9 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  if (!isSupported) return null;
-
   // Hotkeys when voice coach is active and focused
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || !isSupported) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // ignore when focused on inputs/textareas/contenteditable
@@ -122,10 +120,12 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, nextStep, previousStep, repeatStep]);
+  }, [isActive, isSupported, nextStep, previousStep, repeatStep]);
 
   // Listen for voice coach start event from overlay
   useEffect(() => {
+    if (!isSupported) return;
+    
     const handler = () => {
       // prevent double-start while TTS may be speaking
       if (!isActive && !isSpeaking) {
@@ -134,7 +134,7 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
     };
     window.addEventListener('vc-start', handler);
     return () => window.removeEventListener('vc-start', handler);
-  }, [isActive, isSpeaking, startVoiceCoach]);
+  }, [isSupported, isActive, isSpeaking, startVoiceCoach]);
 
   // Haptic feedback on permission errors
   useEffect(() => {
@@ -142,6 +142,9 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
       (navigator as any).vibrate?.(60);
     }
   }, [error]);
+
+  // Early return after all hooks have been called
+  if (!isSupported) return null;
 
   const progressPct = useMemo(() => {
     if (!steps?.length) return 0;
