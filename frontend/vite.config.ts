@@ -37,6 +37,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    sourcemap: true,                     // so DevTools shows .tsx lines
+  },
+  esbuild: { 
+    keepNames: true,                     // keep component names in prod stacks
+    minifyIdentifiers: false,            // preserve variable names for debugging
   },
 }) 
