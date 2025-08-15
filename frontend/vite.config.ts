@@ -19,6 +19,8 @@ export default defineConfig({
       // Belt-and-suspenders: alias all VoiceCoach imports to the safe file
       '@/components/voice/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
       '@/components/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
+      '@/voice/VoiceCoachControls': path.resolve(__dirname, './src/components/voice/VoiceCoachControls.tsx'),
+      '@/voice/VoiceCoachOverlay': path.resolve(__dirname, './src/components/voice/VoiceCoachOverlay.tsx'),
     },
   },
   define: {
