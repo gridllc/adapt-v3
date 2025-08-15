@@ -8,6 +8,9 @@ import './index.css'
 import { CLERK_PUBLISHABLE_KEY, IS_PROD } from './config/app'
 import { ensureHttps } from './utils/secure-context'
 
+// Unmistakable bundle fingerprint
+console.log("[BUILD] adapt-v3", import.meta.env.MODE, Date.now());
+
 // P0: Force HTTPS immediately (critical for microphone access)
 ensureHttps()
 
