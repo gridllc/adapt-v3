@@ -9,18 +9,11 @@ import { AddStepForm } from '../components/AddStepForm'
 import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
-import QRCodeGenerator from '../components/QRCodeGenerator'
+import { ChatTutor } from '../components/ChatTutor'
 import { VoiceCoachOverlay } from '../components/voice/VoiceCoachOverlay'
 import { VoiceCoachControls } from '../components/voice/VoiceCoachControls'
 import { LoadingSpinner } from '../components/common/LoadingSpinner'
-import { useAuth } from '@clerk/clerk-react'
-import { streamText } from '../utils/streaming'
 
-interface ChatMessage {
-  type: 'user' | 'assistant'
-  message: string
-  isTyping?: boolean
-}
 
 export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
@@ -28,7 +21,7 @@ export const TrainingPage: React.FC = () => {
   const isProcessing = searchParams.get('processing') === 'true'
   const filename = moduleId ? `${moduleId}.mp4` : undefined
   const { url, loading, error } = useSignedVideoUrl(filename)
-  const { getToken } = useAuth()
+
   
   // Use module status hook for processing state
   const { status, loading: statusLoading, error: statusError, stuckAtZero, timeoutReached } = useModuleStatus(moduleId || '', isProcessing)
@@ -49,23 +42,42 @@ export const TrainingPage: React.FC = () => {
   } = useSteps(moduleId, status)
   
   const videoRef = useRef<HTMLVideoElement>(null)
-  const chatHistoryRef = useRef<HTMLDivElement>(null)
   const timeUpdateRaf = useRef<number | null>(null)
   
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
-  const [chatMessage, setChatMessage] = useState('')
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    {
-      type: 'assistant',
-      message: "Hi! I'm here to help you with this training. Ask me anything about the current step or the overall process."
-    }
-  ])
 
   const [processingAI, setProcessingAI] = useState(false)
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
-  const [showQRCode, setShowQRCode] = useState(false)
   const [showVoiceCoachOverlay, setShowVoiceCoachOverlay] = useState(false)
+
+  // Camera/mic functionality for Start Training
+  const requestSensors = async () => {
+    try {
+      // Ask once and keep tracks around; you can pipe audio to your transcription endpoint in chunks
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+      // Optional: show a small PIP preview
+      const preview = document.querySelector<HTMLVideoElement>('#watchme-preview');
+      if (preview) {
+        preview.srcObject = stream;
+        preview.muted = true;   // avoid echo
+        await preview.play();
+      }
+
+      // TODO: if you want continuous STT:
+      // - Use MediaRecorder on 'audio/webm' and POST 3–5s chunks to /api/ai/transcribe-stream
+      // - Or switch to WebRTC/WS to your backend for low-latency Google STT streaming
+    } catch (e) {
+      console.error('getUserMedia failed', e);
+    }
+  };
+
+  // attach to a user gesture (e.g., video play or a dedicated button)
+  const handleStartTraining = async () => {
+    await requestSensors();              // prompt once
+    // Note: videoRef.current?.play() is not needed here since this is called from onPlay
+  };
 
   // Efficient step tracking using binary search
   const getCurrentVideoTime = () => videoRef.current?.currentTime ?? 0
@@ -207,178 +219,11 @@ export const TrainingPage: React.FC = () => {
     }
   }
 
-  const handleSendMessage = async () => {
-    if (!chatMessage.trim()) return
-    
-    const userMessage = chatMessage.trim()
-    
-    // Add user message
-    setChatHistory(prev => [...prev, { type: 'user', message: userMessage }])
-    setChatMessage('')
-    
-    // Show typing indicator
-    setChatHistory(prev => [...prev, { type: 'assistant', message: '', isTyping: true }])
-    
-    try {
-      // Get current step context
-      const currentStep = currentStepIndex !== null ? steps[currentStepIndex] : null
-      const stepContext = currentStep ? {
-        stepNumber: currentStepIndex! + 1,
-        title: currentStep.title,
-        description: currentStep.description,
-        start: currentStep.start,
-        end: currentStep.end,
-        aliases: currentStep.aliases,
-        notes: currentStep.notes
-      } : null
-      
-      // Get the typing indicator message to update it
-      const typingMessageIndex = chatHistory.length
-      
-      // Generate AI response using streaming
-      await generateAIResponseStreaming(userMessage, stepContext, steps, typingMessageIndex)
-      
-    } catch (error) {
-      console.error('AI response error:', error)
-      // Remove typing indicator and add error response
-      setChatHistory(prev => prev.filter(msg => !msg.isTyping))
-      setChatHistory(prev => [...prev, { 
-        type: 'assistant', 
-        message: "I'm having trouble processing your request right now. Please try again in a moment." 
-      }])
-    }
-  }
 
-  const generateAIResponseStreaming = async (userMessage: string, currentStep: any, allSteps: Step[], typingMessageIndex: number) => {
-    try {
-      const token = await getToken({ template: 'integration_fallback' })
-      
-      let responseText = ''
-      
-      await streamText({
-        url: API_ENDPOINTS.AI_STREAM,
-        body: {
-          userMessage,
-          currentStep,
-          allSteps,
-          videoTime,
-          moduleId
-        },
-        token,
-        mode: 'text',
-        onDelta: (text) => {
-          responseText += text
-          // Update the typing indicator message in the chat history
-          setChatHistory(prev => {
-            const newChatHistory = [...prev];
-            if (newChatHistory[typingMessageIndex]) {
-              newChatHistory[typingMessageIndex] = { ...newChatHistory[typingMessageIndex], message: responseText };
-            }
-            return newChatHistory;
-          });
-        },
-        onDone: () => {
-          // Response is complete, remove typing indicator
-          setChatHistory(prev => prev.filter(msg => !msg.isTyping))
-        },
-        onError: (err) => {
-          console.error('Streaming AI error:', err)
-          // Remove typing indicator and add error response
-          setChatHistory(prev => prev.filter(msg => !msg.isTyping))
-          setChatHistory(prev => [...prev, { 
-            type: 'assistant', 
-            message: "I'm having trouble processing your request right now. Please try again in a moment." 
-          }])
-          throw err
-        },
-        timeoutMs: 120_000, // 2 minute timeout
-      })
-    } catch (error) {
-      console.error('AI response generation error:', error)
-      // Remove typing indicator and add error response
-      setChatHistory(prev => prev.filter(msg => !msg.isTyping))
-      setChatHistory(prev => [...prev, { 
-        type: 'assistant', 
-        message: "I'm having trouble processing your request right now. Please try again in a moment." 
-      }])
-    }
-  }
 
-  // Fixed fallback response logic with proper field access
-  const generateFallbackResponse = (
-    userMessage: string,
-    currentStep: any,
-    allSteps: Step[]
-  ) => {
-    const msg = userMessage.toLowerCase()
-    const idx = currentStep ? steps.findIndex(s => s.id === currentStep.id) : -1
 
-    if (currentStep && (msg.includes('current step') || msg.includes('this step') || msg.includes('what step'))) {
-      return `You're currently on **Step ${idx + 1}**: "${currentStep.title}". ${currentStep.description}`
-    }
 
-    if (msg.includes('next step') || msg.includes('previous step')) {
-      const total = allSteps.length
-      if (idx >= 0) {
-        if (msg.includes('next') && idx + 1 < total) {
-          const nxt = allSteps[idx + 1]
-          return `The next step is **Step ${idx + 2}**: "${nxt.title}". Click "▶️ Seek" on that step to jump to it.`
-        } else if (msg.includes('previous') && idx - 1 >= 0) {
-          const prev = allSteps[idx - 1]
-          return `The previous step was **Step ${idx}**: "${prev.title}". You can click "▶️ Seek" on any step to navigate.`
-        }
-      }
-      return `Use "▶️ Seek" on any step card to navigate, or the video controls.`
-    }
 
-    if (msg.includes('how many steps') || msg.includes('total steps') || msg.includes('overview')) {
-      return `This training has **${allSteps.length} steps**. Each step is clickable and will seek to that part of the video.`
-    }
-
-    if (msg.includes('time') || msg.includes('duration') || msg.includes('how long')) {
-      if (currentStep) {
-        const start = Math.max(0, Math.floor(currentStep.start))
-        const mins = Math.floor(start / 60)
-        const secs = String(start % 60).padStart(2, '0')
-        const dur = Math.max(0, Math.round(currentStep.end - currentStep.start))
-        return `Step ${idx + 1} starts at ${mins}:${secs} and runs for ~${dur}s.`
-      }
-      return `Each step shows its timestamp; click "▶️ Seek" to jump to that moment.`
-    }
-
-    if (msg.includes('edit') || msg.includes('change') || msg.includes('modify')) {
-      return `Click the "✏️ Edit" button on any step to modify title, description, timing, aliases, or notes—changes auto‑save.`
-    }
-
-    if (msg.includes('ai rewrite') || msg.includes('rewrite') || msg.includes('improve')) {
-      return `Use "✨ Rewrite" in the editor to improve a step title—clearer phrasing, grammar fixes, and helpful detail while keeping it human.`
-    }
-
-    if (msg.includes('help') || msg.includes('how to') || msg.includes('what can')) {
-      return `I can help with navigation, editing, overview, and timing. Ask "what step am I on?", "next step", or "how to edit a step".`
-    }
-
-    return `You asked: "${userMessage}". I can help with step navigation, editing, timing, and overview—what would you like to know?`
-  }
-
-  // Fixed: Use onKeyDown instead of deprecated onKeyPress
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSendMessage()
-    }
-  }
-
-  // Auto-scroll to bottom of chat
-  const scrollToBottom = () => {
-    if (chatHistoryRef.current) {
-      chatHistoryRef.current.scrollTop = chatHistoryRef.current.scrollHeight
-    }
-  }
-
-  // Auto-scroll when chat history changes
-  useEffect(() => {
-    scrollToBottom()
-  }, [chatHistory])
 
   // Update current step index when video time changes
   useEffect(() => {
@@ -426,10 +271,10 @@ export const TrainingPage: React.FC = () => {
           break
         case '?':
           e.preventDefault()
-          // Focus chat input
-          const chatInput = document.querySelector('input[placeholder="Ask a question..."]') as HTMLInputElement
-          if (chatInput) {
-            chatInput.focus()
+          // Focus AI Tutor input (mobile) or desktop sidebar
+          const aiInput = document.querySelector('input[placeholder="Type your question..."]') as HTMLInputElement
+          if (aiInput) {
+            aiInput.focus()
           }
           break
       }
@@ -516,16 +361,6 @@ export const TrainingPage: React.FC = () => {
             </span>
           )}
         </div>
-        
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowQRCode(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            title="Share this training module via QR code"
-          >
-            📱 Share QR Code
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -546,15 +381,22 @@ export const TrainingPage: React.FC = () => {
               </div>
             </div>
           ) : url ? (
-            <video 
-              controls 
-              src={url} 
-              className="w-full rounded-2xl shadow-sm" 
-              ref={videoRef} 
-              onTimeUpdate={handleVideoTimeUpdate}
-              onPlay={handleVideoPlay}
-              onPause={handleVideoPause}
-            />
+            <div>
+              <video 
+                controls 
+                src={url} 
+                className="w-full rounded-2xl shadow-sm" 
+                ref={videoRef} 
+                onTimeUpdate={handleVideoTimeUpdate}
+                onPlay={async () => {
+                  await handleStartTraining();
+                  handleVideoPlay();
+                }}
+                onPause={handleVideoPause}
+              />
+              {/* Camera preview for Start Training */}
+              <video id="watchme-preview" className="w-24 h-24 rounded-lg mt-2" playsInline />
+            </div>
           ) : (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
               <div className="text-center space-y-4">
@@ -723,6 +565,11 @@ export const TrainingPage: React.FC = () => {
             />
           </div>
 
+          {/* AI Tutor – mobile (below video/steps) */}
+          <div className="lg:hidden mt-6">
+            {moduleId && <ChatTutor moduleId={moduleId} />}
+          </div>
+
           {/* Feedback Section */}
           {steps.length > 0 && (
             <FeedbackSection 
@@ -732,97 +579,11 @@ export const TrainingPage: React.FC = () => {
           )}
         </div>
 
-        {/* AI Assistant Chat */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col h-[500px]">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">🤖 AI Assistant</h3>
-          
-          {/* Suggested Questions */}
-          <div className="mb-4">
-            <p className="text-xs text-gray-500 mb-2">Try asking:</p>
-            <div className="flex flex-wrap gap-1">
-              {[
-                "What step am I on?",
-                "How many steps?",
-                "How to edit?",
-                "Next step?"
-              ].map((suggestion, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => {
-                    setChatMessage(suggestion)
-                    // Optional: auto-send on click for better UX
-                    // handleSendMessage()
-                  }}
-                  className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition"
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {/* Chat History */}
-          <div 
-            className="flex-1 space-y-4 overflow-y-auto mb-4 scroll-smooth" 
-            ref={chatHistoryRef}
-            style={{ scrollBehavior: 'smooth' }}
-          >
-            {chatHistory.map((chat, index) => (
-              <div key={index} className={`flex ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div 
-                  className={`max-w-xs p-3 rounded-lg ${
-                    chat.type === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 text-gray-700'
-                  }`}
-                  aria-live={chat.type === 'assistant' ? 'polite' : undefined}
-                >
-                  <p className="text-sm">
-                    {chat.isTyping ? (
-                      <span className="flex items-center gap-1">
-                        <span className="animate-pulse">...</span>
-                        <span className="text-xs">AI is typing</span>
-                      </span>
-                    ) : (
-                      chat.message
-                    )}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          {/* Chat Input */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={chatMessage}
-              onChange={(e) => setChatMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask a question..."
-              className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="button"
-              onClick={handleSendMessage}
-              className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-              title="Send message"
-            >
-              📤
-            </button>
-          </div>
+        {/* AI Tutor – desktop sidebar */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
+          {moduleId && <ChatTutor moduleId={moduleId} />}
         </div>
       </div>
-      
-      {/* QR Code Modal */}
-      {showQRCode && moduleId && (
-        <QRCodeGenerator
-          moduleId={moduleId}
-          moduleTitle={`Training: ${moduleId}`}
-          onClose={() => setShowQRCode(false)}
-        />
-      )}
 
       {/* Voice Coach Overlay */}
       <VoiceCoachOverlay
