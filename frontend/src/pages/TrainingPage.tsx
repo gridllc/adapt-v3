@@ -14,6 +14,7 @@ import { CrashBoundary } from '../dev/CrashBoundary'
 import ChatTutor from '../components/ChatTutor'
 import { useAutoMic } from '../hooks/useAutoMic'
 import { handleVoiceChunk } from '../api/voiceChunk'
+import MicrophoneProbe from '@/components/MicrophoneProbe'
 
 // import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
@@ -577,35 +578,36 @@ export const TrainingPage: React.FC = () => {
           {/* TEMP: Feedback section disabled to isolate React #310 */}
         </div>
 
-                  {/* AI Tutor – desktop sidebar */}
-          {ENABLE_CHAT_TUTOR && (
-            <CrashBoundary name="ChatTutor">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
-                {moduleId && <ChatTutor moduleId={moduleId} />}
-              </div>
-            </CrashBoundary>
-          )}
+        {/* AI Tutor – desktop sidebar */}
+        {ENABLE_CHAT_TUTOR && (
+          <CrashBoundary name="ChatTutor">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border flex-col h-[500px] hidden lg:flex">
+              {moduleId && <ChatTutor moduleId={moduleId} />}
+            </div>
+          </CrashBoundary>
+        )}
 
-          {/* Mic Fallback Button - shows when user gesture is needed */}
-          {needsUserGesture && (
-            <button
-              onClick={startWithGesture}
-              style={{
-                position: "fixed", right: 16, bottom: 16,
-                padding: "10px 14px", borderRadius: 8, fontWeight: 600
-              }}
-            >
-              Enable Mic
-            </button>
-          )}
-          
-          {/* Optional tiny status */}
-          <div style={{position:"fixed",left:16,bottom:16,opacity:0.7,fontSize:12}}>
-            {isRecording ? "🎤 listening…" : "🔇"}
-          </div>
+        {/* Mic Fallback Button - shows when user gesture is needed */}
+        {needsUserGesture && (
+          <button
+            onClick={startWithGesture}
+            style={{
+              position: "fixed", right: 16, bottom: 16,
+              padding: "10px 14px", borderRadius: 8, fontWeight: 600
+            }}
+          >
+            Enable Mic
+          </button>
+        )}
+        
+        {/* Optional tiny status */}
+        <div style={{position:"fixed",left:16,bottom:16,opacity:0.7,fontSize:12}}>
+          {isRecording ? "🎤 listening…" : "🔇"}
+        </div>
+
+        {/* TEMP: MicrophoneProbe for testing - remove after we see it recording */}
+        <MicrophoneProbe />
       </div>
-
-
     </div>
   )
 } 
