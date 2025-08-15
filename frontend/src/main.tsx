@@ -6,6 +6,10 @@ import { ErrorBoundary } from '@components/common/ErrorBoundary'
 import App from './App'
 import './index.css'
 import { CLERK_PUBLISHABLE_KEY, IS_PROD } from './config/app'
+import { ensureHttps } from './utils/secure-context'
+
+// P0: Force HTTPS immediately (critical for microphone access)
+ensureHttps()
 
 // Disable console errors in production to prevent Sentry-like rate limiting
 if (IS_PROD) {

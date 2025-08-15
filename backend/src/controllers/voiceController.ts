@@ -2,19 +2,14 @@ import type { Request, Response } from "express";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-
-const ENABLED = (process.env.ENABLE_SERVER_VOICE || "false").toLowerCase() === "true";
-const PROVIDER = (process.env.VOICE_PROVIDER || "BROWSER").toUpperCase(); // BROWSER | GOOGLE
-const DEFAULT_LANG = process.env.VOICE_LANG || "en-US";
-const DEFAULT_VOICE = process.env.VOICE_VOICE_NAME || "en-US-Neutral";
+import { isGoogleVoiceEnabled, getVoiceStatus } from "../config/voice.js";
 
 export async function voiceHealth(_req: Request, res: Response) {
+  const status = getVoiceStatus();
   return res.json({
-    enabled: ENABLED,
-    provider: PROVIDER,
-    lang: DEFAULT_LANG,
-    note: ENABLED
-      ? (PROVIDER === "GOOGLE"
+    ...status,
+    note: status.serverVoiceEnabled
+      ? (status.googleEnabled
           ? "Server endpoints active; will call Google once libs+creds are present."
           : "Server endpoints active but provider is not GOOGLE. TTS/STT will 501.")
       : "Server endpoints disabled by ENABLE_SERVER_VOICE=false.",
@@ -22,16 +17,19 @@ export async function voiceHealth(_req: Request, res: Response) {
 }
 
 export async function ttsHandler(req: Request, res: Response) {
-  if (!ENABLED || PROVIDER !== "GOOGLE") {
+  if (!isGoogleVoiceEnabled()) {
+    const status = getVoiceStatus();
     return res.status(501).json({
       error: "VOICE_NOT_ENABLED",
       message: "Server TTS is disabled (enable and set provider to GOOGLE to use).",
+      status,
+      fallback: "Use browser Web Speech API instead"
     });
   }
 
   const text: string = (req.body?.text || "").toString().trim();
-  const lang: string = (req.body?.lang || DEFAULT_LANG).toString();
-  const voiceName: string = (req.body?.voice || DEFAULT_VOICE).toString();
+  const lang: string = (req.body?.lang || "en-US").toString();
+  const voiceName: string = (req.body?.voice || "en-US-Neutral").toString();
 
   if (!text) {
     return res.status(400).json({ error: "NO_TEXT", message: "Missing 'text'." });
@@ -50,15 +48,19 @@ export async function ttsHandler(req: Request, res: Response) {
       message: isModuleMissing
         ? "Google speech packages not installed. Run: npm i @google-cloud/text-to-speech"
         : msg,
+      fallback: "Use browser Web Speech API instead"
     });
   }
 }
 
 export async function sttHandler(req: Request, res: Response) {
-  if (!ENABLED || PROVIDER !== "GOOGLE") {
+  if (!isGoogleVoiceEnabled()) {
+    const status = getVoiceStatus();
     return res.status(501).json({
       error: "VOICE_NOT_ENABLED",
       message: "Server STT is disabled (enable and set provider to GOOGLE to use).",
+      status,
+      fallback: "Use browser Web Speech API instead"
     });
   }
 
@@ -66,7 +68,7 @@ export async function sttHandler(req: Request, res: Response) {
     return res.status(400).json({ error: "NO_AUDIO", message: "Upload 'audio' file (form-data)." });
   }
 
-  const lang: string = (req.body?.lang || DEFAULT_LANG).toString();
+  const lang: string = (req.body?.lang || "en-US").toString();
 
   // Persist to a tmp file (some SDKs prefer files over buffers)
   const tmp = path.join(os.tmpdir(), `voice_${Date.now()}`);
@@ -84,6 +86,7 @@ export async function sttHandler(req: Request, res: Response) {
       message: isModuleMissing
         ? "Google speech packages not installed. Run: npm i @google-cloud/speech"
         : msg,
+      fallback: "Use browser Web Speech API instead"
     });
   } finally {
     // Clean up temp file

@@ -29,6 +29,8 @@ import { requestLogger } from './middleware/requestLogger.js'
 import healthRoutes from './routes/healthRoutes.js'
 import { storageRoutes } from './routes/storageRoutes.js'
 import voiceRoutes from './routes/voiceRoutes.js'
+import { forceHttps, hstsHeader } from './utils/force-https.js'
+import { sttRouter } from './routes/stt.js'
 
 // Import QStash queue to ensure it's initialized
 import './services/qstashQueue.js'
@@ -97,6 +99,10 @@ const configureMiddleware = () => {
     contentSecurityPolicy: false, // API only; let the frontend own CSP
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }))
+
+  // P0: Force HTTPS in production (critical for microphone access)
+  app.use(forceHttps())
+  app.use(hstsHeader())
 
   // CORS configuration - REFACTORED for production deployment
   const allowedOrigins = [
@@ -219,6 +225,7 @@ const configureRoutes = () => {
   app.use('/api/share', shareRoutes)
   app.use('/api/storage', storageRoutes)
 app.use('/api/voice', voiceRoutes)
+  app.use('/api/stt', sttRouter)
   
   // QStash webhook endpoint for processing video steps
   app.post('/api/process-steps', async (req, res) => {

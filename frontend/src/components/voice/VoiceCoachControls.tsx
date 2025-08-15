@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback, useEffect, useState, useRef } from 'react';
 import { useVoiceCoach, VoiceCoachOptions } from '../../voice/useVoiceCoach';
 import { MicDiagnostics } from './MicDiagnostics';
+import { SecureContextBanner } from '../common/SecureContextBanner';
 
 type Step = {
   id: string;
@@ -224,6 +225,9 @@ export const VoiceCoachControls: React.FC<VoiceCoachControlsProps> = ({
 
   return (
     <div className="space-y-4" data-testid="voice-coach" ref={rootRef} aria-busy={isListening}>
+      {/* Security and Permission Banner */}
+      <SecureContextBanner />
+      
       {/* Step Progress */}
       <div className="flex items-center justify-between text-sm text-gray-600">
         <span>
