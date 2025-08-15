@@ -10,8 +10,7 @@ import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import { ChatTutor } from '../components/ChatTutor'
-import { VoiceCoachOverlay } from '../components/voice/VoiceCoachOverlay'
-import { VoiceCoachControls } from '../components/voice/VoiceCoachControls'
+
 import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
 
@@ -49,10 +48,7 @@ export const TrainingPage: React.FC = () => {
   const [processingAI, setProcessingAI] = useState(false)
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
-  const [showVoiceCoachOverlay, setShowVoiceCoachOverlay] = useState(false)
 
-  // TEMP: disable voice coach until proper fix is implemented
-  const ENABLE_VOICE_COACH = false;
 
   // Camera/mic functionality for Start Training
   const requestSensors = async () => {
@@ -96,15 +92,7 @@ export const TrainingPage: React.FC = () => {
   const isReady = status && status.status === 'ready'
   const hasError = status && status.status === 'error'
 
-  // Check if we should show voice coach overlay (when coming from upload)
-  // Fixed: Show overlay when transitioning from processing to ready, not during processing
-  const prevStatusRef = useRef(status?.status)
-  useEffect(() => {
-    if (prevStatusRef.current === 'processing' && status?.status === 'ready') {
-      setShowVoiceCoachOverlay(true)
-    }
-    prevStatusRef.current = status?.status
-  }, [status?.status])
+
 
   // Video seeking function
   const seekToTime = (timeInSeconds: number) => {
@@ -466,17 +454,7 @@ export const TrainingPage: React.FC = () => {
               </div>
             ) : steps && steps.length > 0 ? (
               <div className="space-y-4">
-                {/* TEMP hotfix – remove once VoiceCoachControls is refactored */}
-                {ENABLE_VOICE_COACH && (
-                  <VoiceCoachControls
-                    steps={steps}
-                    currentStepIndex={currentStepIndex || 0}
-                    onStepChange={setCurrentStepIndex}
-                    onSeek={seekToTime}
-                    onPause={() => videoRef.current?.pause()}
-                    onPlay={() => videoRef.current?.play()}
-                  />
-                )}
+
 
                 {/* Transcript Display */}
                 {steps[0]?.originalText && (
@@ -590,19 +568,7 @@ export const TrainingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* TEMP hotfix – remove once VoiceCoachControls is refactored */}
-      {ENABLE_VOICE_COACH && (
-        <VoiceCoachOverlay
-          isVisible={showVoiceCoachOverlay}
-          onStart={() => {
-            setShowVoiceCoachOverlay(false);
-            // Synchronous event => still in the click gesture
-            // This keeps the action inside the same user gesture for mobile compatibility
-            window.dispatchEvent(new Event('vc-start'));
-          }}
-          onDismiss={() => setShowVoiceCoachOverlay(false)}
-        />
-      )}
+
     </div>
   )
 } 
