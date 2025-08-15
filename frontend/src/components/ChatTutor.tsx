@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
-import { useModuleAsk } from '@/hooks/useModuleAsk'
+import React, { useRef, useState } from 'react'
+import { streamText } from '@/utils/streaming'
+import { useAuth } from '@clerk/clerk-react'
 import { AISuggestionFeedback } from './common/FeedbackWidget'
+import { API_ENDPOINTS } from '@/config/api'
 
 interface Props {
   moduleId: string
@@ -8,16 +10,54 @@ interface Props {
 
 export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
   const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | undefined>()
+  const [source, setSource] = useState<'openai' | undefined>()
+  const [reused, setReused] = useState(false)
+  const [similarity, setSimilarity] = useState(0)
+  const abortRef = useRef<AbortController | null>(null)
+  const { getToken } = useAuth()
+  
+  // Voice recording state
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [audioChunks, setAudioChunks] = useState<Blob[]>([])
   const [isRecording, setIsRecording] = useState(false)
-  const { answer, source, loading, error, reused, similarity, ask } = useModuleAsk()
 
   const askQuestion = async () => {
-    if (!question.trim()) return
-    await ask(moduleId, question)
+    if (!question.trim() || loading) return
+    setAnswer('')
+    setError(undefined)
+    setLoading(true)
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
+    
+    try {
+      const token = await getToken({ template: 'integration_fallback' })
+      await streamText({
+        url: API_ENDPOINTS.AI_STREAM,
+        body: { moduleId, question },
+        token,
+        mode: 'text',
+        signal: abortRef.current.signal,
+        timeoutMs: 120_000,
+        onDelta: (t) => setAnswer(prev => prev + t),
+        onDone: () => setLoading(false),
+        onError: (e) => {
+          setError(e instanceof Error ? e.message : String(e))
+          setLoading(false)
+        },
+      })
+      // optional: setSource('openai'), setReused/similarity if your stream sends meta
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setLoading(false)
+    } finally {
+      abortRef.current = null
+    }
   }
 
+  // Voice recording functions
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -70,7 +110,7 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
       if (transcript) {
         setQuestion(transcript)
         // Optionally auto-send the transcribed question
-        // await ask(moduleId, transcript)
+        // await askQuestion()
       }
     } catch (error) {
       console.error('❌ Transcription error:', error)
@@ -91,6 +131,7 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Type your question..."
           className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          onKeyDown={(e) => { if (e.key === 'Enter') askQuestion() }}
         />
         <button
           onClick={isRecording ? stopRecording : startRecording}
@@ -111,20 +152,22 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
         >
           {loading ? 'Thinking...' : 'Ask'}
         </button>
+        <button
+          onClick={() => abortRef.current?.abort()}
+          disabled={!loading}
+          className="bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          title="Stop"
+        >
+          ⏹️
+        </button>
       </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
+      
       {answer && (
         <div className="bg-gray-100 p-3 rounded-lg text-gray-800">
           <p className="whitespace-pre-wrap">{answer}</p>
-          <div className="mt-2 text-xs text-gray-500 space-y-1">
-            <p>Answered by: {source?.toUpperCase()}</p>
-            {reused && (
-              <p className="text-green-600">
-                ♻️ Reused from shared memory ({(similarity * 100).toFixed(1)}% match)
-              </p>
-            )}
-          </div>
+          {loading && <span className="animate-pulse">▍</span>}
           
           {/* AI Suggestion Feedback */}
           <div className="mt-3">

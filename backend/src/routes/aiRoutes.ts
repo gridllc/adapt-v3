@@ -9,6 +9,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
 import multer from 'multer'
+import { startTextStream } from '../services/aiService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -167,6 +168,99 @@ router.post('/ask', async (req: any, res: any) => {
       success: false, 
       error: 'Failed to generate AI response' 
     })
+  }
+})
+
+/**
+ * Streaming AI ask endpoint for real-time chat
+ */
+router.post('/stream', async (req: any, res: any) => {
+  try {
+    const { moduleId, question, userMessage, currentStep, allSteps, videoTime } = req.body
+
+    if (!moduleId || (!question && !userMessage)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Module ID and question/userMessage are required' 
+      })
+    }
+
+    const message = question || userMessage
+    console.log(`🤖 Streaming AI request for module ${moduleId}`)
+    console.log(`📝 Question: "${message}"`)
+
+    // Set streaming headers for mobile compatibility
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no') // defeat proxy buffering
+    // @ts-ignore
+    res.flushHeaders?.()
+
+    // Get user ID from request
+    const userId = await UserService.getUserIdFromRequest(req)
+
+    // Get module and steps for context
+    const module = await DatabaseService.getModule(moduleId)
+    if (!module) {
+      res.write('Error: Module not found\n')
+      return res.end()
+    }
+
+    let steps = allSteps
+    if (!steps) {
+      steps = await DatabaseService.getSteps(moduleId)
+    }
+    
+    // Use the new streaming service
+    const stream = await startTextStream({ 
+      moduleId, 
+      question: message, 
+      context: {
+        steps,
+        currentStep: currentStep || null,
+        videoTime: videoTime || 0
+      }
+    })
+
+    console.log(`✅ Streaming AI response started for module ${moduleId}`)
+
+    // Pipe the stream to the response
+    stream.on('data', (chunk) => {
+      res.write(typeof chunk === 'string' ? chunk : chunk.toString('utf8'))
+    })
+    
+    stream.on('end', () => {
+      // Log activity
+      DatabaseService.createActivityLog({
+        userId: userId || undefined,
+        action: 'AI_STREAM_ASK',
+        targetId: moduleId,
+        metadata: {
+          questionLength: message.length,
+          answerLength: 0 // We don't know the final length in streaming
+        }
+      }).catch(err => console.error('Failed to log activity:', err))
+      
+      res.end()
+    })
+    
+    stream.on('error', (err) => {
+      console.error('❌ Stream error:', err)
+      res.write('\n[error]\n')
+      res.end()
+    })
+
+    // Handle client disconnect
+    req.on('close', () => {
+      console.log('❌ Client disconnected during streaming')
+      stream.destroy()
+    })
+
+  } catch (error) {
+    console.error('❌ Streaming AI error:', error)
+    res.write(`Error: ${error instanceof Error ? error.message : 'Failed to generate AI response'}\n`)
+    res.end()
   }
 })
 

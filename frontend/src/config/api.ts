@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
   VIDEO_URL: (filename: string) => `/api/video-url/url/${filename}`,
   FEEDBACK_STATS: '/api/feedback/stats',
   AI_CONTEXTUAL_RESPONSE: '/api/ai/contextual-response',
+  AI_STREAM: '/api/ai/stream',
   HEALTH: '/api/health',
   AI_ASK: '/api/ai/ask',
   TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,

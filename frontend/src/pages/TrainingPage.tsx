@@ -13,6 +13,8 @@ import QRCodeGenerator from '../components/QRCodeGenerator'
 import { VoiceCoachOverlay } from '../components/voice/VoiceCoachOverlay'
 import { VoiceCoachControls } from '../components/voice/VoiceCoachControls'
 import { LoadingSpinner } from '../components/common/LoadingSpinner'
+import { useAuth } from '@clerk/clerk-react'
+import { streamText } from '../utils/streaming'
 
 interface ChatMessage {
   type: 'user' | 'assistant'
@@ -26,6 +28,7 @@ export const TrainingPage: React.FC = () => {
   const isProcessing = searchParams.get('processing') === 'true'
   const filename = moduleId ? `${moduleId}.mp4` : undefined
   const { url, loading, error } = useSignedVideoUrl(filename)
+  const { getToken } = useAuth()
   
   // Use module status hook for processing state
   const { status, loading: statusLoading, error: statusError, stuckAtZero, timeoutReached } = useModuleStatus(moduleId || '', isProcessing)
@@ -214,7 +217,7 @@ export const TrainingPage: React.FC = () => {
     setChatMessage('')
     
     // Show typing indicator
-    setChatHistory(prev => [...prev, { type: 'assistant', message: '...', isTyping: true }])
+    setChatHistory(prev => [...prev, { type: 'assistant', message: '', isTyping: true }])
     
     try {
       // Get current step context
@@ -229,12 +232,12 @@ export const TrainingPage: React.FC = () => {
         notes: currentStep.notes
       } : null
       
-      // Generate AI response based on context
-      const aiResponse = await generateAIResponse(userMessage, stepContext, steps)
+      // Get the typing indicator message to update it
+      const typingMessageIndex = chatHistory.length
       
-      // Remove typing indicator and add real response
-      setChatHistory(prev => prev.filter(msg => !msg.isTyping))
-      setChatHistory(prev => [...prev, { type: 'assistant', message: aiResponse }])
+      // Generate AI response using streaming
+      await generateAIResponseStreaming(userMessage, stepContext, steps, typingMessageIndex)
+      
     } catch (error) {
       console.error('AI response error:', error)
       // Remove typing indicator and add error response
@@ -246,27 +249,58 @@ export const TrainingPage: React.FC = () => {
     }
   }
 
-  const generateAIResponse = async (userMessage: string, currentStep: any, allSteps: Step[]) => {
-    // Use the enhanced contextual AI service
+  const generateAIResponseStreaming = async (userMessage: string, currentStep: any, allSteps: Step[], typingMessageIndex: number) => {
     try {
-      const data = await api(API_ENDPOINTS.AI_CONTEXTUAL_RESPONSE, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const token = await getToken({ template: 'integration_fallback' })
+      
+      let responseText = ''
+      
+      await streamText({
+        url: API_ENDPOINTS.AI_STREAM,
+        body: {
           userMessage,
           currentStep,
           allSteps,
           videoTime,
           moduleId
-        }),
+        },
+        token,
+        mode: 'text',
+        onDelta: (text) => {
+          responseText += text
+          // Update the typing indicator message in the chat history
+          setChatHistory(prev => {
+            const newChatHistory = [...prev];
+            if (newChatHistory[typingMessageIndex]) {
+              newChatHistory[typingMessageIndex] = { ...newChatHistory[typingMessageIndex], message: responseText };
+            }
+            return newChatHistory;
+          });
+        },
+        onDone: () => {
+          // Response is complete, remove typing indicator
+          setChatHistory(prev => prev.filter(msg => !msg.isTyping))
+        },
+        onError: (err) => {
+          console.error('Streaming AI error:', err)
+          // Remove typing indicator and add error response
+          setChatHistory(prev => prev.filter(msg => !msg.isTyping))
+          setChatHistory(prev => [...prev, { 
+            type: 'assistant', 
+            message: "I'm having trouble processing your request right now. Please try again in a moment." 
+          }])
+          throw err
+        },
+        timeoutMs: 120_000, // 2 minute timeout
       })
-
-      return data.response || 'I apologize, but I\'m having trouble processing your request right now.'
     } catch (error) {
       console.error('AI response generation error:', error)
-      return generateFallbackResponse(userMessage, currentStep, allSteps)
+      // Remove typing indicator and add error response
+      setChatHistory(prev => prev.filter(msg => !msg.isTyping))
+      setChatHistory(prev => [...prev, { 
+        type: 'assistant', 
+        message: "I'm having trouble processing your request right now. Please try again in a moment." 
+      }])
     }
   }
 
