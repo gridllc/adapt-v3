@@ -1,98 +1,45 @@
-import express from 'express'
-import { startProcessing } from '../services/ai/aiPipeline.js'
-import { ModuleService } from '../services/moduleService.js'
-import crypto from 'crypto'
+import { Router } from "express";
+import { ModuleService } from "../services/moduleService.js";
+import { storageService } from "../services/storageService.js";
+import { aiService } from "../services/aiService.js";
 
-const router = express.Router()
+const router = Router();
 
-// optional shared secret to avoid public abuse
-const JOB_SECRET = process.env.WORKER_JOB_SECRET
-
-// QStash signature verification function
-function isSignatureValid(req: express.Request): boolean {
-  const signature = req.headers['upstash-signature']
-  const signingKey = process.env.QSTASH_CURRENT_SIGNING_KEY
-
-  if (!signature || !signingKey) return false
-
-  const bodyRaw = JSON.stringify(req.body)
-  const hmac = crypto.createHmac('sha256', signingKey)
-  hmac.update(bodyRaw)
-  const expected = hmac.digest('base64')
-
-  return signature === expected
-}
-
-// Main worker endpoint for processing modules
-router.post('/process/:moduleId', async (req, res) => {
-  if (JOB_SECRET && req.get('x-job-secret') !== JOB_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-  const { moduleId } = req.params
-
+/**
+ * QStash job handler
+ */
+router.post("/processVideo", async (req, res) => {
   try {
-    console.log('🧵 Worker start', { moduleId })
-    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
-    await startProcessing(moduleId)
-    console.log('🧵 Worker done', { moduleId })
-    return res.json({ ok: true })
-  } catch (err: any) {
-    console.error('Worker process error:', err)
-    await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, err?.message || 'processing failed')
-    return res.status(500).json({ error: 'processing failed' })
-  }
-})
-
-// QStash worker endpoint for processing video jobs (legacy compatibility)
-router.post('/process-video', async (req, res) => {
-  try {
-    console.log('📥 QStash worker received request:', req.body)
-    
-    // Verify QStash signature for security
-    if (!isSignatureValid(req)) {
-      console.warn('🔒 Invalid QStash signature')
-      return res.status(401).send('Invalid signature')
+    const { moduleId, videoKey } = req.body;
+    if (!moduleId || !videoKey) {
+      return res.status(400).json({ error: "moduleId and videoKey required" });
     }
-    
-    const { moduleId, videoUrl } = req.body
-    
-    if (!moduleId) {
-      console.error('❌ Missing moduleId:', { moduleId, videoUrl })
-      return res.status(400).json({ 
-        error: 'Missing moduleId',
-        required: ['moduleId'],
-        received: Object.keys(req.body)
-      })
-    }
-    
-    console.log(`🎬 [${moduleId}] Starting video processing via QStash worker`)
-    
-    // Process the video job using the new pipeline
-    await startProcessing(moduleId)
-    
-    console.log(`✅ [${moduleId}] Video processing completed successfully`)
-    
-    // Return simple OK response as QStash expects
-    res.status(200).send('OK')
-    
-  } catch (error) {
-    console.error('❌ QStash worker error:', error)
-    
-    res.status(500).json({ 
-      error: 'Video processing failed',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    })
+
+    console.log(`Processing video for module ${moduleId}`);
+
+    await ModuleService.update(moduleId, { status: "PROCESSING" });
+
+    // 1. Transcribe
+    const transcript = await aiService.transcribeFromS3(videoKey);
+
+    // 2. Generate steps
+    const steps = await aiService.generateSteps(transcript);
+
+    // 3. Save steps JSON to S3
+    const stepsKey = `training/${moduleId}.json`;
+    await storageService.putJson(stepsKey, steps);
+
+    // 4. Mark module READY
+    await ModuleService.update(moduleId, {
+      status: "READY",
+      stepsKey,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("processVideo error", err);
+    res.status(500).json({ error: "Failed to process video" });
   }
-})
+});
 
-// Health check for QStash worker
-router.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok',
-    service: 'qstash-worker',
-    timestamp: new Date().toISOString()
-  })
-})
-
-export { router as workerRoutes } 
+export default router;

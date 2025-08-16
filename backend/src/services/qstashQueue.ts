@@ -1,70 +1,42 @@
-import { startProcessing } from './ai/aiPipeline.js'
+// backend/src/services/qstashQueue.ts
+import fetch from "node-fetch"
 
-// QStash configuration
-const QSTASH_ENABLED = (process.env.QSTASH_ENABLED || '').toLowerCase() === 'true'
-const QSTASH_ENDPOINT = process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish'
-const QSTASH_TOKEN = process.env.QSTASH_TOKEN
-const BACKEND_URL = process.env.BACKEND_ORIGIN || 'http://localhost:3000'
-const WORKER_JOB_SECRET = process.env.WORKER_JOB_SECRET
+const QSTASH_URL = process.env.QSTASH_URL || "https://qstash.upstash.io/v2/publish"
+const QSTASH_TOKEN = process.env.QSTASH_TOKEN!
 
 /**
- * Check if QStash is enabled
+ * Enqueue a background job to QStash
  */
-export function isEnabled(): boolean {
-  return QSTASH_ENABLED && !!QSTASH_TOKEN
-}
-
-/**
- * Enqueue a module for processing via QStash
- */
-export async function enqueueProcessModule(moduleId: string): Promise<string | null> {
-  if (!QSTASH_ENABLED) {
-    throw new Error('QSTASH_DISABLED')
-  }
-  
+export async function enqueueJob(jobName: string, payload: any) {
   if (!QSTASH_TOKEN) {
-    console.log('⚠️ QStash not configured, falling back to direct processing')
-    return null
+    console.warn("QStash disabled, job ran inline:", jobName)
+    return runInline(jobName, payload)
   }
 
-  try {
-    const targetUrl = `${BACKEND_URL}/api/worker/process/${moduleId}`
-    console.log('📬 Publishing to QStash:', { moduleId, targetUrl })
-    
-    const res = await fetch(`${QSTASH_ENDPOINT}`, {
-      method: 'POST',
-      headers: { 
-        Authorization: `Bearer ${QSTASH_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        url: targetUrl,
-        body: JSON.stringify({ moduleId }),
-        headers: {
-          'x-job-secret': WORKER_JOB_SECRET || ''
-        }
-      })
-    })
-    
+  const url = `${QSTASH_URL}/jobs/${jobName}`
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${QSTASH_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
     const text = await res.text()
-    console.log('QStash publish result', { status: res.status, body: text, moduleId })
-    
-    if (!res.ok) {
-      throw new Error(`QStash publish failed: ${res.status} ${text}`)
-    }
-    
-    const result = JSON.parse(text)
-    return result.message_id ?? null
-  } catch (error) {
-    console.error('❌ Failed to enqueue via QStash:', error)
-    throw error
+    throw new Error(`QStash enqueue failed: ${res.status} ${text}`)
   }
+
+  return res.json()
 }
 
-/**
- * Process a module directly (fallback when QStash is not available)
- */
-export async function processModuleDirectly(moduleId: string): Promise<void> {
-  console.log('🔄 Processing module directly:', moduleId)
-  await startProcessing(moduleId)
+// Fallback: run inline in dev if QStash disabled
+async function runInline(jobName: string, payload: any) {
+  if (jobName === "processVideo") {
+    const { processVideoJob } = await import("../workers/processVideoJob.js")
+    return processVideoJob(payload)
+  }
+  console.warn("No inline handler for job:", jobName)
 }
