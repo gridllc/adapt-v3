@@ -1,278 +1,59 @@
-import React, { useCallback, useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useDropzone } from 'react-dropzone'
-import { UploadItem } from './UploadItem'
-import { ProcessingBanner } from './ProcessingBanner'
-import { useUploadStore } from '@stores/uploadStore'
-import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
-import { API_ENDPOINTS } from '../../config/api'
-import { useModuleStatus } from '../../hooks/useModuleStatus'
-import { primeMicOnce } from '@/lib/micPrime'
+import React, { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+const UPLOAD_ENDPOINT = import.meta.env.VITE_UPLOAD_ENDPOINT ?? "/api/upload";
 
 export const UploadManager: React.FC = () => {
-  const { 
-    uploads, 
-    addUpload, 
-    updateProgress, 
-    markSuccess, 
-    markError, 
-    startUpload,
-    setPhase,
-    setModuleId,
-    markProcessing,
-    markReady
-  } = useUploadStore()
-  
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Convert Map to array for easier processing
-  const uploadsArray = Array.from(uploads.values())
-  
-  // Check if any uploads are in progress
-  const hasActiveUploads = uploadsArray.some(upload => upload.status === 'uploading')
-  const hasQueuedUploads = uploadsArray.some(upload => upload.status === 'queued')
-  const isUploading = hasActiveUploads || hasQueuedUploads
-
-  // Get current upload for status display - show banner only for meaningful phases
-  const currentUpload = uploadsArray.find(u => 
-    // must have a meaningful phase (not undefined/idle)
-    ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(u.phase)
-  )
-
-  // Show ProcessingBanner only for uploads with real phases
-  const showStatus = Boolean(currentUpload)
-
-  // Use module status hook for processing uploads
-  const processingUpload = uploadsArray.find(u => u.phase === 'processing')
-  const { status: moduleStatus } = useModuleStatus(
-    processingUpload?.moduleId || '', 
-    !!processingUpload?.moduleId
-  )
-
-  // Update upload status when module processing completes
-  useEffect(() => {
-    if (import.meta.env.DEV && processingUpload) {
-      console.log('🔍 Processing status:', processingUpload.phase, moduleStatus?.status);
-    }
-    
-    if (processingUpload && moduleStatus && processingUpload.moduleId) {
-      if (moduleStatus.status === 'ready') {
-        console.log('🎯 Upload complete! Navigating to training page:', processingUpload.moduleId)
-        markReady(processingUpload.id)
-        // Navigate to training page with voice start flag
-        navigate(`/training/${processingUpload.moduleId}?voicestart=1`)
-      } else if (moduleStatus.status === 'error') {
-        console.error('❌ Upload processing failed for:', processingUpload.moduleId)
-        markError(processingUpload.id, new Error('Processing failed'))
-      } else {
-        console.log('⏳ Still processing...', { status: moduleStatus.status })
-      }
-    }
-  }, [processingUpload, moduleStatus, markReady, markError, navigate])
-
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (import.meta.env.DEV) {
-      console.log('Files dropped:', acceptedFiles)
-    }
-    
-    // IMPORTANT: Request mic permission immediately during upload
+  async function primeMic() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(t => t.stop()); // Close immediately
-      localStorage.setItem("mic_ok", "1");
-      console.log('✅ Microphone permission granted during upload');
-    } catch (e) {
-      console.warn('❌ Microphone permission denied during upload:', e);
-      localStorage.removeItem("mic_ok");
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      return true;
+    } catch {
+      return false; // we'll show a fallback button on Training page
     }
-    
-    for (const file of acceptedFiles) {
-      try {
-        if (import.meta.env.DEV) {
-          console.log('Processing file:', file.name)
-        }
-        
-        // Validate file
-        const validation = await validateFile(file)
-        if (!validation.valid) {
-          throw new Error(validation.error)
-        }
+  }
 
-        // Add to upload queue
-        const uploadId = addUpload(file)
-        if (import.meta.env.DEV) {
-          console.log('Added to queue:', uploadId)
-        }
-
-        // Upload will be started by the onPhaseChange callback
-
-        // Start upload - USE DIRECT URL (bypasses proxy)
-        try {
-          console.log('🚀 STARTING UPLOAD PROCESS...')
-          console.log('📁 File details:', { 
-            name: file.name, 
-            size: file.size, 
-            type: file.type 
-          })
-          console.log('🔗 Upload URL:', API_ENDPOINTS.UPLOAD)
-          
-          if (import.meta.env.DEV) {
-            console.log('Starting upload...')
-          }
-          
-          // Start the upload status
-          startUpload(uploadId)
-          
-          const response = await uploadWithProgress({
-            file,
-            url: API_ENDPOINTS.UPLOAD, // Use configured API endpoint
-            onProgress: (progress) => {
-              if (import.meta.env.DEV) {
-                console.log(`Upload progress: ${progress}%`)
-              }
-              updateProgress(uploadId, progress)
-            },
-            onPhaseChange: (phase) => {
-              if (import.meta.env.DEV) {
-                console.log(`Phase change: ${phase}`)
-              }
-              setPhase(uploadId, phase)
-            },
-          })
-
-          if (import.meta.env.DEV) {
-            console.log('Upload response status:', response.status)
-          }
-
-          console.log('🔍 UPLOAD RESPONSE RECEIVED:', {
-            ok: response.ok,
-            status: response.status,
-            statusText: response.statusText,
-            headers: Array.from(response.headers.entries())
-          })
-
-          if (response.ok) {
-            console.log('✅ Response is OK, parsing JSON...')
-            const result = await response.json()
-            console.log('📦 Upload success response:', result)
-            
-            if (result.moduleId) {
-              console.log('🎯 Setting moduleId and marking as processing:', result.moduleId)
-              
-              // Navigate to training page immediately
-              console.log('🚀 Upload complete! Navigating to training page:', result.moduleId)
-              navigate(`/training/${result.moduleId}?voicestart=1`)
-              
-              // Update store for UI consistency
-              setModuleId(uploadId, result.moduleId)
-              markProcessing(uploadId)
-              
-            } else {
-              console.error('❌ No moduleId in upload response:', result)
-              throw new Error('Upload succeeded but no moduleId returned')
-            }
-          } else {
-            const errorText = await response.text()
-            console.error('Upload failed:', response.status, errorText)
-            throw new Error(`Upload failed: ${response.status}`)
-          }
-        } catch (error) {
-          console.error('💥 UPLOAD ERROR CAUGHT:', error)
-          console.error('💥 Error type:', typeof error)
-          console.error('💥 Error name:', (error as Error)?.name)
-          console.error('💥 Error message:', (error as Error)?.message)
-          console.error('💥 Error stack:', (error as Error)?.stack)
-          markError(uploadId, error as Error)
-        }
-      } catch (error) {
-        console.error('File processing error:', error)
-      }
+  async function onChooseFile(file: File) {
+    setBusy(true);
+    // ask permission during the user gesture call stack
+    primeMic().catch(() => {});
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(UPLOAD_ENDPOINT, { method: "POST", body: form });
+      if (!res.ok) throw new Error(await res.text().catch(() => res.statusText));
+      const data = await res.json(); // { filename: moduleId, ... }
+      navigate(`/training/${data.filename}?voicestart=1`);
+    } catch (e: any) {
+      alert(e?.message || "Upload failed");
+      setBusy(false);
     }
-  }, [addUpload, updateProgress, markSuccess, markError, startUpload, setPhase, setModuleId, markProcessing, navigate])
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'video/mp4': ['.mp4'],
-      'video/webm': ['.webm'],
-      'video/avi': ['.avi'],
-      'video/quicktime': ['.mov'],
-    },
-    maxSize: 200 * 1024 * 1024, // 200MB
-  })
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Processing Banner - shows for all uploads including queued ones */}
-      {showStatus && currentUpload && (
-        <ProcessingBanner
-          phase={currentUpload.phase}
-          progress={currentUpload.progress}
-          moduleId={currentUpload.moduleId}
-        />
-      )}
-
-      {/* Drop Zone */}
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          isUploading 
-            ? 'border-gray-300 bg-gray-50 cursor-not-allowed opacity-50'
-            : isDragActive
-            ? 'border-blue-500 bg-blue-50 cursor-pointer'
-            : 'border-gray-300 hover:border-gray-400 cursor-pointer'
-        }`}
+    <div className="flex flex-col items-center gap-3">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onChooseFile(f);
+        }}
+      />
+      <button
+        className="px-4 py-2 rounded-xl bg-black text-white disabled:opacity-50"
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
       >
-        <input {...getInputProps()} disabled={isUploading} />
-        <div className="space-y-2">
-          <div className="text-2xl">
-            {isUploading ? '⏳' : '📹'}
-          </div>
-          <p className="text-lg font-medium text-gray-900">
-            {isUploading 
-              ? 'Upload in progress...' 
-              : isDragActive 
-              ? 'Drop the video here' 
-              : 'Drag & drop video here'
-            }
-          </p>
-          <p className="text-sm text-gray-500">
-            {isUploading 
-              ? 'Please wait for current uploads to complete'
-              : 'or click to select a file (MP4, WebM, AVI, MOV, max 200MB)'
-            }
-          </p>
-        </div>
-      </div>
-
-      {/* Upload Queue */}
-      {uploads.size > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
-          
-          {/* Upload Status Summary - show for all uploads */}
-          {isUploading && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
-                <span className="text-sm font-medium text-blue-800">
-                  {hasActiveUploads ? 'Uploading...' : 'Preparing upload...'}
-                </span>
-              </div>
-              <p className="text-xs text-blue-600 mt-1">
-                {hasActiveUploads 
-                  ? 'Your video is being uploaded to our servers'
-                  : 'Getting ready to upload your video'
-                }
-              </p>
-            </div>
-          )}
-          
-          {Array.from(uploads.entries()).map(([id, upload]) => (
-            <UploadItem key={id} id={id} upload={upload} />
-          ))}
-        </div>
-      )}
+        {busy ? "Uploading…" : "Upload a video"}
+      </button>
+      <p className="text-xs text-neutral-500">MP4/WEBM up to your plan limit.</p>
     </div>
-  )
+  );
 }

@@ -15,6 +15,7 @@ import ChatTutor from '../components/ChatTutor'
 import { useAutoMic } from '../hooks/useAutoMic'
 import { handleVoiceChunk } from '../api/voiceChunk'
 import MicrophoneProbe from '@/components/MicrophoneProbe'
+import SecureContextBanner from '@/components/common/SecureContextBanner'
 
 // import { LoadingSpinner } from '../components/common/LoadingSpinner'
 
@@ -50,19 +51,7 @@ export const TrainingPage: React.FC = () => {
   const shouldStart = searchParams.get("voicestart") === "1";
   const hasSteps = steps.length > 0;
   
-  // Simple logging for mic start
-  if (shouldStart && hasSteps) {
-    console.log('🎤 Attempting to start microphone automatically');
-  }
-  
-  const { needsUserGesture, startWithGesture, isRecording } = useAutoMic({
-    shouldStart: shouldStart && hasSteps,
-    onChunk: (blob) => {
-      // For now, use mock handler; later replace with actual API call
-      handleVoiceChunk(blob);
-    },
-    onError: (e) => console.warn("mic error", e),
-  });
+  const { isRecording, needsGesture, startWithGesture, error } = useAutoMic(hasSteps && shouldStart);
 
   
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -130,7 +119,7 @@ export const TrainingPage: React.FC = () => {
     if (videoRef.current) {
       videoRef.current.currentTime = timeInSeconds
       videoRef.current.play()
-      console.log(`🎬 Seeking to ${timeInSeconds}s`)
+      if (import.meta.env.DEV) console.log(`🎬 Seeking to ${timeInSeconds}s`)
     }
   }
 
@@ -230,7 +219,7 @@ export const TrainingPage: React.FC = () => {
         },
       })
       
-      console.log('✅ AI processing completed:', result)
+      if (import.meta.env.DEV) console.log('✅ AI processing completed:', result)
       
       // Reload steps after successful processing
       reloadSteps()
@@ -306,7 +295,7 @@ export const TrainingPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentStepIndex, steps])
 
-  console.log('🎬 TrainingPage render state:', {
+  if (import.meta.env.DEV) console.log('🎬 TrainingPage render state:', {
     moduleId,
     url,
     loading,
@@ -592,26 +581,25 @@ export const TrainingPage: React.FC = () => {
           </CrashBoundary>
         )}
 
+        <SecureContextBanner />
+        
         {/* Mic Fallback Button - shows when user gesture is needed */}
-        {needsUserGesture && (
+        {needsGesture && (
           <button
+            className="fixed right-4 bottom-4 px-3 py-2 bg-black text-white rounded-lg"
             onClick={startWithGesture}
-            style={{
-              position: "fixed", right: 16, bottom: 16,
-              padding: "10px 14px", borderRadius: 8, fontWeight: 600
-            }}
           >
             Enable Mic
           </button>
         )}
         
-        {/* Optional tiny status */}
-        <div style={{position:"fixed",left:16,bottom:16,opacity:0.7,fontSize:12}}>
+        {/* Error display */}
+        {error && <div className="fixed left-4 bottom-4 text-xs text-red-600">{error}</div>}
+        
+        {/* Recording status */}
+        <div className="fixed left-4 bottom-4 text-xs opacity-70">
           {isRecording ? "🎤 listening…" : "🔇"}
         </div>
-
-        {/* TEMP: MicrophoneProbe for testing - remove after we see it recording */}
-        <MicrophoneProbe />
       </div>
     </div>
   )

@@ -4,7 +4,7 @@
 export async function handleVoiceChunk(blob: Blob): Promise<void> {
   try {
     // For now, just log that we received a chunk
-    console.log("🎤 Voice chunk received:", {
+    if (import.meta.env.DEV) console.log("🎤 Voice chunk received:", {
       size: blob.size,
       type: blob.type,
       timestamp: new Date().toISOString()
