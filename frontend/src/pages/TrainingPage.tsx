@@ -46,22 +46,20 @@ export const TrainingPage: React.FC = () => {
     nextRetryIn
   } = useSteps(moduleId, status)
 
-  // Auto-start microphone when steps are ready and voice start flag is set
+  // Auto-start microphone when voice start flag is set - simplified logic
   const shouldStart = searchParams.get("voicestart") === "1";
-  const stepsReady = stepsStatus === 'ready' && steps.length > 0;
+  const hasSteps = steps.length > 0;
   
-  // Debug microphone conditions
-  console.log('🎤 Microphone Debug:', {
+  console.log('🎤 Microphone Auto-Start:', {
     voiceStartParam: searchParams.get("voicestart"),
     micOkStorage: localStorage.getItem("mic_ok"),
     shouldStart,
-    stepsReady,
-    stepsStatus,
-    stepsLength: steps.length
+    hasSteps,
+    willAttemptStart: shouldStart && hasSteps
   });
   
   const { needsUserGesture, startWithGesture, isRecording } = useAutoMic({
-    shouldStart: stepsReady && shouldStart,
+    shouldStart: shouldStart && hasSteps,
     onChunk: (blob) => {
       // For now, use mock handler; later replace with actual API call
       handleVoiceChunk(blob);

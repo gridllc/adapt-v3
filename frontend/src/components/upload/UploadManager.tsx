@@ -79,8 +79,16 @@ export const UploadManager: React.FC = () => {
       console.log('Files dropped:', acceptedFiles)
     }
     
-    // IMPORTANT: Prime mic inside the same click handler call stack
-    primeMicOnce().catch(() => { /* ignore; we'll show a fallback later */ });
+    // IMPORTANT: Request mic permission immediately during upload
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop()); // Close immediately
+      localStorage.setItem("mic_ok", "1");
+      console.log('✅ Microphone permission granted during upload');
+    } catch (e) {
+      console.warn('❌ Microphone permission denied during upload:', e);
+      localStorage.removeItem("mic_ok");
+    }
     
     for (const file of acceptedFiles) {
       try {
