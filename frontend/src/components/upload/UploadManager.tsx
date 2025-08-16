@@ -49,11 +49,13 @@ export const UploadManager: React.FC = () => {
   // Update upload status when module processing completes
   useEffect(() => {
     if (processingUpload && moduleStatus && processingUpload.moduleId) {
-              if (moduleStatus.status === 'ready') {
-          markReady(processingUpload.id)
-          // Navigate to training page with voice start flag
-          navigate(`/training/${processingUpload.moduleId}?voicestart=1`)
-        } else if (moduleStatus.status === 'error') {
+      if (moduleStatus.status === 'ready') {
+        console.log('🎯 Upload complete! Navigating to training page:', processingUpload.moduleId)
+        markReady(processingUpload.id)
+        // Navigate to training page with voice start flag
+        navigate(`/training/${processingUpload.moduleId}?voicestart=1`)
+      } else if (moduleStatus.status === 'error') {
+        console.error('❌ Upload processing failed for:', processingUpload.moduleId)
         markError(processingUpload.id, new Error('Processing failed'))
       }
     }

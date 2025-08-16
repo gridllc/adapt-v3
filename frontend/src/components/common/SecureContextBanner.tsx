@@ -51,8 +51,11 @@ export const SecureContextBanner: React.FC = () => {
     }
   };
 
-  // Don't show banner if everything is working
+  // Don't show banner if everything is working or in production with basic functionality
   if (secure && perm !== 'denied' && !gumErr) return null;
+  
+  // In production, only show for critical issues (denied permissions or insecure context)
+  if (import.meta.env.PROD && secure && perm !== 'denied') return null;
 
   return (
     <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900">
