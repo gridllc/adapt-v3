@@ -53,13 +53,8 @@ export const uploadWithProgress = async (options: UploadOptions): Promise<Respon
       }
     }
 
-    // (C) As soon as the request is accepted by the server,
-    // flip to "Processing..." (this fires before 100% completes)
-    xhr.onreadystatechange = () => {
-      if (xhr.readyState === 2) { // HEADERS_RECEIVED
-        onPhaseChange?.('processing')
-      }
-    }
+    // Don't change to processing until upload actually completes
+    // The UploadManager will handle the processing phase change
 
     // Success
     xhr.onload = () => {

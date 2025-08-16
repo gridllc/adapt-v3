@@ -48,6 +48,12 @@ export const UploadManager: React.FC = () => {
 
   // Update upload status when module processing completes
   useEffect(() => {
+    console.log('🔍 Navigation Effect - Debug Info:', {
+      processingUpload: processingUpload ? { id: processingUpload.id, moduleId: processingUpload.moduleId, phase: processingUpload.phase } : null,
+      moduleStatus: moduleStatus ? { status: moduleStatus.status, success: moduleStatus.success } : null,
+      hasModuleId: !!processingUpload?.moduleId
+    })
+    
     if (processingUpload && moduleStatus && processingUpload.moduleId) {
       if (moduleStatus.status === 'ready') {
         console.log('🎯 Upload complete! Navigating to training page:', processingUpload.moduleId)
@@ -57,19 +63,25 @@ export const UploadManager: React.FC = () => {
       } else if (moduleStatus.status === 'error') {
         console.error('❌ Upload processing failed for:', processingUpload.moduleId)
         markError(processingUpload.id, new Error('Processing failed'))
+      } else {
+        console.log('⏳ Still processing...', { status: moduleStatus.status })
       }
     }
   }, [processingUpload, moduleStatus, markReady, markError, navigate])
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    console.log('Files dropped:', acceptedFiles)
+    if (import.meta.env.DEV) {
+      console.log('Files dropped:', acceptedFiles)
+    }
     
     // IMPORTANT: Prime mic inside the same click handler call stack
     primeMicOnce().catch(() => { /* ignore; we'll show a fallback later */ });
     
     for (const file of acceptedFiles) {
       try {
-        console.log('Processing file:', file.name)
+        if (import.meta.env.DEV) {
+          console.log('Processing file:', file.name)
+        }
         
         // Validate file
         const validation = await validateFile(file)
@@ -79,13 +91,17 @@ export const UploadManager: React.FC = () => {
 
         // Add to upload queue
         const uploadId = addUpload(file)
-        console.log('Added to queue:', uploadId)
+        if (import.meta.env.DEV) {
+          console.log('Added to queue:', uploadId)
+        }
 
         // Upload will be started by the onPhaseChange callback
 
         // Start upload - USE DIRECT URL (bypasses proxy)
         try {
-          console.log('Starting upload...')
+          if (import.meta.env.DEV) {
+            console.log('Starting upload...')
+          }
           
           // Start the upload status
           startUpload(uploadId)
@@ -94,27 +110,38 @@ export const UploadManager: React.FC = () => {
             file,
             url: API_ENDPOINTS.UPLOAD, // Use configured API endpoint
             onProgress: (progress) => {
-              console.log(`Upload progress: ${progress}%`)
+              if (import.meta.env.DEV) {
+                console.log(`Upload progress: ${progress}%`)
+              }
               updateProgress(uploadId, progress)
             },
             onPhaseChange: (phase) => {
-              console.log(`Phase change: ${phase}`)
+              if (import.meta.env.DEV) {
+                console.log(`Phase change: ${phase}`)
+              }
               setPhase(uploadId, phase)
             },
           })
 
-          console.log('Upload response status:', response.status)
+          if (import.meta.env.DEV) {
+            console.log('Upload response status:', response.status)
+          }
 
           if (response.ok) {
             const result = await response.json()
-            console.log('Upload success:', result)
+            console.log('📦 Upload success response:', result)
             
-            // Set moduleId and switch to processing immediately
-            setModuleId(uploadId, result.moduleId)
-            markProcessing(uploadId)
-            
-            // Don't navigate immediately - let the status polling handle it
-            // navigate(`/training/${result.moduleId}?processing=true`)
+            if (result.moduleId) {
+              console.log('🎯 Setting moduleId and marking as processing:', result.moduleId)
+              // Set moduleId and switch to processing immediately
+              setModuleId(uploadId, result.moduleId)
+              markProcessing(uploadId)
+              
+              // Don't navigate immediately - let the status polling handle it
+            } else {
+              console.error('❌ No moduleId in upload response:', result)
+              throw new Error('Upload succeeded but no moduleId returned')
+            }
           } else {
             const errorText = await response.text()
             console.error('Upload failed:', response.status, errorText)
