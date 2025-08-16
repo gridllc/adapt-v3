@@ -1,7 +1,9 @@
 // backend/src/services/storageService.ts
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
-import { v4 as uuid } from "uuid"
+import { logger } from "../../frontend/src/utils/logger" // adjust path if needed
+import fs from "fs"
+import path from "path"
 
 const s3 = new S3Client({
   region: process.env.AWS_REGION!,
@@ -11,35 +13,57 @@ const s3 = new S3Client({
   },
 })
 
-const BUCKET = process.env.AWS_S3_BUCKET!
+const BUCKET = process.env.AWS_BUCKET_NAME!
 
-/**
- * Generate a signed URL for uploading a file directly to S3
- */
-export async function getSignedPutUrl(key: string, contentType: string): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
-    ContentType: contentType,
-  })
-  return await getSignedUrl(s3, command, { expiresIn: 60 * 5 }) // 5 min expiry
-}
+export const storageService = {
+  async uploadFile(key: string, filePath: string, contentType: string) {
+    try {
+      const fileStream = fs.createReadStream(filePath)
+      await s3.send(new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: fileStream,
+        ContentType: contentType,
+      }))
+      logger.info(`Uploaded file to S3: ${key}`)
+    } catch (err) {
+      logger.error("S3 upload failed:", err)
+      throw err
+    }
+  },
 
-/**
- * Generate a signed URL for reading a file from S3
- */
-export async function getSignedGetUrl(key: string): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
-  })
-  return await getSignedUrl(s3, command, { expiresIn: 60 * 5 })
-}
+  async downloadFile(key: string, destPath: string) {
+    try {
+      const data = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+      const stream = data.Body as NodeJS.ReadableStream
+      const writeStream = fs.createWriteStream(destPath)
+      stream.pipe(writeStream)
+      logger.info(`Downloaded file from S3: ${key}`)
+    } catch (err) {
+      logger.error("S3 download failed:", err)
+      throw err
+    }
+  },
 
-/**
- * Generate a unique key for a new upload
- */
-export function generateVideoKey(filename: string): string {
-  const safeName = filename.replace(/\s+/g, "-").toLowerCase()
-  return `videos/${uuid()}-${safeName}`
+  async deleteFile(key: string) {
+    try {
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
+      logger.info(`Deleted file from S3: ${key}`)
+    } catch (err) {
+      logger.error("S3 delete failed:", err)
+      throw err
+    }
+  },
+
+  async getSignedUrl(key: string, expiresInSeconds = 3600) {
+    try {
+      const command = new GetObjectCommand({ Bucket: BUCKET, Key: key })
+      const url = await getSignedUrl(s3, command, { expiresIn: expiresInSeconds })
+      logger.debug("Generated signed URL", url)
+      return url
+    } catch (err) {
+      logger.error("S3 signed URL generation failed:", err)
+      throw err
+    }
+  },
 }

@@ -1,51 +1,11 @@
-// Simple logger utility with environment-based verbosity control
-class Logger {
-  private isDev = process.env.NODE_ENV === 'development'
-  private isVerbose = process.env.LOG_LEVEL === 'debug' || this.isDev
-
-  info(message: string, ...args: any[]) {
-    console.log(message, ...args)
-  }
-
-  warn(message: string, ...args: any[]) {
-    console.warn(message, ...args)
-  }
-
-  error(message: string, ...args: any[]) {
-    console.error(message, ...args)
-  }
-
-  debug(message: string, ...args: any[]) {
-    if (this.isVerbose) {
-      console.log(`🔍 [DEBUG] ${message}`, ...args)
+// frontend/src/utils/logger.ts
+export const logger = {
+  debug: (...args: any[]) => {
+    if (import.meta.env.DEV) {
+      console.debug('[DEBUG]', ...args)
     }
-  }
-
-  dev(message: string, ...args: any[]) {
-    if (this.isDev) {
-      console.log(message, ...args)
-    }
-  }
-
-  test(message: string, ...args: any[]) {
-    if (this.isDev) {
-      console.log(`[TEST] ${message}`, ...args)
-    }
-  }
-
-  // Environment variable logging helper
-  logEnvVar(name: string, value?: string) {
-    if (this.isDev) {
-      console.log(`${name}: ${value ? 'SET' : 'NOT SET'}`)
-    }
-  }
-
-  // Performance logging helper
-  logPerf(operation: string, duration: number) {
-    if (this.isVerbose) {
-      console.log(`⏱️ [PERF] ${operation}: ${duration}ms`)
-    }
-  }
+  },
+  info: (...args: any[]) => console.info('[INFO]', ...args),
+  warn: (...args: any[]) => console.warn('[WARN]', ...args),
+  error: (...args: any[]) => console.error('[ERROR]', ...args),
 }
-
-export const log = new Logger() 

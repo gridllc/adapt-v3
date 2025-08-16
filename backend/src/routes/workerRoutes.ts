@@ -1,44 +1,49 @@
-import { Router } from "express";
-import { ModuleService } from "../services/moduleService.js";
-import { storageService } from "../services/storageService.js";
-import { aiService } from "../services/aiService.js";
+// backend/src/routes/workerRoutes.ts
+import { Router } from 'express';
+import { updateModule, getModule } from '../services/moduleService';
+import { transcribeFromS3, generateSteps } from '../services/aiService';
+import { putJson } from '../services/storageService';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
-/**
- * QStash job handler
- */
-router.post("/processVideo", async (req, res) => {
+router.post('/jobs/processVideo', async (req, res) => {
+  const { moduleId, videoKey } = req.body || {};
+
+  if (!moduleId || !videoKey) {
+    logger.warn('Missing moduleId or videoKey in processVideo request');
+    return res.status(400).json({ error: 'moduleId and videoKey required' });
+  }
+
   try {
-    const { moduleId, videoKey } = req.body;
-    if (!moduleId || !videoKey) {
-      return res.status(400).json({ error: "moduleId and videoKey required" });
+    logger.info(`🔁 Processing job start — moduleId: ${moduleId}`);
+
+    const mod = await getModule(moduleId);
+    if (!mod) {
+      logger.warn(`Module not found: ${moduleId}`);
+      return res.status(404).json({ error: 'Module not found' });
     }
 
-    console.log(`Processing video for module ${moduleId}`);
+    await updateModule(moduleId, { status: 'PROCESSING' });
 
-    await ModuleService.update(moduleId, { status: "PROCESSING" });
+    const transcript = await transcribeFromS3(videoKey);
+    const steps = await generateSteps(transcript);
 
-    // 1. Transcribe
-    const transcript = await aiService.transcribeFromS3(videoKey);
-
-    // 2. Generate steps
-    const steps = await aiService.generateSteps(transcript);
-
-    // 3. Save steps JSON to S3
     const stepsKey = `training/${moduleId}.json`;
-    await storageService.putJson(stepsKey, steps);
+    await putJson(stepsKey, steps);
 
-    // 4. Mark module READY
-    await ModuleService.update(moduleId, {
-      status: "READY",
-      stepsKey,
-    });
+    await updateModule(moduleId, { status: 'READY', stepsKey });
 
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("processVideo error", err);
-    res.status(500).json({ error: "Failed to process video" });
+    logger.info(`✅ Job completed — moduleId: ${moduleId}, stepsKey: ${stepsKey}`);
+    return res.json({ ok: true, moduleId, stepsKey });
+  } catch (err: any) {
+    logger.error('❌ Job failed:', err);
+    try {
+      await updateModule(moduleId, { status: 'ERROR' });
+    } catch {
+      logger.warn('Failed to mark module as ERROR');
+    }
+    return res.status(500).json({ error: 'processing failed', detail: err?.message });
   }
 });
 

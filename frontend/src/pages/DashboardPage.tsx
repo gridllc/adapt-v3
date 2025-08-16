@@ -1,10 +1,11 @@
-// ✅ DashboardPage.tsx with Edit and Delete buttons wired into module cards
+// frontend/src/pages/DashboardPage.tsx
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useModules } from '../hooks/useModules'
 import { useAuthenticatedApi } from '../hooks/useAuthenticatedApi'
 import { FeedbackDashboard } from '../components/common/FeedbackDashboard'
 import QRCodeGenerator from '../components/QRCodeGenerator'
+import { Navbar } from '@/components/Navbar'
 
 export const DashboardPage: React.FC = () => {
   const { modules, loading, error } = useModules()
@@ -26,89 +27,67 @@ export const DashboardPage: React.FC = () => {
 
   const filteredModules = modules.filter(m => {
     if (deleted.includes(m.id)) return false
-    const match = m.title.toLowerCase().includes(searchTerm.toLowerCase())
-    return match
+    return m.title.toLowerCase().includes(searchTerm.toLowerCase())
   })
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Training Dashboard</h1>
-        <Link
-          to="/upload"
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-        >
-          ➕ Upload New Module
-        </Link>
-      </div>
+    <>
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-4 py-10 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900">Training Dashboard</h1>
+          <Link
+            to="/upload"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            ➕ Upload New Module
+          </Link>
+        </div>
 
-      {/* View toggle + search */}
-      <div className="flex items-center gap-4">
-        <input
-          type="text"
-          placeholder="Search modules..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border px-3 py-2 rounded-md w-full sm:w-1/2"
-        />
-        <button
-          onClick={() => setViewMode('grid')}
-          className={`text-sm px-4 py-2 rounded-md ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
-        >Grid</button>
-        <button
-          onClick={() => setViewMode('list')}
-          className={`text-sm px-4 py-2 rounded-md ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
-        >List</button>
-      </div>
+        <div className="flex items-center gap-4">
+          <input
+            type="text"
+            placeholder="Search modules..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border px-3 py-2 rounded-md w-full sm:w-1/2"
+          />
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`text-sm px-4 py-2 rounded-md ${viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
+          >Grid</button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`text-sm px-4 py-2 rounded-md ${viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:text-blue-600'}`}
+          >List</button>
+        </div>
 
-      {loading && <p className="text-gray-500">Loading modules...</p>}
-      {error && <p className="text-red-500">{error}</p>}
+        {loading && <p className="text-gray-500">Loading modules...</p>}
+        {error && <p className="text-red-500">{error}</p>}
 
-      {/* Feedback Dashboard */}
-      <div className="mb-6">
-        <FeedbackDashboard />
-      </div>
+        <div className="mb-6">
+          <FeedbackDashboard />
+        </div>
 
-      <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}>
-        {filteredModules.map(mod => (
-          <div key={mod.id} className="bg-white p-6 rounded-2xl border shadow-sm">
-            <h3 className="text-xl font-semibold text-gray-900 mb-1">{mod.title}</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Created: {mod.createdAt ? new Date(mod.createdAt).toLocaleString() : 'Unknown date'}
-            </p>
-            <div className="flex gap-2 flex-wrap">
-              <Link
-                to={`/training/${mod.id}`}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >▶️ Start Training</Link>
-              <button
-                onClick={() => setShowQRCode(mod.id)}
-                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-                title="Share this module via QR code"
-              >📱 Share</button>
-              <Link
-                to={`/training/${mod.id}#step-1`}
-                className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600"
-              >✏️ Edit</Link>
-              <button
-                onClick={() => handleDelete(mod.id)}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-              >🗑️ Delete</button>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-
-      
-      {/* QR Code Modal */}
-      {showQRCode && (
-        <QRCodeGenerator
-          moduleId={showQRCode}
-          moduleTitle={modules.find(m => m.id === showQRCode)?.title || 'Training Module'}
-          onClose={() => setShowQRCode(null)}
-        />
-      )}
-    </div>
-  )
-}
+        <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-6'}>
+          {filteredModules.map(mod => (
+            <div key={mod.id} className="bg-white p-6 rounded-2xl border shadow-sm">
+              <h3 className="text-xl font-semibold text-gray-900 mb-1">{mod.title}</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Created: {mod.createdAt ? new Date(mod.createdAt).toLocaleString() : 'Unknown date'}
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <Link
+                  to={`/training/${mod.id}`}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                >▶️ Start</Link>
+                <button
+                  onClick={() => setShowQRCode(mod.id)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
+                >📱 Share</button>
+                <Link
+                  to={`/training/${mod.id}#step-1`}
+                  className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600"
+                >✏️ Edit</Link>
+                <button
+                  onClick={() => handleDelete(mod.id)}
