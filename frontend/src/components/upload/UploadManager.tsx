@@ -138,20 +138,39 @@ export const UploadManager: React.FC = () => {
             
             if (result.moduleId) {
               console.log('🎯 Setting moduleId and marking as processing:', result.moduleId)
-              // Set moduleId and switch to processing immediately
+              
+              // FORCE NAVIGATION - NO CONDITIONS, NO DELAYS
+              console.log('🚀 FORCING NAVIGATION NOW!')
+              console.log('📍 Current location:', window.location.href)
+              console.log('🎯 Target:', `/training/${result.moduleId}?voicestart=1`)
+              
+              // Try multiple navigation methods to be absolutely sure
+              const targetUrl = `/training/${result.moduleId}?voicestart=1`
+              
+              // Method 1: React Router navigate
+              navigate(targetUrl)
+              console.log('✅ Method 1: React Router navigate() called')
+              
+              // Method 2: setTimeout backup (in case React Router is blocked)
+              setTimeout(() => {
+                if (window.location.pathname === '/upload') {
+                  console.log('🔄 Method 2: Using window.location.href as backup')
+                  window.location.href = targetUrl
+                }
+              }, 100)
+              
+              // Method 3: Immediate fallback
+              setTimeout(() => {
+                if (window.location.pathname === '/upload') {
+                  console.log('🆘 Method 3: Emergency navigation!')
+                  window.location.replace(targetUrl)
+                }
+              }, 500)
+              
+              // Update store for UI consistency
               setModuleId(uploadId, result.moduleId)
               markProcessing(uploadId)
               
-              // Navigate immediately since backend processing happens in background
-              // The status will be "uploaded" not "ready" initially
-              console.log('🚀 Upload successful! Navigating to training page immediately:', result.moduleId)
-              console.log('📋 Backend response:', { status: result.status, processing: result.processing })
-              
-              // Navigate immediately - the training page will handle the processing state
-              navigate(`/training/${result.moduleId}?voicestart=1`)
-              
-              // Keep the upload marked as processing for UI feedback
-              // The status polling in training page will handle the final state
             } else {
               console.error('❌ No moduleId in upload response:', result)
               throw new Error('Upload succeeded but no moduleId returned')
