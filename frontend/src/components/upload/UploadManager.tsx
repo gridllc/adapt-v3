@@ -25,13 +25,16 @@ export const UploadManager: React.FC = () => {
   
   const navigate = useNavigate()
 
+  // Convert Map to array for easier processing
+  const uploadsArray = Array.from(uploads.values())
+  
   // Check if any uploads are in progress
-  const hasActiveUploads = Object.values(uploads).some(upload => upload.status === 'uploading')
-  const hasQueuedUploads = Object.values(uploads).some(upload => upload.status === 'queued')
+  const hasActiveUploads = uploadsArray.some(upload => upload.status === 'uploading')
+  const hasQueuedUploads = uploadsArray.some(upload => upload.status === 'queued')
   const isUploading = hasActiveUploads || hasQueuedUploads
 
   // Get current upload for status display - show banner only for meaningful phases
-  const currentUpload = Object.values(uploads).find(u => 
+  const currentUpload = uploadsArray.find(u => 
     // must have a meaningful phase (not undefined/idle)
     ['uploading', 'finalizing', 'processing', 'ready', 'error'].includes(u.phase)
   )
@@ -40,7 +43,7 @@ export const UploadManager: React.FC = () => {
   const showStatus = Boolean(currentUpload)
 
   // Use module status hook for processing uploads
-  const processingUpload = Object.values(uploads).find(u => u.phase === 'processing')
+  const processingUpload = uploadsArray.find(u => u.phase === 'processing')
   const { status: moduleStatus } = useModuleStatus(
     processingUpload?.moduleId || '', 
     !!processingUpload?.moduleId
@@ -49,6 +52,8 @@ export const UploadManager: React.FC = () => {
   // Update upload status when module processing completes
   useEffect(() => {
     console.log('🔍 Navigation Effect - Debug Info:', {
+      totalUploads: uploads.size,
+      uploadsArray: uploadsArray.map(u => ({ id: u.id, phase: u.phase, moduleId: u.moduleId })),
       processingUpload: processingUpload ? { id: processingUpload.id, moduleId: processingUpload.moduleId, phase: processingUpload.phase } : null,
       moduleStatus: moduleStatus ? { status: moduleStatus.status, success: moduleStatus.success } : null,
       hasModuleId: !!processingUpload?.moduleId
@@ -229,7 +234,7 @@ export const UploadManager: React.FC = () => {
       </div>
 
       {/* Upload Queue */}
-      {Object.keys(uploads).length > 0 && (
+      {uploads.size > 0 && (
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
           
@@ -251,7 +256,7 @@ export const UploadManager: React.FC = () => {
             </div>
           )}
           
-          {Object.entries(uploads).map(([id, upload]) => (
+          {Array.from(uploads.entries()).map(([id, upload]) => (
             <UploadItem key={id} id={id} upload={upload} />
           ))}
         </div>
