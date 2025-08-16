@@ -47,8 +47,18 @@ export const TrainingPage: React.FC = () => {
   } = useSteps(moduleId, status)
 
   // Auto-start microphone when steps are ready and voice start flag is set
-  const shouldStart = searchParams.get("voicestart") === "1" && localStorage.getItem("mic_ok") === "1";
+  const shouldStart = searchParams.get("voicestart") === "1";
   const stepsReady = stepsStatus === 'ready' && steps.length > 0;
+  
+  // Debug microphone conditions
+  console.log('🎤 Microphone Debug:', {
+    voiceStartParam: searchParams.get("voicestart"),
+    micOkStorage: localStorage.getItem("mic_ok"),
+    shouldStart,
+    stepsReady,
+    stepsStatus,
+    stepsLength: steps.length
+  });
   
   const { needsUserGesture, startWithGesture, isRecording } = useAutoMic({
     shouldStart: stepsReady && shouldStart,
