@@ -104,6 +104,14 @@ export const UploadManager: React.FC = () => {
 
         // Start upload - USE DIRECT URL (bypasses proxy)
         try {
+          console.log('🚀 STARTING UPLOAD PROCESS...')
+          console.log('📁 File details:', { 
+            name: file.name, 
+            size: file.size, 
+            type: file.type 
+          })
+          console.log('🔗 Upload URL:', API_ENDPOINTS.UPLOAD)
+          
           if (import.meta.env.DEV) {
             console.log('Starting upload...')
           }
@@ -132,7 +140,15 @@ export const UploadManager: React.FC = () => {
             console.log('Upload response status:', response.status)
           }
 
+          console.log('🔍 UPLOAD RESPONSE RECEIVED:', {
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            headers: Array.from(response.headers.entries())
+          })
+
           if (response.ok) {
+            console.log('✅ Response is OK, parsing JSON...')
             const result = await response.json()
             console.log('📦 Upload success response:', result)
             
@@ -181,7 +197,11 @@ export const UploadManager: React.FC = () => {
             throw new Error(`Upload failed: ${response.status}`)
           }
         } catch (error) {
-          console.error('Upload error:', error)
+          console.error('💥 UPLOAD ERROR CAUGHT:', error)
+          console.error('💥 Error type:', typeof error)
+          console.error('💥 Error name:', (error as Error)?.name)
+          console.error('💥 Error message:', (error as Error)?.message)
+          console.error('💥 Error stack:', (error as Error)?.stack)
           markError(uploadId, error as Error)
         }
       } catch (error) {
