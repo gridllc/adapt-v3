@@ -142,23 +142,16 @@ export const UploadManager: React.FC = () => {
               setModuleId(uploadId, result.moduleId)
               markProcessing(uploadId)
               
-              // Navigate immediately if the module is already ready, otherwise wait for status polling
-              if (result.status === 'ready') {
-                console.log('🚀 Module already ready! Navigating immediately:', result.moduleId)
-                markReady(uploadId)
-                navigate(`/training/${result.moduleId}?voicestart=1`)
-              } else {
-                console.log('⏳ Module processing, will wait for status polling...')
-                // Set a fallback timer in case status polling fails
-                setTimeout(() => {
-                  console.log('⏰ Fallback navigation timer - checking if we should navigate')
-                  // Check if we're still on upload page and module exists
-                  if (window.location.pathname === '/upload') {
-                    console.log('🔄 Still on upload page after 10s, attempting fallback navigation')
-                    navigate(`/training/${result.moduleId}?voicestart=1`)
-                  }
-                }, 10000) // 10 second fallback
-              }
+              // Navigate immediately since backend processing happens in background
+              // The status will be "uploaded" not "ready" initially
+              console.log('🚀 Upload successful! Navigating to training page immediately:', result.moduleId)
+              console.log('📋 Backend response:', { status: result.status, processing: result.processing })
+              
+              // Navigate immediately - the training page will handle the processing state
+              navigate(`/training/${result.moduleId}?voicestart=1`)
+              
+              // Keep the upload marked as processing for UI feedback
+              // The status polling in training page will handle the final state
             } else {
               console.error('❌ No moduleId in upload response:', result)
               throw new Error('Upload succeeded but no moduleId returned')
