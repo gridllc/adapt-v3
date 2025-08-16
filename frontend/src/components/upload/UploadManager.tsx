@@ -51,13 +51,9 @@ export const UploadManager: React.FC = () => {
 
   // Update upload status when module processing completes
   useEffect(() => {
-    console.log('🔍 Navigation Effect - Debug Info:', {
-      totalUploads: uploads.size,
-      uploadsArray: uploadsArray.map(u => ({ id: u.id, phase: u.phase, moduleId: u.moduleId })),
-      processingUpload: processingUpload ? { id: processingUpload.id, moduleId: processingUpload.moduleId, phase: processingUpload.phase } : null,
-      moduleStatus: moduleStatus ? { status: moduleStatus.status, success: moduleStatus.success } : null,
-      hasModuleId: !!processingUpload?.moduleId
-    })
+    if (import.meta.env.DEV && processingUpload) {
+      console.log('🔍 Processing status:', processingUpload.phase, moduleStatus?.status);
+    }
     
     if (processingUpload && moduleStatus && processingUpload.moduleId) {
       if (moduleStatus.status === 'ready') {
@@ -163,33 +159,9 @@ export const UploadManager: React.FC = () => {
             if (result.moduleId) {
               console.log('🎯 Setting moduleId and marking as processing:', result.moduleId)
               
-              // FORCE NAVIGATION - NO CONDITIONS, NO DELAYS
-              console.log('🚀 FORCING NAVIGATION NOW!')
-              console.log('📍 Current location:', window.location.href)
-              console.log('🎯 Target:', `/training/${result.moduleId}?voicestart=1`)
-              
-              // Try multiple navigation methods to be absolutely sure
-              const targetUrl = `/training/${result.moduleId}?voicestart=1`
-              
-              // Method 1: React Router navigate
-              navigate(targetUrl)
-              console.log('✅ Method 1: React Router navigate() called')
-              
-              // Method 2: setTimeout backup (in case React Router is blocked)
-              setTimeout(() => {
-                if (window.location.pathname === '/upload') {
-                  console.log('🔄 Method 2: Using window.location.href as backup')
-                  window.location.href = targetUrl
-                }
-              }, 100)
-              
-              // Method 3: Immediate fallback
-              setTimeout(() => {
-                if (window.location.pathname === '/upload') {
-                  console.log('🆘 Method 3: Emergency navigation!')
-                  window.location.replace(targetUrl)
-                }
-              }, 500)
+              // Navigate to training page immediately
+              console.log('🚀 Upload complete! Navigating to training page:', result.moduleId)
+              navigate(`/training/${result.moduleId}?voicestart=1`)
               
               // Update store for UI consistency
               setModuleId(uploadId, result.moduleId)

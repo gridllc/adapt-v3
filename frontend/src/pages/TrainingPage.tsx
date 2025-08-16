@@ -50,13 +50,10 @@ export const TrainingPage: React.FC = () => {
   const shouldStart = searchParams.get("voicestart") === "1";
   const hasSteps = steps.length > 0;
   
-  console.log('🎤 Microphone Auto-Start:', {
-    voiceStartParam: searchParams.get("voicestart"),
-    micOkStorage: localStorage.getItem("mic_ok"),
-    shouldStart,
-    hasSteps,
-    willAttemptStart: shouldStart && hasSteps
-  });
+  // Simple logging for mic start
+  if (shouldStart && hasSteps) {
+    console.log('🎤 Attempting to start microphone automatically');
+  }
   
   const { needsUserGesture, startWithGesture, isRecording } = useAutoMic({
     shouldStart: shouldStart && hasSteps,

@@ -53,17 +53,7 @@ export function ProcessingBanner({
             <span className="font-medium">Processing in progress...</span>
           </div>
           
-          {showDebug && moduleId && (
-            <div className="mt-2 text-sm text-blue-700">
-              Module ID: <span className="font-mono">{moduleId}</span>
-            </div>
-          )}
-          
-          {showDebug && (
-            <div className="mt-1 text-xs text-blue-600">
-              You'll be taken to training automatically when it's ready.
-            </div>
-          )}
+          {/* Debug info removed for production */}
         </div>
       )}
 
