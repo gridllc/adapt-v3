@@ -61,6 +61,17 @@ const AppWrapper: React.FC = () => {
     publishableKey: pk ? 'Set' : 'Missing'
   })
 
+  // Safe Clerk configuration pattern
+  const clerkProps = import.meta.env.MODE === 'production'
+    ? { 
+        publishableKey: pk,
+        // Only add production-specific options here if truly needed
+        // domain: 'adaptord.com' // Uncomment only if you truly need it
+      }
+    : { 
+        publishableKey: pk 
+      } // No domain/proxyUrl in development
+
   return (
     <ErrorBoundary>
       <BrowserRouter
@@ -70,7 +81,7 @@ const AppWrapper: React.FC = () => {
         }}
       >
         <ClerkProvider 
-          publishableKey={pk}
+          {...clerkProps}
           appearance={{
             baseTheme: undefined,
             variables: {

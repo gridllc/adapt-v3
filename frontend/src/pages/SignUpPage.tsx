@@ -11,22 +11,7 @@ export const SignUpPage: React.FC = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-8">
-          <SignUp 
-            routing="path" 
-            path="/sign-up" 
-            redirectUrl="https://adaptord.com/dashboard"
-            appearance={{
-              elements: {
-                rootBox: "mx-auto",
-                card: "shadow-none p-0",
-                headerTitle: "hidden",
-                headerSubtitle: "hidden",
-                socialButtonsBlockButton: "w-full",
-                formButtonPrimary: "w-full bg-blue-600 hover:bg-blue-700",
-                footerActionLink: "text-blue-600 hover:text-blue-700"
-              }
-            }}
-          />
+          <SignUp redirectUrl={import.meta.env.VITE_CLERK_REDIRECT_URL} />
         </div>
       </div>
     </div>
