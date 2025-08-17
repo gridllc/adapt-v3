@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 import { logger } from "@utils/logger";
 import { Navbar } from "@components/Navbar";
 import { ChatTutor } from "@components/ChatTutor";
+import { useMic } from "@hooks/useMic";
 
 interface ModuleData {
   id: string;
@@ -30,7 +31,12 @@ const TrainingPage: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [voiceQuestion, setVoiceQuestion] = useState("");
+  const [isVoiceTrainingActive, setIsVoiceTrainingActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Voice functionality
+  const { isRecording, error: micError, start: startRecording, stop: stopRecording, audioBlob } = useMic();
 
   useEffect(() => {
     const fetchModule = async () => {
@@ -111,6 +117,100 @@ const TrainingPage: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Start voice training mode (like V1)
+  const startVoiceTrainingMode = async () => {
+    try {
+      setIsVoiceTrainingActive(true);
+      await startRecording();
+      logger.info("🎙️ Voice training mode activated - microphone is now listening!");
+    } catch (error) {
+      logger.error("❌ Failed to start voice training mode:", error);
+      setIsVoiceTrainingActive(false);
+    }
+  };
+
+  // Stop voice training mode
+  const stopVoiceTrainingMode = () => {
+    stopRecording();
+    setIsVoiceTrainingActive(false);
+    setVoiceQuestion("");
+    logger.info("⏹️ Voice training mode deactivated");
+  };
+
+  // Handle voice recording
+  const handleVoiceTraining = async () => {
+    if (isRecording) {
+      stopVoiceTrainingMode();
+    } else {
+      await startVoiceTrainingMode();
+    }
+  };
+
+  // Handle voice transcription and AI question
+  useEffect(() => {
+    if (audioBlob && !isRecording) {
+      handleVoiceTranscription(audioBlob);
+    }
+  }, [audioBlob, isRecording]);
+
+  const handleVoiceTranscription = async (audioBlob: Blob) => {
+    try {
+      logger.info("🎙️ Processing voice recording...");
+      
+      const formData = new FormData();
+      formData.append('audio', audioBlob);
+
+      const response = await fetch('/api/ai/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Transcription failed: ${response.status}`);
+      }
+
+      const { transcript } = await response.json();
+      logger.info("📝 Voice transcribed:", transcript);
+      
+      if (transcript) {
+        setVoiceQuestion(transcript);
+        // Auto-send the transcribed question to AI
+        await askAIQuestion(transcript);
+      }
+    } catch (error) {
+      logger.error("❌ Voice transcription error:", error);
+      alert('Failed to transcribe voice. Please try again.');
+    }
+  };
+
+  const askAIQuestion = async (question: string) => {
+    try {
+      logger.info("🤖 Asking AI:", question);
+      
+      const response = await fetch('/api/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId, question }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        logger.info("✅ AI Response:", data.answer);
+        // You can display this in the chat or show it as a notification
+        alert(`AI Response: ${data.answer.substring(0, 100)}...`);
+      } else {
+        throw new Error(data.error || 'AI request failed');
+      }
+    } catch (error) {
+      logger.error("❌ AI question error:", error);
+      alert('Failed to get AI response. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -167,9 +267,34 @@ const TrainingPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {module.title || "Training Module"}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-4">
             Follow along with the video and ask the AI for help anytime
           </p>
+          
+          {/* V1 Style: Big Start Training Button */}
+          {!isVoiceTrainingActive ? (
+            <button 
+              onClick={startVoiceTrainingMode}
+              disabled={loading}
+              className="bg-green-600 text-white py-3 px-8 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-3 text-lg font-semibold shadow-lg"
+            >
+              <span className="text-2xl">🎤</span>
+              Start Training
+            </button>
+          ) : (
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={stopVoiceTrainingMode}
+                className="bg-red-600 text-white py-3 px-8 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-3 text-lg font-semibold shadow-lg"
+              >
+                <span className="text-2xl">⏹️</span>
+                Stop Training
+              </button>
+              <div className="bg-green-100 text-green-800 px-4 py-2 rounded-lg font-medium">
+                🎙️ Microphone Active - Speak Now!
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -286,21 +411,73 @@ const TrainingPage: React.FC = () => {
             <div className="sticky top-4">
               <ChatTutor moduleId={moduleId!} />
               
-              {/* Voice Activation Section */}
+              {/* Voice Activation Section - V1 Style */}
               <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   🎙️ Voice Training
                 </h3>
                 
+                {/* Voice Status */}
+                {micError && (
+                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+                    ❌ {micError}
+                  </div>
+                )}
+                
                 <div className="space-y-3">
-                  <button className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
-                    <span className="text-xl">🎤</span>
-                    Start Voice Training
-                  </button>
+                  {/* Main Start Training Button - V1 Style */}
+                  {!isVoiceTrainingActive ? (
+                    <button 
+                      onClick={startVoiceTrainingMode}
+                      disabled={loading}
+                      className="w-full bg-green-600 text-white py-4 px-6 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-3 text-lg font-semibold"
+                    >
+                      <span className="text-2xl">🎤</span>
+                      Start Training
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={stopVoiceTrainingMode}
+                      className="w-full bg-red-600 text-white py-4 px-6 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-3 text-lg font-semibold"
+                    >
+                      <span className="text-2xl">⏹️</span>
+                      Stop Training
+                    </button>
+                  )}
                   
-                  <p className="text-sm text-gray-600 text-center">
-                    Ask "What do I do next?" or any question about the current step
-                  </p>
+                  {/* Voice Training Status */}
+                  {isVoiceTrainingActive && (
+                    <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="animate-pulse text-green-700 text-lg font-medium mb-2">
+                        🎙️ MICROPHONE ACTIVE
+                      </div>
+                      <div className="text-green-600 text-sm">
+                        Just speak your question now!
+                      </div>
+                      <div className="mt-3 text-xs text-green-500">
+                        Try: "What do I do next?" or "How do I do this step?"
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Last Voice Question */}
+                  {voiceQuestion && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                      <p className="text-sm text-blue-800">
+                        <strong>You asked:</strong> "{voiceQuestion}"
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Instructions */}
+                  <div className="text-center">
+                    <p className="text-sm text-gray-600">
+                      {!isVoiceTrainingActive 
+                        ? "Click 'Start Training' to activate your microphone"
+                        : "Your microphone is listening - just speak naturally!"
+                      }
+                    </p>
+                  </div>
                 </div>
 
                 {/* Quick Voice Commands */}
