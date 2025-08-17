@@ -21,11 +21,11 @@ router.post('/generate/:moduleId', async (req, res) => {
     const { ModuleService } = await import('../services/moduleService.js')
     const mod = await ModuleService.getModuleById(moduleId)
     
-    if (!mod.success || !mod.module) {
+    if (!mod) {
       return res.status(404).json({ error: 'Module not found' })
     }
     
-    if (mod.module.status === 'PROCESSING') {
+    if (mod.status === 'PROCESSING') {
       return res.status(202).json({ status: 'PROCESSING' }) // no second run
     }
     

@@ -67,24 +67,29 @@ router.post('/contextual-response', async (req: any, res: any) => {
       }
     )
 
-    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
+    console.log(`✅ AI response generated: ${aiResponse.answer.substring(0, 100)}...`)
 
     // Log activity with basic information
-    await DatabaseService.createActivityLog({
-      userId: userId || undefined,
-      action: 'AI_QUESTION',
-      targetId: moduleId,
-      metadata: {
-        questionLength: userMessage.length,
-        answerLength: aiResponse.length,
-        videoTime,
-        stepId: currentStep?.id
-      }
-    })
+    try {
+      await DatabaseService.createActivityLog?.({
+        userId: userId || undefined,
+        action: 'AI_QUESTION',
+        targetId: moduleId,
+        metadata: {
+          questionLength: userMessage.length,
+          answerLength: aiResponse.answer.length,
+          videoTime,
+          stepId: currentStep?.id
+        }
+      })
+    } catch (logError) {
+      console.warn('⚠️ Failed to log activity:', logError)
+      // Don't fail the request if logging fails
+    }
 
     res.json({ 
       success: true, 
-      answer: aiResponse,
+      answer: aiResponse.answer,
       reused: false,
       similarity: null,
       questionId: null
@@ -127,36 +132,57 @@ router.post('/ask', async (req: any, res: any) => {
       })
     }
 
-    const steps = await DatabaseService.getSteps(moduleId)
+    // Get steps from the module data or create a mock steps array
+    const steps = module.steps || []
+    
+    // Map database steps to training step format
+    const trainingSteps = steps.map(dbStep => ({
+      id: dbStep.id,
+      title: dbStep.text, // Database has 'text', training expects 'title'
+      description: dbStep.text, // Use text as description for now
+      start: dbStep.startTime, // Database has 'startTime', training expects 'start'
+      end: dbStep.endTime, // Database has 'endTime', training expects 'end'
+      aliases: [],
+      notes: '',
+      isManual: false,
+      originalText: dbStep.text,
+      aiRewrite: undefined,
+      stepText: dbStep.text
+    }))
     
     // Generate contextual response using the enhanced AI service with Shared Learning System
     const aiResponse = await aiService.generateContextualResponse(
       question,
       {
         currentStep: null,
-        allSteps: steps,
+        allSteps: trainingSteps,
         videoTime: 0,
         moduleId,
         userId: userId || undefined
       }
     )
 
-    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
+    console.log(`✅ AI response generated: ${aiResponse.answer.substring(0, 100)}...`)
 
     // Log activity with basic information
-    await DatabaseService.createActivityLog({
-      userId: userId || undefined,
-      action: 'AI_ASK',
-      targetId: moduleId,
-      metadata: {
-        questionLength: question.length,
-        answerLength: aiResponse.length
-      }
-    })
+    try {
+      await DatabaseService.createActivityLog?.({
+        userId: userId || undefined,
+        action: 'AI_ASK',
+        targetId: moduleId,
+        metadata: {
+          questionLength: question.length,
+          answerLength: aiResponse.answer.length
+        }
+      })
+    } catch (logError) {
+      console.warn('⚠️ Failed to log activity:', logError)
+      // Don't fail the request if logging fails
+    }
 
     res.json({ 
       success: true, 
-      answer: aiResponse,
+      answer: aiResponse.answer,
       reused: false,
       similarity: null,
       questionId: null
@@ -422,6 +448,7 @@ router.post('/transcribe', upload.single('audio') as any, async (req, res) => {
     await DatabaseService.createActivityLog({
       userId: userId || undefined,
       action: 'UPLOAD_AUDIO',
+      targetId: 'audio-upload', // Add missing targetId
       metadata: { 
         fileSize: req.file.size,
         transcriptLength: transcription.length,

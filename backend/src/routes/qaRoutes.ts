@@ -14,7 +14,7 @@ router.get('/:moduleId', async (req, res) => {
     
     const questions = await DatabaseService.getQuestions(
       moduleId, 
-      includeFAQ === 'true'
+      10 // Default limit
     )
     
     console.log(`✅ Retrieved ${questions.length} questions`)

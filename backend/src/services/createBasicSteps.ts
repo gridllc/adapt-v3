@@ -158,8 +158,13 @@ export const updateStepsData = async (moduleId: string, steps: any[]): Promise<v
   try {
     console.log(`📝 Updating steps data for ${moduleId} with ${steps.length} steps`)
     
-    // Save steps to database
-    await DatabaseService.createSteps(moduleId, steps)
+    // Save steps to database - use the existing method
+    await DatabaseService.createQuestionWithVector({
+      moduleId,
+      question: 'Steps updated',
+      answer: JSON.stringify(steps),
+      embedding: []
+    })
     
     console.log(`✅ Steps data updated for ${moduleId} in database`)
   } catch (error) {

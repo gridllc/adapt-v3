@@ -1,5 +1,5 @@
 // backend/src/services/storageService.ts
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { logger } from "../utils/logger.js"
 import fs from "fs"
@@ -100,11 +100,17 @@ export const storageService = {
 
   async headObject(key: string) {
     try {
-      const command = new GetObjectCommand({ Bucket: BUCKET, Key: key })
-      await s3.send(command)
-      return true
+      const command = new HeadObjectCommand({ Bucket: BUCKET, Key: key })
+      const result = await s3.send(command)
+      return {
+        ContentLength: result.ContentLength,
+        ContentType: result.ContentType,
+        ETag: result.ETag,
+        LastModified: result.LastModified
+      }
     } catch (err) {
-      return false
+      logger.error("S3 head object failed:", err)
+      throw err
     }
   },
 

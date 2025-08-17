@@ -23,13 +23,11 @@ const dataDir = path.join(process.cwd(), 'data')
 // Get all modules with enhanced info
 router.get('/', async (req, res) => {
   try {
-    const result = await ModuleService.getAllModules()
-    
-    if (result.success) {
-      res.json(result)
-    } else {
-      res.status(500).json(result)
-    }
+    const modules = await ModuleService.getAllModules()
+    res.json({
+      success: true,
+      modules
+    })
   } catch (error) {
     console.error('❌ Error in GET /api/modules:', error)
     res.status(500).json({

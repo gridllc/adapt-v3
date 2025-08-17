@@ -168,10 +168,9 @@ export async function findSimilarInteractions(
     }
     
     const similarQuestions = await DatabaseService.findSimilarQuestionsScoped(
+      moduleId, 
       queryEmbedding, 
-      moduleIds, 
-      similarityThreshold, 
-      topK
+      similarityThreshold
     )
     
     // Return top K results with enhanced metadata

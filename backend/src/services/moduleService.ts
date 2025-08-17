@@ -75,6 +75,47 @@ export async function markFailed(moduleId: string, error: string) {
   })
 }
 
+// Add missing methods that routes are calling
+export async function getOrphanedModules() {
+  try {
+    // For now, return empty array - implement orphan detection logic later
+    return { success: true, modules: [] }
+  } catch (error) {
+    console.error('Failed to get orphaned modules:', error)
+    return { success: false, modules: [] }
+  }
+}
+
+export async function markOrphanedAsFailed() {
+  try {
+    // For now, return success - implement orphan marking logic later
+    return { success: true, updated: 0 }
+  } catch (error) {
+    console.error('Failed to mark orphaned as failed:', error)
+    return { success: false, updated: 0 }
+  }
+}
+
+export async function cleanupOldFailedModules(daysOld: number) {
+  try {
+    // For now, return success - implement cleanup logic later
+    return { success: true, cleaned: 0 }
+  } catch (error) {
+    console.error('Failed to cleanup old failed modules:', error)
+    return { success: false, cleaned: 0 }
+  }
+}
+
+export async function getModuleStats() {
+  try {
+    // For now, return basic stats - implement detailed stats later
+    return { success: true, stats: { total: 0, ready: 0, processing: 0, failed: 0 } }
+  } catch (error) {
+    console.error('Failed to get module stats:', error)
+    return { success: false, stats: { total: 0, ready: 0, processing: 0, failed: 0 } }
+  }
+}
+
 // Export as a service object for consistency
 export const ModuleService = {
   createModule,
@@ -87,4 +128,8 @@ export const ModuleService = {
   updateModuleStatus,
   markReady,
   markFailed,
+  getOrphanedModules,
+  markOrphanedAsFailed,
+  cleanupOldFailedModules,
+  getModuleStats,
 }

@@ -18,23 +18,23 @@ export async function startProcessing(moduleId: string) {
     
     // Get module data
     const mod = await ModuleService.getModuleById(moduleId)
-    if (!mod.success || !mod.module) {
+    if (!mod) {
       throw new Error('Module not found')
     }
     
     // Check if module has s3Key
-    if (!mod.module.s3Key) {
+    if (!mod.s3Key) {
       throw new Error('Missing s3Key - cannot process module without S3 video')
     }
     
-    console.log('[Pipeline] Module found, s3Key:', mod.module.s3Key)
+    console.log('[Pipeline] Module found, s3Key:', mod.s3Key)
     
     // Update status to processing
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Starting AI processing...')
     
     // Download from S3 and extract audio
     console.log('[Pipeline] Downloading from S3 and extracting audio...')
-    const localMp4 = await videoDownloader.fromS3(mod.module.s3Key)
+    const localMp4 = await videoDownloader.fromS3(mod.s3Key)
     const wavPath = await audioProcessor.extract(localMp4)
     tmpPaths = [localMp4, wavPath]
     

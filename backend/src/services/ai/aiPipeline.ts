@@ -14,18 +14,18 @@ export async function startProcessing(moduleId: string, opts?: { force?: boolean
 
 export async function generateStepsFromVideo(moduleId: string, opts?: { force?: boolean }) {
   const mod = await ModuleService.getModuleById(moduleId)
-  if (!mod.success || !mod.module) throw new Error(`Module ${moduleId} not found`)
+  if (!mod) throw new Error(`Module ${moduleId} not found`)
 
   // Ensure keys exist
-  if (!mod.module.s3Key || !mod.module.stepsKey) {
+  if (!mod.s3Key || !mod.stepsKey) {
     throw new Error(`Module ${moduleId} missing s3Key/stepsKey`)
   }
 
   // If already ready and not forcing, bail
-  if (!opts?.force && mod.module.status === "READY") return { ok: true, skipped: true }
+  if (!opts?.force && mod.status === "READY") return { ok: true, skipped: true }
 
   // If already processing and not forcing, skip (don't throw)
-  if (!opts?.force && mod.module.status === "PROCESSING") {
+  if (!opts?.force && mod.status === "PROCESSING") {
     console.log(`⏳ [AIPipeline] Module ${moduleId} already PROCESSING; skipping duplicate trigger.`)
     return { ok: true, skipped: true, reason: 'Already processing' }
   }
@@ -44,7 +44,7 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
     // 1) Download MP4 from S3 to temp
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 20, "Downloading video...")
     const { videoDownloader } = await import('./videoDownloader.js')
-    const localMp4 = await videoDownloader.fromS3(mod.module.s3Key)
+    const localMp4 = await videoDownloader.fromS3(mod.s3Key)
 
     // 2) Extract WAV with ffmpeg
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 35, "Converting video to audio...")
@@ -73,7 +73,7 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
     
     await stepSaver.saveStepsToS3({
       moduleId: moduleId,
-      s3Key: mod.module.stepsKey,
+      s3Key: mod.stepsKey,
       steps: steps.steps,
       transcript: transcript.text,
       meta: {
