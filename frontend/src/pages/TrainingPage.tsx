@@ -1,10 +1,54 @@
 // frontend/src/pages/TrainingPage.tsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { logger } from "@utils/logger";
 import { Navbar } from "@components/Navbar";
-import { ChatTutor } from "@components/ChatTutor";
+import { ChatTutor } from "@components/chat/ChatTutor";
 import { useMic } from "@hooks/useMic";
+
+// Error Boundary Component
+class TrainingPageErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    logger.error('TrainingPage Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">
+              Something went wrong
+            </h2>
+            <p className="text-gray-600 mb-4">
+              There was an error loading the training page.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 interface ModuleData {
   id: string;
@@ -19,6 +63,8 @@ interface Step {
   start: number;
   end: number;
   text: string;
+  title: string;
+  description: string;
   aliases?: string[];
   notes?: string;
 }
@@ -37,6 +83,128 @@ const TrainingPage: React.FC = () => {
   
   // Voice functionality
   const { isRecording, error: micError, start: startRecording, stop: stopRecording, audioBlob } = useMic();
+
+  // Add progress tracking state
+  const [userProgress, setUserProgress] = useState({
+    completedSteps: [] as string[],
+    currentStepIndex: 0,
+    timeSpent: 0,
+    questionsAsked: 0,
+    performanceScore: 0,
+    lastActiveStep: undefined as string | undefined,
+    learningPace: 'normal' as 'slow' | 'normal' | 'fast',
+    difficultyLevel: 'beginner' as 'beginner' | 'intermediate' | 'advanced'
+  })
+
+  // Calculate current step based on video time
+  const getCurrentStep = useCallback(() => {
+    if (!steps || steps.length === 0) return null
+    
+    const videoTime = currentTime || 0
+    
+    // Find the step that matches the current video time
+    let currentStep = steps.find(step => 
+      videoTime >= step.start && videoTime <= step.end
+    )
+
+    if (currentStep) return currentStep
+
+    // If no exact match, find the closest upcoming step
+    currentStep = steps.find(step => step.start > videoTime)
+    if (currentStep) return currentStep
+
+    // If past all steps, return the last step
+    return steps[steps.length - 1] || null
+  }, [steps, currentTime])
+
+  // Update progress when video time changes
+  useEffect(() => {
+    if (!steps || steps.length === 0) return
+
+    const currentStep = getCurrentStep()
+    if (!currentStep) return
+
+    // Calculate completed steps
+    const completedSteps = steps
+      .filter(step => currentTime > step.end)
+      .map(step => step.id)
+
+    // Calculate performance score
+    const completionRate = completedSteps.length / steps.length
+    const performanceScore = Math.round(completionRate * 100)
+
+    // Determine learning pace
+    const expectedTimePerStep = 30 // 30 seconds per step (adjustable)
+    const expectedTotalTime = steps.length * expectedTimePerStep
+    let learningPace: 'slow' | 'normal' | 'fast' = 'normal'
+    if (currentTime < expectedTotalTime * 0.7) learningPace = 'fast'
+    else if (currentTime > expectedTotalTime * 1.3) learningPace = 'slow'
+
+    // Determine difficulty level
+    let difficultyLevel: 'beginner' | 'intermediate' | 'advanced' = 'beginner'
+    if (performanceScore > 80) difficultyLevel = 'advanced'
+    else if (performanceScore > 50) difficultyLevel = 'intermediate'
+
+    setUserProgress(prev => ({
+      ...prev,
+      completedSteps,
+      currentStepIndex: completedSteps.length,
+      timeSpent: currentTime,
+      performanceScore,
+      lastActiveStep: currentStep.id,
+      learningPace,
+      difficultyLevel
+    }))
+  }, [currentTime, steps, getCurrentStep])
+
+  // Build training context for AI
+  const trainingContext = useMemo(() => ({
+    moduleId: moduleId || '',
+    currentStep: getCurrentStep() ? {
+      id: getCurrentStep()!.id,
+      title: getCurrentStep()!.title || getCurrentStep()!.text,
+      start: getCurrentStep()!.start,
+      end: getCurrentStep()!.end,
+      description: getCurrentStep()!.description || getCurrentStep()!.text,
+      notes: getCurrentStep()!.notes
+    } : undefined,
+    allSteps: steps.map(step => ({
+      id: step.id,
+      title: step.title || step.text,
+      start: step.start,
+      end: step.end,
+      description: step.description || step.text,
+      notes: step.notes
+    })) || [],
+    videoTime: currentTime || 0,
+    userProgress,
+    moduleMetadata: {
+      title: module?.title || 'Training Module',
+      description: `Interactive training with ${steps?.length || 0} steps`,
+      difficulty: userProgress.difficultyLevel,
+      estimatedDuration: steps && steps.length > 0 ? Math.ceil((steps[steps.length - 1]?.end || 0) / 60) : 0,
+      prerequisites: [],
+      learningObjectives: steps?.map(step => step.title || step.text) || [],
+      targetAudience: ['All levels']
+    }
+  }), [moduleId, getCurrentStep, steps, currentTime, userProgress, module?.title])
+
+  // Handle step guidance requests
+  const handleStepGuidance = useCallback((stepId: string) => {
+    const step = steps?.find(s => s.id === stepId)
+    if (step) {
+      // Seek to the step in the video
+      if (videoRef.current) {
+        videoRef.current.currentTime = step.start
+      }
+    }
+  }, [steps])
+
+  // Handle progress analysis
+  const handleProgressAnalysis = useCallback(() => {
+    // This will be handled by the ChatTutor component
+    console.log('Progress analysis requested')
+  }, [])
 
   useEffect(() => {
     const fetchModule = async () => {
@@ -107,10 +275,6 @@ const TrainingPage: React.FC = () => {
     }
   };
 
-  const getCurrentStep = (): Step | null => {
-    return steps.find(step => currentTime >= step.start && currentTime <= step.end) || null;
-  };
-
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -174,7 +338,7 @@ const TrainingPage: React.FC = () => {
       
       if (transcript) {
         setVoiceQuestion(transcript);
-        // Auto-send the transcribed question to AI
+        // Auto-send the transcribed question to AI using the working service
         await askAIQuestion(transcript);
       }
     } catch (error) {
@@ -187,10 +351,15 @@ const TrainingPage: React.FC = () => {
     try {
       logger.info("🤖 Asking AI:", question);
       
+      // Use the working AI service
       const response = await fetch('/api/ai/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moduleId, question }),
+        body: JSON.stringify({ 
+          moduleId, 
+          question,
+          context: trainingContext
+        }),
       });
 
       if (!response.ok) {
@@ -200,7 +369,7 @@ const TrainingPage: React.FC = () => {
       const data = await response.json();
       if (data.success) {
         logger.info("✅ AI Response:", data.answer);
-        // You can display this in the chat or show it as a notification
+        // Display AI response in the chat or show notification
         alert(`AI Response: ${data.answer.substring(0, 100)}...`);
       } else {
         throw new Error(data.error || 'AI request failed');
@@ -409,7 +578,12 @@ const TrainingPage: React.FC = () => {
           {/* AI Chat & Voice - Right Column */}
           <div className="lg:col-span-1">
             <div className="sticky top-4">
-              <ChatTutor moduleId={moduleId!} />
+              <ChatTutor 
+          moduleId={moduleId!} 
+          context={trainingContext}
+          onStepGuidance={handleStepGuidance}
+          onProgressAnalysis={handleProgressAnalysis}
+        />
               
               {/* Voice Activation Section - V1 Style */}
               <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border">
@@ -508,4 +682,11 @@ const TrainingPage: React.FC = () => {
   );
 };
 
-export default TrainingPage;
+// Wrap with error boundary
+const TrainingPageWithErrorBoundary: React.FC = () => (
+  <TrainingPageErrorBoundary>
+    <TrainingPage />
+  </TrainingPageErrorBoundary>
+);
+
+export default TrainingPageWithErrorBoundary;

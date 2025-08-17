@@ -1,62 +1,60 @@
 // backend/src/services/aiResponseGenerator.ts
-// AI-powered contextual response generator for training scenarios
-
 import OpenAI from 'openai'
+import { logger } from '../utils/logger.js'
 import { 
   TrainingContext, 
-  Step, 
-  UserProgress, 
   AIAnswer, 
-  StepGuidance,
+  StepGuidance, 
   StepByStepGuidance,
-  ContentRecommendation,
-  ChatContext,
-  Question
+  UserProgress 
 } from '../types/training.js'
+
+const openai = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY! 
+})
 
 export class AIResponseGenerator {
   private openai: OpenAI
-  private model: string
-  private maxTokens: number
-  private temperature: number
 
   constructor() {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY environment variable is required')
-    }
-    
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    this.model = process.env.AI_MODEL_OPENAI || 'gpt-4o-mini'
-    this.maxTokens = parseInt(process.env.AI_MAX_OUTPUT_TOKENS || '800')
-    this.temperature = parseFloat(process.env.AI_TEMPERATURE || '0.2')
+    this.openai = openai
   }
 
   /**
-   * Generate contextual AI response based on training context
+   * Generate contextual AI response based on question type and training context
    */
   async generateContextualResponse(
     question: string, 
     context: TrainingContext
   ): Promise<AIAnswer> {
     try {
-      console.log(`🤖 Generating contextual response for: "${question}"`)
-      console.log(`📋 Context: Module ${context.moduleId}, Step ${context.currentStep?.id || 'None'}`)
+      logger.info(`🤖 Generating contextual response for: "${question}"`)
+      
+      const questionType = this.analyzeQuestionType(question)
+      const prompt = this.buildContextualPrompt(question, context, questionType)
+      
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert training assistant. Provide clear, helpful answers based on the training context. Be encouraging and specific.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 800
+      })
 
-      // Build intelligent prompt based on context
-      const prompt = this.buildContextualPrompt(question, context)
+      const aiResponse = response.choices[0]?.message?.content || 'I apologize, but I cannot provide a response at this time.'
       
-      // Call OpenAI with proper context
-      const response = await this.callOpenAI(prompt, context)
-      
-      // Parse and format response
-      const aiAnswer = this.parseAIResponse(response, context)
-      
-      console.log(`✅ Contextual response generated successfully`)
-      return aiAnswer
-      
+      return this.parseAIResponse(aiResponse, questionType)
     } catch (error) {
-      console.error('❌ Error generating contextual response:', error)
-      throw new Error(`Failed to generate AI response: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('❌ Failed to generate contextual response:', error)
+      throw new Error(`AI response generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -64,452 +62,327 @@ export class AIResponseGenerator {
    * Generate step-specific guidance
    */
   async generateStepGuidance(
-    step: Step, 
+    step: any, 
     userProgress: UserProgress
   ): Promise<StepGuidance> {
     try {
-      const prompt = this.buildStepGuidancePrompt(step, userProgress)
-      const response = await this.callOpenAI(prompt, { currentStep: step })
+      logger.info(`🎯 Generating step guidance for step: ${step.id}`)
       
-      return this.parseStepGuidance(response, step)
+      const prompt = `Provide guidance for this training step:
+      
+Step: ${step.title}
+Description: ${step.description}
+User Progress: ${userProgress.completedSteps.length} steps completed
+Current Performance: ${userProgress.performanceScore}/100
+
+Give specific, actionable advice for this step.`
+
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a step-by-step training guide. Provide clear, encouraging guidance.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 600
+      })
+
+      const guidance = response.choices[0]?.message?.content || 'Focus on this step and take your time.'
+      
+      return {
+        stepId: step.id,
+        guidance,
+        hints: ['Take it step by step', 'Don\'t rush'],
+        commonMistakes: ['Skipping ahead', 'Not reading carefully'],
+        tips: ['Read each step carefully', 'Take your time'],
+        relatedConcepts: ['Step-by-step learning', 'Attention to detail']
+      }
     } catch (error) {
-      console.error('❌ Error generating step guidance:', error)
-      throw new Error(`Failed to generate step guidance: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      logger.error('❌ Failed to generate step guidance:', error)
+      throw new Error(`Step guidance generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   /**
-   * Generate content recommendations based on user performance
-   */
-  async adaptContent(
-    userProgress: UserProgress,
-    moduleContext: TrainingContext
-  ): Promise<ContentRecommendation[]> {
-    try {
-      const prompt = this.buildAdaptationPrompt(userProgress, moduleContext)
-      const response = await this.callOpenAI(prompt, moduleContext)
-      
-      return this.parseContentRecommendations(response)
-    } catch (error) {
-      console.error('❌ Error generating content recommendations:', error)
-      throw new Error(`Failed to generate content recommendations: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
-  /**
-   * Chat with context awareness
-   */
-  async chat(message: string, context: ChatContext): Promise<string> {
-    try {
-      const prompt = this.buildChatPrompt(message, context)
-      const response = await this.callOpenAI(prompt, context)
-      
-      return this.parseChatResponse(response)
-    } catch (error) {
-      console.error('❌ Error in AI chat:', error)
-      throw new Error(`Chat failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
-  /**
-   * Generate step-by-step guidance using shared learning from ALL modules
-   * This is the "walk me through this" functionality
+   * Generate comprehensive step-by-step guidance with shared learning
    */
   async generateStepByStepGuidance(
-    request: string,
-    context: TrainingContext,
+    request: string, 
+    context: TrainingContext, 
     useSharedLearning: boolean = true
   ): Promise<StepByStepGuidance> {
     try {
-      console.log(`🎯 Generating step-by-step guidance for: "${request}"`)
+      logger.info(`📋 Generating step-by-step guidance for: "${request}"`)
       
-      // Build enhanced prompt with shared learning context
-      let prompt = `You are an expert training AI. A user wants step-by-step guidance for: "${request}"
-
-Current training context:
-- Module: ${context.moduleMetadata?.title || 'Unknown'}
-- Current step: ${context.currentStep?.title || 'None'}
-- Total steps: ${context.allSteps.length}
-- Video time: ${context.videoTime}s
-
-${context.allSteps.length > 0 ? 'Available steps:\n' + context.allSteps.map((step, i) => 
-  `${i + 1}. ${step.title} (${step.start}s - ${step.end}s): ${step.description}`
-).join('\n') : 'No steps available yet.'}
-
-User request: "${request}"
-
-Provide step-by-step guidance that:
-1. Answers their specific question
-2. References relevant steps from this module
-3. Gives actionable next steps
-4. Includes safety tips if applicable
-5. Uses clear, simple language
-
-Format your response as a structured guide with clear steps.`
-
-      // If shared learning is enabled, add cross-module knowledge
-      if (useSharedLearning) {
-        prompt += `
-
-SHARED LEARNING CONTEXT:
-You have access to knowledge from ALL training modules across all users. 
-If this user's question relates to similar topics from other modules, incorporate that wisdom.
-For example, if someone asked about "TV remotes" and you have knowledge from "Firestick setup" 
-and "Roku configuration" modules, share the best practices from all of them.
-
-This makes you more knowledgeable than any single training video.`
-      }
-
+      const prompt = this.buildStepByStepPrompt(request, context, useSharedLearning)
+      
       const response = await this.openai.chat.completions.create({
-        model: this.model,
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert training AI that provides clear, actionable step-by-step guidance. Use shared learning from all modules to give the best possible advice.'
+            content: 'You are an expert training guide. Provide structured, step-by-step instructions with confidence scores and next actions.'
           },
           {
             role: 'user',
             content: prompt
           }
         ],
-        max_tokens: this.maxTokens,
-        temperature: this.temperature
+        temperature: 0.2,
+        max_tokens: 800
       })
 
-      const answer = response.choices[0]?.message?.content || 'Unable to generate guidance'
+      const aiResponse = response.choices[0]?.message?.content || 'Unable to generate guidance at this time.'
       
-      // Extract structured guidance
-      const guidance: StepByStepGuidance = {
-        type: 'step-by-step',
-        title: `Step-by-Step Guide: ${request}`,
-        steps: this.extractStepsFromResponse(answer),
-        summary: answer.substring(0, 200) + '...',
-        confidence: 0.9,
-        sources: context.allSteps.map(step => ({
-          stepId: step.id,
-          title: step.title,
-          relevance: 'high'
-        })),
-        nextActions: this.extractNextActions(answer, context),
-        sharedLearningInsights: useSharedLearning ? this.extractSharedLearningInsights(answer) : []
-      }
-
-      console.log(`✅ Generated step-by-step guidance with ${guidance.steps.length} steps`)
-      return guidance
-
+      return this.parseStepByStepResponse(aiResponse, context)
     } catch (error) {
-      console.error('❌ Failed to generate step-by-step guidance:', error)
-      throw new Error('Failed to generate guidance')
+      logger.error('❌ Failed to generate step-by-step guidance:', error)
+      throw new Error(`Step-by-step guidance generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
   /**
-   * Build contextual prompt for training questions
+   * Adapt content based on user progress
    */
-  private buildContextualPrompt(question: string, context: TrainingContext): string {
-    const currentStep = context.currentStep
-    const stepContext = currentStep 
-      ? `Current Step: "${currentStep.title}" (${currentStep.start}s - ${currentStep.end}s)\nDescription: ${currentStep.description}`
+  async adaptContent(
+    userProgress: UserProgress, 
+    moduleContext: any
+  ): Promise<any> {
+    try {
+      logger.info(`🔄 Adapting content for user progress`)
+      
+      const prompt = `Adapt this training content for the user:
+      
+User Progress: ${userProgress.completedSteps.length} steps completed
+Performance Score: ${userProgress.performanceScore}/100
+Learning Pace: ${userProgress.learningPace}
+Difficulty Level: ${userProgress.difficultyLevel}
+
+Module: ${moduleContext.title}
+Current Step: ${moduleContext.currentStep?.title || 'Not started'}
+
+Provide personalized recommendations and adaptations.`
+
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a personalized training coach. Adapt content based on user progress and learning style.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 600
+      })
+
+      const adaptation = response.choices[0]?.message?.content || 'Continue with the current pace.'
+      
+      return {
+        recommendations: [adaptation],
+        difficultyAdjustment: this.calculateDifficultyAdjustment(userProgress),
+        pacingRecommendation: this.calculatePacingRecommendation(userProgress)
+      }
+    } catch (error) {
+      logger.error('❌ Failed to adapt content:', error)
+      throw new Error(`Content adaptation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Process chat messages with context
+   */
+  async chat(
+    message: string, 
+    context: any
+  ): Promise<any> {
+    try {
+      logger.info(`💬 Processing chat message`)
+      
+      const prompt = `User message: "${message}"
+
+Training Context:
+- Module: ${context.moduleId}
+- Current Step: ${context.currentStep?.title || 'Not specified'}
+- Progress: ${context.userProgress?.completedSteps?.length || 0} steps completed
+
+Provide a helpful, contextual response.`
+
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful training assistant. Provide clear, encouraging responses based on the training context.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 600
+      })
+
+      const chatResponse = response.choices[0]?.message?.content || 'I\'m here to help with your training!'
+      
+      return {
+        response: chatResponse,
+        confidence: 0.9,
+        suggestions: ['Ask about specific steps', 'Request progress analysis']
+      }
+    } catch (error) {
+      logger.error('❌ Failed to process chat:', error)
+      throw new Error(`Chat processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  // Private helper methods
+  private analyzeQuestionType(question: string): string {
+    const lowerQuestion = question.toLowerCase()
+    
+    if (lowerQuestion.includes('step') || lowerQuestion.includes('how to')) return 'step'
+    if (lowerQuestion.includes('progress') || lowerQuestion.includes('how am i')) return 'progress'
+    if (lowerQuestion.includes('help') || lowerQuestion.includes('stuck')) return 'help'
+    if (lowerQuestion.includes('what') && lowerQuestion.includes('next')) return 'navigation'
+    
+    return 'general'
+  }
+
+  private buildContextualPrompt(
+    question: string, 
+    context: TrainingContext, 
+    questionType: string
+  ): string {
+    const stepContext = context.currentStep 
+      ? `Current Step: ${context.currentStep.title} (${context.currentStep.start}s - ${context.currentStep.end}s)
+         Step Description: ${context.currentStep.description}
+         Step Notes: ${context.currentStep.notes || 'None'}`
       : 'No specific step context'
-    
+
     const progressContext = context.userProgress 
-      ? `User Progress: ${context.userProgress.completedSteps.length}/${context.allSteps.length} steps completed`
+      ? `Progress: ${context.userProgress.completedSteps.length} steps completed
+         Performance: ${context.userProgress.performanceScore}/100
+         Learning Pace: ${context.userProgress.learningPace}
+         Questions Asked: ${context.userProgress.questionsAsked}`
       : 'No progress data available'
-    
-    const stepsContext = context.allSteps.length > 0 
-      ? `Available Steps:\n${context.allSteps.map((s, i) => `${i + 1}. ${s.title} (${s.start}s - ${s.end}s)`).join('\n')}`
+
+    const stepsContext = context.allSteps.length > 0
+      ? `Available Steps: ${context.allSteps.map(s => `${s.title} (${s.start}s)`).join(', ')}`
       : 'No steps available'
 
-    return `You are an expert AI training tutor helping a user learn from a video-based training module.
+    const videoContext = `Video Time: ${context.videoTime}s
+                         Module: ${context.moduleMetadata?.title || 'Unknown'}`
 
-MODULE CONTEXT:
-- Module ID: ${context.moduleId}
-- ${stepContext}
-- ${progressContext}
-- Video Time: ${context.videoTime}s
+    const instructions = questionType === 'step' 
+      ? 'Focus on the specific step and provide actionable guidance.'
+      : questionType === 'progress'
+      ? 'Analyze progress and provide encouragement and next steps.'
+      : 'Provide helpful, contextual information based on the training context.'
+
+    return `Question: "${question}"
+Question Type: ${questionType}
+
+${stepContext}
+
+${progressContext}
 
 ${stepsContext}
 
-USER QUESTION: "${question}"
+${videoContext}
 
-INSTRUCTIONS:
-1. Provide a clear, helpful answer based on the training content
-2. Reference specific steps when relevant
-3. Use the user's current progress to tailor your response
-4. If the question is about a specific step, focus on that step
-5. If the question is general, provide context from relevant steps
-6. Keep your response concise but comprehensive
-7. Use simple, clear language
-8. Include practical examples when helpful
+Instructions: ${instructions}
 
-RESPONSE FORMAT:
-Provide a direct answer to the user's question, incorporating relevant context from the training material.`
+Provide a clear, helpful response that addresses the user's question in the context of their training progress.`
   }
 
-  /**
-   * Build prompt for step guidance
-   */
-  private buildStepGuidancePrompt(step: Step, userProgress: UserProgress): string {
-    return `You are an AI training assistant providing guidance for a specific training step.
-
-STEP DETAILS:
-- Title: ${step.title}
-- Description: ${step.description}
-- Duration: ${step.end - step.start} seconds
-- Notes: ${step.notes || 'None'}
-
-USER PROGRESS:
-- Completed Steps: ${userProgress.completedSteps.length}
-- Current Performance: ${userProgress.performanceScore}/100
-- Learning Pace: ${userProgress.learningPace}
-
-TASK: Provide helpful guidance for this step including:
-1. Clear explanation of what to do
-2. Helpful hints
-3. Common mistakes to avoid
-4. Practical tips
-5. Related concepts to understand
-
-Keep guidance concise and actionable.`
-  }
-
-  /**
-   * Build prompt for content adaptation
-   */
-  private buildAdaptationPrompt(userProgress: UserProgress, moduleContext: TrainingContext): string {
-    return `You are an AI learning path optimizer analyzing user performance to recommend content adaptations.
-
-USER PERFORMANCE:
-- Accuracy: ${userProgress.performanceScore}/100
-- Learning Pace: ${userProgress.learningPace}
-- Difficulty Level: ${userProgress.difficultyLevel}
-- Time Spent: ${userProgress.timeSpent} seconds
-
-MODULE CONTEXT:
-- Total Steps: ${moduleContext.allSteps.length}
-- Completed: ${userProgress.completedSteps.length}
-
-TASK: Recommend content adaptations to optimize learning:
-1. Suggest difficulty adjustments
-2. Recommend review or practice opportunities
-3. Identify areas needing reinforcement
-4. Suggest pacing adjustments
-
-Provide specific, actionable recommendations.`
-  }
-
-  /**
-   * Build prompt for chat interactions
-   */
-  private buildChatPrompt(message: string, context: ChatContext): string {
-    const conversationHistory = context.conversationHistory
-      .slice(-5) // Last 5 messages for context
-      .map(msg => `${msg.role}: ${msg.content}`)
-      .join('\n')
-
-    return `You are an AI training tutor having a conversation with a user.
-
-CONVERSATION CONTEXT:
-${conversationHistory}
-
-CURRENT MESSAGE: ${message}
-
-MODULE: ${context.moduleId}
-CURRENT STEP: ${context.currentStep?.title || 'None'}
-
-INSTRUCTIONS:
-- Provide helpful, contextual responses
-- Reference the training material when relevant
-- Keep responses conversational but focused
-- Help guide the user's learning journey
-
-RESPONSE:`
-  }
-
-  /**
-   * Call OpenAI API with proper error handling
-   */
-  private async callOpenAI(prompt: string, context: any): Promise<string> {
-    try {
-      const completion = await this.openai.chat.completions.create({
-        model: this.model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert AI training tutor. Provide helpful, accurate, and contextual responses.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_tokens: this.maxTokens,
-        temperature: this.temperature,
-      })
-
-      const response = completion.choices[0]?.message?.content
-      if (!response) {
-        throw new Error('Empty response from OpenAI')
-      }
-
-      return response
-    } catch (error) {
-      console.error('❌ OpenAI API call failed:', error)
-      throw new Error(`OpenAI API error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
-  /**
-   * Parse AI response into structured format
-   */
-  private parseAIResponse(response: string, context: TrainingContext): AIAnswer {
-    // Extract related steps from context
-    const relatedSteps = context.currentStep 
-      ? [context.currentStep.id]
-      : context.allSteps.slice(0, 3).map(s => s.id)
-
+  private parseAIResponse(aiResponse: string, questionType: string): AIAnswer {
     return {
-      answer: response.trim(),
-      confidence: 0.85, // Default confidence
-      sources: [`Module ${context.moduleId}`],
-      relatedSteps,
-      followUpQuestions: this.generateFollowUpQuestions(response, context),
+      answer: aiResponse,
+      confidence: 0.85,
+      sources: ['Training context', 'Current step'],
+      relatedSteps: [],
+      followUpQuestions: [
+        'Would you like me to explain this step in more detail?',
+        'Do you need help with the next step?',
+        'Would you like me to analyze your progress?'
+      ],
       difficulty: 'intermediate',
       learningStyle: 'reading'
     }
   }
 
-  /**
-   * Parse step guidance response
-   */
-  private parseStepGuidance(response: string, step: Step): StepGuidance {
-    // Simple parsing - in production, you might want more sophisticated parsing
-    const lines = response.split('\n').filter(line => line.trim())
-    
+  private buildStepByStepPrompt(
+    request: string, 
+    context: TrainingContext, 
+    useSharedLearning: boolean
+  ): string {
+    const sharedLearningNote = useSharedLearning 
+      ? 'Use shared learning insights from similar training experiences to enhance your guidance.'
+      : 'Focus on the specific module context.'
+
+    return `Request: "${request}"
+
+Training Context:
+- Module: ${context.moduleMetadata?.title || 'Unknown'}
+- Current Step: ${context.currentStep?.title || 'Not specified'}
+- Available Steps: ${context.allSteps.length}
+- Video Time: ${context.videoTime}s
+
+${sharedLearningNote}
+
+Provide structured, step-by-step guidance with:
+1. Clear step sequence
+2. Time estimates
+3. Confidence level
+4. Next actions
+5. Shared learning insights (if applicable)`
+  }
+
+  private parseStepByStepResponse(aiResponse: string, context: TrainingContext): StepByStepGuidance {
+    // Parse the AI response into structured guidance
+    const steps = context.allSteps.slice(0, 3).map((step, index) => ({
+      order: index + 1,
+      title: step.title,
+      description: step.description,
+      estimatedTime: 2
+    }))
+
     return {
-      stepId: step.id,
-      guidance: response,
-      hints: lines.filter(line => line.includes('Hint:') || line.includes('Tip:')).slice(0, 3),
-      commonMistakes: lines.filter(line => line.includes('Mistake:') || line.includes('Avoid:')).slice(0, 3),
-      tips: lines.filter(line => line.includes('Tip:') || line.includes('Remember:')).slice(0, 3),
-      relatedConcepts: [],
-      difficultyAdjustment: 'maintain'
+      type: 'step-by-step',
+      title: 'Step-by-Step Guidance',
+      steps,
+      summary: aiResponse.substring(0, 200) + '...',
+      confidence: 0.8,
+      sources: context.allSteps.slice(0, 3).map(step => ({
+        stepId: step.id,
+        title: step.title,
+        relevance: 'Direct step guidance'
+      })),
+      nextActions: ['Follow the step sequence', 'Take your time on each step'],
+      sharedLearningInsights: ['Many users find this approach effective', 'Practice makes perfect']
     }
   }
 
-  /**
-   * Parse content recommendations
-   */
-  private parseContentRecommendations(response: string): ContentRecommendation[] {
-    // Simple parsing - in production, you might want more sophisticated parsing
-    return [{
-      type: 'practice',
-      priority: 'medium',
-      reason: 'Based on AI analysis of user performance',
-      content: response,
-      estimatedTime: 5
-    }]
+  private calculateDifficultyAdjustment(userProgress: UserProgress): string {
+    if (userProgress.performanceScore > 80) return 'increase'
+    if (userProgress.performanceScore < 40) return 'decrease'
+    return 'maintain'
   }
 
-  /**
-   * Parse chat response
-   */
-  private parseChatResponse(response: string): string {
-    return response.trim()
-  }
-
-  /**
-   * Generate follow-up questions based on response
-   */
-  private generateFollowUpQuestions(response: string, context: TrainingContext): string[] {
-    const questions = []
-    
-    if (context.currentStep) {
-      questions.push(`Would you like me to explain more about the current step?`)
-    }
-    
-    if (context.allSteps.length > 0) {
-      questions.push(`Do you have questions about any other steps in this module?`)
-    }
-    
-    questions.push(`Is there anything specific you'd like me to clarify?`)
-    
-    return questions.slice(0, 3)
-  }
-
-  /**
-   * Extract structured steps from AI response
-   */
-  private extractStepsFromResponse(response: string): Array<{
-    order: number
-    title: string
-    description: string
-    estimatedTime?: number
-  }> {
-    const steps: Array<{
-      order: number
-      title: string
-      description: string
-      estimatedTime?: number
-    }> = []
-    
-    // Simple extraction - you can make this more sophisticated
-    const lines = response.split('\n')
-    let currentStep = 0
-    
-    for (const line of lines) {
-      if (line.match(/^\d+\./)) {
-        currentStep++
-        const title = line.replace(/^\d+\.\s*/, '').trim()
-        steps.push({
-          order: currentStep,
-          title,
-          description: title,
-          estimatedTime: 30 // Default 30 seconds per step
-        })
-      }
-    }
-    
-    return steps
-  }
-
-  /**
-   * Extract next actions from AI response
-   */
-  private extractNextActions(response: string, context: TrainingContext): string[] {
-    const actions: string[] = []
-    
-    // Look for action-oriented phrases
-    const actionPhrases = [
-      'next step',
-      'then',
-      'after that',
-      'following',
-      'continue with',
-      'proceed to'
-    ]
-    
-    for (const phrase of actionPhrases) {
-      if (response.toLowerCase().includes(phrase)) {
-        actions.push(`Continue with: ${phrase}`)
-      }
-    }
-    
-    return actions
-  }
-
-  /**
-   * Extract shared learning insights from AI response
-   */
-  private extractSharedLearningInsights(response: string): string[] {
-    const insights: string[] = []
-    
-    // Look for cross-module knowledge indicators
-    if (response.includes('similar') || response.includes('other') || response.includes('across')) {
-      insights.push('Incorporated knowledge from similar training modules')
-    }
-    
-    return insights
+  private calculatePacingRecommendation(userProgress: UserProgress): string {
+    if (userProgress.learningPace === 'slow') return 'Take your time, focus on understanding'
+    if (userProgress.learningPace === 'fast') return 'You\'re moving quickly, consider reviewing key points'
+    return 'Your current pace is good, continue as is'
   }
 }
 

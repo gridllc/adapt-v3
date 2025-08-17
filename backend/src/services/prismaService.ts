@@ -203,6 +203,108 @@ export const DatabaseService = {
     }
   },
 
+  // Progress tracking methods
+  async saveUserProgress(data: {
+    userId: string;
+    moduleId: string;
+    completedSteps: string[];
+    currentStepIndex: number;
+    timeSpent: number;
+    performanceScore: number;
+    learningPace: 'slow' | 'normal' | 'fast';
+    difficultyLevel: 'beginner' | 'intermediate' | 'advanced';
+  }) {
+    try {
+      // Create or update progress record
+      const progress = await prisma.userProgress.upsert({
+        where: {
+          userId_moduleId: {
+            userId: data.userId,
+            moduleId: data.moduleId
+          }
+        },
+        update: {
+          completedSteps: data.completedSteps,
+          currentStepIndex: data.currentStepIndex,
+          timeSpent: data.timeSpent,
+          performanceScore: data.performanceScore,
+          learningPace: data.learningPace,
+          difficultyLevel: data.difficultyLevel,
+          updatedAt: new Date()
+        },
+        create: {
+          userId: data.userId,
+          moduleId: data.moduleId,
+          completedSteps: data.completedSteps,
+          currentStepIndex: data.currentStepIndex,
+          timeSpent: data.timeSpent,
+          performanceScore: data.performanceScore,
+          learningPace: data.learningPace,
+          difficultyLevel: data.difficultyLevel
+        }
+      });
+      
+      logger.info(`✅ User progress saved for module ${data.moduleId}`);
+      return progress;
+    } catch (error) {
+      logger.error('❌ Failed to save user progress:', error);
+      throw error;
+    }
+  }
+
+  async getUserProgress(userId: string, moduleId: string) {
+    try {
+      const progress = await prisma.userProgress.findUnique({
+        where: {
+          userId_moduleId: {
+            userId,
+            moduleId
+          }
+        }
+      });
+      
+      return progress || {
+        completedSteps: [],
+        currentStepIndex: 0,
+        timeSpent: 0,
+        performanceScore: 0,
+        learningPace: 'normal' as const,
+        difficultyLevel: 'beginner' as const
+      };
+    } catch (error) {
+      logger.error('❌ Failed to get user progress:', error);
+      return {
+        completedSteps: [],
+        currentStepIndex: 0,
+        timeSpent: 0,
+        performanceScore: 0,
+        learningPace: 'normal' as const,
+        difficultyLevel: 'beginner' as const
+      };
+    }
+  }
+
+  async updateQuestionsAsked(userId: string, moduleId: string, count: number = 1) {
+    try {
+      await prisma.userProgress.update({
+        where: {
+          userId_moduleId: {
+            userId,
+            moduleId
+          }
+        },
+        data: {
+          questionsAsked: {
+            increment: count
+          }
+        }
+      });
+      
+      logger.info(`✅ Questions asked count updated for module ${moduleId}`);
+    } catch (error) {
+      logger.error('❌ Failed to update questions asked count:', error);
+    }
+  }
 
 };
 

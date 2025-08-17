@@ -16,6 +16,7 @@ model User {
   activityLogs ActivityLog[]
   modules      Module[]
   questions    Question[]
+  userProgress UserProgress[]
 
   @@map("users")
 }
@@ -38,6 +39,7 @@ model Module {
   user      User?          @relation(fields: [userId], references: [id])
   questions Question[]
   steps     Step[]
+  userProgress UserProgress[]
 
   @@map("modules")
 }
@@ -87,7 +89,7 @@ model AIInteraction {
 }
 
 model TrainingSession {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   moduleId  String
   userId    String?
   sessionId String
@@ -96,6 +98,27 @@ model TrainingSession {
   duration  Int?
 
   @@map("training_sessions")
+}
+
+model UserProgress {
+  id               String   @id @default(cuid())
+  userId           String
+  moduleId         String
+  completedSteps   String[]
+  currentStepIndex Int      @default(0)
+  timeSpent        Int      @default(0)
+  questionsAsked   Int      @default(0)
+  performanceScore Int      @default(0)
+  learningPace     String   @default("normal")
+  difficultyLevel  String   @default("beginner")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module           Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@map("user_progress")
 }
 
 model ActivityLog {
