@@ -39,7 +39,7 @@ router.post('/jobs/processVideo', async (req, res) => {
   } catch (err: any) {
     logger.error('❌ Job failed:', err);
     try {
-      await updateModule(moduleId, { status: 'ERROR' });
+      await updateModule(moduleId, { status: 'FAILED' });
     } catch {
       logger.warn('Failed to mark module as ERROR');
     }
@@ -47,4 +47,5 @@ router.post('/jobs/processVideo', async (req, res) => {
   }
 });
 
+export { router as workerRoutes };
 export default router;

@@ -1,8 +1,8 @@
 // frontend/src/pages/TrainingPage.tsx
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { logger } from "../utils/logger";
-import Navbar from "../components/Navbar";
+import { logger } from "@utils/logger";
+import { Navbar } from "@components/Navbar";
 
 interface ModuleData {
   id: string;

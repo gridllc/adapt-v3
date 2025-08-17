@@ -15,7 +15,8 @@ router.post("/signed-url", async (req, res) => {
       return res.status(400).json({ error: "filename and contentType required" });
     }
 
-    const { url, key } = await storageService.getSignedUploadUrl(filename, contentType);
+    const url = await storageService.getSignedUploadUrl(filename, contentType);
+    const key = `videos/${Date.now()}-${filename}`;
     res.json({ url, key });
   } catch (err) {
     console.error("signed-url error", err);
@@ -28,13 +29,15 @@ router.post("/signed-url", async (req, res) => {
  */
 router.post("/complete", async (req, res) => {
   try {
-    const { videoKey } = req.body;
+    const { videoKey, filename } = req.body;
     if (!videoKey) return res.status(400).json({ error: "videoKey required" });
 
     // Create new module in DB
-    const module = await ModuleService.create({
-      videoKey,
-      status: "PENDING",
+    const module = await ModuleService.createModule({
+      title: filename || "Untitled Module",
+      filename: filename || "unknown.mp4",
+      videoUrl: "",
+      s3Key: videoKey
     });
 
     // Enqueue QStash job

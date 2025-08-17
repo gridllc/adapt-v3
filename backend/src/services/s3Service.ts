@@ -1,7 +1,7 @@
 // backend/src/services/s3Service.ts
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { s3Client, isS3Configured } from './s3Uploader.js';
-import { logger } from '../../frontend/src/utils/logger';
+import { logger } from '../utils/logger.js';
 
 export { s3Client as s3 };
 

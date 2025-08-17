@@ -35,8 +35,13 @@ export async function enqueueJob(jobName: string, payload: any) {
 // Fallback: run inline in dev if QStash disabled
 async function runInline(jobName: string, payload: any) {
   if (jobName === "processVideo") {
-    const { processVideoJob } = await import("../workers/processVideoJob.js")
+    const { processVideoJob } = await import("../workers/processVideoJob")
     return processVideoJob(payload)
   }
   console.warn("No inline handler for job:", jobName)
+}
+
+// Convenience export for video processing
+export async function enqueueVideoProcessing(moduleId: string, videoKey: string) {
+  return enqueueJob("processVideo", { moduleId, videoKey })
 }

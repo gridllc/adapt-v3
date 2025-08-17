@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { StepService } from "../services/stepService";
+import { StepService } from "../services/stepService.js";
 import { logger } from "../utils/logger";
 
 export const stepsController = {

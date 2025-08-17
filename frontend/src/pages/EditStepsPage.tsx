@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, API_ENDPOINTS } from '../config/api';
-import { EditableStep } from '../components/EditableStep';
-import { logger } from '../utils/logger';
-import { Navbar } from '../components/Navbar';
+import { EditableStep } from '@components/EditableStep';
+import { logger } from '@utils/logger';
+import { Navbar } from '@components/Navbar';
 
 interface Step {
   id: string;
@@ -83,8 +83,10 @@ export default function EditStepsPage() {
           <EditableStep
             key={step.id}
             step={step}
+            index={index}
+            onSeek={(time: number) => {/* TODO: implement seek */}}
             onSave={(updated) => handleSaveStep(updated, index)}
-            onRewrite={handleAIRewrite}
+            onAIRewrite={handleAIRewrite}
           />
         ))}
       </div>

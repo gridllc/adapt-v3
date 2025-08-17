@@ -91,3 +91,28 @@ export const DashboardPage: React.FC = () => {
                 >✏️ Edit</Link>
                 <button
                   onClick={() => handleDelete(mod.id)}
+                  className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+                >🗑️ Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {showQRCode && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg">
+              <h2 className="text-xl font-bold mb-4">Share Module</h2>
+              <div className="qr-code-placeholder bg-gray-200 w-48 h-48 flex items-center justify-center">
+                QR Code for Module {showQRCode}
+              </div>
+              <button
+                onClick={() => setShowQRCode(null)}
+                className="mt-4 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              >Close</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}

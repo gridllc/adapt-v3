@@ -22,12 +22,14 @@ export const uploadController = {
 
   async completeUpload(req: Request, res: Response) {
     try {
-      const { key } = req.body;
-      logger.debug("UPLOAD COMPLETE", { key });
+      const { key, filename } = req.body;
+      logger.debug("UPLOAD COMPLETE", { key, filename });
 
       const module = await ModuleService.createModule({
-        videoKey: key,
-        status: "PENDING"
+        title: filename || "Untitled Module",
+        filename: filename || "unknown.mp4",
+        videoUrl: "", // Will be set after processing
+        s3Key: key
       });
 
       await enqueueVideoProcessing(module.id, key);

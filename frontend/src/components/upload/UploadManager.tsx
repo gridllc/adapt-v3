@@ -1,33 +1,32 @@
 // frontend/src/components/upload/UploadManager.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUploadStore } from '../../stores/uploadStore';
-import { uploadFile } from '../../utils/uploadClient';
-import { logger } from '../../utils/logger';
+import { useUploadStore } from '@stores/uploadStore';
+import { uploadFile } from '@utils/uploadClient';
+import { logger } from '@utils/logger';
 
 export const UploadManager: React.FC = () => {
     const navigate = useNavigate();
-    const { setStatus, setProgress, setError } = useUploadStore();
+    const { addUpload, updateUpload, updateProgress, markSuccess, markError } = useUploadStore();
     const [dragOver, setDragOver] = useState(false);
 
     const handleFiles = async (files: FileList | null) => {
         if (!files || files.length === 0) return;
         const file = files[0];
 
+        const uploadId = addUpload(file);
+
         try {
-            setStatus('uploading');
-            setProgress(0);
+            updateUpload(uploadId, { status: 'uploading' });
+            updateProgress(uploadId, 0);
 
-            const moduleId = await uploadFile(file, {
-                onProgress: (p) => setProgress(p),
-            });
+            const result = await uploadFile(file, (p) => updateProgress(uploadId, p));
 
-            setStatus('processing');
-            navigate(`/training/${moduleId}`);
+            markSuccess(uploadId, result.moduleId);
+            navigate(`/training/${result.moduleId}`);
         } catch (err: any) {
             logger.error('Upload failed', err);
-            setError(err.message || 'Upload failed');
-            setStatus('error');
+            markError(uploadId, err);
         }
     };
 

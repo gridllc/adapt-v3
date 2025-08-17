@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { toMmSs, fromMmSs, getStart, getEnd } from '../utils/timeUtils'
+import { toMmSs, fromMmSs, getStart, getEnd } from '@utils/timeUtils'
 
 export interface StepData {
   id: string

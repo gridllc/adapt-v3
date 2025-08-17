@@ -1,20 +1,25 @@
 // backend/src/services/aiService.ts
 import OpenAI from "openai"
+import fs from "fs"
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
 /**
- * Transcribe audio from an S3 video key
+ * Transcribe audio from a local file path
  */
-export async function transcribeFromS3(videoKey: string): Promise<string> {
-  // For now, assume video already in S3, and we fetch signed URL
-  // Later can extract audio if needed
-  const url = `${process.env.CDN_BASE_URL}/${videoKey}`
+export async function transcribeFromFile(filePath: string): Promise<string> {
   const res = await openai.audio.transcriptions.create({
-    file: url,
+    file: fs.createReadStream(filePath),
     model: "whisper-1",
   })
   return res.text
+}
+
+/**
+ * Transcribe audio from an S3 video key (deprecated - use transcribeFromFile)
+ */
+export async function transcribeFromS3(videoKey: string): Promise<string> {
+  throw new Error("transcribeFromS3 is deprecated - download file first, then use transcribeFromFile")
 }
 
 /**
@@ -40,4 +45,11 @@ export async function generateSteps(transcript: string) {
   } catch {
     return []
   }
+}
+
+// Export as a service object for consistency
+export const aiService = {
+  transcribeFromFile,
+  transcribeFromS3,
+  generateSteps,
 }

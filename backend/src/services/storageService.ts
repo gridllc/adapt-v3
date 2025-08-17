@@ -1,7 +1,7 @@
 // backend/src/services/storageService.ts
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
-import { logger } from "../../frontend/src/utils/logger" // adjust path if needed
+import { logger } from "../utils/logger.js"
 import fs from "fs"
 import path from "path"
 
@@ -66,4 +66,51 @@ export const storageService = {
       throw err
     }
   },
+
+  async getSignedUploadUrl(key: string, contentType: string, expiresInSeconds = 3600) {
+    try {
+      const command = new PutObjectCommand({ 
+        Bucket: BUCKET, 
+        Key: key,
+        ContentType: contentType 
+      })
+      const url = await getSignedUrl(s3, command, { expiresIn: expiresInSeconds })
+      logger.debug("Generated signed upload URL", url)
+      return url
+    } catch (err) {
+      logger.error("S3 signed upload URL generation failed:", err)
+      throw err
+    }
+  },
+
+  async putJson(key: string, data: any) {
+    try {
+      await s3.send(new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: key,
+        Body: JSON.stringify(data),
+        ContentType: "application/json",
+      }))
+      logger.info(`Uploaded JSON to S3: ${key}`)
+    } catch (err) {
+      logger.error("S3 JSON upload failed:", err)
+      throw err
+    }
+  },
+
+  async headObject(key: string) {
+    try {
+      const command = new GetObjectCommand({ Bucket: BUCKET, Key: key })
+      await s3.send(command)
+      return true
+    } catch (err) {
+      return false
+    }
+  },
+
+  async generateSignedUrl(key: string, expiresInSeconds: number) {
+    return this.getSignedUrl(key, expiresInSeconds)
+  },
 }
+
+export const putJson = storageService.putJson

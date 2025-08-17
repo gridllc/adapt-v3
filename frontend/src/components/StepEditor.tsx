@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { InlineStepEditor, StepData } from './InlineStepEditor'
 import { api, API_ENDPOINTS } from '../config/api'
-import { getStart, getEnd, getDuration, toMmSs } from '../utils/timeUtils'
+import { getStart, getEnd, getDuration, toMmSs } from '@utils/timeUtils'
 
 interface Step {
   id: string

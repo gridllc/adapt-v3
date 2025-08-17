@@ -2,7 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Play, Bot, Zap, Users, CheckCircle, ArrowRight, Star, Clock, BookOpen } from 'lucide-react'
-import { Navbar } from '../components/Navbar'
+import { Navbar } from '@components/Navbar'
 
 export const HomePage: React.FC = () => {
   const clerkConfigured = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || import.meta.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)

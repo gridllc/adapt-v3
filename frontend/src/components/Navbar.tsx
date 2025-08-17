@@ -1,4 +1,5 @@
 // components/Navbar.tsx
+import React from "react";
 import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/clerk-react";
 import { Link } from "react-router-dom";
 
