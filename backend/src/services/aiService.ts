@@ -95,6 +95,17 @@ export async function chat(message: string, context: ChatContext): Promise<strin
 }
 
 /**
+ * Generate step-by-step guidance using shared learning
+ */
+export async function generateStepByStepGuidance(
+  request: string,
+  context: TrainingContext,
+  useSharedLearning: boolean = true
+) {
+  return await aiResponseGenerator.generateStepByStepGuidance(request, context, useSharedLearning)
+}
+
+/**
  * Process video with enhanced AI analysis
  */
 export async function processVideo(videoUrl: string) {
@@ -186,6 +197,7 @@ export const aiService = {
   generateSteps,
   generateContextualResponse,
   generateStepGuidance,
+  generateStepByStepGuidance,
   adaptContent,
   chat,
   processVideo,

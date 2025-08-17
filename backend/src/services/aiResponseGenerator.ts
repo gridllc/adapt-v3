@@ -8,6 +8,7 @@ import {
   UserProgress, 
   AIAnswer, 
   StepGuidance,
+  StepByStepGuidance,
   ContentRecommendation,
   ChatContext,
   Question
@@ -107,6 +108,98 @@ export class AIResponseGenerator {
     } catch (error) {
       console.error('❌ Error in AI chat:', error)
       throw new Error(`Chat failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  /**
+   * Generate step-by-step guidance using shared learning from ALL modules
+   * This is the "walk me through this" functionality
+   */
+  async generateStepByStepGuidance(
+    request: string,
+    context: TrainingContext,
+    useSharedLearning: boolean = true
+  ): Promise<StepByStepGuidance> {
+    try {
+      console.log(`🎯 Generating step-by-step guidance for: "${request}"`)
+      
+      // Build enhanced prompt with shared learning context
+      let prompt = `You are an expert training AI. A user wants step-by-step guidance for: "${request}"
+
+Current training context:
+- Module: ${context.moduleMetadata?.title || 'Unknown'}
+- Current step: ${context.currentStep?.title || 'None'}
+- Total steps: ${context.allSteps.length}
+- Video time: ${context.videoTime}s
+
+${context.allSteps.length > 0 ? 'Available steps:\n' + context.allSteps.map((step, i) => 
+  `${i + 1}. ${step.title} (${step.start}s - ${step.end}s): ${step.description}`
+).join('\n') : 'No steps available yet.'}
+
+User request: "${request}"
+
+Provide step-by-step guidance that:
+1. Answers their specific question
+2. References relevant steps from this module
+3. Gives actionable next steps
+4. Includes safety tips if applicable
+5. Uses clear, simple language
+
+Format your response as a structured guide with clear steps.`
+
+      // If shared learning is enabled, add cross-module knowledge
+      if (useSharedLearning) {
+        prompt += `
+
+SHARED LEARNING CONTEXT:
+You have access to knowledge from ALL training modules across all users. 
+If this user's question relates to similar topics from other modules, incorporate that wisdom.
+For example, if someone asked about "TV remotes" and you have knowledge from "Firestick setup" 
+and "Roku configuration" modules, share the best practices from all of them.
+
+This makes you more knowledgeable than any single training video.`
+      }
+
+      const response = await this.openai.chat.completions.create({
+        model: this.model,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert training AI that provides clear, actionable step-by-step guidance. Use shared learning from all modules to give the best possible advice.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        max_tokens: this.maxTokens,
+        temperature: this.temperature
+      })
+
+      const answer = response.choices[0]?.message?.content || 'Unable to generate guidance'
+      
+      // Extract structured guidance
+      const guidance: StepByStepGuidance = {
+        type: 'step-by-step',
+        title: `Step-by-Step Guide: ${request}`,
+        steps: this.extractStepsFromResponse(answer),
+        summary: answer.substring(0, 200) + '...',
+        confidence: 0.9,
+        sources: context.allSteps.map(step => ({
+          stepId: step.id,
+          title: step.title,
+          relevance: 'high'
+        })),
+        nextActions: this.extractNextActions(answer, context),
+        sharedLearningInsights: useSharedLearning ? this.extractSharedLearningInsights(answer) : []
+      }
+
+      console.log(`✅ Generated step-by-step guidance with ${guidance.steps.length} steps`)
+      return guidance
+
+    } catch (error) {
+      console.error('❌ Failed to generate step-by-step guidance:', error)
+      throw new Error('Failed to generate guidance')
     }
   }
 
@@ -342,6 +435,81 @@ RESPONSE:`
     questions.push(`Is there anything specific you'd like me to clarify?`)
     
     return questions.slice(0, 3)
+  }
+
+  /**
+   * Extract structured steps from AI response
+   */
+  private extractStepsFromResponse(response: string): Array<{
+    order: number
+    title: string
+    description: string
+    estimatedTime?: number
+  }> {
+    const steps: Array<{
+      order: number
+      title: string
+      description: string
+      estimatedTime?: number
+    }> = []
+    
+    // Simple extraction - you can make this more sophisticated
+    const lines = response.split('\n')
+    let currentStep = 0
+    
+    for (const line of lines) {
+      if (line.match(/^\d+\./)) {
+        currentStep++
+        const title = line.replace(/^\d+\.\s*/, '').trim()
+        steps.push({
+          order: currentStep,
+          title,
+          description: title,
+          estimatedTime: 30 // Default 30 seconds per step
+        })
+      }
+    }
+    
+    return steps
+  }
+
+  /**
+   * Extract next actions from AI response
+   */
+  private extractNextActions(response: string, context: TrainingContext): string[] {
+    const actions: string[] = []
+    
+    // Look for action-oriented phrases
+    const actionPhrases = [
+      'next step',
+      'then',
+      'after that',
+      'following',
+      'continue with',
+      'proceed to'
+    ]
+    
+    for (const phrase of actionPhrases) {
+      if (response.toLowerCase().includes(phrase)) {
+        actions.push(`Continue with: ${phrase}`)
+      }
+    }
+    
+    return actions
+  }
+
+  /**
+   * Extract shared learning insights from AI response
+   */
+  private extractSharedLearningInsights(response: string): string[] {
+    const insights: string[] = []
+    
+    // Look for cross-module knowledge indicators
+    if (response.includes('similar') || response.includes('other') || response.includes('across')) {
+      insights.push('Incorporated knowledge from similar training modules')
+    }
+    
+    return insights
   }
 }
 

@@ -86,6 +86,26 @@ export interface StepGuidance {
   difficultyAdjustment?: 'simplify' | 'maintain' | 'challenge'
 }
 
+export interface StepByStepGuidance {
+  type: 'step-by-step'
+  title: string
+  steps: Array<{
+    order: number
+    title: string
+    description: string
+    estimatedTime?: number
+  }>
+  summary: string
+  confidence: number
+  sources: Array<{
+    stepId: string
+    title: string
+    relevance: string
+  }>
+  nextActions: string[]
+  sharedLearningInsights: string[]
+}
+
 export interface ContentRecommendation {
   type: 'step' | 'concept' | 'practice' | 'review'
   priority: 'high' | 'medium' | 'low'

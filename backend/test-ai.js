@@ -1,18 +1,22 @@
-// Quick AI Core Test Script
-// Test the contextual AI responses with existing training content
+// Dynamic AI Core Test Script
+// Tests AI responses that work with ANY video content
 
 const testAI = async () => {
-  console.log('🧪 Testing AI Core with your existing training content...\n')
+  console.log('🧪 Testing AI Core with dynamic, content-agnostic questions...\n')
   
-  const testQuestions = [
-    "How do I enter the house safely?",
-    "What should I do when getting the remote?",
-    "I'm at the lights step, what's next?",
+  // These questions work with ANY training video
+  const universalQuestions = [
+    "What is the first step I should take?",
     "Can you explain the overall process?",
-    "What are the key safety considerations?"
+    "What should I do next?",
+    "Are there any safety considerations?",
+    "What's the most important thing to remember?",
+    "Can you break this down into simpler steps?",
+    "What mistakes should I avoid?",
+    "How do I know when I'm doing this correctly?"
   ]
   
-  for (const question of testQuestions) {
+  for (const question of universalQuestions) {
     console.log(`🤖 Question: "${question}"`)
     
     try {

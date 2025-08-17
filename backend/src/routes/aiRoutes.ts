@@ -98,13 +98,13 @@ router.post('/contextual-response', async (req: any, res: any) => {
     console.error('❌ Contextual AI response error:', error)
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to generate AI response' 
+      error: 'Failed to generate AI response'
     })
   }
 })
 
 /**
- * Simple AI ask endpoint for the frontend useModuleAsk hook
+ * AI Ask endpoint - matches frontend expectation
  */
 router.post('/ask', async (req: any, res: any) => {
   try {
@@ -117,13 +117,10 @@ router.post('/ask', async (req: any, res: any) => {
       })
     }
 
-    console.log(`🤖 AI ask request for module ${moduleId}`)
+    console.log(`🤖 AI Ask request for module ${moduleId}`)
     console.log(`📝 Question: "${question}"`)
 
-    // Get user ID from request
-    const userId = await UserService.getUserIdFromRequest(req)
-
-    // Get module and steps for context
+    // Get module data to provide context
     const module = await DatabaseService.getModule(moduleId)
     if (!module) {
       return res.status(404).json({ 
@@ -134,7 +131,7 @@ router.post('/ask', async (req: any, res: any) => {
 
     // Get steps from the module data or create a mock steps array
     const steps = module.steps || []
-    
+
     // Map database steps to training step format
     const trainingSteps = steps.map(dbStep => ({
       id: dbStep.id,
@@ -149,8 +146,9 @@ router.post('/ask', async (req: any, res: any) => {
       aiRewrite: undefined,
       stepText: dbStep.text
     }))
-    
+
     // Generate contextual response using the enhanced AI service with Shared Learning System
+    const userId = await UserService.getUserIdFromRequest(req)
     const aiResponse = await aiService.generateContextualResponse(
       question,
       {
@@ -164,20 +162,21 @@ router.post('/ask', async (req: any, res: any) => {
 
     console.log(`✅ AI response generated: ${aiResponse.answer.substring(0, 100)}...`)
 
-    // Log activity with basic information
+    // Log activity
     try {
       await DatabaseService.createActivityLog?.({
         userId: userId || undefined,
-        action: 'AI_ASK',
+        action: 'AI_QUESTION',
         targetId: moduleId,
         metadata: {
           questionLength: question.length,
-          answerLength: aiResponse.answer.length
+          answerLength: aiResponse.answer.length,
+          question,
+          answer: aiResponse.answer.substring(0, 100)
         }
       })
     } catch (logError) {
       console.warn('⚠️ Failed to log activity:', logError)
-      // Don't fail the request if logging fails
     }
 
     res.json({ 
@@ -185,13 +184,14 @@ router.post('/ask', async (req: any, res: any) => {
       answer: aiResponse.answer,
       reused: false,
       similarity: null,
-      questionId: null
+      questionId: null,
+      source: 'ai'
     })
   } catch (error) {
-    console.error('❌ AI ask error:', error)
+    console.error('❌ AI Ask error:', error)
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to generate AI response' 
+      error: 'Failed to generate AI response'
     })
   }
 })
