@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { aiService } from '../services/aiService.js'
+import { generateStepsFromVideo } from '../services/ai/index.js'
 
 export const aiController = {
   async chat(req: Request, res: Response) {
@@ -21,13 +22,13 @@ export const aiController = {
 
   async processVideo(req: Request, res: Response) {
     try {
-      const { videoUrl } = req.body
+      const { moduleId } = req.body
       
-      if (!videoUrl) {
-        return res.status(400).json({ error: 'Video URL is required' })
+      if (!moduleId) {
+        return res.status(400).json({ error: 'Module ID is required' })
       }
 
-      const result = await aiService.processVideo(videoUrl)
+      const result = await generateStepsFromVideo(moduleId)
       
       res.json(result)
     } catch (error) {

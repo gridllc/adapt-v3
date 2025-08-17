@@ -1,7 +1,7 @@
 // backend/src/routes/workerRoutes.ts
 import { Router } from 'express';
 import { updateModule, getModule } from '../services/moduleService';
-import { transcribeFromS3, generateSteps } from '../services/aiService';
+import { transcribeAudio, generateVideoSteps } from '../services/ai/index.js';
 import { putJson } from '../services/storageService';
 import { logger } from '../utils/logger';
 
@@ -26,8 +26,15 @@ router.post('/jobs/processVideo', async (req, res) => {
 
     await updateModule(moduleId, { status: 'PROCESSING' });
 
-    const transcript = await transcribeFromS3(videoKey);
-    const steps = await generateSteps(transcript);
+    // transcribeAudio expects (audioPath, moduleId) - we need to convert videoKey to audio path
+    // generateVideoSteps expects (transcript, segments, metadata, moduleId)
+    const transcript = await transcribeAudio(videoKey, moduleId);
+    const steps = await generateVideoSteps(
+      transcript.text, 
+      transcript.segments, 
+      { duration: 0 }, // TODO: Get actual video duration
+      moduleId
+    );
 
     const stepsKey = `training/${moduleId}.json`;
     await putJson(stepsKey, steps);

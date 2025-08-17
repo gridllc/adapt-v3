@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { logger } from "@utils/logger";
-import { Navbar } from "@components/Navbar";
+import { Navbar } from "@/components/Navbar";
 import { ChatTutor } from "@components/chat/ChatTutor";
 import { useMic } from "@hooks/useMic";
 

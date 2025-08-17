@@ -8,7 +8,6 @@ const router = Router()
 // TODO: replace with your actual services
 import { prisma } from '../config/database.js'
 import { storageService } from '../services/storageService.js' // must expose headObject(key) & getSignedUrl(key)
-import { aiService } from '../services/aiService.js'           // must expose getSteps(moduleId) and getJobStatus(moduleId)
 
 router.get('/module/:id', async (req, res) => {
   const traceId = crypto.randomBytes(6).toString('hex')
@@ -20,7 +19,10 @@ router.get('/module/:id', async (req, res) => {
     log('start', { moduleId: id })
 
     // 1) DB lookup
-    const moduleRec = await prisma.module.findUnique({ where: { id } })
+    const moduleRec = await prisma.module.findUnique({ 
+      where: { id },
+      include: { steps: true }
+    })
     if (!moduleRec) return res.status(404).json({ ok: false, traceId, step: 'db', error: 'Module not found' })
     log('db.ok', { s3Key: moduleRec.videoUrl, status: moduleRec.status })
 
@@ -38,13 +40,16 @@ router.get('/module/:id', async (req, res) => {
     const rangeOK = rangeResp.status === 206 || rangeResp.status === 200
     log('s3.range', { status: rangeResp.status, rangeOK })
 
-    // 5) Steps existence
-    const steps = await aiService.getSteps(id) // return [] if none
+    // 5) Steps existence - check if steps exist in the module
+    const steps = moduleRec.steps || []
     log('steps.ok', { count: steps?.length ?? 0 })
 
-    // 6) Job status (QStash/queue/worker)
-    const job = await aiService.getJobStatus?.(id).catch(() => null)
-    log('job.status', job || { job: 'unknown' })
+    // 6) Job status - module status indicates processing state
+    const jobStatus = {
+      status: moduleRec.status,
+      processing: moduleRec.status === 'PROCESSING'
+    }
+    log('job.status', jobStatus)
 
     return res.json({
       ok: true,
@@ -59,7 +64,7 @@ router.get('/module/:id', async (req, res) => {
       },
       s3: { rangeOK, headOk: true },
       steps: { count: steps?.length ?? 0 },
-      job: job || null
+      job: jobStatus
     })
   } catch (err: any) {
     console.error('[DEBUG ERROR]', err)

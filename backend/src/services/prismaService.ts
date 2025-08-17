@@ -183,6 +183,49 @@ export const DatabaseService = {
     }
   },
 
+  // Add missing methods for Q&A logging
+  async createQuestion(data: {
+    moduleId: string;
+    stepId?: string;
+    question: string;
+    answer: string;
+    videoTime?: number;
+    userId?: string;
+  }) {
+    try {
+      return await prisma.question.create({
+        data: {
+          moduleId: data.moduleId,
+          stepId: data.stepId,
+          question: data.question,
+          answer: data.answer,
+          videoTime: data.videoTime,
+          userId: data.userId,
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to create question:', error);
+      throw error;
+    }
+  },
+
+  async createQuestionVector(data: {
+    questionId: string;
+    embedding: number[];
+  }) {
+    try {
+      return await prisma.questionVector.create({
+        data: {
+          questionId: data.questionId,
+          embedding: data.embedding,
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to create question vector:', error);
+      throw error;
+    }
+  },
+
   async toggleFAQ(questionId: string) {
     try {
       // Return mock response for now
@@ -250,7 +293,7 @@ export const DatabaseService = {
       logger.error('❌ Failed to save user progress:', error);
       throw error;
     }
-  }
+  },
 
   async getUserProgress(userId: string, moduleId: string) {
     try {
@@ -282,7 +325,7 @@ export const DatabaseService = {
         difficultyLevel: 'beginner' as const
       };
     }
-  }
+  },
 
   async updateQuestionsAsked(userId: string, moduleId: string, count: number = 1) {
     try {
@@ -304,7 +347,7 @@ export const DatabaseService = {
     } catch (error) {
       logger.error('❌ Failed to update questions asked count:', error);
     }
-  }
+  },
 
 };
 

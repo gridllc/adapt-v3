@@ -1,13 +1,12 @@
-import express, { Request, Response } from 'express'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { Router, Request, Response } from 'express'
 import fs from 'fs'
-import { aiService } from '../services/aiService.js'
+import path from 'path'
+import { generateStepsFromVideo } from '../services/ai/index.js'
 import { transcribeS3Video } from '../services/transcriptionService.js'
 
-const router = express.Router()
+const router = Router()
 
-const __filename = fileURLToPath(import.meta.url)
+const __filename = import.meta.url
 const __dirname = path.dirname(__filename)
 
 const isProduction = process.env.NODE_ENV === 'production'
@@ -43,14 +42,9 @@ router.post('/:moduleId', async (req: Request, res: Response) => {
     // Trigger the AI processing
     console.log('🤖 Starting AI processing for reprocess...')
     
-    // Process with AI
-    const videoUrl = `http://localhost:8000/uploads/${moduleId}.mp4`
-    await aiService.processVideo(videoUrl)
+    // Process with AI pipeline
+    await generateStepsFromVideo(moduleId, { force: true })
     console.log('✅ AI processing completed')
-    
-    // Generate steps
-    await aiService.generateStepsForModule(moduleId, videoUrl)
-    console.log('✅ Steps generation completed')
     
     // Start transcription in background
     transcribeS3Video(moduleId, `${moduleId}.mp4`)

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api, API_ENDPOINTS } from '../config/api';
 import { EditableStep } from '@components/EditableStep';
 import { logger } from '@utils/logger';
-import { Navbar } from '@components/Navbar';
+import { Navbar } from '@/components/Navbar';
 
 interface Step {
   id: string;
