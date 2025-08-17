@@ -11,11 +11,20 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const [audioChunks, setAudioChunks] = useState<Blob[]>([])
   const [isRecording, setIsRecording] = useState(false)
-  const { answer, source, loading, error, reused, similarity, ask } = useModuleAsk()
+  const { lastAnswer, isLoading, error, askQuestion } = useModuleAsk()
 
-  const askQuestion = async () => {
+  const askQuestionHandler = async () => {
     if (!question.trim()) return
-    await ask(moduleId, question)
+    
+    // Create the training context
+    const context = {
+      moduleId,
+      allSteps: [], // This would need to be populated from module data
+      videoTime: 0, // This would need to be populated from video player
+      currentStep: undefined
+    }
+    
+    await askQuestion({ moduleId, question }, context)
   }
 
   const startRecording = async () => {
@@ -67,11 +76,11 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
       const { transcript } = await response.json()
       console.log('📝 Transcription received:', transcript)
       
-      if (transcript) {
-        setQuestion(transcript)
-        // Optionally auto-send the transcribed question
-        // await ask(moduleId, transcript)
-      }
+              if (transcript) {
+          setQuestion(transcript)
+          // Optionally auto-send the transcribed question
+          // await askQuestionHandler()
+        }
     } catch (error) {
       console.error('❌ Transcription error:', error)
       alert('Failed to transcribe audio. Please try again.')
@@ -94,7 +103,7 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
         />
         <button
           onClick={isRecording ? stopRecording : startRecording}
-          disabled={loading}
+          disabled={isLoading}
           className={`px-4 py-2 rounded-lg transition-colors ${
             isRecording 
               ? 'bg-red-600 text-white hover:bg-red-700' 
@@ -105,24 +114,25 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
           {isRecording ? '⏹️' : '🎙️'}
         </button>
         <button
-          onClick={askQuestion}
-          disabled={loading}
+          onClick={askQuestionHandler}
+          disabled={isLoading}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
         >
-          {loading ? 'Thinking...' : 'Ask'}
+          {isLoading ? 'Thinking...' : 'Ask'}
         </button>
       </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      {answer && (
+      {lastAnswer && (
         <div className="bg-gray-100 p-3 rounded-lg text-gray-800">
-          <p className="whitespace-pre-wrap">{answer}</p>
+          <p className="whitespace-pre-wrap">{lastAnswer.answer}</p>
           <div className="mt-2 text-xs text-gray-500 space-y-1">
-            <p>Answered by: {source?.toUpperCase()}</p>
-            {reused && (
-              <p className="text-green-600">
-                ♻️ Reused from shared memory ({(similarity * 100).toFixed(1)}% match)
-              </p>
+            <p>Confidence: {(lastAnswer.confidence * 100).toFixed(1)}%</p>
+            {lastAnswer.sources.length > 0 && (
+              <p>Sources: {lastAnswer.sources.join(', ')}</p>
+            )}
+            {lastAnswer.relatedSteps.length > 0 && (
+              <p>Related steps: {lastAnswer.relatedSteps.length}</p>
             )}
           </div>
           
@@ -131,7 +141,7 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
             <AISuggestionFeedback 
               moduleId={moduleId}
               userMessage={question}
-              aiResponse={answer}
+              aiResponse={lastAnswer.answer}
               context="AI tutor response"
               className="text-xs"
             />
