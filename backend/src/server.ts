@@ -179,7 +179,7 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
 // -------------------------------------------------------------------------------------
 // BOOT
 // -------------------------------------------------------------------------------------
-const PORT = Number(process.env.PORT || 8000);
+const PORT = Number(process.env.PORT || 3001);
 app.listen(PORT, () => {
   logger.info({ port: PORT, env: process.env.NODE_ENV }, 'server started');
 });
