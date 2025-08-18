@@ -1,7 +1,7 @@
 // frontend/src/components/upload/UploadManager.tsx
 import React, { useState } from "react"
 import { useUploadStore } from "../../stores/uploadStore"
-import { uploadFileWithProgress } from "../../utils/uploadFileWithProgress"
+
 import { useNavigate } from "react-router-dom"
 
 export const UploadManager: React.FC = () => {
@@ -19,29 +19,26 @@ export const UploadManager: React.FC = () => {
     const uploadId = addUpload(file)
 
     try {
-      // request presigned URL from backend
-      const res = await fetch("/api/upload/init", {
+      // Create FormData for multipart upload
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Upload file directly to backend
+      const res = await fetch("/api/upload", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, type: file.type }),
+        body: formData,
       })
-      if (!res.ok) throw new Error("Failed to init upload")
-      const { url, moduleId } = await res.json()
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        throw new Error(errorData.message || `Upload failed with status ${res.status}`)
+      }
+      
+      const result = await res.json()
+      const { moduleId } = result
 
-      // do actual upload
-      await uploadFileWithProgress(
-        file,
-        (pct) => updateProgress(uploadId, pct),
-        { url }
-      )
-
-      // notify backend processing
-      await fetch("/api/upload/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ moduleId, filename: file.name }),
-      })
-
+      // Update progress to 100% since upload is complete
+      updateProgress(uploadId, 100)
       markSuccess(uploadId, moduleId)
 
       // redirect to training page once done
