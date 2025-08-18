@@ -2,7 +2,7 @@
 import express from 'express'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { ModuleService } from '../services/moduleService.js'
-import { logger } from '../utils/logger.js'
+import { log } from '../utils/logger.js'
 
 const router = express.Router()
 
@@ -11,20 +11,20 @@ router.post('/process', async (req, res) => {
   const { moduleId } = req.body
 
   if (!moduleId) {
-    logger.error('❌ Missing moduleId in worker request', req.body)
+    log.error('❌ Missing moduleId in worker request', req.body)
     return res.status(400).json({ error: 'Missing moduleId' })
   }
 
   try {
-    logger.info(`🧵 [${moduleId}] Worker started`)
+    log.info(`🧵 [${moduleId}] Worker started`)
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
 
     await startProcessing(moduleId)
 
-    logger.info(`✅ [${moduleId}] Worker finished`)
+    log.info(`✅ [${moduleId}] Worker finished`)
     return res.status(200).json({ ok: true })
   } catch (err: any) {
-    logger.error(`❌ Worker error for ${moduleId}:`, err)
+    log.error(`❌ Worker error for ${moduleId}:`, err)
     try {
       await ModuleService.updateModuleStatus(
         moduleId,
@@ -33,7 +33,7 @@ router.post('/process', async (req, res) => {
         err?.message || 'processing failed'
       )
     } catch (statusErr) {
-      logger.error(`⚠️ Failed to update status for ${moduleId}:`, statusErr)
+      log.error(`⚠️ Failed to update status for ${moduleId}:`, statusErr)
     }
     return res.status(500).json({ error: 'processing failed' })
   }
@@ -48,15 +48,15 @@ router.post('/process/:moduleId', async (req, res) => {
 
   const { moduleId } = req.params
   try {
-    logger.info(`🧵 Legacy worker start for ${moduleId}`)
+    log.info(`🧵 Legacy worker start for ${moduleId}`)
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
 
     await startProcessing(moduleId)
 
-    logger.info(`✅ Legacy worker finished for ${moduleId}`)
+    log.info(`✅ Legacy worker finished for ${moduleId}`)
     return res.json({ ok: true })
   } catch (err: any) {
-    logger.error(`❌ Legacy worker error for ${moduleId}:`, err)
+    log.error(`❌ Legacy worker error for ${moduleId}:`, err)
     try {
       await ModuleService.updateModuleStatus(
         moduleId,
@@ -65,7 +65,7 @@ router.post('/process/:moduleId', async (req, res) => {
         err?.message || 'processing failed'
       )
     } catch (statusErr) {
-      logger.error(`⚠️ Failed to update status for ${moduleId}:`, statusErr)
+      log.error(`⚠️ Failed to update status for ${moduleId}:`, statusErr)
     }
     return res.status(500).json({ error: 'processing failed' })
   }

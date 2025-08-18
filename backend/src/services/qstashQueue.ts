@@ -1,7 +1,7 @@
 // backend/src/services/qstashQueue.ts
 import { startProcessing } from './ai/aiPipeline.js'
 import { Client } from '@upstash/qstash'
-import { logger } from '../utils/logger.js'
+import { log } from '../utils/logger.js'
 
 // QStash configuration
 const QSTASH_ENABLED = (process.env.QSTASH_ENABLED || '').toLowerCase() === 'true'
@@ -27,23 +27,23 @@ export async function enqueueProcessModule(moduleId: string): Promise<string | n
   }
 
   if (!qstash) {
-    logger.warn('⚠️ QStash client not configured, falling back to direct processing')
+    log.warn('⚠️ QStash client not configured, falling back to direct processing')
     return null
   }
 
   try {
     const targetUrl = `${BACKEND_URL}/api/worker/process`
-    logger.info('📬 Publishing to QStash V2', { moduleId, targetUrl })
+    log.info('📬 Publishing to QStash V2', { moduleId, targetUrl })
 
     const result = await qstash.publishJSON({
       url: targetUrl,
       body: { moduleId },
     })
 
-    logger.info('✅ QStash V2 publish successful', { messageId: result.messageId, moduleId })
+    log.info('✅ QStash V2 publish successful', { messageId: result.messageId, moduleId })
     return result.messageId ?? null
   } catch (error) {
-    logger.error('❌ Failed to enqueue via QStash V2', error)
+    log.error('❌ Failed to enqueue via QStash V2', error)
     throw error
   }
 }
@@ -52,6 +52,6 @@ export async function enqueueProcessModule(moduleId: string): Promise<string | n
  * Process a module directly (fallback when QStash is not available)
  */
 export async function processModuleDirectly(moduleId: string): Promise<void> {
-  logger.info('🔄 Processing module directly', { moduleId })
+  log.info('🔄 Processing module directly', { moduleId })
   await startProcessing(moduleId)
 }

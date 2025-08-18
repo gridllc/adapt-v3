@@ -5,24 +5,24 @@ import { ModuleService } from '../services/moduleService.js'
 import { storageService } from '../services/storageService.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { enqueueProcessModule, isEnabled } from '../services/qstashQueue.js'
-import { logger } from '../utils/logger.js'
+import { log } from '../utils/logger.js'
 
 // Decide between QStash enqueue or inline processing
 async function queueOrInline(moduleId: string) {
   try {
     if (isEnabled()) {
       const jobId = await enqueueProcessModule(moduleId)
-      logger.info('📬 Enqueued processing job', { moduleId, jobId })
+      log.info('📬 Enqueued processing job', { moduleId, jobId })
     } else {
-      logger.info('⚙️ QStash disabled, running inline processing', { moduleId })
+      log.info('⚙️ QStash disabled, running inline processing', { moduleId })
       await startProcessing(moduleId)
     }
   } catch (err: any) {
     if (err?.message === 'QSTASH_DISABLED') {
-      logger.warn('📬 QStash disabled, falling back to inline processing', { moduleId })
+      log.warn('📬 QStash disabled, falling back to inline processing', { moduleId })
       await startProcessing(moduleId)
     } else {
-      logger.error('Processing error', err)
+      log.error('Processing error', err)
       throw err
     }
   }
@@ -32,12 +32,12 @@ export const uploadController = {
   async uploadVideo(req: Request, res: Response) {
     try {
       if (!req.file) {
-        logger.error('❌ No file in request')
+        log.error('❌ No file in request')
         return res.status(400).json({ error: 'No file uploaded' })
       }
 
       const file = req.file
-      logger.info('📦 File received', {
+      log.info('📦 File received', {
         name: file.originalname,
         size: file.size,
         type: file.mimetype
@@ -65,11 +65,11 @@ export const uploadController = {
       const s3Key = `videos/${moduleId}.mp4`
       const stepsKey = `training/${moduleId}.json`
 
-      logger.info('🔑 Generated canonical keys', { moduleId, s3Key, stepsKey })
+      log.info('🔑 Generated canonical keys', { moduleId, s3Key, stepsKey })
 
       // Upload to S3
       const videoUrl = await storageService.uploadVideoWithKey(file, s3Key)
-      logger.info('✅ Video uploaded', { videoUrl })
+      log.info('✅ Video uploaded', { videoUrl })
 
       // Save module record
       const userId = (req as any).userId
@@ -84,7 +84,7 @@ export const uploadController = {
       }
 
       const savedModuleId = await storageService.saveModule(moduleData, userId)
-      logger.info('✅ Module saved', { savedModuleId, userId })
+      log.info('✅ Module saved', { savedModuleId, userId })
 
       // Respond immediately
       res.json({
@@ -101,11 +101,11 @@ export const uploadController = {
         try {
           await queueOrInline(savedModuleId)
         } catch (err) {
-          logger.error('❌ Failed to enqueue or process module', { moduleId: savedModuleId, err })
+          log.error('❌ Failed to enqueue or process module', { moduleId: savedModuleId, err })
         }
       })
     } catch (error: any) {
-      logger.error('💥 Upload controller error', error)
+      log.error('💥 Upload controller error', error)
       res.status(500).json({
         error: 'Upload failed',
         message: error?.message || 'Unknown error',
