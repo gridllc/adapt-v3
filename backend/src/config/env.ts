@@ -43,7 +43,7 @@ const envSchema = z.object({
   
   // Authentication (Critical)
   CLERK_SECRET_KEY: z.string().min(1, 'CLERK_SECRET_KEY is required'),
-  FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
   
   // Security & Access Control
   ALLOWED_EMAILS: z.string().optional(), // Comma-separated list for friends & family beta
@@ -122,7 +122,7 @@ try {
       QSTASH_TOKEN: process.env.QSTASH_TOKEN || '',
       QSTASH_ENDPOINT: process.env.QSTASH_ENDPOINT || 'https://qstash.upstash.io/v1/publish',
       CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY || '',
-      FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+      FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
       MAX_FILE_SIZE: 104857600,
       ALLOWED_VIDEO_TYPES: 'video/mp4,video/mov,video/webm,video/avi,video/wmv,video/flv',
       UPLOAD_TIMEOUT: 300000,

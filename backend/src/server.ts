@@ -40,7 +40,6 @@ app.use(
 
 // CORS (tight allowlist + env override)
 const defaultAllowed = [
-  'http://localhost:3000',
   'http://localhost:5173',
   'https://adapt-v3.vercel.app',
   'https://adaptord.com',

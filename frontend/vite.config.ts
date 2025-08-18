@@ -22,6 +22,8 @@ export default defineConfig({
     'process.env': {},
   },
   server: {
+    port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
@@ -34,6 +36,10 @@ export default defineConfig({
         secure: false,
       },
     },
+  },
+  preview: { 
+    port: 4173, 
+    strictPort: true 
   },
   build: {
     outDir: 'dist',
