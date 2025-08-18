@@ -23,7 +23,47 @@ function isSignatureValid(req: express.Request): boolean {
   return signature === expected
 }
 
-// Main worker endpoint for processing modules
+// Main worker endpoint for processing modules (QStash V2)
+router.post('/process', async (req, res) => {
+  try {
+    console.log('📥 QStash V2 worker received request:', req.body)
+    
+    // Verify QStash signature for security
+    if (!isSignatureValid(req)) {
+      console.warn('🔒 Invalid QStash signature')
+      return res.status(401).send('Invalid signature')
+    }
+    
+    const { moduleId } = req.body
+    
+    if (!moduleId) {
+      console.error('❌ Missing moduleId:', req.body)
+      return res.status(400).json({ 
+        error: 'Missing moduleId',
+        required: ['moduleId'],
+        received: Object.keys(req.body)
+      })
+    }
+    
+    console.log(`🧵 [${moduleId}] Worker start`)
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
+    await startProcessing(moduleId)
+    console.log(`✅ [${moduleId}] Worker done`)
+    
+    // Return simple OK response as QStash expects
+    res.status(200).send('OK')
+    
+  } catch (err: any) {
+    console.error('❌ Worker process error:', err)
+    const moduleId = req.body?.moduleId
+    if (moduleId) {
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, err?.message || 'processing failed')
+    }
+    return res.status(500).json({ error: 'processing failed' })
+  }
+})
+
+// Legacy endpoint for backward compatibility
 router.post('/process/:moduleId', async (req, res) => {
   if (JOB_SECRET && req.get('x-job-secret') !== JOB_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' })
@@ -31,13 +71,13 @@ router.post('/process/:moduleId', async (req, res) => {
   const { moduleId } = req.params
 
   try {
-    console.log('🧵 Worker start', { moduleId })
+    console.log('🧵 Legacy worker start', { moduleId })
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
     await startProcessing(moduleId)
-    console.log('🧵 Worker done', { moduleId })
+    console.log('🧵 Legacy worker done', { moduleId })
     return res.json({ ok: true })
   } catch (err: any) {
-    console.error('Worker process error:', err)
+    console.error('Legacy worker process error:', err)
     await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, err?.message || 'processing failed')
     return res.status(500).json({ error: 'processing failed' })
   }
