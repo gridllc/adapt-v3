@@ -1,4 +1,6 @@
 // frontend/src/components/upload/UploadManager.tsx
+console.log('🚨 LOADING UPLOADMANAGERNEW - TIMESTAMP:', new Date().toISOString())
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUploadStore } from '@stores/uploadStore';
