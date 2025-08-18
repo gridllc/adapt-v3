@@ -29,11 +29,11 @@ export const UploadManager: React.FC = () => {
             const { url, moduleId } = await res.json()
 
             // do actual upload
-            await uploadFileWithProgress({
+            await uploadFileWithProgress(
                 file,
-                url,
-                onProgress: (pct) => updateProgress(uploadId, pct),
-            })
+                (pct) => updateProgress(uploadId, pct),
+                { url }
+            )
 
             // notify backend processing
             await fetch("/api/upload/complete", {
