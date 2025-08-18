@@ -5,7 +5,6 @@ import { Client } from '@upstash/qstash'
 const QSTASH_ENABLED = (process.env.QSTASH_ENABLED || '').toLowerCase() === 'true'
 const QSTASH_TOKEN = process.env.QSTASH_TOKEN
 const BACKEND_URL = process.env.BACKEND_ORIGIN || 'http://localhost:3000'
-const WORKER_JOB_SECRET = process.env.WORKER_JOB_SECRET
 
 // Initialize QStash V2 client
 const qstash = QSTASH_ENABLED && QSTASH_TOKEN ? new Client({ token: QSTASH_TOKEN! }) : null
