@@ -1,8 +1,8 @@
 // frontend/pages/UploadPage.tsx
 import React from 'react'
 import { useAuth, SignInButton } from '@clerk/clerk-react'
-import { UploadManager } from '../components/upload/UploadManager'
-import { Navbar } from '../components/Navbar'
+import { UploadManager } from '@components/upload/UploadManager'
+import { Navbar } from '@components/Navbar'
 
 export const UploadPage: React.FC = () => {
   const { isSignedIn, isLoaded } = useAuth()
