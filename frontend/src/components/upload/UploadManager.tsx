@@ -1,7 +1,7 @@
 // frontend/src/components/upload/UploadManager.tsx
 import React, { useState } from "react"
-import { useUploadStore } from "../../stores/uploadStore"
-import { uploadFileWithProgress } from "../../utils/uploadFileWithProgress"
+import { useUploadStore } from "@stores/uploadStore"
+import { uploadFile } from "@utils/uploadClient"
 import { useNavigate } from "react-router-dom"
 
 export const UploadManager: React.FC = () => {
@@ -29,11 +29,7 @@ export const UploadManager: React.FC = () => {
       const { url, moduleId } = await res.json()
 
       // do actual upload
-      await uploadFileWithProgress({
-        file,
-        url,
-        onProgress: (pct) => updateProgress(uploadId, pct),
-      })
+      await uploadFile(file, (pct) => updateProgress(uploadId, pct))
 
       // notify backend processing
       await fetch("/api/upload/complete", {
