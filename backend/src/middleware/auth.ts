@@ -1,10 +1,12 @@
 import { Request, Response, NextFunction } from 'express'
 import { clerkClient } from '@clerk/clerk-sdk-node'
+import { prisma } from '../config/database.js'
 
 declare global {
   namespace Express {
     interface Request {
       userId?: string
+      clerkId?: string
     }
   }
 }
@@ -37,11 +39,28 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       })
     }
     
-    // Add userId to request for use in controllers
-    req.userId = payload.sub
+    // Get the database user ID from Clerk ID
+    const user = await prisma.user.findUnique({
+      where: { clerkId: payload.sub },
+      select: { id: true, email: true }
+    })
+    
+    if (!user) {
+      console.log('❌ User not found in database for Clerk ID:', payload.sub)
+      return res.status(401).json({ 
+        error: 'User not found',
+        message: 'Please sign up first'
+      })
+    }
+    
+    // Add both Clerk ID and database user ID to request
+    req.userId = user.id // Database user ID
+    req.clerkId = payload.sub // Clerk ID
     
     console.log('✅ Authenticated and allowed request:', {
-      userId: payload.sub,
+      clerkId: payload.sub,
+      userId: user.id,
+      email: user.email,
       path: req.path,
       method: req.method
     })
@@ -76,8 +95,19 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
       const payload = await clerkClient.verifyToken(token)
       
       if (payload && payload.sub) {
-        req.userId = payload.sub
-        console.log('🔑 Optional auth - user authenticated:', payload.sub)
+        // Get the database user ID from Clerk ID
+        const user = await prisma.user.findUnique({
+          where: { clerkId: payload.sub },
+          select: { id: true, email: true }
+        })
+        
+        if (user) {
+          req.userId = user.id // Database user ID
+          req.clerkId = payload.sub // Clerk ID
+          console.log('🔑 Optional auth - user authenticated:', user.email, '(DB ID:', user.id, ')')
+        } else {
+          console.log('🔓 Optional auth - user not found in database for Clerk ID:', payload.sub)
+        }
       } else {
         console.log('🔓 Optional auth - invalid token')
       }

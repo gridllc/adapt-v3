@@ -45,6 +45,7 @@
     "qrcode.react": "^4.2.0",
     "react-dropzone": "^14.3.8",
     "sharp": "^0.32.0",
+    "svix": "^1.73.0",
     "uuid": "^9.0.1",
     "whisper-node": "^0.1.5",
     "zod": "^3.25.76"

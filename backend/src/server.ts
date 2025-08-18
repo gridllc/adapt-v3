@@ -13,6 +13,13 @@ import { httpLogger, logger, isProduction, toSafeErr } from './utils/logger.js';
 // ROUTES WE'RE KEEPING
 import healthRoutes from './routes/healthRoutes.js';
 import { workerRoutes } from './routes/workerRoutes.js';
+import { moduleRoutes } from './routes/moduleRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+import { stepsRoutes } from './routes/stepsRoutes.js';
+import videoRoutes from './routes/videoRoutes.js';
+import { qaRoutes } from './routes/qaRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
+import clerkWebhookRoutes from './routes/clerkWebhookRoutes.js';
 
 // -------------------------------------------------------------------------------------
 // CONFIG
@@ -25,6 +32,9 @@ app.set('trust proxy', 1);
 // Strict JSON limits (uploads go direct-to-S3 with presigned URLs)
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+// Raw body parser for Clerk webhook only (needed for signature verification)
+app.use('/api/webhooks/clerk', express.raw({ type: 'application/json' }));
 
 // Compression
 app.use(compression());
@@ -116,7 +126,18 @@ app.use('/api', healthRoutes);
 // Background worker (QStash / internal)
 app.use('/api/worker', workerRoutes);
 
-// NOTE: DO NOT mount legacy/duplicate upload routes:
+// Main application routes
+app.use('/api/modules', moduleRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/steps', stepsRoutes);
+app.use('/api/video', videoRoutes);
+app.use('/api/qa', qaRoutes);
+app.use('/api/ai', aiRoutes);
+
+// Clerk webhook for user sync
+app.use('/api', clerkWebhookRoutes);
+
+
 // - enhancedUploadRoutes, multipartRoutes, legacy uploadController
 // We’re S3-direct only. Add only the presign + enqueue endpoints you keep.
 
