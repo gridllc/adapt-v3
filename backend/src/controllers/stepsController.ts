@@ -56,7 +56,18 @@ export const stepsController = {
     try {
       const { moduleId } = req.params;
       const { steps } = req.body;
-      logger.debug("CREATE STEPS", { moduleId, count: steps?.length });
+      const userId = req.userId!;
+      logger.debug("CREATE STEPS", { moduleId, count: steps?.length, userId });
+
+      // Check module ownership
+      const { ModuleService } = await import('../services/moduleService.js');
+      const module = await ModuleService.getModuleById(moduleId);
+      if (!module) {
+        return res.status(404).json({ error: "Module not found" });
+      }
+      if (module.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       await StepService.saveSteps(moduleId, steps);
       res.json({ success: true });
@@ -70,7 +81,18 @@ export const stepsController = {
     try {
       const { moduleId } = req.params;
       const { steps } = req.body;
-      logger.debug("UPDATE STEPS", { moduleId, count: steps?.length });
+      const userId = req.userId!;
+      logger.debug("UPDATE STEPS", { moduleId, count: steps?.length, userId });
+
+      // Check module ownership
+      const { ModuleService } = await import('../services/moduleService.js');
+      const module = await ModuleService.getModuleById(moduleId);
+      if (!module) {
+        return res.status(404).json({ error: "Module not found" });
+      }
+      if (module.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       await StepService.saveSteps(moduleId, steps);
       res.json({ success: true });
@@ -84,7 +106,18 @@ export const stepsController = {
     try {
       const { moduleId } = req.params;
       const { stepId, newText } = req.body;
-      logger.debug("REWRITE STEP", { moduleId, stepId });
+      const userId = req.userId!;
+      logger.debug("REWRITE STEP", { moduleId, stepId, userId });
+
+      // Check module ownership
+      const { ModuleService } = await import('../services/moduleService.js');
+      const module = await ModuleService.getModuleById(moduleId);
+      if (!module) {
+        return res.status(404).json({ error: "Module not found" });
+      }
+      if (module.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
 
       // For now, just return success - implement AI rewrite later
       res.json({ success: true, message: "Step rewrite not yet implemented" });

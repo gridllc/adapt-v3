@@ -1,16 +1,20 @@
 import express from 'express'
 import { DatabaseService } from '../services/prismaService.js'
 import { UserService } from '../services/userService.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
 // Get all questions for a module
-router.get('/:moduleId', async (req, res) => {
+router.get('/:moduleId', requireAuth, async (req, res) => {
   try {
     const { moduleId } = req.params
     const { includeFAQ = 'false' } = req.query
+    const userId = req.userId!
     
-    console.log(`📝 Getting questions for module: ${moduleId}`)
+    console.log(`📝 Getting questions for module: ${moduleId} for user: ${userId}`)
+    
+    // TODO: Add ownership check for module access
     
     const questions = await DatabaseService.getQuestions(
       moduleId, 
@@ -35,11 +39,14 @@ router.get('/:moduleId', async (req, res) => {
 })
 
 // Get FAQ for a module
-router.get('/:moduleId/faq', async (req, res) => {
+router.get('/:moduleId/faq', requireAuth, async (req, res) => {
   try {
     const { moduleId } = req.params
+    const userId = req.userId!
     
-    console.log(`📝 Getting FAQ for module: ${moduleId}`)
+    console.log(`📝 Getting FAQ for module: ${moduleId} for user: ${userId}`)
+    
+    // TODO: Add ownership check for module access
     
     const faq = await DatabaseService.getFAQ(moduleId)
     
@@ -92,16 +99,17 @@ router.put('/:questionId/toggle-faq', async (req, res) => {
 })
 
 // Get Q&A history for a module
-router.get('/:moduleId/history', async (req, res) => {
+router.get('/:moduleId/history', requireAuth, async (req, res) => {
   try {
     const { moduleId } = req.params
     const { limit = '10' } = req.query
+    const userId = req.userId!
     
-    console.log(`📝 Getting Q&A history for module: ${moduleId}`)
+    console.log(`📝 Getting Q&A history for module: ${moduleId} for user: ${userId}`)
+    
+    // TODO: Add ownership check for module access
     
     const history = await DatabaseService.getQuestionHistory(moduleId, Number(limit))
-    
-    console.log(`✅ Retrieved ${history.length} Q&A history items`)
     
     res.json({
       success: true,

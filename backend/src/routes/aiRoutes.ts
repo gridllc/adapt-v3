@@ -3,14 +3,16 @@ import { Router } from 'express'
 import { aiService } from '../services/aiService.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { logger } from '../utils/logger.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
 
 // AI Ask endpoint - main AI interaction
-router.post('/ask', async (req, res) => {
+router.post('/ask', requireAuth, async (req, res) => {
   try {
     const { moduleId, question, stepId, context } = req.body
+    const userId = req.userId!
     
     if (!moduleId || !question) {
       return res.status(400).json({
@@ -19,7 +21,7 @@ router.post('/ask', async (req, res) => {
       })
     }
 
-    logger.info(`🤖 AI Ask request: ${question} for module ${moduleId}`)
+    logger.info(`🤖 AI Ask request: ${question} for module ${moduleId} from user ${userId}`)
 
     // Get module and steps from database
     const module = await DatabaseService.getModule(moduleId)
@@ -27,6 +29,14 @@ router.post('/ask', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Module not found'
+      })
+    }
+
+    // Check module ownership
+    if (module.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
       })
     }
 
@@ -89,7 +99,7 @@ router.post('/ask', async (req, res) => {
 })
 
 // Voice transcription endpoint
-router.post('/transcribe', upload.single('audio'), async (req, res) => {
+router.post('/transcribe', requireAuth, upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({

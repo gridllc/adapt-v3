@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { storageService } from '../services/storageService.js'
 import { videoController } from '../controllers/videoController.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -18,9 +19,14 @@ router.options('/:filename', (req: Request, res: Response) => {
 })
 
 // Get signed URL for video (API endpoint)
-router.get('/url/:filename', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/url/:filename', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { filename } = paramSchema.parse(req.params)
+    const userId = req.userId!
+    
+    // TODO: Add ownership check for video files
+    // For now, just require authentication
+    
     const signedUrl = await storageService.getSignedUrl(filename)
     return res.status(200).json({
       success: true,

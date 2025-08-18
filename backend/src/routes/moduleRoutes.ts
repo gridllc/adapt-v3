@@ -6,6 +6,8 @@ import { deleteFromS3 } from '../services/s3Uploader.js'
 import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { requireAuth } from '../middleware/auth.js'
+import { logger } from '../utils/logger.js'
 
 const router = express.Router()
 
@@ -21,9 +23,12 @@ const uploadsDir = path.join(process.cwd(), 'uploads')
 const dataDir = path.join(process.cwd(), 'data')
 
 // Get all modules with enhanced info
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
-    const modules = await ModuleService.getAllModules()
+    const userId = req.userId!
+    logger.debug("LIST MODULES", { userId })
+    
+    const modules = await ModuleService.listModules(userId)
     res.json({
       success: true,
       modules
@@ -115,9 +120,10 @@ router.get('/stats', async (req, res) => {
 })
 
 // Get specific module by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params
+    const userId = req.userId!
     
     const module = await prisma.module.findUnique({
       where: { id },
@@ -148,6 +154,14 @@ router.get('/:id', async (req, res) => {
       })
     }
 
+    // Check ownership
+    if (module.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      })
+    }
+
     res.json({
       success: true,
       module: {
@@ -167,8 +181,9 @@ router.get('/:id', async (req, res) => {
 })
 
 // DELETE /api/modules/:id - Complete module cleanup (S3 + DB)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
   const { id } = req.params
+  const userId = req.userId!
   
   try {
     console.log(`[TEST] 🗑️ Starting deletion for module: ${id}`)
@@ -198,6 +213,12 @@ router.delete('/:id', async (req, res) => {
     if (!module) {
       console.warn(`[TEST] ⚠️ Module ${id} not found for deletion`)
       return res.status(404).json({ error: 'Module not found' })
+    }
+
+    // Check ownership
+    if (module.userId !== userId) {
+      console.warn(`[TEST] ⚠️ Access denied: user ${userId} tried to delete module ${id} owned by ${module.userId}`)
+      return res.status(403).json({ error: 'Access denied' })
     }
 
     console.log(`[TEST] 📁 Module found: ${module.title}, file: ${module.filename}`)
