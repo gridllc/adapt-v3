@@ -1,7 +1,7 @@
 // frontend/src/components/upload/UploadManager.tsx
 import React, { useState } from "react"
-import { useUploadStore } from "@stores/uploadStore"
-import { uploadFile } from "@utils/uploadClient"
+import { useUploadStore } from "../../stores/uploadStore"
+import { uploadFile } from "../../utils/uploadClient"
 import { useNavigate } from "react-router-dom"
 
 export const UploadManager: React.FC = () => {
