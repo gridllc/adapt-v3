@@ -4,8 +4,34 @@ import { ModuleService } from '../services/moduleService.js'
 import { uploadController } from '../controllers/uploadController.js'
 import { aiService } from '../services/aiService.js'
 import { optionalAuth } from '../middleware/auth.js'
+import { presignedUploadService } from '../services/presignedUploadService.js'
+import { DatabaseService } from '../services/prismaService.js'
+import { enqueueProcessModule, isEnabled } from '../services/qstashQueue.js'
+import { startProcessing } from '../services/ai/aiPipeline.js'
+import { v4 as uuidv4 } from 'uuid'
 
 const router = express.Router()
+
+// Helper function for processing queue
+async function queueOrInline(moduleId: string) {
+  try {
+    if (isEnabled()) {
+      const jobId = await enqueueProcessModule(moduleId)
+      console.log('📬 Enqueued processing job', { moduleId, jobId })
+    } else {
+      console.log('⚙️ QStash disabled, running inline processing', { moduleId })
+      await startProcessing(moduleId)
+    }
+  } catch (err: any) {
+    if (err?.message === 'QSTASH_DISABLED') {
+      console.warn('📬 QStash disabled, falling back to inline processing', { moduleId })
+      await startProcessing(moduleId)
+    } else {
+      console.error('Processing error', err)
+      throw err
+    }
+  }
+}
 
 // Configure multer for memory storage
 const upload = multer({ 
@@ -53,6 +79,62 @@ router.post('/', optionalAuth, (req: express.Request, res: express.Response, nex
   next()
 }, uploadController.uploadVideo)
 
+// Presigned URL endpoints for S3 direct upload (intended flow)
+router.post('/init', optionalAuth, async (req, res) => {
+  try {
+    const { filename, contentType, title } = req.body
+    const userId = (req as any).userId
+
+    if (!filename || !contentType) {
+      return res.status(400).json({ 
+        error: 'Missing required fields', 
+        required: ['filename', 'contentType'] 
+      })
+    }
+
+    // Validate content type
+    if (!contentType.startsWith('video/')) {
+      return res.status(400).json({ error: 'Only video files are allowed' })
+    }
+
+    console.log('🔑 [Upload Init] Generating presigned URL', { 
+      filename, 
+      contentType, 
+      userId 
+    })
+
+    // Generate module ID and S3 keys upfront
+    const moduleId = uuidv4()
+    const s3Key = `videos/${moduleId}.mp4`
+    const stepsKey = `training/${moduleId}.json`
+
+    // Generate presigned URL for this specific key
+    const presignedResult = await presignedUploadService.generatePresignedUrl(filename, contentType, s3Key)
+
+    console.log('✅ [Upload Init] Presigned URL generated', { 
+      moduleId, 
+      s3Key: presignedResult.key 
+    })
+
+    res.json({
+      success: true,
+      moduleId,
+      presignedUrl: presignedResult.presignedUrl,
+      s3Key: presignedResult.key,
+      stepsKey,
+      expiresIn: 3600,
+      maxFileSize: 500 * 1024 * 1024 // 500MB
+    })
+
+  } catch (error: any) {
+    console.error('💥 [Upload Init] Error:', error)
+    res.status(500).json({
+      error: 'Failed to initialize upload',
+      message: error?.message || 'Unknown error'
+    })
+  }
+})
+
 // TEST ENDPOINT: Manually trigger AI processing for debugging
 router.post('/manual-process', optionalAuth, async (req, res) => {
   try {
@@ -95,6 +177,73 @@ router.post('/manual-process', optionalAuth, async (req, res) => {
     res.status(500).json({ 
       error: 'Manual processing failed',
       message: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
+// Upload complete endpoint for presigned S3 uploads
+router.post('/complete', optionalAuth, async (req, res) => {
+  try {
+    const { moduleId, s3Key, filename, title } = req.body
+    const userId = (req as any).userId
+
+    if (!moduleId || !s3Key) {
+      return res.status(400).json({ 
+        error: 'Missing required fields', 
+        required: ['moduleId', 's3Key'] 
+      })
+    }
+
+    console.log('📬 [Upload Complete] Processing S3 upload completion', { 
+      moduleId, 
+      s3Key, 
+      userId 
+    })
+
+    // Create module record with UPLOADED status
+    const moduleData = {
+      id: moduleId,
+      title: title || filename?.replace(/\.[^/.]+$/, '') || 'Training Video',
+      filename: filename || 'video.mp4',
+      videoUrl: s3Key, // Store S3 key, not full URL
+      s3Key,
+      stepsKey: `training/${moduleId}.json`,
+      status: 'UPLOADED' as const,
+      userId
+    }
+
+    const savedModule = await DatabaseService.createModule(moduleData)
+    console.log('✅ [Upload Complete] Module created in database', { 
+      moduleId: savedModule.id 
+    })
+
+    // Respond immediately to client
+    res.json({
+      success: true,
+      moduleId: savedModule.id,
+      status: 'uploaded',
+      message: 'Upload registered. Processing will start shortly...'
+    })
+
+    // Enqueue processing (fire-and-forget as per intended flow)
+    queueMicrotask(async () => {
+      try {
+        console.log('📬 [Upload Complete] Enqueuing processing for module', { moduleId })
+        await queueOrInline(savedModule.id)
+        console.log('📬 [Upload Complete] Processing enqueued successfully', { moduleId })
+      } catch (err) {
+        console.error('❌ [Upload Complete] Failed to enqueue processing', { 
+          moduleId: savedModule.id, 
+          error: err 
+        })
+      }
+    })
+
+  } catch (error: any) {
+    console.error('💥 [Upload Complete] Error:', error)
+    res.status(500).json({
+      error: 'Upload completion failed',
+      message: error?.message || 'Unknown error'
     })
   }
 })

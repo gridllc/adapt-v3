@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
 import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
+import { uploadWithPresignedUrl } from '@utils/presignedUpload'
 
 export const UploadManager: React.FC = () => {
   const navigate = useNavigate()
@@ -21,31 +22,29 @@ export const UploadManager: React.FC = () => {
         // Add to upload queue
         const uploadId = addUpload(file)
 
-        // Start upload
+        // Start upload using presigned URL flow (intended flow)
         try {
-          const response = await uploadWithProgress({
+          console.log('🚀 Starting presigned upload flow for:', file.name)
+          
+          const result = await uploadWithPresignedUrl({
             file,
-            url: '/api/upload',
             onProgress: (progress) => updateProgress(uploadId, progress),
+            // signal: abortController.signal // TODO: Add abort support
           })
 
-          if (response.ok) {
-            const result = await response.json()
-            markSuccess(uploadId, result.moduleId)
+          console.log('✅ Upload completed:', result)
+          markSuccess(uploadId, result.moduleId)
 
-            // Navigate to the training page after successful upload
-            console.log('Upload successful, navigating to training page:', result.moduleId)
+          // Navigate to the training page after successful upload
+          console.log('📍 Navigating to training page:', result.moduleId)
 
-            // Small delay to show success state, then navigate
-            setTimeout(() => {
-              navigate(`/training/${result.moduleId}`)
-            }, 1500)
-          } else {
-            const errorText = await response.text()
-            throw new Error(`Upload failed: ${response.status} - ${errorText}`)
-          }
+          // Small delay to show success state, then navigate
+          setTimeout(() => {
+            navigate(`/training/${result.moduleId}`)
+          }, 1500)
+
         } catch (error) {
-          console.error('Upload error:', error)
+          console.error('❌ Presigned upload error:', error)
           markError(uploadId, error as Error)
         }
       } catch (error) {

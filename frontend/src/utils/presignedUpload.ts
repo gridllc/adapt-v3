@@ -1,11 +1,20 @@
-// CREATE: frontend/src/utils/presignedUpload.ts
+// frontend/src/utils/presignedUpload.ts
 
-export interface PresignedUploadResult {
+export interface PresignedUploadInitResult {
+  success: boolean
+  moduleId: string
   presignedUrl: string
-  key: string
-  fileUrl: string
+  s3Key: string
+  stepsKey: string
   expiresIn: number
   maxFileSize: number
+}
+
+export interface UploadCompleteResult {
+  success: boolean
+  moduleId: string
+  status: string
+  message: string
 }
 
 export async function uploadWithPresignedUrl({
@@ -16,49 +25,66 @@ export async function uploadWithPresignedUrl({
   file: File
   onProgress: (percent: number) => void
   signal?: AbortSignal
-}) {
-  console.log('Starting presigned upload for:', file.name)
+}): Promise<UploadCompleteResult> {
+  console.log('🚀 [Presigned Upload] Starting upload for:', file.name)
   
-  // Step 1: Get presigned URL
-  const presignedResponse = await fetch('/api/upload/presigned-url', {
+  // Step 1: Initialize upload - get presigned URL and moduleId
+  console.log('🔑 [Presigned Upload] Step 1: Getting presigned URL...')
+  const initResponse = await fetch('/api/upload/init', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       filename: file.name,
       contentType: file.type,
+      title: file.name.replace(/\.[^/.]+$/, '') // Remove extension for title
     }),
   })
 
-  if (!presignedResponse.ok) {
-    const errorText = await presignedResponse.text()
-    console.error('Failed to get presigned URL:', errorText)
-    throw new Error(`Failed to get upload URL: ${errorText}`)
+  if (!initResponse.ok) {
+    const errorText = await initResponse.text()
+    console.error('❌ [Presigned Upload] Failed to initialize upload:', errorText)
+    throw new Error(`Failed to initialize upload: ${errorText}`)
   }
 
-  const { presignedUrl, key, fileUrl }: PresignedUploadResult = 
-    await presignedResponse.json()
-
-  console.log('Got presigned URL, uploading to S3...')
-
-  // Step 2: Upload directly to S3
-  await uploadToS3({ file, presignedUrl, onProgress, signal })
-
-  console.log('S3 upload complete, processing video...')
-
-  // Step 3: Process video with AI
-  const processResponse = await fetch('/api/upload/process', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ videoUrl: fileUrl }),
+  const initResult: PresignedUploadInitResult = await initResponse.json()
+  console.log('✅ [Presigned Upload] Got presigned URL:', { 
+    moduleId: initResult.moduleId,
+    s3Key: initResult.s3Key 
   })
 
-  if (!processResponse.ok) {
-    const errorText = await processResponse.text()
-    console.error('Video processing failed:', errorText)
-    throw new Error(`Video processing failed: ${errorText}`)
+  // Step 2: Upload directly to S3
+  console.log('📤 [Presigned Upload] Step 2: Uploading to S3...')
+  await uploadToS3({ 
+    file, 
+    presignedUrl: initResult.presignedUrl, 
+    onProgress, 
+    signal 
+  })
+  console.log('✅ [Presigned Upload] S3 upload complete')
+
+  // Step 3: Notify backend that upload is complete
+  console.log('📬 [Presigned Upload] Step 3: Notifying backend of completion...')
+  const completeResponse = await fetch('/api/upload/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      moduleId: initResult.moduleId,
+      s3Key: initResult.s3Key,
+      filename: file.name,
+      title: file.name.replace(/\.[^/.]+$/, '')
+    }),
+  })
+
+  if (!completeResponse.ok) {
+    const errorText = await completeResponse.text()
+    console.error('❌ [Presigned Upload] Failed to complete upload:', errorText)
+    throw new Error(`Failed to complete upload: ${errorText}`)
   }
 
-  return processResponse.json()
+  const completeResult: UploadCompleteResult = await completeResponse.json()
+  console.log('✅ [Presigned Upload] Upload completed successfully:', completeResult)
+
+  return completeResult
 }
 
 async function uploadToS3({

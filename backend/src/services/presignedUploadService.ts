@@ -13,8 +13,8 @@ const s3Client = new S3Client({
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
 
 export const presignedUploadService = {
-  async generatePresignedUrl(filename: string, contentType: string) {
-    const key = `videos/${uuidv4()}-${filename}`
+  async generatePresignedUrl(filename: string, contentType: string, customKey?: string) {
+    const key = customKey || `videos/${uuidv4()}-${filename}`
     
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,

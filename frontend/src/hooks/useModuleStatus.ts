@@ -65,6 +65,17 @@ export function useModuleStatus(moduleId: string, enabled = true) {
           clearInterval(interval)
           if (stuckTimeout) clearTimeout(stuckTimeout)
           if (timeoutTimer) clearTimeout(timeoutTimer)
+          
+          // Auto-refresh page when processing completes
+          if (data.status === 'ready') {
+            console.log(`🔄 Module ${moduleId} is ready - refreshing page in 2 seconds...`)
+            setTimeout(() => {
+              // Remove processing parameter and refresh
+              const currentUrl = new URL(window.location.href)
+              currentUrl.searchParams.delete('processing')
+              window.location.href = currentUrl.toString()
+            }, 2000)
+          }
         }
       } catch (err) {
         console.error('❌ Status check failed:', err)
