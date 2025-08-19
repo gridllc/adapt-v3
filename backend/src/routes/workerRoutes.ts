@@ -6,8 +6,8 @@ import { log } from '../utils/logger.js'
 
 const router = express.Router()
 
-// QStash V2 worker endpoint (primary)
-router.post('/process', async (req, res) => {
+// Centralized QStash handler function
+const qstashHandler = async (req: express.Request, res: express.Response) => {
   const { moduleId } = req.body
 
   if (!moduleId) {
@@ -37,7 +37,10 @@ router.post('/process', async (req, res) => {
     }
     return res.status(500).json({ error: 'processing failed' })
   }
-})
+}
+
+// endpoint QStash calls back to
+router.post("/process", qstashHandler)
 
 // Legacy fallback for direct calls (protected by JOB_SECRET)
 router.post('/process/:moduleId', async (req, res) => {
