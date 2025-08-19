@@ -68,11 +68,16 @@ export async function uploadToS3(buffer: Buffer, filename: string, contentType?:
   try {
     console.log(`[TEST] 📁 Uploading to S3: ${filename}`)
     
+    // 🚨 Force correct MIME type for videos to ensure browser compatibility
+    const finalContentType = filename.toLowerCase().endsWith('.mp4') 
+      ? 'video/mp4' 
+      : (contentType || 'application/octet-stream')
+    
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: filename,
       Body: buffer,
-      ContentType: contentType || 'application/octet-stream'
+      ContentType: finalContentType
     })
 
     await getSharedS3Client().send(command)
@@ -84,6 +89,37 @@ export async function uploadToS3(buffer: Buffer, filename: string, contentType?:
   } catch (error) {
     console.error('[TEST] ❌ S3 upload failed:', error)
     throw new Error(`Failed to upload to S3: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
+ * Upload a file from local filesystem to S3 with proper content type
+ */
+export async function uploadFileToS3(key: string, filePath: string, contentType: string = "video/mp4"): Promise<string> {
+  try {
+    console.log(`[TEST] 📁 Uploading file to S3: ${key} from ${filePath}`)
+    
+    const fs = await import('fs')
+    const fileStream = fs.createReadStream(filePath)
+    
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: fileStream,
+      // 🚨 Force correct MIME type for browser compatibility
+      ContentType: contentType,
+      ACL: "private",
+    })
+    
+    await getSharedS3Client().send(command)
+    
+    const s3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com/${key}`
+    console.log(`[TEST] ✅ File upload to S3 successful: ${s3Url}`)
+    
+    return s3Url
+  } catch (error) {
+    console.error('[TEST] ❌ File upload to S3 failed:', error)
+    throw new Error(`Failed to upload file to S3: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

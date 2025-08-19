@@ -4,6 +4,10 @@ import { audioProcessor } from './audioProcessor.js'
 import { transcribeAudio } from './transcriber.js'
 import { stepSaver } from './stepSaver.js'
 import { generateVideoSteps } from './stepGenerator.js'
+import { VideoProcessor } from './videoProcessor.js'
+import { uploadFileToS3 } from '../s3Uploader.js'
+import path from 'path'
+import fs from 'fs/promises'
 
 /**
  * Unified entry point (matches qstashQueue import).
@@ -34,21 +38,37 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
   console.log(`🔒 [AIPipeline] Attempting to acquire processing lock for module: ${moduleId}`)
   const gotLock = await ModuleService.tryLockForProcessing(moduleId)
   if (!gotLock) {
-    console.log(`🔒 [AIPipeline] Processing lock not acquired for module: ${moduleId} - another worker is processing`)
+    console.log(`🔒 [AIPipeline] Processing lock not acquired for module ${moduleId} - another worker is processing`)
     return { ok: true, skipped: true, reason: 'Already being processed' }
   }
 
-  console.log(`🔒 [AIPipeline] Processing lock acquired for module: ${moduleId} - starting work`)
+  console.log(`🔒 [AIPipeline] Processing lock acquired for module ${moduleId} - starting work`)
+
+  // Declare variables in function scope for cleanup
+  let localMp4: string = ''
+  let normalizedVideoPath: string = ''
+  let wavPath: string = ''
 
   try {
     // 1) Download MP4 from S3 to temp
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 20, "Downloading video...")
     const { videoDownloader } = await import('./videoDownloader.js')
-    const localMp4 = await videoDownloader.fromS3(mod.module.s3Key)
+    localMp4 = await videoDownloader.fromS3(mod.module.s3Key)
+
+    // 1.5) 🚨 NORMALIZE VIDEO for browser compatibility (H.264 + AAC)
+    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 25, "Normalizing video format...")
+    normalizedVideoPath = await VideoProcessor.normalizeVideo(localMp4, `${localMp4}-normalized.mp4`)
+    
+    // Upload normalized video back to S3 (replaces original)
+    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 30, "Uploading normalized video...")
+    await uploadFileToS3(mod.module.s3Key, normalizedVideoPath, "video/mp4")
+    
+    // Use normalized video for further processing
+    const videoForProcessing = normalizedVideoPath
 
     // 2) Extract WAV with ffmpeg
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 35, "Converting video to audio...")
-    const wavPath = await audioProcessor.extract(localMp4)
+    wavPath = await audioProcessor.extract(videoForProcessing)
 
     // 3) Transcribe via OpenAI API
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 55, "Transcribing audio...")
@@ -89,6 +109,14 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
 
     await ModuleService.markReady(moduleId)
     console.log(`✅ [AIPipeline] Module ${moduleId} processing complete`)
+    
+    // 🧹 Clean up temporary files
+    try {
+      await VideoProcessor.cleanupTempFiles([localMp4, normalizedVideoPath, wavPath])
+    } catch (cleanupErr) {
+      console.warn(`⚠️ [AIPipeline] Cleanup warning for module ${moduleId}:`, cleanupErr)
+    }
+    
     return { ok: true, moduleId }
   } catch (err: any) {
     console.error(`❌ [AIPipeline] Module ${moduleId} processing failed:`, err)
@@ -128,6 +156,15 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
       // Mark ready
       await ModuleService.markReady(moduleId)
       console.log(`✅ [AIPipeline] Fallback steps created for module ${moduleId}`)
+      
+      // 🧹 Clean up temporary files even in fallback case
+      try {
+        const filesToClean = [localMp4, wavPath]
+        if (typeof normalizedVideoPath !== 'undefined') filesToClean.push(normalizedVideoPath)
+        await VideoProcessor.cleanupTempFiles(filesToClean)
+      } catch (cleanupErr) {
+        console.warn(`⚠️ [AIPipeline] Cleanup warning in fallback for module ${moduleId}:`, cleanupErr)
+      }
       
       return { ok: true, moduleId, fallback: true }
     } catch (fallbackErr) {

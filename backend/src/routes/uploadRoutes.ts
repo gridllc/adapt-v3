@@ -304,4 +304,73 @@ router.get('/health', (req, res) => {
   res.json({ status: 'Upload service ready' })
 })
 
+// Diagnostic endpoint to check video format issues
+router.get('/diagnose/:moduleId', optionalAuth, async (req, res) => {
+  try {
+    const { moduleId } = req.params
+    
+    if (!moduleId) {
+      return res.status(400).json({ 
+        error: 'Missing moduleId parameter' 
+      })
+    }
+
+    console.log(`🔍 [Diagnostic] Checking video format for module: ${moduleId}`)
+    
+    // Get module info
+    const module = await DatabaseService.getModule(moduleId)
+    if (!module.success || !module.module) {
+      return res.status(404).json({ 
+        error: 'Module not found' 
+      })
+    }
+
+    // Get S3 object metadata
+    const { VideoProcessor } = await import('../services/ai/videoProcessor.js')
+    const { s3Client } = await import('../services/s3Uploader.js')
+    const { HeadObjectCommand } = await import('@aws-sdk/client-s3')
+    
+    try {
+      const headCommand = new HeadObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: module.module.s3Key
+      })
+      
+      const headResult = await s3Client().send(headCommand)
+      
+      res.json({
+        success: true,
+        moduleId,
+        s3Key: module.module.s3Key,
+        s3Metadata: {
+          contentType: headResult.ContentType,
+          contentLength: headResult.ContentLength,
+          lastModified: headResult.LastModified,
+          etag: headResult.ETag,
+          metadata: headResult.Metadata
+        },
+        moduleStatus: module.module.status,
+        message: 'Video format diagnostic completed'
+      })
+      
+    } catch (s3Error: any) {
+      res.json({
+        success: false,
+        moduleId,
+        s3Key: module.module.s3Key,
+        s3Error: s3Error?.message || 'Failed to get S3 metadata',
+        moduleStatus: module.module.status,
+        message: 'Video format diagnostic failed - S3 error'
+      })
+    }
+    
+  } catch (error: any) {
+    console.error('💥 [Diagnostic] Error:', error)
+    res.status(500).json({
+      error: 'Diagnostic failed',
+      message: error?.message || 'Unknown error'
+    })
+  }
+})
+
 export { router as uploadRoutes }
