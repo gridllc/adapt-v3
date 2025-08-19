@@ -7,7 +7,7 @@ import { AddStepForm } from '../components/AddStepForm'
 import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
-import QRCodeGenerator from '../components/QRCodeGenerator'
+
 
 interface Step {
   id: string
@@ -61,7 +61,7 @@ export const TrainingPage: React.FC = () => {
   const [processingAI, setProcessingAI] = useState(false)
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
-  const [showQRCode, setShowQRCode] = useState(false)
+
 
   // Video seeking function
   const seekToTime = (timeInSeconds: number) => {
@@ -501,15 +501,6 @@ Just ask me anything about the training!`
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Training: {moduleId}</h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowQRCode(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            title="Share this training module via QR code"
-          >
-            📱 Share QR Code
-          </button>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -792,14 +783,7 @@ Just ask me anything about the training!`
         </div>
       </div>
       
-      {/* QR Code Modal */}
-      {showQRCode && moduleId && (
-        <QRCodeGenerator
-          moduleId={moduleId}
-          moduleTitle={`Training: ${moduleId}`}
-          onClose={() => setShowQRCode(false)}
-        />
-      )}
+
     </div>
   )
 } 

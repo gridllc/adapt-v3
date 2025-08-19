@@ -76,6 +76,19 @@ export const uploadController = {
           maxHeight: 720 // Cap at 720p for mobile-friendliness
         });
         console.log(`✅ Video normalized: ${file.size} → ${processedBuffer.length} bytes (${((1 - processedBuffer.length / file.size) * 100).toFixed(1)}% compression)`);
+s        
+        // HARD GUARD: Validate that normalization actually produced a valid MP4 buffer
+        if (!processedBuffer || processedBuffer.length === 0) {
+          throw new Error('FFmpeg normalization produced empty buffer');
+        }
+        
+        // Additional validation: Check if buffer starts with MP4 signature (ftyp box)
+        const mp4Signature = processedBuffer.slice(4, 8).toString();
+        if (mp4Signature !== 'ftyp') {
+          throw new Error(`FFmpeg normalization failed - invalid MP4 format. Expected 'ftyp', got '${mp4Signature}'`);
+        }
+        
+        console.log(`🔍 MP4 validation passed: ${mp4Signature} signature detected`);
       } catch (normalizationError) {
         console.error('❌ Video normalization failed:', normalizationError);
         const response: UploadResponse = {
@@ -87,21 +100,25 @@ export const uploadController = {
         return;
       }
 
-      // Step 2: Upload to S3
-      console.log('☁️ Step 2: Uploading to S3...');
+      // Step 2: Upload to S3 (CRITICAL: Upload ONLY the normalized buffer)
+      console.log('☁️ Step 2: Uploading normalized video to S3...');
       let videoUrl: string;
 
       try {
-        // Create modified file object with processed buffer
-        const processedFile = {
-          ...file,
-          buffer: processedBuffer,
-          size: processedBuffer.length,
-          mimetype: 'video/mp4' // Always MP4 after normalization
+        // CRITICAL FIX: Create a proper Multer file object with ONLY the normalized buffer
+        const normalizedFile: Express.Multer.File = {
+          fieldname: file.fieldname,
+          originalname: file.originalname.replace(/\.[^/.]+$/, '.mp4'), // Force .mp4 extension
+          encoding: file.encoding,
+          mimetype: 'video/mp4', // Always MP4 after normalization
+          buffer: processedBuffer, // Use the normalized buffer, NOT the original
+          size: processedBuffer.length
         };
 
-        videoUrl = await storageService.uploadVideo(processedFile);
-        console.log(`✅ Video uploaded to S3: ${videoUrl}`);
+        console.log(`🔧 Uploading normalized file: ${normalizedFile.originalname} (${normalizedFile.size} bytes, ${normalizedFile.mimetype})`);
+        
+        videoUrl = await storageService.uploadVideo(normalizedFile);
+        console.log(`✅ Normalized video uploaded to S3: ${videoUrl}`);
       } catch (uploadError) {
         console.error('❌ S3 upload failed:', uploadError);
         const response: UploadResponse = {
