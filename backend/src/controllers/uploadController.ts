@@ -1,6 +1,8 @@
 // backend/src/controllers/uploadController.ts
 import { Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs/promises'
+import path from 'path'
 import { aiService } from '../services/aiService.js'
 import { storageService } from '../services/storageService.js'
 import { VideoNormalizationService } from '../services/videoNormalizationService.js'
@@ -23,6 +25,10 @@ export const uploadController = {
   async uploadVideo(req: Request, res: Response): Promise<void> {
     const startTime = Date.now();
     console.log('🎬 Starting video upload process...');
+    
+    // Declare temp file paths at function scope for cleanup
+    let originalPath = '';
+    let normalizedPath = '';
 
     try {
       // Validate request
@@ -64,25 +70,39 @@ export const uploadController = {
 
       // Step 1: ALWAYS normalize video for browser compatibility (fixes MEDIA_ELEMENT_ERROR)
       console.log('🔄 Step 1: Normalizing video for browser compatibility...');
-      let processedBuffer: Buffer;
-
+      
+      // Create temp directory and file paths
+      const tempDir = path.join(process.cwd(), 'temp');
+      await fs.mkdir(tempDir, { recursive: true });
+      
+      originalPath = path.join(tempDir, `${uuidv4()}-original-${file.originalname}`);
+      normalizedPath = path.join(tempDir, `${uuidv4()}-normalized.mp4`);
+      
       try {
-        // Always normalize to ensure H.264/AAC MP4 format for consistent browser playback
-        console.log('📹 Processing video with FFmpeg for guaranteed compatibility...');
-        processedBuffer = await VideoNormalizationService.normalizeVideoBuffer(file.buffer, file.originalname, {
+        // Write original file to temp directory
+        await fs.writeFile(originalPath, file.buffer);
+        console.log(`📁 Original file written to temp: ${originalPath}`);
+        
+        // CRITICAL: Always normalize with FFmpeg using file paths (not in-memory)
+        console.log('📹 Processing video with FFmpeg for guaranteed H.264/AAC compatibility...');
+        await VideoNormalizationService.normalizeVideoFile(originalPath, normalizedPath, {
           preset: process.env.NODE_ENV === 'production' ? 'veryfast' : 'ultrafast',
           crf: 23,
           audioBitrate: '128k',
           maxHeight: 720 // Cap at 720p for mobile-friendliness
         });
-        console.log(`✅ Video normalized: ${file.size} → ${processedBuffer.length} bytes (${((1 - processedBuffer.length / file.size) * 100).toFixed(1)}% compression)`);        
-        // HARD GUARD: Validate that normalization actually produced a valid MP4 buffer
-        if (!processedBuffer || processedBuffer.length === 0) {
-          throw new Error('FFmpeg normalization produced empty buffer');
+        
+        // Verify normalized file exists and has content
+        const normalizedStats = await fs.stat(normalizedPath);
+        if (!normalizedStats.size || normalizedStats.size === 0) {
+          throw new Error('FFmpeg normalization produced empty file');
         }
         
-        // Additional validation: Check if buffer starts with MP4 signature (ftyp box)
-        const mp4Signature = processedBuffer.slice(4, 8).toString();
+        console.log(`✅ Video normalized: ${file.size} → ${normalizedStats.size} bytes (${((1 - normalizedStats.size / file.size) * 100).toFixed(1)}% compression)`);
+        
+        // HARD GUARD: Validate MP4 format by reading file header
+        const normalizedBuffer = await fs.readFile(normalizedPath);
+        const mp4Signature = normalizedBuffer.slice(4, 8).toString();
         if (mp4Signature !== 'ftyp') {
           throw new Error(`FFmpeg normalization failed - invalid MP4 format. Expected 'ftyp', got '${mp4Signature}'`);
         }
@@ -99,19 +119,23 @@ export const uploadController = {
         return;
       }
 
-      // Step 2: Upload to S3 (CRITICAL: Upload ONLY the normalized buffer)
+      // Step 2: Upload to S3 (CRITICAL: Upload ONLY the normalized file)
       console.log('☁️ Step 2: Uploading normalized video to S3...');
       let videoUrl: string;
 
       try {
-        // CRITICAL FIX: Create a proper Multer file object with ONLY the normalized buffer
+        // CRITICAL FIX: Upload the normalized file directly from disk
+        console.log(`🔧 Uploading normalized file: ${normalizedPath}`);
+        
+        // Read the normalized file and upload it
+        const normalizedBuffer = await fs.readFile(normalizedPath);
         const normalizedFile: Express.Multer.File = {
           fieldname: file.fieldname,
           originalname: file.originalname.replace(/\.[^/.]+$/, '.mp4'), // Force .mp4 extension
           encoding: file.encoding,
           mimetype: 'video/mp4', // Always MP4 after normalization
-          buffer: processedBuffer, // Use the normalized buffer, NOT the original
-          size: processedBuffer.length
+          buffer: normalizedBuffer, // Use the normalized file content
+          size: normalizedBuffer.length
         };
 
         console.log(`🔧 Uploading normalized file: ${normalizedFile.originalname} (${normalizedFile.size} bytes, ${normalizedFile.mimetype})`);
@@ -214,6 +238,20 @@ export const uploadController = {
       };
 
       res.status(500).json(response);
+    } finally {
+      // CRITICAL: Always clean up temporary files
+      try {
+        if (originalPath && await fs.access(originalPath).then(() => true).catch(() => false)) {
+          await fs.unlink(originalPath);
+          console.log('🧹 Cleaned up original temp file');
+        }
+        if (normalizedPath && await fs.access(normalizedPath).then(() => true).catch(() => false)) {
+          await fs.unlink(normalizedPath);
+          console.log('🧹 Cleaned up normalized temp file');
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️ Failed to clean up temp files:', cleanupError);
+      }
     }
   },
 

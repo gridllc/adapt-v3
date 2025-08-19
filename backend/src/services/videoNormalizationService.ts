@@ -133,6 +133,74 @@ export class VideoNormalizationService {
   }
 
   /**
+   * Normalize video file to H.264 + AAC with resolution cap (file-based version)
+   */
+  static async normalizeVideoFile(
+    inputPath: string,
+    outputPath: string,
+    options: {
+      preset?: 'ultrafast' | 'veryfast' | 'fast' | 'medium'
+      crf?: number
+      audioBitrate?: string
+      maxHeight?: number
+    } = {}
+  ): Promise<void> {
+    try {
+      const {
+        preset = process.env.NODE_ENV === 'production' ? 'veryfast' : 'ultrafast',
+        crf = 23,
+        audioBitrate = '128k',
+        maxHeight = 720 // Cap at 720p for mobile-friendliness
+      } = options
+
+      console.log('🎬 Normalizing video file with FFmpeg:', {
+        inputPath,
+        outputPath,
+        preset,
+        crf,
+        maxHeight
+      })
+
+      // FFmpeg command with resolution cap and mobile optimization
+      const ffmpegArgs = [
+        '-y', // Overwrite output
+        '-i', inputPath,
+        '-vf', `scale=-2:${maxHeight}`, // Scale to max height, maintain aspect ratio
+        '-c:v', 'libx264', // H.264 video codec
+        '-preset', preset, // Environment-aware preset
+        '-crf', crf.toString(), // Quality setting
+        '-c:a', 'aac', // AAC audio codec
+        '-b:a', audioBitrate, // Audio bitrate
+        '-movflags', '+faststart', // Optimize for streaming
+        '-f', 'mp4', // Force MP4 container
+        outputPath
+      ]
+
+      const command = `ffmpeg ${ffmpegArgs.join(' ')}`
+      console.log('🔧 FFmpeg command:', command)
+
+      // Execute FFmpeg
+      const { stdout, stderr } = await execAsync(command, { timeout: 300000 }) // 5 minute timeout
+      
+      if (stderr && !stderr.includes('frame=')) {
+        console.warn('⚠️ FFmpeg stderr output (may contain warnings):', stderr)
+      }
+
+      console.log('✅ Video file normalization completed successfully')
+
+    } catch (error: any) {
+      console.error('❌ Video file normalization failed:', {
+        inputPath,
+        outputPath,
+        error: error?.message || error,
+        stack: error?.stack
+      })
+      
+      throw new Error(`Video file normalization failed: ${error?.message || error}`)
+    }
+  }
+
+  /**
    * Get video metadata using FFprobe
    */
   static async getVideoMetadata(buffer: Buffer): Promise<{
