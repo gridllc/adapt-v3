@@ -2,9 +2,10 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { v4 as uuidv4 } from 'uuid'
 
-// Configure S3 client with proper error handling
+// Configure S3 client with proper error handling and region-specific endpoint
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'us-west-1', // Default to us-west-1 for your bucket
+  endpoint: `https://s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com`, // Force region-specific endpoint
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',

@@ -3,7 +3,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuidv4 } from 'uuid'
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'us-west-1',
+  endpoint: `https://s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com`, // Force region-specific endpoint
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
@@ -32,7 +33,7 @@ export const presignedUploadService = {
     return {
       presignedUrl,
       key,
-      fileUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
+      fileUrl: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com/${key}`
     }
   },
 
@@ -47,7 +48,7 @@ export const presignedUploadService = {
       
       return {
         success: true,
-        fileUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
+        fileUrl: `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com/${key}`
       }
     } catch (error) {
       console.error('Failed to confirm upload:', error)

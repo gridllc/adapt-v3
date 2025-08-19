@@ -1,6 +1,9 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 
-const s3 = new S3Client({ region: process.env.AWS_REGION! })
+const s3 = new S3Client({ 
+  region: process.env.AWS_REGION || 'us-west-1',
+  endpoint: `https://s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com`
+})
 const bucket = process.env.AWS_BUCKET_NAME!
 
 export const stepSaver = {

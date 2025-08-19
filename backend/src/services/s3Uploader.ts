@@ -27,6 +27,7 @@ function getS3Client(): S3Client {
 
   return new S3Client({
     region: process.env.AWS_REGION || 'us-west-1',
+    endpoint: `https://s3.${process.env.AWS_REGION || 'us-west-1'}.amazonaws.com`, // Force region-specific endpoint
     credentials: {
       accessKeyId: accessKeyId,
       secretAccessKey: secretAccessKey

@@ -9,8 +9,12 @@ RUN apk add --no-cache \
     python3 \
     make \
     g++ \
-    && rm -rf /var/cache/apk/* \
-    && ffmpeg -version
+    && rm -rf /var/cache/apk/*
+
+# CRITICAL: Verify FFmpeg installation and show version
+RUN ffmpeg -version || (echo "❌ FFmpeg installation failed" && exit 1)
+RUN ffprobe -version || (echo "❌ FFprobe installation failed" && exit 1)
+RUN echo "✅ FFmpeg tools verified successfully"
 
 # 1) Copy package files + prisma early (before npm ci)
 COPY package*.json ./
