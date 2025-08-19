@@ -21,7 +21,7 @@ export function useSignedVideoUrl(moduleId: string | null) {
       setError(null)
 
       try {
-        const res = await apiClient.get<SignedUrlResponse>(`/video/${moduleId}/play`)
+        const res = await apiClient.get<SignedUrlResponse>(`/storage/video/${moduleId}/play`)
         if (res.data.success && res.data.url) {
           setUrl(res.data.url)
         } else {

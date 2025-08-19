@@ -14,7 +14,7 @@ const s3Client = new S3Client({
   retryMode: 'adaptive'
 });
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adapt-videos';
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos';
 
 export const storageService = {
   /**

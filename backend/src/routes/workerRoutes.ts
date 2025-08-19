@@ -3,11 +3,18 @@ import express from 'express'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { ModuleService } from '../services/moduleService.js'
 import { log } from '../utils/logger.js'
+import { verifyQStashWebhook } from '../services/qstashQueue.js'
 
 const router = express.Router()
 
 // Centralized QStash handler function
 const qstashHandler = async (req: express.Request, res: express.Response) => {
+  // Verify QStash webhook signature
+  if (!verifyQStashWebhook(req)) {
+    log.error('❌ QStash webhook verification failed')
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
   const { moduleId } = req.body
 
   if (!moduleId) {

@@ -2,7 +2,7 @@ import { Router } from 'express'
 import prisma from '../services/prismaService.js'
 import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
 import { DatabaseService } from '../services/prismaService.js'
-// later: import { enqueueProcessModule } from '../services/qstashQueue'
+import { queueOrInline } from '../services/qstashQueue.js'
 
 const router = Router()
 
@@ -60,8 +60,14 @@ router.post('/complete', async (req, res) => {
     // Update status → PROCESSING
     await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
 
-    // ⏳ Later: enqueue QStash job here
-    // await enqueueProcessModule(moduleId)
+    // Enqueue QStash job or process inline
+    try {
+      const jobId = await queueOrInline(moduleId)
+      console.log(`📬 Enqueued processing job moduleId=${moduleId}, jobId=${jobId}`)
+    } catch (processingError) {
+      console.error('Failed to enqueue processing:', processingError)
+      // Continue anyway - the video is uploaded
+    }
 
     res.json({ success: true, moduleId })
   } catch (err) {
