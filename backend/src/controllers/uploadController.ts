@@ -80,10 +80,11 @@ export const uploadController = {
         videoUrl,
         s3Key,
         stepsKey,
-        status: 'UPLOADED' as const
+        status: 'UPLOADED' as const,
+        userId
       }
 
-      const savedModuleId = await storageService.saveModule(moduleData, userId)
+      const savedModuleId = await storageService.saveModule(moduleData)
       log.info('✅ Module saved', { savedModuleId, userId })
 
       // Respond immediately
