@@ -161,24 +161,26 @@ export class VideoNormalizationService {
         maxHeight
       })
 
-      // CRITICAL: Force full re-encode to H.264/AAC (no passthrough)
-      // This ensures iOS/Android compatibility and fixes MEDIA_ELEMENT_ERROR
-      const ffmpegArgs = [
-        '-y', // Overwrite output
-        '-i', inputPath,
-        '-vf', `scale='min(1280,iw)':-2`, // Cap width at 1280, maintain aspect ratio
-        '-c:v', 'libx264', // H.264 video codec
-        '-preset', preset, // Environment-aware preset
-        '-profile:v', 'baseline', // iOS/Android safe profile
-        '-level', '3.0', // Compatibility level
-        '-pix_fmt', 'yuv420p', // iOS/Android safe pixel format
-        '-crf', crf.toString(), // Quality setting
-        '-c:a', 'aac', // AAC audio codec (force re-encode)
-        '-b:a', audioBitrate, // Audio bitrate
-        '-movflags', '+faststart', // Enable streaming in browsers
-        '-f', 'mp4', // Force MP4 container
-        outputPath
-      ]
+                          // CRITICAL: Force full re-encode to H.264/AAC (no passthrough)
+                    // This ensures iOS/Android compatibility and fixes MEDIA_ELEMENT_ERROR
+                    const ffmpegArgs = [
+                      '-y', // Overwrite output
+                      '-i', inputPath,
+                      '-vf', `scale='min(1280,iw)':-2`, // Cap width at 1280, maintain aspect ratio
+                      '-c:v', 'libx264', // H.264 video codec
+                      '-preset', preset, // Environment-aware preset
+                      '-profile:v', 'baseline', // iOS/Android safe profile
+                      '-level', '3.0', // Compatibility level
+                      '-pix_fmt', 'yuv420p', // iOS/Android safe pixel format
+                      '-crf', crf.toString(), // Quality setting
+                      '-c:a', 'aac', // AAC audio codec (force re-encode)
+                      '-b:a', audioBitrate, // Audio bitrate
+                      '-movflags', '+faststart', // Enable streaming in browsers
+                      '-f', 'mp4', // Force MP4 container
+                      '-avoid_negative_ts', 'make_zero', // Fix timestamp issues
+                      '-fflags', '+genpts', // Generate presentation timestamps
+                      outputPath
+                    ]
 
       const command = `ffmpeg ${ffmpegArgs.join(' ')}`
       console.log('🔧 FFmpeg command (forced re-encode):', command)
@@ -196,24 +198,43 @@ export class VideoNormalizationService {
         }
       }
 
-      // CRITICAL: Validate that FFmpeg actually created a valid output file
-      try {
-        const outputStats = await fs.stat(outputPath);
-        if (!outputStats.size || outputStats.size === 0) {
-          throw new Error(`FFmpeg output file is empty (${outputStats.size} bytes)`);
-        }
-        
-        // Verify it's a valid MP4 by checking the file header
-        const outputBuffer = await fs.readFile(outputPath);
-        const mp4Signature = outputBuffer.slice(4, 8).toString();
-        if (mp4Signature !== 'ftyp') {
-          throw new Error(`FFmpeg output is not a valid MP4. Expected 'ftyp', got '${mp4Signature}'`);
-        }
-        
-        console.log(`🔍 MP4 validation passed: ${mp4Signature} signature, ${outputStats.size} bytes`);
-      } catch (validationError: any) {
-        throw new Error(`FFmpeg validation failed: ${validationError.message}`);
-      }
+                          // CRITICAL: Validate that FFmpeg actually created a valid output file
+                    try {
+                      const outputStats = await fs.stat(outputPath);
+                      if (!outputStats.size || outputStats.size === 0) {
+                        throw new Error(`FFmpeg output file is empty (${outputStats.size} bytes)`);
+                      }
+                      
+                      // Verify it's a valid MP4 by checking the file header
+                      const outputBuffer = await fs.readFile(outputPath);
+                      const mp4Signature = outputBuffer.slice(4, 8).toString();
+                      if (mp4Signature !== 'ftyp') {
+                        throw new Error(`FFmpeg output is not a valid MP4. Expected 'ftyp', got '${mp4Signature}'`);
+                      }
+                      
+                      // ✅ CRITICAL: Verify codecs with ffprobe
+                      console.log('🔍 Verifying video codecs with ffprobe...');
+                      const { exec } = await import('child_process');
+                      const { promisify } = await import('util');
+                      const execAsync = promisify(exec);
+                      
+                      const { stdout: codecInfo } = await execAsync(`ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,codec_type -of default=noprint_wrappers=1:nokey=1 "${outputPath}"`);
+                      const { stdout: audioInfo } = await execAsync(`ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,codec_type -of default=noprint_wrappers=1:nokey=1 "${outputPath}"`);
+                      
+                      console.log('🔍 Codec info:', { video: codecInfo.trim(), audio: audioInfo.trim() });
+                      
+                      // Verify H.264 video and AAC audio
+                      if (!codecInfo.includes('h264')) {
+                        throw new Error(`Video codec is not H.264: ${codecInfo.trim()}`);
+                      }
+                      if (!audioInfo.includes('aac')) {
+                        throw new Error(`Audio codec is not AAC: ${audioInfo.trim()}`);
+                      }
+                      
+                      console.log(`🔍 Codec validation passed: H.264 video + AAC audio, ${mp4Signature} signature, ${outputStats.size} bytes`);
+                    } catch (validationError: any) {
+                      throw new Error(`FFmpeg validation failed: ${validationError.message}`);
+                    }
 
       console.log('✅ Video file normalization completed successfully')
 

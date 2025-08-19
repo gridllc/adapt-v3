@@ -83,14 +83,20 @@ export const uploadController = {
         await fs.writeFile(originalPath, file.buffer);
         console.log(`📁 Original file written to temp: ${originalPath}`);
         
-        // CRITICAL: Always normalize with FFmpeg using file paths (not in-memory)
-        console.log('📹 Processing video with FFmpeg for guaranteed H.264/AAC compatibility...');
-        await VideoNormalizationService.normalizeVideoFile(originalPath, normalizedPath, {
-          preset: process.env.NODE_ENV === 'production' ? 'veryfast' : 'ultrafast',
-          crf: 23,
-          audioBitrate: '128k',
-          maxHeight: 720 // Cap at 720p for mobile-friendliness
-        });
+                        // CRITICAL: Always normalize with FFmpeg using file paths (not in-memory)
+                console.log('📹 Processing video with FFmpeg for guaranteed H.264/AAC compatibility...');
+                try {
+                  await VideoNormalizationService.normalizeVideoFile(originalPath, normalizedPath, {
+                    preset: process.env.NODE_ENV === 'production' ? 'veryfast' : 'ultrafast',
+                    crf: 23,
+                    audioBitrate: '128k',
+                    maxHeight: 720 // Cap at 720p for mobile-friendliness
+                  });
+                  console.log('✅ FFmpeg normalization completed successfully');
+                } catch (ffmpegError: any) {
+                  console.error('❌ FFmpeg normalization failed:', ffmpegError);
+                  throw new Error(`Video normalization failed: ${ffmpegError.message}. Please ensure your video file is valid.`);
+                }
         
         // Verify normalized file exists and has content
         const normalizedStats = await fs.stat(normalizedPath);
