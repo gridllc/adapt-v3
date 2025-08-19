@@ -1,5 +1,6 @@
 // backend/src/controllers/uploadController.ts
 import { Request, Response } from 'express'
+import { v4 as uuidv4 } from 'uuid'
 import { aiService } from '../services/aiService.js'
 import { storageService } from '../services/storageService.js'
 import { VideoNormalizationService } from '../services/videoNormalizationService.js'
@@ -61,27 +62,20 @@ export const uploadController = {
         return;
       }
 
-      // Step 1: Normalize video for browser compatibility
-      console.log('🔄 Step 1: Normalizing video...');
+      // Step 1: ALWAYS normalize video for browser compatibility (fixes MEDIA_ELEMENT_ERROR)
+      console.log('🔄 Step 1: Normalizing video for browser compatibility...');
       let processedBuffer: Buffer;
 
       try {
-        // Check if normalization is needed
-        const needsNormalization = await import('../services/videoNormalizationService.js')
-          .then(m => m.VideoNormalizationService.needsNormalization(file.buffer));
-
-        if (needsNormalization) {
-          console.log('📹 Video needs normalization, processing with FFmpeg...');
-          processedBuffer = await VideoNormalizationService.normalizeVideoBuffer(file.buffer, file.originalname, {
-            preset: 'veryfast',
-            crf: 23,
-            audioBitrate: '128k'
-          });
-          console.log(`✅ Video normalized: ${file.size} → ${processedBuffer.length} bytes`);
-        } else {
-          console.log('✅ Video already compatible, skipping normalization');
-          processedBuffer = file.buffer;
-        }
+        // Always normalize to ensure H.264/AAC MP4 format for consistent browser playback
+        console.log('📹 Processing video with FFmpeg for guaranteed compatibility...');
+        processedBuffer = await VideoNormalizationService.normalizeVideoBuffer(file.buffer, file.originalname, {
+          preset: process.env.NODE_ENV === 'production' ? 'veryfast' : 'ultrafast',
+          crf: 23,
+          audioBitrate: '128k',
+          maxHeight: 720 // Cap at 720p for mobile-friendliness
+        });
+        console.log(`✅ Video normalized: ${file.size} → ${processedBuffer.length} bytes (${((1 - processedBuffer.length / file.size) * 100).toFixed(1)}% compression)`);
       } catch (normalizationError) {
         console.error('❌ Video normalization failed:', normalizationError);
         const response: UploadResponse = {
@@ -124,8 +118,21 @@ export const uploadController = {
       let moduleData: any;
 
       try {
-        moduleData = await aiService.processVideo(videoUrl);
-        console.log(`✅ AI processing complete: ${moduleData.steps?.length || 0} steps extracted`);
+        // Generate module ID for AI processing
+        const moduleId = uuidv4();
+        
+        // Use the correct AI service method for step generation
+        await aiService.generateStepsForModule(moduleId, videoUrl);
+        
+        // For now, create basic module data structure
+        moduleData = {
+          id: moduleId,
+          videoUrl,
+          steps: [],
+          status: 'PROCESSING'
+        };
+        
+        console.log(`✅ AI processing started for module: ${moduleId}`);
       } catch (aiError) {
         console.error('❌ AI processing failed:', aiError);
 
