@@ -30,20 +30,42 @@ export async function uploadWithPresignedUrl({
   
   // Step 1: Initialize upload - get presigned URL and moduleId
   console.log('🔑 [Presigned Upload] Step 1: Getting presigned URL...')
+  
+  // Sanitize filename (engineer's good idea)
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_")
+  console.log('🔧 [Presigned Upload] Sanitized filename:', { original: file.name, sanitized: safeName })
+  
   const initResponse = await fetch('/api/upload/init', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      filename: file.name,
-      contentType: file.type,
-      title: file.name.replace(/\.[^/.]+$/, '') // Remove extension for title
+      filename: safeName,
+      contentType: file.type, // Required by backend validation
+      title: file.name.replace(/\.[^/.]+$/, ''), // Remove extension for title
+      fileSize: file.size // Include fileSize as engineer suggested
     }),
   })
 
   if (!initResponse.ok) {
-    const errorText = await initResponse.text()
-    console.error('❌ [Presigned Upload] Failed to initialize upload:', errorText)
-    throw new Error(`Failed to initialize upload: ${errorText}`)
+    let errorMessage = 'Failed to initialize upload'
+    try {
+      const errorData = await initResponse.json()
+      if (errorData.details && Array.isArray(errorData.details)) {
+        const validationErrors = errorData.details.map((err: any) => `${err.field}: ${err.message}`).join(', ')
+        errorMessage = `Validation failed: ${validationErrors}`
+      } else if (errorData.error) {
+        errorMessage = errorData.error
+      } else if (errorData.message) {
+        errorMessage = errorData.message
+      }
+    } catch {
+      // Fallback to text if JSON parsing fails
+      const errorText = await initResponse.text()
+      errorMessage = errorText
+    }
+    
+    console.error('❌ [Presigned Upload] Failed to initialize upload:', errorMessage)
+    throw new Error(`[Presigned Upload] ${errorMessage}`)
   }
 
   const initResult: PresignedUploadInitResult = await initResponse.json()
@@ -70,15 +92,31 @@ export async function uploadWithPresignedUrl({
     body: JSON.stringify({
       moduleId: initResult.moduleId,
       s3Key: initResult.s3Key,
-      filename: file.name,
+      filename: safeName, // Use sanitized name
       title: file.name.replace(/\.[^/.]+$/, '')
     }),
   })
 
   if (!completeResponse.ok) {
-    const errorText = await completeResponse.text()
-    console.error('❌ [Presigned Upload] Failed to complete upload:', errorText)
-    throw new Error(`Failed to complete upload: ${errorText}`)
+    let errorMessage = 'Failed to complete upload'
+    try {
+      const errorData = await completeResponse.json()
+      if (errorData.details && Array.isArray(errorData.details)) {
+        const validationErrors = errorData.details.map((err: any) => `${err.field}: ${err.message}`).join(', ')
+        errorMessage = `Validation failed: ${validationErrors}`
+      } else if (errorData.error) {
+        errorMessage = errorData.error
+      } else if (errorData.message) {
+        errorMessage = errorData.message
+      }
+    } catch {
+      // Fallback to text if JSON parsing fails
+      const errorText = await completeResponse.text()
+      errorMessage = errorText
+    }
+    
+    console.error('❌ [Presigned Upload] Failed to complete upload:', errorMessage)
+    throw new Error(`[Presigned Upload] ${errorMessage}`)
   }
 
   const completeResult: UploadCompleteResult = await completeResponse.json()

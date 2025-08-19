@@ -98,7 +98,7 @@ router.post('/', optionalAuth, (req: express.Request, res: express.Response, nex
 // Presigned URL endpoints for S3 direct upload (intended flow)
 router.post('/init', optionalAuth, validateInput(validationSchemas.fileUpload), async (req, res) => {
   try {
-    const { filename, contentType, title } = req.body
+    const { filename, contentType, title, fileSize } = req.body
     const userId = (req as any).userId
 
     if (!filename || !contentType) {
@@ -112,6 +112,14 @@ router.post('/init', optionalAuth, validateInput(validationSchemas.fileUpload), 
     if (!contentType.startsWith('video/')) {
       return res.status(400).json({ error: 'Only video files are allowed' })
     }
+
+    // Log validation details for debugging
+    console.log('🔍 [Upload Init] Validation details:', { 
+      filename, 
+      contentType, 
+      fileSize: fileSize ? `${(fileSize / 1024 / 1024).toFixed(2)}MB` : 'not provided',
+      title: title || 'not provided'
+    })
 
     console.log('🔑 [Upload Init] Generating presigned URL', { 
       filename, 

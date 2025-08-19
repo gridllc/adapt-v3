@@ -72,12 +72,15 @@ export const validationSchemas = {
     filename: z.string()
       .min(1, 'Filename is required')
       .max(255, 'Filename too long')
-      .regex(/^[a-zA-Z0-9._-]+$/, 'Invalid filename characters'),
+      // Allow more filename characters including spaces and common punctuation
+      .regex(/^[a-zA-Z0-9\s._\-()]+$/, 'Invalid filename characters'),
     contentType: z.string()
       .startsWith('video/', 'Only video files are allowed'),
+    title: z.string().optional(), // Optional title for module
     fileSize: z.number()
       .min(1000, 'File too small (minimum 1KB)')
       .max(500 * 1024 * 1024, 'File too large (maximum 500MB)')
+      .optional() // Optional fileSize for validation
   }),
 
   // Module creation
