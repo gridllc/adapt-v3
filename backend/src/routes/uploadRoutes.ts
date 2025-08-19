@@ -317,11 +317,18 @@ router.get('/diagnose/:moduleId', optionalAuth, async (req, res) => {
 
     console.log(`🔍 [Diagnostic] Checking video format for module: ${moduleId}`)
     
-    // Get module info
+    // Get module info - use the correct method and handle the response properly
     const module = await DatabaseService.getModule(moduleId)
-    if (!module.success || !module.module) {
+    if (!module) {
       return res.status(404).json({ 
         error: 'Module not found' 
+      })
+    }
+
+    // Check if module has s3Key
+    if (!module.s3Key) {
+      return res.status(400).json({ 
+        error: 'Module has no S3 key' 
       })
     }
 
@@ -333,7 +340,7 @@ router.get('/diagnose/:moduleId', optionalAuth, async (req, res) => {
     try {
       const headCommand = new HeadObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
-        Key: module.module.s3Key
+        Key: module.s3Key
       })
       
       const headResult = await s3Client().send(headCommand)
@@ -341,7 +348,7 @@ router.get('/diagnose/:moduleId', optionalAuth, async (req, res) => {
       res.json({
         success: true,
         moduleId,
-        s3Key: module.module.s3Key,
+        s3Key: module.s3Key,
         s3Metadata: {
           contentType: headResult.ContentType,
           contentLength: headResult.ContentLength,
@@ -349,7 +356,7 @@ router.get('/diagnose/:moduleId', optionalAuth, async (req, res) => {
           etag: headResult.ETag,
           metadata: headResult.Metadata
         },
-        moduleStatus: module.module.status,
+        moduleStatus: module.status,
         message: 'Video format diagnostic completed'
       })
       
@@ -357,9 +364,9 @@ router.get('/diagnose/:moduleId', optionalAuth, async (req, res) => {
       res.json({
         success: false,
         moduleId,
-        s3Key: module.module.s3Key,
+        s3Key: module.s3Key,
         s3Error: s3Error?.message || 'Failed to get S3 metadata',
-        moduleStatus: module.module.status,
+        moduleStatus: module.status,
         message: 'Video format diagnostic failed - S3 error'
       })
     }
