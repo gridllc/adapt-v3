@@ -161,29 +161,58 @@ export class VideoNormalizationService {
         maxHeight
       })
 
-      // FFmpeg command with resolution cap and mobile optimization
+      // CRITICAL: Force full re-encode to H.264/AAC (no passthrough)
+      // This ensures iOS/Android compatibility and fixes MEDIA_ELEMENT_ERROR
       const ffmpegArgs = [
         '-y', // Overwrite output
         '-i', inputPath,
-        '-vf', `scale=-2:${maxHeight}`, // Scale to max height, maintain aspect ratio
+        '-vf', `scale='min(1280,iw)':-2`, // Cap width at 1280, maintain aspect ratio
         '-c:v', 'libx264', // H.264 video codec
         '-preset', preset, // Environment-aware preset
+        '-profile:v', 'baseline', // iOS/Android safe profile
+        '-level', '3.0', // Compatibility level
+        '-pix_fmt', 'yuv420p', // iOS/Android safe pixel format
         '-crf', crf.toString(), // Quality setting
-        '-c:a', 'aac', // AAC audio codec
+        '-c:a', 'aac', // AAC audio codec (force re-encode)
         '-b:a', audioBitrate, // Audio bitrate
-        '-movflags', '+faststart', // Optimize for streaming
+        '-movflags', '+faststart', // Enable streaming in browsers
         '-f', 'mp4', // Force MP4 container
         outputPath
       ]
 
       const command = `ffmpeg ${ffmpegArgs.join(' ')}`
-      console.log('🔧 FFmpeg command:', command)
+      console.log('🔧 FFmpeg command (forced re-encode):', command)
 
-      // Execute FFmpeg
+      // Execute FFmpeg with proper error handling
       const { stdout, stderr } = await execAsync(command, { timeout: 300000 }) // 5 minute timeout
       
-      if (stderr && !stderr.includes('frame=')) {
-        console.warn('⚠️ FFmpeg stderr output (may contain warnings):', stderr)
+      // Log FFmpeg output for debugging
+      if (stdout) console.log('📹 FFmpeg stdout:', stdout);
+      if (stderr) {
+        if (stderr.includes('frame=')) {
+          console.log('📹 FFmpeg progress:', stderr.split('\n').filter(line => line.includes('frame=')).pop());
+        } else {
+          console.warn('⚠️ FFmpeg stderr (may contain warnings):', stderr);
+        }
+      }
+
+      // CRITICAL: Validate that FFmpeg actually created a valid output file
+      try {
+        const outputStats = await fs.stat(outputPath);
+        if (!outputStats.size || outputStats.size === 0) {
+          throw new Error(`FFmpeg output file is empty (${outputStats.size} bytes)`);
+        }
+        
+        // Verify it's a valid MP4 by checking the file header
+        const outputBuffer = await fs.readFile(outputPath);
+        const mp4Signature = outputBuffer.slice(4, 8).toString();
+        if (mp4Signature !== 'ftyp') {
+          throw new Error(`FFmpeg output is not a valid MP4. Expected 'ftyp', got '${mp4Signature}'`);
+        }
+        
+        console.log(`🔍 MP4 validation passed: ${mp4Signature} signature, ${outputStats.size} bytes`);
+      } catch (validationError: any) {
+        throw new Error(`FFmpeg validation failed: ${validationError.message}`);
       }
 
       console.log('✅ Video file normalization completed successfully')

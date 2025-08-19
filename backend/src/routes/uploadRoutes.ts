@@ -10,6 +10,7 @@ import { enqueueProcessModule, isEnabled } from '../services/qstashQueue.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { v4 as uuidv4 } from 'uuid'
 import { validateInput, validationSchemas } from '../middleware/security.js'
+import { VideoNormalizationService } from '../services/videoNormalizationService.js'
 
 const router = express.Router()
 
@@ -539,6 +540,48 @@ router.get('/diagnose/:moduleId', optionalAuth, async (req, res) => {
     res.status(500).json({
       error: 'Diagnostic failed',
       message: error?.message || 'Unknown error'
+    })
+  }
+})
+
+// Test FFmpeg functionality
+router.get('/test-ffmpeg', async (req, res) => {
+  try {
+    console.log('🧪 Testing FFmpeg functionality...')
+    
+    // Check if FFmpeg is available
+    const ffmpegAvailable = await VideoNormalizationService.checkFFmpegAvailability()
+    
+    if (!ffmpegAvailable) {
+      return res.status(503).json({
+        success: false,
+        error: 'FFmpeg not available',
+        message: 'FFmpeg is not installed or accessible in the container'
+      })
+    }
+    
+    // Test with a simple command
+    const { exec } = await import('child_process')
+    const { promisify } = await import('util')
+    const execAsync = promisify(exec)
+    
+    const { stdout, stderr } = await execAsync('ffmpeg -version', { timeout: 10000 })
+    
+    res.json({
+      success: true,
+      message: 'FFmpeg is working correctly',
+      ffmpegVersion: stdout.split('\n')[0],
+      available: true,
+      timestamp: new Date().toISOString()
+    })
+    
+  } catch (error: any) {
+    console.error('❌ FFmpeg test failed:', error)
+    res.status(500).json({
+      success: false,
+      error: 'FFmpeg test failed',
+      message: error?.message || 'Unknown error',
+      available: false
     })
   }
 })
