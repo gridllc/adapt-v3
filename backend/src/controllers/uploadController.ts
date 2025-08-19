@@ -75,8 +75,7 @@ export const uploadController = {
           audioBitrate: '128k',
           maxHeight: 720 // Cap at 720p for mobile-friendliness
         });
-        console.log(`✅ Video normalized: ${file.size} → ${processedBuffer.length} bytes (${((1 - processedBuffer.length / file.size) * 100).toFixed(1)}% compression)`);
-s        
+        console.log(`✅ Video normalized: ${file.size} → ${processedBuffer.length} bytes (${((1 - processedBuffer.length / file.size) * 100).toFixed(1)}% compression)`);        
         // HARD GUARD: Validate that normalization actually produced a valid MP4 buffer
         if (!processedBuffer || processedBuffer.length === 0) {
           throw new Error('FFmpeg normalization produced empty buffer');
