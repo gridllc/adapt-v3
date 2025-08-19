@@ -24,7 +24,7 @@ const dataDir = path.join(process.cwd(), 'data')
 router.get('/', async (req, res) => {
   try {
     const result = await ModuleService.getAllModules()
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -43,7 +43,7 @@ router.get('/', async (req, res) => {
 router.get('/orphaned', async (req, res) => {
   try {
     const result = await ModuleService.getOrphanedModules()
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -62,7 +62,7 @@ router.get('/orphaned', async (req, res) => {
 router.post('/orphaned/mark-failed', async (req, res) => {
   try {
     const result = await ModuleService.markOrphanedAsFailed()
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -82,7 +82,7 @@ router.post('/cleanup', async (req, res) => {
   try {
     const { daysOld = 7 } = req.body
     const result = await ModuleService.cleanupOldFailedModules(daysOld)
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -101,7 +101,7 @@ router.post('/cleanup', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     const result = await ModuleService.getModuleStats()
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -116,51 +116,31 @@ router.get('/stats', async (req, res) => {
   }
 })
 
-// Get specific module by ID
-router.get('/:id', async (req, res) => {
+// FIXED: Use moduleId parameter and ModuleService
+router.get('/:moduleId', async (req, res) => {
   try {
-    const { id } = req.params
-    
-    const module = await prisma.module.findUnique({
-      where: { id },
-      include: {
-        steps: {
-          orderBy: { order: 'asc' }
-        },
-        user: {
-          select: {
-            email: true,
-            clerkId: true
-          }
-        },
-        _count: {
-          select: {
-            steps: true,
-            feedbacks: true,
-            questions: true
-          }
-        }
-      }
-    })
+    const { moduleId } = req.params
+    const { includeRelations = 'true' } = req.query
 
-    if (!module) {
-      return res.status(404).json({
+    // Use ModuleService instead of direct Prisma
+    const result = await ModuleService.getModuleById(
+      moduleId,
+      includeRelations === 'true'
+    )
+
+    if (result.success) {
+      res.json({
+        success: true,
+        module: result.module
+      })
+    } else {
+      res.status(404).json({
         success: false,
-        error: 'Module not found'
+        error: result.error || 'Module not found'
       })
     }
-
-    res.json({
-      success: true,
-      module: {
-        ...module,
-        stepCount: module._count.steps,
-        feedbackCount: module._count.feedbacks,
-        questionCount: module._count.questions
-      }
-    })
   } catch (error) {
-    console.error('❌ Error in GET /api/modules/:id:', error)
+    console.error('❌ Error in GET /api/modules/:moduleId:', error)
     res.status(500).json({
       success: false,
       error: 'Internal server error'
@@ -168,42 +148,119 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// DELETE /api/modules/:id - Complete module cleanup (S3 + DB)
-router.delete('/:id', async (req, res) => {
-  const { id } = req.params
-  
+// NEW: Get module steps specifically (using ModuleService)
+router.get('/:moduleId/steps', async (req, res) => {
   try {
-    console.log(`[TEST] 🗑️ Starting deletion for module: ${id}`)
-    
-    // Find the module first to get S3 key
-    const module = await prisma.module.findUnique({ 
-      where: { id },
-      include: { 
-        steps: {
-          select: {
-            id: true,
-            text: true,
-            startTime: true,
-            endTime: true,
-            order: true
-          }
-        }, 
-        questions: {
-          select: {
-            id: true,
-            question: true
-          }
-        } 
-      }
-    })
+    const { moduleId } = req.params
 
-    if (!module) {
-      console.warn(`[TEST] ⚠️ Module ${id} not found for deletion`)
-      return res.status(404).json({ error: 'Module not found' })
+    const result = await ModuleService.getModuleSteps(moduleId)
+
+    if (result.success) {
+      res.json({
+        success: true,
+        steps: result.steps
+      })
+    } else {
+      res.status(404).json({
+        success: false,
+        error: result.error || 'Module steps not found'
+      })
+    }
+  } catch (error) {
+    console.error('❌ Error in GET /api/modules/:moduleId/steps:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
+  }
+})
+
+// NEW: Update module status (expose ModuleService method)
+router.post('/:moduleId/status', async (req, res) => {
+  try {
+    const { moduleId } = req.params
+    const { status, progress, message } = req.body
+
+    const result = await ModuleService.updateModuleStatus(moduleId, status, progress, message)
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Module status updated successfully'
+      })
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to update module status'
+      })
+    }
+  } catch (error) {
+    console.error('❌ Error in POST /api/modules/:moduleId/status:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
+  }
+})
+
+// NEW: Save steps to module (expose ModuleService method)
+router.post('/:moduleId/steps', async (req, res) => {
+  try {
+    const { moduleId } = req.params
+    const { steps } = req.body
+
+    if (!steps || !Array.isArray(steps)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Steps array is required'
+      })
     }
 
+    const result = await ModuleService.saveStepsToModule(moduleId, steps)
+
+    if (result.success) {
+      res.json({
+        success: true,
+        stepCount: result.stepCount,
+        createdSteps: result.createdSteps,
+        message: result.message
+      })
+    } else {
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to save steps'
+      })
+    }
+  } catch (error) {
+    console.error('❌ Error in POST /api/modules/:moduleId/steps:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    })
+  }
+})
+
+// ENHANCED: Delete using ModuleService first, then S3 cleanup
+router.delete('/:moduleId', async (req, res) => {
+  const { moduleId } = req.params
+
+  try {
+    console.log(`[TEST] 🗑️ Starting deletion for module: ${moduleId}`)
+
+    // Find the module first to get S3 key and related data info
+    const moduleResult = await ModuleService.getModuleById(moduleId, true)
+
+    if (!moduleResult.success || !moduleResult.module) {
+      console.warn(`[TEST] ⚠️ Module ${moduleId} not found for deletion`)
+      return res.status(404).json({
+        success: false,
+        error: 'Module not found'
+      })
+    }
+
+    const module = moduleResult.module
     console.log(`[TEST] 📁 Module found: ${module.title}, file: ${module.filename}`)
-    console.log(`[TEST] 📊 Will delete ${module.steps.length} steps and ${module.questions.length} questions`)
+    console.log(`[TEST] 📊 Will delete ${module.steps?.length || 0} steps and ${module.feedbacks?.length || 0} feedbacks`)
 
     // Delete from S3 first (if it exists)
     try {
@@ -216,38 +273,34 @@ router.delete('/:id', async (req, res) => {
       // Continue with DB deletion even if S3 fails
     }
 
-    // Delete from DB in correct order (due to foreign key constraints)
-    // 1. Delete related records first
-    await prisma.question.deleteMany({ where: { moduleId: id } })
-    console.log(`[TEST] 🗃️ Deleted ${module.questions.length} questions`)
+    // Use ModuleService for database deletion (handles cascading properly)
+    const deleteResult = await ModuleService.deleteModule(moduleId)
 
-    await prisma.step.deleteMany({ where: { moduleId: id } })
-    console.log(`[TEST] 🗃️ Deleted ${module.steps.length} steps`)
-
-    // 2. Delete the module itself
-    await prisma.module.delete({ where: { id } })
-    console.log(`[TEST] 🗃️ Deleted module: ${id}`)
-
-    console.log(`[TEST] ✅ Complete deletion successful for module: ${id}`)
-    res.json({ 
-      success: true, 
-      message: `Module ${id} and all related data deleted successfully`,
-      deletedItems: {
-        module: module.title,
-        steps: module.steps.length,
-        questions: module.questions.length,
-        s3File: module.filename
-      }
-    })
+    if (deleteResult.success) {
+      console.log(`[TEST] ✅ Complete deletion successful for module: ${moduleId}`)
+      res.json({
+        success: true,
+        message: `Module ${moduleId} and all related data deleted successfully`,
+        deletedItems: {
+          module: module.title,
+          steps: module.steps?.length || 0,
+          feedbacks: module.feedbacks?.length || 0,
+          s3File: module.filename
+        }
+      })
+    } else {
+      throw new Error(deleteResult.error || 'Database deletion failed')
+    }
 
   } catch (err: any) {
-    console.error(`[TEST] ❌ Failed to delete module ${id}:`, err.message)
-    res.status(500).json({ 
-      error: 'Deletion failed', 
+    console.error(`[TEST] ❌ Failed to delete module ${moduleId}:`, err.message)
+    res.status(500).json({
+      success: false,
+      error: 'Deletion failed',
       details: err.message,
-      moduleId: id
+      moduleId: moduleId
     })
   }
 })
 
-export { router as moduleRoutes } 
+export { router as moduleRoutes }
