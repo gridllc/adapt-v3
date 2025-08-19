@@ -15,19 +15,30 @@ const router = express.Router()
 // Helper function for processing queue
 async function queueOrInline(moduleId: string) {
   try {
+    console.log('🔍 [queueOrInline] Starting for module:', moduleId)
+    console.log('🔍 [queueOrInline] QStash enabled:', isEnabled())
+    console.log('🔍 [queueOrInline] Environment check:', {
+      QSTASH_ENABLED: process.env.QSTASH_ENABLED,
+      QSTASH_TOKEN: !!process.env.QSTASH_TOKEN
+    })
+    
     if (isEnabled()) {
+      console.log('📬 [queueOrInline] QStash enabled, enqueuing job...')
       const jobId = await enqueueProcessModule(moduleId)
-      console.log('📬 Enqueued processing job', { moduleId, jobId })
+      console.log('✅ [queueOrInline] Enqueued processing job', { moduleId, jobId })
     } else {
-      console.log('⚙️ QStash disabled, running inline processing', { moduleId })
+      console.log('⚙️ [queueOrInline] QStash disabled, running inline processing', { moduleId })
       await startProcessing(moduleId)
+      console.log('✅ [queueOrInline] Inline processing completed for', moduleId)
     }
   } catch (err: any) {
+    console.error('❌ [queueOrInline] Error occurred:', err?.message || err)
     if (err?.message === 'QSTASH_DISABLED') {
-      console.warn('📬 QStash disabled, falling back to inline processing', { moduleId })
+      console.warn('📬 [queueOrInline] QStash disabled error, falling back to inline processing', { moduleId })
       await startProcessing(moduleId)
+      console.log('✅ [queueOrInline] Fallback inline processing completed for', moduleId)
     } else {
-      console.error('Processing error', err)
+      console.error('💥 [queueOrInline] Processing error for module', moduleId, err)
       throw err
     }
   }
@@ -228,14 +239,25 @@ router.post('/complete', optionalAuth, async (req, res) => {
     // Enqueue processing (fire-and-forget as per intended flow)
     queueMicrotask(async () => {
       try {
-        console.log('📬 [Upload Complete] Enqueuing processing for module', { moduleId })
+        console.log('📬 [Upload Complete] Starting processing pipeline for module', { moduleId })
+        console.log('📬 [Upload Complete] QStash enabled check:', isEnabled())
         await queueOrInline(savedModule.id)
-        console.log('📬 [Upload Complete] Processing enqueued successfully', { moduleId })
-      } catch (err) {
-        console.error('❌ [Upload Complete] Failed to enqueue processing', { 
+        console.log('✅ [Upload Complete] Processing pipeline started successfully', { moduleId })
+      } catch (err: any) {
+        console.error('❌ [Upload Complete] Failed to start processing pipeline', { 
           moduleId: savedModule.id, 
-          error: err 
+          error: err?.message || err,
+          stack: err?.stack 
         })
+        
+        // CRITICAL: Try direct inline processing as last resort
+        try {
+          console.log('🔄 [Upload Complete] Attempting direct inline processing as fallback')
+          await startProcessing(savedModule.id)
+          console.log('✅ [Upload Complete] Direct inline processing succeeded')
+        } catch (fallbackErr) {
+          console.error('💥 [Upload Complete] Even direct processing failed', fallbackErr)
+        }
       }
     })
 
