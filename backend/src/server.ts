@@ -131,7 +131,8 @@ const configureMiddleware = () => {
     'https://adapt-v3-sepia.vercel.app',
     'https://adapt-v3.vercel.app',
     'https://adaptord.com',
-    'https://www.adaptord.com'
+    'https://www.adaptord.com',
+    'https://app.adaptord.com'
   ]
 
   // Add FRONTEND_URL from environment if specified

@@ -1,19 +1,20 @@
-FROM node:18-alpine
+FROM node:18-bullseye-slim
 
 WORKDIR /app
 
 # System deps for FFmpeg + Prisma native deps
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     ffmpeg \
-    ffmpeg-dev \
     python3 \
     make \
     g++ \
-    && rm -rf /var/cache/apk/*
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
-# CRITICAL: Verify FFmpeg installation and show version
+# CRITICAL: Verify FFmpeg installation and show version with codecs
 RUN ffmpeg -version || (echo "❌ FFmpeg installation failed" && exit 1)
 RUN ffprobe -version || (echo "❌ FFprobe installation failed" && exit 1)
+RUN ffmpeg -codecs | grep -E "(h264|aac)" || echo "⚠️ Warning: H.264/AAC codecs not found"
 RUN echo "✅ FFmpeg tools verified successfully"
 
 # 1) Copy package files + prisma early (before npm ci)
