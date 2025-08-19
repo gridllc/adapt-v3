@@ -100,7 +100,9 @@ export async function uploadWithPresignedUrl({
   if (!completeResponse.ok) {
     let errorMessage = 'Failed to complete upload'
     try {
-      const errorData = await completeResponse.json()
+      // Clone the response before reading it to avoid "body stream already read" error
+      const responseClone = completeResponse.clone()
+      const errorData = await responseClone.json()
       if (errorData.details && Array.isArray(errorData.details)) {
         const validationErrors = errorData.details.map((err: any) => `${err.field}: ${err.message}`).join(', ')
         errorMessage = `Validation failed: ${validationErrors}`
@@ -111,7 +113,8 @@ export async function uploadWithPresignedUrl({
       }
     } catch {
       // Fallback to text if JSON parsing fails
-      const errorText = await completeResponse.text()
+      const responseClone = completeResponse.clone()
+      const errorText = await responseClone.text()
       errorMessage = errorText
     }
     

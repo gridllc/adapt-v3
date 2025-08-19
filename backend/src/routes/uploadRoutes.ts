@@ -10,30 +10,29 @@ import { enqueueProcessModule, isEnabled } from '../services/qstashQueue.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { v4 as uuidv4 } from 'uuid'
 import { validateInput, validationSchemas } from '../middleware/security.js'
-import { logger } from '../utils/structuredLogger.js'
 
 const router = express.Router()
 
 // Helper function for processing queue
 async function queueOrInline(moduleId: string) {
   try {
-    logger.info('Processing queue check', { 
+    console.log('📬 [queueOrInline] Processing queue check', { 
       moduleId, 
       qstashEnabled: isEnabled(),
       qstashConfigured: !!process.env.QSTASH_TOKEN
     })
     
     if (isEnabled()) {
-      logger.info('Enqueuing processing job', { moduleId })
+      console.log('📬 [queueOrInline] Enqueuing processing job', { moduleId })
       const jobId = await enqueueProcessModule(moduleId)
-      logger.info('Processing job enqueued', { moduleId, jobId })
+      console.log('📬 [queueOrInline] Processing job enqueued', { moduleId, jobId })
     } else {
-      logger.info('Starting inline processing', { moduleId })
+      console.log('📬 [queueOrInline] Starting inline processing', { moduleId })
       await startProcessing(moduleId)
-      logger.info('Inline processing completed', { moduleId })
+      console.log('📬 [queueOrInline] Inline processing completed', { moduleId })
     }
   } catch (err: any) {
-    logger.error('Processing queue failed', { 
+    console.error('📬 [queueOrInline] Processing queue failed', { 
       moduleId, 
       error: err?.message || err,
       stack: err?.stack 
@@ -206,15 +205,20 @@ router.post('/manual-process', optionalAuth, async (req, res) => {
 })
 
 // Upload complete endpoint for presigned S3 uploads
+// Structured Error Handling: 400 for validation, 422 for processing, 500 for system errors
 router.post('/complete', optionalAuth, async (req, res) => {
   try {
     const { moduleId, s3Key, filename, title } = req.body
     const userId = (req as any).userId
 
+    // Enhanced validation with proper error categorization
     if (!moduleId || !s3Key) {
       return res.status(400).json({ 
-        error: 'Missing required fields', 
-        required: ['moduleId', 's3Key'] 
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'Missing required fields', 
+        required: ['moduleId', 's3Key'],
+        received: Object.keys(req.body)
       })
     }
 
@@ -236,72 +240,231 @@ router.post('/complete', optionalAuth, async (req, res) => {
       userId
     }
 
-    const savedModule = await DatabaseService.createModule(moduleData)
-    console.log('✅ [Upload Complete] Module created in database', { 
-      moduleId: savedModule.id 
-    })
-
-    // Start processing BEFORE responding (more reliable)
-    console.log('📬 [Upload Complete] Starting processing pipeline for module', { moduleId })
-    console.log('📬 [Upload Complete] QStash enabled check:', isEnabled())
-    
     try {
-      await queueOrInline(savedModule.id)
-      console.log('✅ [Upload Complete] Processing pipeline started successfully', { moduleId })
-      
-      // Respond with processing status
-      res.json({
-        success: true,
-        moduleId: savedModule.id,
-        status: 'processing',
-        message: 'Upload registered. Processing started.'
+      const savedModule = await DatabaseService.createModule(moduleData)
+      console.log('✅ [Upload Complete] Module created in database', { 
+        moduleId: savedModule.id 
       })
+
+      // Start processing BEFORE responding (more reliable)
+      console.log('📬 [Upload Complete] Starting processing pipeline for module', { moduleId })
+      console.log('📬 [Upload Complete] QStash enabled check:', isEnabled())
       
-    } catch (err: any) {
-      console.error('❌ [Upload Complete] Failed to start processing pipeline', { 
-        moduleId: savedModule.id, 
-        error: err?.message || err,
-        stack: err?.stack 
-      })
-      
-      // CRITICAL: Try direct inline processing as last resort
+      // QStash Integration: If enabled, enqueues background job; otherwise runs inline
+      // This provides scalability for production while maintaining reliability for development
       try {
-        console.log('🔄 [Upload Complete] Attempting direct inline processing as fallback')
-        await startProcessing(savedModule.id)
-        console.log('✅ [Upload Complete] Direct inline processing succeeded')
+        await queueOrInline(savedModule.id)
+        console.log('✅ [Upload Complete] Processing pipeline started successfully', { moduleId })
         
-        // Respond with processing status after successful fallback
-        res.json({
+        // Respond with processing status
+        return res.json({
           success: true,
           moduleId: savedModule.id,
           status: 'processing',
-          message: 'Upload registered. Processing started (fallback mode).'
+          message: 'Upload registered. Processing started.'
         })
         
-      } catch (fallbackErr) {
-        console.error('💥 [Upload Complete] Even direct processing failed', fallbackErr)
+      } catch (err: any) {
+        console.error('❌ [Upload Complete] Failed to start processing pipeline', { 
+          moduleId: savedModule.id, 
+          error: err?.message || err,
+          stack: err?.stack 
+        })
         
-        // Respond with error if everything fails
-        res.status(500).json({
+        // CRITICAL: Try direct inline processing as last resort
+        try {
+          console.log('🔄 [Upload Complete] Attempting direct inline processing as fallback')
+          await startProcessing(savedModule.id)
+          console.log('✅ [Upload Complete] Direct inline processing succeeded')
+          
+          // Respond with processing status after successful fallback
+          return res.json({
+            success: true,
+            moduleId: savedModule.id,
+            status: 'processing',
+            message: 'Upload registered. Processing started (fallback mode).'
+          })
+          
+        } catch (fallbackErr) {
+          console.error('💥 [Upload Complete] Even direct processing failed', fallbackErr)
+          
+          // Respond with error if everything fails
+          return res.status(500).json({
+            success: false,
+            error: 'Processing failed to start',
+            message: `Failed to start processing: ${fallbackErr instanceof Error ? fallbackErr.message : fallbackErr}`
+          })
+        }
+      }
+
+    } catch (dbError: any) {
+      console.error('❌ [Upload Complete] Database error:', dbError)
+      
+      // Enhanced error categorization for database issues
+      if (dbError?.code === 'P2002') {
+        return res.status(409).json({
           success: false,
-          error: 'Processing failed to start',
-          message: `Failed to start processing: ${fallbackErr instanceof Error ? fallbackErr.message : fallbackErr}`
+          error: 'DUPLICATE_MODULE',
+          message: 'Module with this ID already exists',
+          details: 'Try uploading again or use a different module ID'
+        })
+      } else if (dbError?.code === 'P2003') {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_USER',
+          message: 'Invalid user ID provided',
+          details: 'Please ensure you are properly authenticated'
+        })
+      } else {
+        return res.status(500).json({
+          success: false,
+          error: 'DATABASE_ERROR',
+          message: 'Database operation failed',
+          details: dbError?.message || 'Unknown database error'
         })
       }
     }
 
   } catch (error: any) {
     console.error('💥 [Upload Complete] Error:', error)
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Upload completion failed',
       message: error?.message || 'Unknown error'
     })
   }
 })
 
-// Health check for uploads
-router.get('/health', (req, res) => {
-  res.json({ status: 'Upload service ready' })
+// Enhanced health check for uploads with FFmpeg and S3 verification
+router.get('/health', async (req, res) => {
+  try {
+    interface HealthCheck {
+      status: 'available' | 'unavailable'
+      message: string
+      error?: string
+    }
+
+    interface HealthChecks {
+      service: string
+      timestamp: string
+      status: 'checking' | 'healthy' | 'degraded' | 'unhealthy' | 'error'
+      message?: string
+      checks: {
+        ffmpeg?: HealthCheck
+        s3?: HealthCheck
+        tempDir?: HealthCheck
+      }
+    }
+
+    const healthChecks: HealthChecks = {
+      service: 'upload',
+      timestamp: new Date().toISOString(),
+      status: 'checking',
+      checks: {}
+    }
+
+    // Check 1: FFmpeg availability
+    try {
+      const { exec } = await import('child_process')
+      const { promisify } = await import('util')
+      const execAsync = promisify(exec)
+      
+      await execAsync('ffmpeg -version', { timeout: 5000 })
+      healthChecks.checks.ffmpeg = { status: 'available', message: 'FFmpeg is ready for video processing' }
+    } catch (ffmpegError: any) {
+      healthChecks.checks.ffmpeg = { 
+        status: 'unavailable', 
+        error: ffmpegError?.message || 'FFmpeg check failed',
+        message: 'Video normalization will not work'
+      }
+    }
+
+    // Check 2: S3 connectivity
+    try {
+      const { storageService } = await import('../services/storageService.js')
+      const s3Health = await storageService.healthCheck()
+      healthChecks.checks.s3 = { 
+        status: s3Health.success ? 'available' : 'unavailable',
+        message: s3Health.message
+      }
+    } catch (s3Error: any) {
+      healthChecks.checks.s3 = { 
+        status: 'unavailable', 
+        error: s3Error?.message || 'S3 check failed',
+        message: 'File uploads will not work'
+      }
+    }
+
+    // Check 3: Temp directory
+    try {
+      const fs = await import('fs/promises')
+      const tempDir = './temp'
+      await fs.access(tempDir)
+      healthChecks.checks.tempDir = { status: 'available', message: 'Temp directory accessible' }
+    } catch (dirError: any) {
+      healthChecks.checks.tempDir = { 
+        status: 'unavailable', 
+        error: dirError?.message || 'Directory check failed',
+        message: 'Video processing may fail'
+      }
+    }
+
+    // Determine overall status
+    const allChecks = Object.values(healthChecks.checks).filter(Boolean)
+    const criticalChecks = allChecks.filter((check: HealthCheck) => check.status === 'unavailable')
+    
+    if (criticalChecks.length === 0) {
+      healthChecks.status = 'healthy'
+      healthChecks.message = 'Upload service is fully operational'
+      res.status(200).json(healthChecks)
+    } else if (criticalChecks.length === 1 && healthChecks.checks.ffmpeg?.status === 'unavailable') {
+      healthChecks.status = 'degraded'
+      healthChecks.message = 'Upload service operational but video normalization unavailable'
+      res.status(200).json(healthChecks)
+    } else {
+      healthChecks.status = 'unhealthy'
+      healthChecks.message = 'Upload service has critical issues'
+      res.status(503).json(healthChecks)
+    }
+
+  } catch (error: any) {
+    console.error('❌ Health check failed:', error)
+    res.status(500).json({
+      service: 'upload',
+      timestamp: new Date().toISOString(),
+      status: 'error',
+      error: 'Health check failed',
+      message: error?.message || 'Unknown health check error'
+    })
+  }
+})
+
+// Status endpoint for service information
+router.get('/status', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      service: 'upload',
+      timestamp: new Date().toISOString(),
+      maxFileSize: '200MB',
+      supportedFormats: ['video/mp4', 'video/webm', 'video/avi', 'video/mov', 'video/mkv'],
+      features: {
+        ffmpegNormalization: true,
+        presignedUpload: true,
+        s3Upload: true,
+        aiProcessing: true,
+        videoTranscoding: true
+      },
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0'
+    })
+  } catch (error: any) {
+    console.error('❌ Status check failed:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Service unavailable',
+      message: 'Upload service is experiencing issues'
+    })
+  }
 })
 
 // Diagnostic endpoint to check video format issues

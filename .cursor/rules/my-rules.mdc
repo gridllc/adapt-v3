@@ -1,0 +1,106 @@
+# Adapt V3 – Cursor Rules (OpenAI-first, Voice-on-Web by default)
+
+0) CONTEXT PRELOAD
+You are editing Adapt V3, a mobile-first web app (iOS Safari + Android Chrome).
+Do only what the Change Plan lists.  
+No drive-by refactors, renames, or dependency churn.  
+Do not change providers (Clerk, S3, Prisma/Postgres, QStash) unless the plan says so.  
+
+AI policy: **OpenAI primary**, Gemini disabled (kept as placeholder).  
+Uploads: **direct-to-S3 only, no chunking**.  
+Normalization: all uploaded videos must be browser-safe MP4 (H.264 + AAC) via ffmpeg.  
+
+---
+
+1) What this app is
+Turns owner training videos into interactive, timestamped steps + clickable transcript.  
+Trainees: watch, tap transcript to seek, ask context-aware AI Tutor.  
+Owners: edit steps inline, save, see repeated questions to improve training.  
+Goals: (1) reliable video→transcript→steps pipeline, (2) mobile UX, (3) contextual AI, (4) multi-tenant ready.
+
+2) Tech stack
+Frontend: React 18 + TS + Vite, Tailwind, Zustand, Clerk, React Router, Vercel  
+Backend: Express + TS, Prisma + PostgreSQL (Render), AWS S3, QStash (optional → inline fallback), Render  
+AI: OpenAI (gpt-4o-mini). Gemini present but disabled.  
+Transcription: OpenAI Whisper (primary). Google Speech adapters exist but disabled.  
+Voice (UI): Browser Web Speech API (free). Google STT/TTS kept behind flags.  
+
+3) Mobile-first rules
+375px width baseline; 44px+ touch targets; keyboard focus states.  
+Video player full-width; steps clickable; sticky mic/controls where needed.  
+Optimize for 4G (short timeouts, retries, progressive loading).  
+
+4) Repo conventions
+frontend/ (React) — backend/ (Express).  
+Aliases: @components, @hooks, @stores, @utils, @config, @services, @routes, @types.  
+Lint: ESLint + Prettier. Avoid `any`.
+
+5) Data & storage
+Uploads: direct-to-S3 via presigned URL.  
+Backend: normalizes every upload → H.264 + AAC MP4 → stores with `ContentType=video/mp4`.  
+DB: stores metadata + S3 key, not public URLs. Playback uses signed URLs.  
+Heavy work (transcribe→steps→embeddings): QStash jobs; inline fallback allowed with locking.  
+
+6) API contracts (stable unless FE/BE PR shipped together)
+- `POST /api/upload/init` → presign { moduleId, key }  
+- Client uploads → `POST /api/upload/complete` → enqueue/inline process  
+- `GET /api/modules/:id` → module + steps + transcript + statuses  
+- `GET /api/video/:moduleId/play` → short-lived signed URL  
+- `POST /api/steps/:moduleId` → upsert steps  
+- `POST /api/qa/ask` → { moduleId, stepId?, question } → { answer, sources? }  
+- `GET /api/qa/related?moduleId=...&q=...`  
+
+7) AI prompting & cost guardrails
+Provider: OpenAI only.  
+Model: gpt-4o-mini. Temp=0.2, Max=800 tokens.  
+Transcript trim to ~8–10k chars (head+tail+sampled middle).  
+Retries ≤2 with backoff. No retries while status=PROCESSING.  
+Prompt includes: moduleId, stepId?, last N turns, ≤3 transcript snippets.  
+
+8) Voice (live STT/TTS for training)
+Default: Web Speech API for STT+TTS.  
+Google adapters kept but disabled. Guard with flags/env keys.  
+Start Training → mic overlay opens.  
+TTS replies via Web Speech. Visible stop button; respect mute state.  
+
+9) Performance
+Controllers >1s must enqueue; inline only with spinner+lock.  
+Video via signed URLs + range requests.  
+Optional 30–60s caching for read-heavy endpoints.  
+
+10) Testing
+- Layout/tap tests iOS Safari + Android Chrome.  
+- Contract tests for section 6 endpoints.  
+- One happy-path e2e: upload → process → steps → edit → ask (incl. voice start).  
+
+11) Strict Edit Scope
+Every change begins with a Change Plan comment.  
+Touch only listed files.  
+If new file required, amend plan.  
+No renames or dependency bumps without approval.  
+
+12) Env & secrets
+Base: DATABASE_URL, S3_*, CLERK_*, FRONTEND_ORIGIN, BACKEND_ORIGIN, OPENAI_API_KEY  
+Flags:  
+```env
+ENABLE_GEMINI=false
+AI_PROVIDER=openai
+AI_MODEL_OPENAI=gpt-4o-mini
+AI_TEMPERATURE=0.2
+AI_MAX_OUTPUT_TOKENS=800
+
+VOICE_STT_PROVIDER=web
+VOICE_TTS_PROVIDER=web
+ENABLE_GOOGLE_SPEECH=false
+GOOGLE_PROJECT_ID=
+GOOGLE_APPLICATION_CREDENTIALS=
+
+QSTASH_ENABLED=false
+
+
+his version merges your earlier “overall picture” with the newer decisions:  
+- 🔒 **Direct-to-S3 only** (no chunking)  
+- 🎬 **FFmpeg normalization** required for every video before S3 upload  
+- 🧠 **OpenAI only** (Gemini disabled but placeholder kept)  
+- 🎤 **Voice via Web Speech API** by default  
+- ✅ Clarified env vars and error guardrails  

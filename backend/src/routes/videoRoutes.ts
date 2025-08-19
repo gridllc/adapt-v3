@@ -1,6 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
-import { getSignedS3Url } from '../services/storageService.js'
+import { storageService } from '../services/storageService.js'
 import { videoController } from '../controllers/videoController.js'
 
 const router = express.Router()
@@ -21,7 +21,7 @@ router.options('/:filename', (req: Request, res: Response) => {
 router.get('/url/:filename', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { filename } = paramSchema.parse(req.params)
-    const signedUrl = await getSignedS3Url(filename)
+    const signedUrl = await storageService.getSignedS3Url(filename)
     return res.status(200).json({
       success: true,
       url: signedUrl,

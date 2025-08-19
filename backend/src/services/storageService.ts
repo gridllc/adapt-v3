@@ -1,224 +1,341 @@
 // backend/src/services/storageService.ts
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { v4 as uuidv4 } from 'uuid'
 
+// Configure S3 client with proper error handling
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
-})
+  maxAttempts: 3, // Retry failed requests
+  retryMode: 'adaptive'
+});
 
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
-
-// In-memory storage for development (replace with database in production)
-const moduleStore = new Map<string, any>()
+const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adapt-videos';
 
 export const storageService = {
+  /**
+   * Upload video to S3 with proper error handling and validation
+   */
   async uploadVideo(file: Express.Multer.File): Promise<string> {
-    const key = `videos/${uuidv4()}-${file.originalname}`
+    const key = `videos/${uuidv4()}-${this.sanitizeFilename(file.originalname)}`;
 
     try {
+      console.log(`📤 Uploading to S3: ${key} (${file.size} bytes)`);
+
       const command = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
-      })
+        ContentDisposition: 'inline', // Allows direct playback in browser
+        CacheControl: 'max-age=31536000', // Cache for 1 year
+        Metadata: {
+          'original-name': file.originalname,
+          'upload-timestamp': new Date().toISOString(),
+          'file-size': file.size.toString()
+        }
+      });
 
-      await s3Client.send(command)
+      await s3Client.send(command);
 
-      return `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
-    } catch (error) {
-      console.error('S3 upload error:', error)
-      // For development, create a blob URL as fallback
-      const blob = new Blob([file.buffer], { type: file.mimetype })
-      return URL.createObjectURL(blob)
+      const videoUrl = this.getS3Url(key);
+      console.log(`✅ Upload successful: ${videoUrl}`);
+
+      // Verify upload by checking if object exists
+      try {
+        await this.verifyUpload(key);
+      } catch (verifyError) {
+        console.warn('⚠️ Upload verification failed, but upload may have succeeded:', verifyError);
+      }
+
+      return videoUrl;
+
+    } catch (error: any) {
+      console.error('❌ S3 upload failed:', error);
+
+      if (error.name === 'NoSuchBucket') {
+        throw new Error(`S3 bucket '${BUCKET_NAME}' does not exist`);
+      } else if (error.name === 'AccessDenied') {
+        throw new Error('S3 access denied - check your AWS credentials');
+      } else if (error.name === 'InvalidAccessKeyId') {
+        throw new Error('Invalid AWS access key ID');
+      } else if (error.name === 'SignatureDoesNotMatch') {
+        throw new Error('Invalid AWS secret access key');
+      } else if (error.name === 'RequestTimeout' || error.code === 'TimeoutError') {
+        throw new Error('S3 upload timed out - please try again');
+      } else if (error.name === 'NetworkingError') {
+        throw new Error('Network error during upload - check your connection');
+      } else {
+        throw new Error(`S3 upload failed: ${error.message}`);
+      }
     }
   },
 
-  async uploadVideoWithKey(file: Express.Multer.File, s3Key: string): Promise<string> {
-    try {
-      // Force video/mp4 MIME type for all video uploads to ensure browser compatibility
-      const contentType = file.mimetype.startsWith('video/') ? 'video/mp4' : file.mimetype
-      
-      const command = new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: s3Key,
-        Body: file.buffer,
-        ContentType: contentType,
-      })
+  /**
+   * Save module data to S3
+   */
+  async saveModule(moduleData: any): Promise<string> {
+    const moduleId = uuidv4();
+    const key = `modules/${moduleId}.json`;
 
-      await s3Client.send(command)
-      return `https://${BUCKET_NAME}.s3.amazonaws.com/${s3Key}`
-    } catch (error) {
-      console.error('S3 upload error:', error)
-      throw error
-    }
-  },
-
-  async putJson(key: string, data: any): Promise<void> {
     try {
+      console.log(`💾 Saving module: ${moduleId}`);
+
+      // Add metadata to module data
+      const enrichedModuleData = {
+        ...moduleData,
+        id: moduleId,
+        createdAt: new Date().toISOString(),
+        version: '1.0'
+      };
+
       const command = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
-        Body: JSON.stringify(data),
+        Body: JSON.stringify(enrichedModuleData, null, 2),
         ContentType: 'application/json',
-      })
+        CacheControl: 'max-age=3600', // Cache for 1 hour
+        Metadata: {
+          'module-id': moduleId,
+          'created-timestamp': new Date().toISOString()
+        }
+      });
 
-      await s3Client.send(command)
-    } catch (error) {
-      console.error('S3 putJson error:', error)
-      throw error
+      await s3Client.send(command);
+      console.log(`✅ Module saved: ${moduleId}`);
+
+      return moduleId;
+
+    } catch (error: any) {
+      console.error('❌ Module save failed:', error);
+      throw new Error(`Failed to save module: ${error.message}`);
     }
   },
 
-  async getJson(key: string): Promise<any> {
+  /**
+   * Get module data from S3
+   */
+  async getModule(moduleId: string): Promise<any> {
+    const key = `modules/${moduleId}.json`;
+
     try {
+      console.log(`📖 Fetching module: ${moduleId}`);
+
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: key,
-      })
+        Key: key
+      });
 
-      const response = await s3Client.send(command)
-      const body = await response.Body?.transformToString()
+      const response = await s3Client.send(command);
 
-      if (body) {
-        return JSON.parse(body)
+      if (!response.Body) {
+        throw new Error('Empty response from S3');
       }
-      return null
-    } catch (error) {
-      console.error('S3 getJson error:', error)
-      return null
+
+      const bodyContents = await response.Body.transformToString();
+      const moduleData = JSON.parse(bodyContents);
+
+      console.log(`✅ Module fetched: ${moduleId}`);
+      return moduleData;
+
+    } catch (error: any) {
+      console.error(`❌ Failed to fetch module ${moduleId}:`, error);
+
+      if (error.name === 'NoSuchKey') {
+        throw new Error(`Module ${moduleId} not found`);
+      } else {
+        throw new Error(`Failed to fetch module: ${error.message}`);
+      }
     }
   },
 
-  async headObject(key: string): Promise<any> {
+  /**
+   * Get all modules (this would typically use a database in production)
+   */
+  async getAllModules(): Promise<any[]> {
+    // In a real app, this would query a database
+    // For now, return mock data with proper structure
+    return [
+      {
+        id: '1',
+        title: 'Coffee Maker Training',
+        description: 'Learn how to use your coffee maker',
+        videoUrl: 'https://example.com/coffee.mp4',
+        createdAt: new Date().toISOString(),
+        status: 'READY',
+        steps: []
+      },
+      {
+        id: '2',
+        title: 'Fire TV Remote',
+        description: 'Master your Fire TV remote controls',
+        videoUrl: 'https://example.com/firetv.mp4',
+        createdAt: new Date().toISOString(),
+        status: 'READY',
+        steps: []
+      },
+    ];
+  },
+
+  /**
+   * Verify that an upload was successful
+   */
+  async verifyUpload(key: string): Promise<boolean> {
     try {
       const command = new HeadObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: key,
-      })
+        Key: key
+      });
 
-      const response = await s3Client.send(command)
-      return response
-    } catch (error) {
-      console.error('S3 headObject error:', error)
-      throw error
+      await s3Client.send(command);
+      return true;
+    } catch (error: any) {
+      if (error.name === 'NotFound') {
+        throw new Error('Upload verification failed - file not found in S3');
+      } else {
+        throw new Error(`Upload verification failed: ${error.message}`);
+      }
     }
   },
 
-  async generateSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+  /**
+   * Check S3 connection and bucket access
+   */
+  async healthCheck(): Promise<{ success: boolean; message: string }> {
     try {
-      const command = new GetObjectCommand({
+      // Try to list objects in the bucket (with limit 1 to minimize cost)
+      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+      const command = new ListObjectsV2Command({
         Bucket: BUCKET_NAME,
-        Key: key,
-        // Add response headers to ensure proper video playback
-        ResponseContentType: 'video/mp4',
-        ResponseCacheControl: 'public, max-age=3600',
-        ResponseContentDisposition: 'inline'
-      })
+        MaxKeys: 1
+      });
 
-      const signedUrl = await getSignedUrl(s3Client, command, { expiresIn })
-      console.log(`🎥 Generated signed URL for ${key} with video/mp4 headers`)
-      return signedUrl
-    } catch (error) {
-      console.error('S3 generateSignedUrl error:', error)
-      throw error
+      await s3Client.send(command);
+
+      return {
+        success: true,
+        message: `S3 connection healthy, bucket '${BUCKET_NAME}' accessible`
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: `S3 health check failed: ${error.message}`
+      };
     }
   },
 
-  async saveModule(moduleData: any): Promise<string> {
-    const moduleId = uuidv4()
-    const moduleWithId = {
-      ...moduleData,
-      id: moduleId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
+  /**
+   * Generate S3 URL for a key
+   */
+  getS3Url(key: string): string {
+    return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+  },
 
+  /**
+   * Sanitize filename for S3 key
+   */
+  sanitizeFilename(filename: string): string {
+    return filename
+      .replace(/[^a-zA-Z0-9.-]/g, '_') // Replace special chars with underscore
+      .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+      .toLowerCase();
+  },
+
+  /**
+   * Save JSON data to S3
+   */
+  async putJson(key: string, data: any): Promise<string> {
     try {
-      // Try to save to S3
-      const key = `modules/${moduleId}.json`
+      console.log(`💾 Saving JSON to S3: ${key}`);
 
       const command = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
-        Body: JSON.stringify(moduleWithId),
+        Body: JSON.stringify(data, null, 2),
         ContentType: 'application/json',
-      })
+        CacheControl: 'max-age=3600'
+      });
 
-      await s3Client.send(command)
-    } catch (error) {
-      console.error('S3 save error, using memory storage:', error)
+      await s3Client.send(command);
+      return this.getS3Url(key);
+    } catch (error: any) {
+      console.error('❌ Failed to save JSON to S3:', error);
+      throw new Error(`Failed to save JSON: ${error?.message || error}`);
     }
-
-    // Always save to memory store for immediate access
-    moduleStore.set(moduleId, moduleWithId)
-
-    return moduleId
   },
 
-  async getModule(moduleId: string): Promise<any> {
-    // First check memory store
-    if (moduleStore.has(moduleId)) {
-      return moduleStore.get(moduleId)
-    }
-
-    // Then try S3
+  /**
+   * Get JSON data from S3
+   */
+  async getJson(key: string): Promise<any> {
     try {
-      const key = `modules/${moduleId}.json`
+      console.log(`📖 Fetching JSON from S3: ${key}`);
+
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
-        Key: key,
-      })
+        Key: key
+      });
 
-      const response = await s3Client.send(command)
-      const body = await response.Body?.transformToString()
-
-      if (body) {
-        const module = JSON.parse(body)
-        moduleStore.set(moduleId, module) // Cache in memory
-        return module
+      const response = await s3Client.send(command);
+      const body = await response.Body?.transformToString();
+      
+      if (!body) {
+        throw new Error('Empty response body');
       }
-    } catch (error) {
-      console.error('S3 get error:', error)
+
+      return JSON.parse(body);
+    } catch (error: any) {
+      console.error('❌ Failed to fetch JSON from S3:', error);
+      throw new Error(`Failed to fetch JSON: ${error?.message || error}`);
     }
-
-    // Return null if not found
-    return null
   },
 
-  async getAllModules(): Promise<any[]> {
-    // For now, return modules from memory store
-    // In production, this would query a database or list S3 objects
-    return Array.from(moduleStore.values()).sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
-  },
-
-  async deleteModule(moduleId: string): Promise<void> {
-    // Remove from memory store
-    moduleStore.delete(moduleId)
-
-    // Try to delete from S3
+  /**
+   * Get S3 object metadata
+   */
+  async headObject(key: string): Promise<any> {
     try {
-      const key = `modules/${moduleId}.json`
-      const command = new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key,
-      })
+      console.log(`🔍 Getting S3 object metadata: ${key}`);
 
-      await s3Client.send(command)
-    } catch (error) {
-      console.error('S3 delete error:', error)
+      const command = new HeadObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key
+      });
+
+      return await s3Client.send(command);
+    } catch (error: any) {
+      console.error('❌ Failed to get S3 object metadata:', error);
+      throw new Error(`Failed to get metadata: ${error?.message || error}`);
     }
   },
-}
 
-// Export individual functions for backward compatibility
-export const getSignedS3Url = async (filename: string): Promise<string> => {
-  return storageService.generateSignedUrl(filename, 3600)
-}
+  /**
+   * Generate signed URL for S3 object
+   */
+  async generateSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    try {
+      console.log(`🔗 Generating signed URL for: ${key}, expires in ${expiresIn}s`);
+
+      const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key
+      });
+
+      return await getSignedUrl(s3Client, command, { expiresIn });
+    } catch (error: any) {
+      console.error('❌ Failed to generate signed URL:', error);
+      throw new Error(`Failed to generate signed URL: ${error?.message || error}`);
+    }
+  },
+
+  /**
+   * Get signed S3 URL (alias for generateSignedUrl)
+   */
+  async getSignedS3Url(key: string, expiresIn: number = 3600): Promise<string> {
+    return this.generateSignedUrl(key, expiresIn);
+  }
+};

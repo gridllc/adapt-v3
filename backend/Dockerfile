@@ -5,10 +5,12 @@ WORKDIR /app
 # System deps for FFmpeg + Prisma native deps
 RUN apk add --no-cache \
     ffmpeg \
+    ffmpeg-dev \
     python3 \
     make \
     g++ \
-    && rm -rf /var/cache/apk/*
+    && rm -rf /var/cache/apk/* \
+    && ffmpeg -version
 
 # 1) Copy package files + prisma early (before npm ci)
 COPY package*.json ./
@@ -29,8 +31,10 @@ ENV NODE_ENV=production
 RUN npx prisma generate
 RUN npm run build
 
-# Create necessary directories
-RUN mkdir -p uploads processed temp
+# Create necessary directories for video processing
+RUN mkdir -p uploads processed temp \
+    && chmod 755 temp \
+    && ls -la temp
 
 # Create startup script that handles migrations at runtime
 COPY start.sh ./

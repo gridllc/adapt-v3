@@ -1,118 +1,232 @@
 // backend/src/controllers/uploadController.ts
 import { Request, Response } from 'express'
-import { v4 as uuidv4 } from 'uuid'
-import { ModuleService } from '../services/moduleService.js'
+import { aiService } from '../services/aiService.js'
 import { storageService } from '../services/storageService.js'
-import { startProcessing } from '../services/ai/aiPipeline.js'
-import { enqueueProcessModule, isEnabled } from '../services/qstashQueue.js'
-import { log } from '../utils/logger.js'
-import { DatabaseService } from '../services/prismaService.js'
+import { VideoNormalizationService } from '../services/videoNormalizationService.js'
 
-// Decide between QStash enqueue or inline processing
-async function queueOrInline(moduleId: string) {
-  try {
-    if (isEnabled()) {
-      const jobId = await enqueueProcessModule(moduleId)
-      log.info('📬 Enqueued processing job', { moduleId, jobId })
-    } else {
-      log.info('⚙️ QStash disabled, running inline processing', { moduleId })
-      await startProcessing(moduleId)
-    }
-  } catch (err: any) {
-    if (err?.message === 'QSTASH_DISABLED') {
-      log.warn('📬 QStash disabled, falling back to inline processing', { moduleId })
-      await startProcessing(moduleId)
-    } else {
-      log.error('Processing error', err)
-      throw err
-    }
-  }
+// Unified response interface
+interface UploadResponse {
+  success: boolean;
+  moduleId?: string;
+  videoUrl?: string;
+  status?: 'PROCESSING' | 'READY' | 'ERROR';
+  steps?: any[];
+  error?: string;
+  message?: string;
 }
 
 export const uploadController = {
-  async uploadVideo(req: Request, res: Response) {
+  /**
+   * Main upload endpoint with FFmpeg normalization, unified JSON, and comprehensive error handling
+   */
+  async uploadVideo(req: Request, res: Response): Promise<void> {
+    const startTime = Date.now();
+    console.log('🎬 Starting video upload process...');
+
     try {
+      // Validate request
       if (!req.file) {
-        log.error('❌ No file in request')
-        return res.status(400).json({ error: 'No file uploaded' })
+        const response: UploadResponse = {
+          success: false,
+          error: 'No file uploaded',
+          message: 'Please select a video file to upload'
+        };
+        res.status(400).json(response);
+        return;
       }
 
-      const file = req.file
-      log.info('📦 File received', {
-        name: file.originalname,
-        size: file.size,
-        type: file.mimetype
-      })
+      const file = req.file;
+      console.log(`📁 File received: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
 
       // Validate file type
       if (!file.mimetype.startsWith('video/')) {
-        return res.status(400).json({ error: 'Only video files are allowed' })
+        const response: UploadResponse = {
+          success: false,
+          error: 'Invalid file type',
+          message: 'Only video files are allowed'
+        };
+        res.status(400).json(response);
+        return;
       }
 
-      if (file.size < 1000) {
-        return res.status(400).json({ error: 'File too small, likely corrupted' })
+      // Validate file size (100MB limit)
+      const maxSize = 100 * 1024 * 1024; // 100MB
+      if (file.size > maxSize) {
+        const response: UploadResponse = {
+          success: false,
+          error: 'File too large',
+          message: 'File size must be under 100MB'
+        };
+        res.status(413).json(response);
+        return;
       }
 
-      if (file.size > 500 * 1024 * 1024) {
-        return res.status(400).json({ error: 'File too large (>500MB)' })
-      }
+      // Step 1: Normalize video for browser compatibility
+      console.log('🔄 Step 1: Normalizing video...');
+      let processedBuffer: Buffer;
 
-      if (!file.buffer || file.buffer.length !== file.size) {
-        return res.status(400).json({ error: 'File buffer invalid or size mismatch' })
-      }
+      try {
+        // Check if normalization is needed
+        const needsNormalization = await import('../services/videoNormalizationService.js')
+          .then(m => m.VideoNormalizationService.needsNormalization(file.buffer));
 
-      // Generate IDs and keys
-      const moduleId = uuidv4()
-      const s3Key = `videos/${moduleId}.mp4`
-      const stepsKey = `training/${moduleId}.json`
-
-      log.info('🔑 Generated canonical keys', { moduleId, s3Key, stepsKey })
-
-      // Upload to S3
-      const videoUrl = await storageService.uploadVideoWithKey(file, s3Key)
-      log.info('✅ Video uploaded', { videoUrl })
-
-      // Save module record
-      const userId = (req as any).userId
-      const moduleData = {
-        id: moduleId,
-        title: file.originalname.replace(/\.[^/.]+$/, ''),
-        filename: file.originalname,
-        videoUrl,
-        s3Key,
-        stepsKey,
-        status: 'UPLOADED' as const,
-        userId
-      }
-
-      const savedModule = await DatabaseService.createModule(moduleData)
-      log.info('✅ Module saved', { savedModuleId: savedModule.id, userId })
-
-      // Respond immediately
-      res.json({
-        success: true,
-        moduleId: savedModule.id,
-        videoUrl: s3Key,
-        status: 'uploaded',
-        steps: [],
-        message: 'Video uploaded successfully. AI processing will start shortly...'
-      })
-
-      // Trigger background processing (fire-and-forget)
-      queueMicrotask(async () => {
-        try {
-          await queueOrInline(savedModule.id)
-        } catch (err) {
-          log.error('❌ Failed to enqueue or process module', { moduleId: savedModule.id, err })
+        if (needsNormalization) {
+          console.log('📹 Video needs normalization, processing with FFmpeg...');
+          processedBuffer = await VideoNormalizationService.normalizeVideoBuffer(file.buffer, file.originalname, {
+            preset: 'veryfast',
+            crf: 23,
+            audioBitrate: '128k'
+          });
+          console.log(`✅ Video normalized: ${file.size} → ${processedBuffer.length} bytes`);
+        } else {
+          console.log('✅ Video already compatible, skipping normalization');
+          processedBuffer = file.buffer;
         }
-      })
-    } catch (error: any) {
-      log.error('💥 Upload controller error', error)
-      res.status(500).json({
-        error: 'Upload failed',
-        message: error?.message || 'Unknown error',
+      } catch (normalizationError) {
+        console.error('❌ Video normalization failed:', normalizationError);
+        const response: UploadResponse = {
+          success: false,
+          error: 'Video processing failed',
+          message: 'Unable to process video file. Please try a different format.'
+        };
+        res.status(422).json(response);
+        return;
+      }
+
+      // Step 2: Upload to S3
+      console.log('☁️ Step 2: Uploading to S3...');
+      let videoUrl: string;
+
+      try {
+        // Create modified file object with processed buffer
+        const processedFile = {
+          ...file,
+          buffer: processedBuffer,
+          size: processedBuffer.length,
+          mimetype: 'video/mp4' // Always MP4 after normalization
+        };
+
+        videoUrl = await storageService.uploadVideo(processedFile);
+        console.log(`✅ Video uploaded to S3: ${videoUrl}`);
+      } catch (uploadError) {
+        console.error('❌ S3 upload failed:', uploadError);
+        const response: UploadResponse = {
+          success: false,
+          error: 'Upload failed',
+          message: 'Failed to save video. Please try again.'
+        };
+        res.status(500).json(response);
+        return;
+      }
+
+      // Step 3: Process with AI
+      console.log('🤖 Step 3: Processing with AI...');
+      let moduleData: any;
+
+      try {
+        moduleData = await aiService.processVideo(videoUrl);
+        console.log(`✅ AI processing complete: ${moduleData.steps?.length || 0} steps extracted`);
+      } catch (aiError) {
+        console.error('❌ AI processing failed:', aiError);
+
+        // Return partial success - video is uploaded but not processed
+        const response: UploadResponse = {
+          success: true,
+          videoUrl,
+          status: 'ERROR',
+          error: 'AI processing failed',
+          message: 'Video uploaded but automatic step extraction failed. You can manually add steps.',
+          steps: []
+        };
+        res.status(200).json(response);
+        return;
+      }
+
+      // Step 4: Save module
+      console.log('💾 Step 4: Saving module...');
+      let moduleId: string;
+
+      try {
+        moduleId = await storageService.saveModule(moduleData);
+        console.log(`✅ Module saved with ID: ${moduleId}`);
+      } catch (saveError) {
+        console.error('❌ Module save failed:', saveError);
+
+        // Return partial success - video processed but not saved
+        const response: UploadResponse = {
+          success: true,
+          videoUrl,
+          status: 'ERROR',
+          error: 'Save failed',
+          message: 'Video processed but failed to save. Please try again.',
+          steps: moduleData.steps || []
+        };
+        res.status(200).json(response);
+        return;
+      }
+
+      // Success! Return complete unified response
+      const processingTime = Date.now() - startTime;
+      console.log(`🎉 Upload complete in ${processingTime}ms`);
+
+      const response: UploadResponse = {
+        success: true,
+        moduleId,
+        videoUrl,
+        status: 'READY',
+        steps: moduleData.steps || [],
+        message: `Video processed successfully in ${Math.round(processingTime / 1000)}s`
+      };
+
+      res.status(200).json(response);
+
+    } catch (error) {
+      // Catch-all error handler
+      console.error('❌ Unexpected upload error:', error);
+
+      const response: UploadResponse = {
+        success: false,
+        error: 'Unexpected error',
+        message: 'An unexpected error occurred. Please try again.'
+      };
+
+      res.status(500).json(response);
+    }
+  },
+
+  /**
+   * Health check endpoint for upload service
+   */
+  async healthCheck(req: Request, res: Response): Promise<void> {
+    try {
+      // Check FFmpeg availability
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      await execAsync('ffmpeg -version', { timeout: 5000 });
+
+      const response = {
+        success: true,
+        status: 'healthy',
+        ffmpeg: 'available',
         timestamp: new Date().toISOString()
-      })
+      };
+
+      res.json(response);
+    } catch (error) {
+      const response = {
+        success: false,
+        status: 'unhealthy',
+        ffmpeg: 'unavailable',
+        error: 'FFmpeg not found',
+        timestamp: new Date().toISOString()
+      };
+
+      res.status(503).json(response);
     }
   }
-}
+};
+
+// Export types for frontend
+export type { UploadResponse };
