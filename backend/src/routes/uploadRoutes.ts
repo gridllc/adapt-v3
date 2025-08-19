@@ -9,30 +9,35 @@ import { DatabaseService } from '../services/prismaService.js'
 import { enqueueProcessModule, isEnabled } from '../services/qstashQueue.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { v4 as uuidv4 } from 'uuid'
+import { validateInput, validationSchemas } from '../middleware/security.js'
+import { logger } from '../utils/structuredLogger.js'
 
 const router = express.Router()
 
 // Helper function for processing queue
 async function queueOrInline(moduleId: string) {
   try {
-    console.log('🔍 [queueOrInline] Starting for module:', moduleId)
-    console.log('🔍 [queueOrInline] QStash enabled:', isEnabled())
-    console.log('🔍 [queueOrInline] Environment check:', {
-      QSTASH_ENABLED: process.env.QSTASH_ENABLED,
-      QSTASH_TOKEN: !!process.env.QSTASH_TOKEN
+    logger.info('Processing queue check', { 
+      moduleId, 
+      qstashEnabled: isEnabled(),
+      qstashConfigured: !!process.env.QSTASH_TOKEN
     })
     
     if (isEnabled()) {
-      console.log('📬 [queueOrInline] QStash enabled, enqueuing job...')
+      logger.info('Enqueuing processing job', { moduleId })
       const jobId = await enqueueProcessModule(moduleId)
-      console.log('✅ [queueOrInline] Enqueued processing job', { moduleId, jobId })
+      logger.info('Processing job enqueued', { moduleId, jobId })
     } else {
-      console.log('⚙️ [queueOrInline] QStash disabled, running inline processing', { moduleId })
+      logger.info('Starting inline processing', { moduleId })
       await startProcessing(moduleId)
-      console.log('✅ [queueOrInline] Inline processing completed for', moduleId)
+      logger.info('Inline processing completed', { moduleId })
     }
   } catch (err: any) {
-    console.error('❌ [queueOrInline] Error occurred:', err?.message || err)
+    logger.error('Processing queue failed', { 
+      moduleId, 
+      error: err?.message || err,
+      stack: err?.stack 
+    })
     if (err?.message === 'QSTASH_DISABLED') {
       console.warn('📬 [queueOrInline] QStash disabled error, falling back to inline processing', { moduleId })
       await startProcessing(moduleId)
@@ -91,7 +96,7 @@ router.post('/', optionalAuth, (req: express.Request, res: express.Response, nex
 }, uploadController.uploadVideo)
 
 // Presigned URL endpoints for S3 direct upload (intended flow)
-router.post('/init', optionalAuth, async (req, res) => {
+router.post('/init', optionalAuth, validateInput(validationSchemas.fileUpload), async (req, res) => {
   try {
     const { filename, contentType, title } = req.body
     const userId = (req as any).userId

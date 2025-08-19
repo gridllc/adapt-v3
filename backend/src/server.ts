@@ -4,6 +4,8 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import { rateLimiters, securityHeaders, sanitizeInput } from './middleware/security'
+import { logger, addRequestId, httpLogging } from './utils/structuredLogger.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
@@ -92,11 +94,21 @@ const validateEnvironment = () => {
 
 // Middleware configuration
 const configureMiddleware = () => {
+  // Request ID and logging
+  app.use(addRequestId)
+  app.use(httpLogging)
+
   // Security middleware - disable CSP for API
   app.use(helmet({
     contentSecurityPolicy: false, // API only; let the frontend own CSP
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }))
+  
+  // Additional security headers
+  app.use(securityHeaders)
+  
+  // Input sanitization
+  app.use(sanitizeInput)
 
   // CORS configuration - REFACTORED for production deployment
   const allowedOrigins = [
@@ -203,12 +215,17 @@ const configureMiddleware = () => {
 
 // Route configuration
 const configureRoutes = () => {
-  // Upload Routes (public - no authentication required)
-  app.use('/api/upload', uploadRoutes) // Basic file upload endpoint
+  // Apply general rate limiting to all API routes
+  app.use('/api/', rateLimiters.general)
   
-  // Public Routes (no authentication required)
+  // Upload Routes (with stricter rate limiting)
+  app.use('/api/upload', rateLimiters.upload, uploadRoutes)
+  
+  // AI processing routes (with strictest rate limiting)
+  app.use('/api/ai', rateLimiters.aiProcessing, aiRoutes)
+  
+  // Public Routes (with general rate limiting)
   app.use('/api', healthRoutes)  // Mounts /api/health
-  app.use('/api/ai', aiRoutes)
   app.use('/api/video-url', videoRoutes)
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
@@ -540,7 +557,7 @@ const configureErrorHandling = () => {
 
   // Server startup
   const startServer = () => {
-    const server = app.listen(PORT, "0.0.0.0", () => {
+    const server = app.listen(Number(PORT), "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`   🌍 Environment: ${NODE_ENV}`)
       console.log(`   🔗 URL: http://localhost:${PORT}`)
