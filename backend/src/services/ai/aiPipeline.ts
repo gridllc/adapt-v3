@@ -71,6 +71,7 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
     // 6) Save steps JSON to S3 + mark READY
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 85, "Saving steps...")
     
+    // Save steps to S3
     await stepSaver.saveStepsToS3({
       moduleId: moduleId,
       s3Key: mod.module.stepsKey,
@@ -82,6 +83,9 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
         segments: transcript.segments
       }
     })
+
+    // Also save steps to database
+    await ModuleService.saveStepsToModule(moduleId, steps.steps)
 
     await ModuleService.markReady(moduleId)
     console.log(`✅ [AIPipeline] Module ${moduleId} processing complete`)

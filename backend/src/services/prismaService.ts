@@ -51,6 +51,8 @@ export class DatabaseService {
     title: string
     filename: string
     videoUrl: string
+    s3Key?: string
+    stepsKey?: string
     status?: string
     progress?: number
     userId?: string
@@ -62,6 +64,8 @@ export class DatabaseService {
           title: data.title,
           filename: data.filename,
           videoUrl: data.videoUrl,
+          s3Key: data.s3Key || null,
+          stepsKey: data.stepsKey || null,
           status: (data.status as any) || 'UPLOADED',
           progress: data.progress || 0,
           userId: data.userId || null,
