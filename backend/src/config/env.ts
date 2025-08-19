@@ -7,7 +7,7 @@ const envSchema = z.object({
   PORT: z
     .union([z.string(), z.number()])
     .transform((val) => typeof val === 'string' ? parseInt(val, 10) : val)
-    .default(8000),
+    .default(10000),
   API_BASE_URL: z.string().url().optional(),
   
   // Database (Critical)

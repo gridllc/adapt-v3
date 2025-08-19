@@ -228,38 +228,54 @@ router.post('/complete', optionalAuth, async (req, res) => {
       moduleId: savedModule.id 
     })
 
-    // Respond immediately to client
-    res.json({
-      success: true,
-      moduleId: savedModule.id,
-      status: 'uploaded',
-      message: 'Upload registered. Processing will start shortly...'
-    })
-
-    // Enqueue processing (fire-and-forget as per intended flow)
-    queueMicrotask(async () => {
+    // Start processing BEFORE responding (more reliable)
+    console.log('📬 [Upload Complete] Starting processing pipeline for module', { moduleId })
+    console.log('📬 [Upload Complete] QStash enabled check:', isEnabled())
+    
+    try {
+      await queueOrInline(savedModule.id)
+      console.log('✅ [Upload Complete] Processing pipeline started successfully', { moduleId })
+      
+      // Respond with processing status
+      res.json({
+        success: true,
+        moduleId: savedModule.id,
+        status: 'processing',
+        message: 'Upload registered. Processing started.'
+      })
+      
+    } catch (err: any) {
+      console.error('❌ [Upload Complete] Failed to start processing pipeline', { 
+        moduleId: savedModule.id, 
+        error: err?.message || err,
+        stack: err?.stack 
+      })
+      
+      // CRITICAL: Try direct inline processing as last resort
       try {
-        console.log('📬 [Upload Complete] Starting processing pipeline for module', { moduleId })
-        console.log('📬 [Upload Complete] QStash enabled check:', isEnabled())
-        await queueOrInline(savedModule.id)
-        console.log('✅ [Upload Complete] Processing pipeline started successfully', { moduleId })
-      } catch (err: any) {
-        console.error('❌ [Upload Complete] Failed to start processing pipeline', { 
-          moduleId: savedModule.id, 
-          error: err?.message || err,
-          stack: err?.stack 
+        console.log('🔄 [Upload Complete] Attempting direct inline processing as fallback')
+        await startProcessing(savedModule.id)
+        console.log('✅ [Upload Complete] Direct inline processing succeeded')
+        
+        // Respond with processing status after successful fallback
+        res.json({
+          success: true,
+          moduleId: savedModule.id,
+          status: 'processing',
+          message: 'Upload registered. Processing started (fallback mode).'
         })
         
-        // CRITICAL: Try direct inline processing as last resort
-        try {
-          console.log('🔄 [Upload Complete] Attempting direct inline processing as fallback')
-          await startProcessing(savedModule.id)
-          console.log('✅ [Upload Complete] Direct inline processing succeeded')
-        } catch (fallbackErr) {
-          console.error('💥 [Upload Complete] Even direct processing failed', fallbackErr)
-        }
+      } catch (fallbackErr) {
+        console.error('💥 [Upload Complete] Even direct processing failed', fallbackErr)
+        
+        // Respond with error if everything fails
+        res.status(500).json({
+          success: false,
+          error: 'Processing failed to start',
+          message: `Failed to start processing: ${fallbackErr instanceof Error ? fallbackErr.message : fallbackErr}`
+        })
       }
-    })
+    }
 
   } catch (error: any) {
     console.error('💥 [Upload Complete] Error:', error)
