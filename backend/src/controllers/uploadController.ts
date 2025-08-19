@@ -6,6 +6,7 @@ import { storageService } from '../services/storageService.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { enqueueProcessModule, isEnabled } from '../services/qstashQueue.js'
 import { log } from '../utils/logger.js'
+import { DatabaseService } from '../services/prismaService.js'
 
 // Decide between QStash enqueue or inline processing
 async function queueOrInline(moduleId: string) {
@@ -84,13 +85,13 @@ export const uploadController = {
         userId
       }
 
-      const savedModuleId = await storageService.saveModule(moduleData)
-      log.info('✅ Module saved', { savedModuleId, userId })
+      const savedModule = await DatabaseService.createModule(moduleData)
+      log.info('✅ Module saved', { savedModuleId: savedModule.id, userId })
 
       // Respond immediately
       res.json({
         success: true,
-        moduleId: savedModuleId,
+        moduleId: savedModule.id,
         videoUrl: s3Key,
         status: 'uploaded',
         steps: [],
@@ -100,9 +101,9 @@ export const uploadController = {
       // Trigger background processing (fire-and-forget)
       queueMicrotask(async () => {
         try {
-          await queueOrInline(savedModuleId)
+          await queueOrInline(savedModule.id)
         } catch (err) {
-          log.error('❌ Failed to enqueue or process module', { moduleId: savedModuleId, err })
+          log.error('❌ Failed to enqueue or process module', { moduleId: savedModule.id, err })
         }
       })
     } catch (error: any) {

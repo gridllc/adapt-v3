@@ -11,7 +11,7 @@ const s3Client = new S3Client({
   },
 })
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adapt-videos'
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
 
 // In-memory storage for development (replace with database in production)
 const moduleStore = new Map<string, any>()
