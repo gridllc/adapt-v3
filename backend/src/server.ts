@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 
-import { uploadRoutes } from './routes/uploadRoutes.js'
+import uploadRoutes from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
@@ -29,7 +29,7 @@ import { testAuthRoutes } from './routes/testAuth.js'
 import debugRoutes from './routes/debugRoutes.js'
 import { requestLogger } from './middleware/requestLogger.js'
 import healthRoutes from './routes/healthRoutes.js'
-import { storageRoutes } from './routes/storageRoutes.js'
+import storageRoutes from './routes/storageRoutes.js'
 
 // Import QStash queue to ensure it's initialized
 import './services/qstashQueue.js'

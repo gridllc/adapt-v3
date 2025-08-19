@@ -20,6 +20,18 @@ model User {
   @@map("users")
 }
 
+model Video {
+  id        String   @id @default(uuid())
+  moduleId  String   @unique
+  fileKey   String   @unique
+  status    String   @default("UPLOADING") // UPLOADING | READY
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@map("videos")
+}
+
 model Module {
   id        String         @id @default(cuid())
   title     String
@@ -38,6 +50,7 @@ model Module {
   user      User?          @relation(fields: [userId], references: [id])
   questions Question[]
   steps     Step[]
+  video     Video?
 
   @@map("modules")
 }

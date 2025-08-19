@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -12,6 +12,18 @@ const s3Client = new S3Client({
 })
 
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
+
+// For uploads
+export async function getPresignedUploadUrl(key: string) {
+  const cmd = new PutObjectCommand({ Bucket: BUCKET_NAME, Key: key })
+  return getSignedUrl(s3Client, cmd, { expiresIn: 3600 }) // 1 hour
+}
+
+// For playback
+export async function getSignedPlaybackUrl(key: string) {
+  const cmd = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key })
+  return getSignedUrl(s3Client, cmd, { expiresIn: 300 }) // 5 min
+}
 
 export const presignedUploadService = {
   async generatePresignedUrl(filename: string, contentType: string, customKey?: string) {

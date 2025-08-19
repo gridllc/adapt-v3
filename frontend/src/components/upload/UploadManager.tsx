@@ -3,59 +3,52 @@ import { useDropzone } from 'react-dropzone'
 import { useNavigate } from 'react-router-dom'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
-import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
+import { validateFile } from '@utils/uploadUtils'
 import { uploadWithPresignedUrl } from '@utils/presignedUpload'
 
 export const UploadManager: React.FC = () => {
   const navigate = useNavigate()
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    for (const file of acceptedFiles) {
-      try {
-        // Validate file
-        const validation = await validateFile(file)
-        if (!validation.valid) {
-          throw new Error(validation.error)
-        }
-
-        // Add to upload queue
-        const uploadId = addUpload(file)
-
-        // Start upload using presigned URL flow (intended flow)
+  const onDrop = useCallback(
+    async (acceptedFiles: File[]) => {
+      for (const file of acceptedFiles) {
         try {
-          console.log('🚀 Starting presigned upload flow for:', file.name)
-          
+          // Validate file
+          const validation = await validateFile(file)
+          if (!validation.valid) {
+            throw new Error(validation.error)
+          }
+
+          // Add to upload queue
+          const uploadId = addUpload(file)
+
+          // Upload with presigned URL flow
           const result = await uploadWithPresignedUrl({
             file,
             onProgress: (progress) => updateProgress(uploadId, progress),
-            // signal: abortController.signal // TODO: Add abort support
           })
 
-          console.log('✅ Upload completed:', result)
-          markSuccess(uploadId, result.moduleId)
+          if (result.success && result.moduleId) {
+            markSuccess(uploadId, result.moduleId)
 
-          // Navigate to the training page after successful upload
-          console.log('📍 Navigating to training page:', result.moduleId)
-
-          // Small delay to show success state, then navigate
-          setTimeout(() => {
-            navigate(`/training/${result.moduleId}`)
-          }, 1500)
-
-        } catch (error) {
-          console.error('❌ Presigned upload error:', error)
-          markError(uploadId, error as Error)
+            // Navigate to training page after small delay
+            setTimeout(() => {
+              navigate(`/training/${result.moduleId}`)
+            }, 1200)
+          } else {
+            console.error('❌ Upload failed:', result.error)
+            markError(uploadId, new Error(result.error || 'Upload failed'))
+          }
+        } catch (err: any) {
+          console.error('❌ File validation error:', err)
+          const tempId = addUpload(file)
+          markError(tempId, err)
         }
-      } catch (error) {
-        console.error('File validation error:', error)
-        // For validation errors, we need to show them to the user
-        // We can create a temporary upload entry just to show the error
-        const tempId = addUpload(file)
-        markError(tempId, error as Error)
       }
-    }
-  }, [addUpload, updateProgress, markSuccess, markError, navigate])
+    },
+    [addUpload, updateProgress, markSuccess, markError, navigate]
+  )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -64,7 +57,7 @@ export const UploadManager: React.FC = () => {
       'video/webm': ['.webm'],
     },
     maxSize: 100 * 1024 * 1024, // 100MB
-    multiple: false, // Only allow one file at a time for better UX
+    multiple: false, // one file at a time
   })
 
   return (
@@ -83,9 +76,7 @@ export const UploadManager: React.FC = () => {
           <h3 className="text-lg font-medium text-gray-900">
             {isDragActive ? 'Drop the video here' : 'Drag & drop your training video'}
           </h3>
-          <p className="text-sm text-gray-500">
-            or click to select a file
-          </p>
+          <p className="text-sm text-gray-500">or click to select a file</p>
           <div className="text-xs text-gray-400 space-y-1">
             <p>• Supported formats: MP4, WebM</p>
             <p>• Maximum duration: 3 minutes</p>
@@ -99,7 +90,7 @@ export const UploadManager: React.FC = () => {
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Upload Status</h3>
           {Object.entries(uploads)
-            .sort(([, a], [, b]) => b.timestamp - a.timestamp) // Show newest first
+            .sort(([, a], [, b]) => b.timestamp - a.timestamp)
             .map(([id, upload]) => (
               <UploadItem key={id} id={id} upload={upload} />
             ))}

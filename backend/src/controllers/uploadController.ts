@@ -20,6 +20,140 @@ interface UploadResponse {
 
 export const uploadController = {
   /**
+   * Generate presigned S3 URL for direct upload
+   */
+  async getUploadUrl(req: Request, res: Response): Promise<void> {
+    try {
+      const { moduleId, filename, contentType } = req.body
+      
+      // Validate required fields
+      if (!moduleId || !filename || !contentType) {
+        res.status(400).json({
+          success: false,
+          error: 'moduleId, filename, and contentType are required'
+        })
+        return
+      }
+
+      // Validate file type
+      if (!contentType.startsWith('video/')) {
+        res.status(400).json({
+          success: false,
+          error: 'Only video files are allowed'
+        })
+        return
+      }
+
+      // Generate presigned URL using existing service
+      const { presignedUploadService } = await import('../services/presignedUploadService.js')
+      const result = await presignedUploadService.generatePresignedUrl(filename, contentType, `adapt-videos/${moduleId}.mp4`)
+      
+      res.json({
+        success: true,
+        uploadUrl: result.presignedUrl,
+        fileKey: result.key
+      })
+    } catch (error) {
+      console.error('Failed to generate upload URL:', error)
+      res.status(500).json({
+        success: false,
+        error: 'Failed to generate upload URL'
+      })
+    }
+  },
+
+  /**
+   * Mark upload as complete and create Video record
+   */
+  async completeUpload(req: Request, res: Response): Promise<void> {
+    try {
+      const { moduleId, fileKey } = req.body
+      
+      if (!moduleId || !fileKey) {
+        res.status(400).json({
+          success: false,
+          error: 'moduleId and fileKey are required'
+        })
+        return
+      }
+
+      // Verify file exists in S3
+      const { presignedUploadService } = await import('../services/presignedUploadService.js')
+      const uploadResult = await presignedUploadService.confirmUpload(fileKey)
+      
+      if (!uploadResult.success) {
+        res.status(404).json({
+          success: false,
+          error: 'File not found in S3'
+        })
+        return
+      }
+
+      // Create or update Video record
+      const { prisma } = await import('../config/database.js')
+      
+      // Check if module exists
+      const module = await prisma.module.findUnique({
+        where: { id: moduleId }
+      })
+
+      if (!module) {
+        res.status(404).json({
+          success: false,
+          error: 'Module not found'
+        })
+        return
+      }
+
+      // Create Video record
+      const video = await prisma.video.upsert({
+        where: { moduleId },
+        update: {
+          fileKey,
+          status: 'UPLOADING'
+        },
+        create: {
+          moduleId,
+          fileKey,
+          status: 'UPLOADING'
+        }
+      })
+
+      // Update module status to UPLOADED
+      await prisma.module.update({
+        where: { id: moduleId },
+        data: { 
+          status: 'UPLOADED',
+          s3Key: fileKey
+        }
+      })
+
+      // Start processing (inline or queued)
+      try {
+        const { queueOrInline } = await import('../services/qstashQueue.js')
+        await queueOrInline(moduleId)
+        console.log(`📬 Enqueued processing job moduleId=${moduleId}`)
+      } catch (processingError) {
+        console.error('Failed to enqueue processing:', processingError)
+        // Continue anyway - the video is uploaded
+      }
+
+      res.json({
+        success: true,
+        moduleId,
+        fileKey,
+        status: 'UPLOADED'
+      })
+    } catch (error) {
+      console.error('Failed to complete upload:', error)
+      res.status(500).json({
+        success: false,
+        error: 'Failed to complete upload'
+      })
+    }
+  },
+
+  /**
    * Main upload endpoint with FFmpeg normalization, unified JSON, and comprehensive error handling
    */
   async uploadVideo(req: Request, res: Response): Promise<void> {

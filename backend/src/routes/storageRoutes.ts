@@ -1,17 +1,32 @@
 // routes/storageRoutes.ts
 import { Router } from 'express'
-import { storageService } from '../services/storageService.js'
+import prisma from '../services/prismaService.js'
+import { getSignedPlaybackUrl } from '../services/presignedUploadService.js'
 
-export const storageRoutes = Router()
+const router = Router()
 
-storageRoutes.get('/signed-url', async (req, res) => {
+// Playback: GET /video/:moduleId/play
+router.get('/video/:moduleId/play', async (req, res) => {
   try {
-    const key = String(req.query.key || '').trim()
-    if (!key) return res.status(400).json({ error: 'Missing key' })
-    const url = await storageService.generateSignedUrl(key, 900)
-    res.json({ url })
-  } catch (err: any) {
-    console.error('signed-url error', err)
-    res.status(500).json({ error: 'Failed to create signed URL' })
+    const { moduleId } = req.params
+    if (!moduleId) {
+      return res.status(400).json({ success: false, error: 'Missing moduleId' })
+    }
+
+    // Look up module in DB
+    const module = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!module || !module.s3Key) {
+      return res.status(404).json({ success: false, error: 'Module not found' })
+    }
+
+    // Generate a short-lived signed URL for playback
+    const signedUrl = await getSignedPlaybackUrl(module.s3Key)
+
+    res.json({ success: true, url: signedUrl })
+  } catch (err) {
+    console.error('❌ storageRoutes error:', err)
+    res.status(500).json({ success: false, error: 'Failed to get playback URL' })
   }
 })
+
+export default router

@@ -104,3 +104,40 @@ his version merges your earlier “overall picture” with the newer decisions:
 - 🧠 **OpenAI only** (Gemini disabled but placeholder kept)  
 - 🎤 **Voice via Web Speech API** by default  
 - ✅ Clarified env vars and error guardrails  
+
+
+
+Update 8.19.25
+The Recommendations I Gave You (Best Practices)
+
+Direct-to-S3 Uploads → Browser uploads go straight to S3 instead of proxying through your server.
+✅ Reduces errors, avoids Render bandwidth issues, lowers cost, and is industry standard.
+
+Force MP4 Normalization via FFmpeg → Re-encode all uploads to H.264/AAC MP4 so they always play in browsers.
+💲 ~$0.03 per processed minute on AWS Elastic Transcoder or MediaConvert.
+✅ Guarantees no playback issues, even with weird iPhone MOV/WebM uploads.
+
+Async Job Queue (QStash/Redis) → Offload heavy AI/video processing so uploads don’t block users.
+💲 QStash = $1 free tier (10k req) → ~$10/month for your current testing load.
+✅ Keeps UX smooth during AI transcription/step generation.
+
+CDN (CloudFront) → Cache videos close to users, remove latency.
+💲 First 1TB = $85 on AWS; unnecessary for now.
+✅ Matters only at larger scale.
+
+Database as Source of Truth → Always track upload status, key, URL in Postgres.
+✅ Ensures no dangling files, simplifies frontend logic.
+
+What We Are Doing Now
+
+✅ Direct-to-S3 Uploads → Implementing presigned PUT URLs.
+
+✅ Database as Source of Truth → Adding a Video table to track uploads + status.
+
+❌ Skipping FFmpeg normalization (for now) → Saves cost + complexity during testing.
+
+❌ Skipping async job queue (for now) → Less moving parts, no extra infra.
+
+❌ Skipping CDN (for now) → Not needed at low traffic.
+
+❌ Skipping structured logging/multi-stage builds (for now) → Keep dev simple until stability.
