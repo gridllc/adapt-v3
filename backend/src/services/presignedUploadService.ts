@@ -16,10 +16,13 @@ export const presignedUploadService = {
   async generatePresignedUrl(filename: string, contentType: string, customKey?: string) {
     const key = customKey || `videos/${uuidv4()}-${filename}`
     
+    // Force video/mp4 MIME type for all video uploads to ensure browser compatibility
+    const videoContentType = contentType.startsWith('video/') ? 'video/mp4' : contentType
+    
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
-      ContentType: contentType,
+      ContentType: videoContentType,
     })
 
     const presignedUrl = await getSignedUrl(s3Client, command, { 

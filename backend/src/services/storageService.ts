@@ -41,11 +41,14 @@ export const storageService = {
 
   async uploadVideoWithKey(file: Express.Multer.File, s3Key: string): Promise<string> {
     try {
+      // Force video/mp4 MIME type for all video uploads to ensure browser compatibility
+      const contentType = file.mimetype.startsWith('video/') ? 'video/mp4' : file.mimetype
+      
       const command = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: s3Key,
         Body: file.buffer,
-        ContentType: file.mimetype,
+        ContentType: contentType,
       })
 
       await s3Client.send(command)
@@ -112,9 +115,14 @@ export const storageService = {
       const command = new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: key,
+        // Add response headers to ensure proper video playback
+        ResponseContentType: 'video/mp4',
+        ResponseCacheControl: 'public, max-age=3600',
+        ResponseContentDisposition: 'inline'
       })
 
       const signedUrl = await getSignedUrl(s3Client, command, { expiresIn })
+      console.log(`🎥 Generated signed URL for ${key} with video/mp4 headers`)
       return signedUrl
     } catch (error) {
       console.error('S3 generateSignedUrl error:', error)

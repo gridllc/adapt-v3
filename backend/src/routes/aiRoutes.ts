@@ -212,7 +212,7 @@ router.post('/process-video/:moduleId', async (req, res) => {
     console.log(`📹 Processing video: ${videoPath}`)
     
     // Process video with enhanced AI analysis
-    await aiService.processVideo(`http://localhost:8000/uploads/${moduleId}.mp4`)
+    await aiService.processVideo(`http://localhost:${process.env.PORT || 8000}/uploads/${moduleId}.mp4`)
     
     console.log(`✅ AI processing completed for module: ${moduleId}`)
     
@@ -253,7 +253,7 @@ router.get('/test/:moduleId', async (req, res) => {
       })
     }
     
-    const videoData = await aiService.processVideo(`http://localhost:8000/uploads/${moduleId}.mp4`)
+    const videoData = await aiService.processVideo(`http://localhost:${process.env.PORT || 8000}/uploads/${moduleId}.mp4`)
     
     res.json({
       success: true,

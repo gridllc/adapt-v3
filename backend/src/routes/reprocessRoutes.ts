@@ -44,7 +44,7 @@ router.post('/:moduleId', async (req: Request, res: Response) => {
     console.log('🤖 Starting AI processing for reprocess...')
     
     // Process with AI
-    const videoUrl = `http://localhost:8000/uploads/${moduleId}.mp4`
+    const videoUrl = `http://localhost:${process.env.PORT || 8000}/uploads/${moduleId}.mp4`
     await aiService.processVideo(videoUrl)
     console.log('✅ AI processing completed')
     

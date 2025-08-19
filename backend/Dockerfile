@@ -22,29 +22,26 @@ COPY . .
 
 # Frontend will be built separately and copied if needed
 
-# Set production env explicitly for better error handling
+# Set production environment
 ENV NODE_ENV=production
 
-# Optional: enable verbose logging for debugging build issues
-ENV NPM_CONFIG_LOGLEVEL=verbose
-
-# Ensure clean builds with explicit steps
-# Note: prisma generate already ran during npm ci (postinstall), but running again ensures consistency
+# Build TypeScript application
 RUN npx prisma generate
 RUN npm run build
 
-# Optional: temp folders only if needed
+# Create necessary directories
 RUN mkdir -p uploads processed temp
 
 # Create startup script that handles migrations at runtime
 COPY start.sh ./
 RUN chmod +x start.sh
 
-EXPOSE 8000
+# Expose Render-required port (app uses process.env.PORT automatically)
+EXPOSE 10000
 
+# Health check on the port that Render expects
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:8000/health || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost:10000/health || exit 1
 
-
-# Use render:start for automatic migrations on boot
+# Start app (Render sets PORT=10000, app binds automatically)
 CMD ["npm", "run", "render:start"]

@@ -101,7 +101,7 @@ export const videoController = {
       }
       
       // Return URL with .mp4 extension
-      const videoUrl = `http://localhost:8000/uploads/${videoFilename}`
+      const videoUrl = `http://localhost:${process.env.PORT || 8000}/uploads/${videoFilename}`
       console.log(`✅ Video URL generated: ${videoUrl}`)
       
       res.json({

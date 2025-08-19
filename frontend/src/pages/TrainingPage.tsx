@@ -541,6 +541,17 @@ Just ask me anything about the training!`
               onTimeUpdate={handleVideoTimeUpdate}
               onPlay={handleVideoPlay}
               onPause={handleVideoPause}
+              onError={(e) => {
+                console.error('🎥 Video playback error:', e)
+                console.error('🎥 Video URL:', url)
+                const videoElement = e.target as HTMLVideoElement
+                console.error('🎥 Video element error:', videoElement.error)
+              }}
+              onLoadStart={() => console.log('🎥 Video load started:', url)}
+              onCanPlay={() => console.log('🎥 Video can play')}
+              onLoadedMetadata={() => console.log('🎥 Video metadata loaded')}
+              playsInline // Important for mobile devices
+              preload="metadata" // Load metadata but not full video
             />
           ) : (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">

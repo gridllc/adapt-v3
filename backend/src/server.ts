@@ -42,7 +42,8 @@ const __dirname = path.dirname(__filename)
 
 // Server configuration
 const app = express()
-const PORT = env?.PORT || 8000
+// Use PORT env var if provided (Render sets PORT=10000), fallback to 8000 for local dev
+const PORT = process.env.PORT || 8000
 const NODE_ENV = env?.NODE_ENV || 'development'
 
 // Environment validation
@@ -539,11 +540,9 @@ const configureErrorHandling = () => {
 
   // Server startup
   const startServer = () => {
-    const server = app.listen(PORT, () => {
-      console.log('🚀 Server Configuration:')
-      console.log(`   📍 Port: ${PORT}`)
+    const server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on port ${PORT}`)
       console.log(`   🌍 Environment: ${NODE_ENV}`)
-      console.log(`   📁 Uploads: ${path.resolve(__dirname, '../uploads')}`)
       console.log(`   🔗 URL: http://localhost:${PORT}`)
     
     console.log('\n📚 Available API Endpoints:')

@@ -6,7 +6,7 @@ import { log } from '../utils/logger.js'
 // QStash configuration
 const QSTASH_ENABLED = (process.env.QSTASH_ENABLED || '').toLowerCase() === 'true'
 const QSTASH_TOKEN = process.env.QSTASH_TOKEN
-const BACKEND_URL = process.env.BACKEND_ORIGIN || 'http://localhost:3000'
+const BACKEND_URL = process.env.BACKEND_ORIGIN || `http://localhost:${process.env.PORT || 8000}`
 
 // Initialize QStash V2 client if enabled
 const qstash = QSTASH_ENABLED && QSTASH_TOKEN ? new Client({ token: QSTASH_TOKEN }) : null
