@@ -298,7 +298,7 @@ export class ModuleService {
    * @param id - Module ID to lock
    * @returns Promise<boolean> - true if lock acquired, false if already processing
    */
-  static async tryLockForProcessing(id: string): Promise<boolean> {
+  sstatic async tryLockForProcessing(id: string): Promise<boolean> {
     try {
       console.log(`🔒 [ModuleService] Attempting to acquire processing lock for module: ${id}`)
       

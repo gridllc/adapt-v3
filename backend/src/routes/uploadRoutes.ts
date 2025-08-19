@@ -27,11 +27,12 @@ router.post('/init', async (req, res) => {
 
     // 2. Use moduleId as the S3 key
     const s3Key = `training/${module.id}.mp4`
+    const stepsKey = `training/${module.id}.json`
 
-    // 3. Save the s3Key back to DB
+    // 3. Save the s3Key and stepsKey back to DB
     await prisma.module.update({
       where: { id: module.id },
-      data: { s3Key },
+      data: { s3Key, stepsKey },
     })
 
     // 4. Generate presigned URL
