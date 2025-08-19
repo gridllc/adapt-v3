@@ -89,7 +89,7 @@ export const uploadController = {
         return
       }
 
-      // Create or update Video record
+      // Update module with S3 key and status
       const { prisma } = await import('../config/database.js')
       
       // Check if module exists
@@ -105,21 +105,7 @@ export const uploadController = {
         return
       }
 
-      // Create Video record
-      const video = await prisma.video.upsert({
-        where: { moduleId },
-        update: {
-          fileKey,
-          status: 'UPLOADING'
-        },
-        create: {
-          moduleId,
-          fileKey,
-          status: 'UPLOADING'
-        }
-      })
-
-      // Update module status to UPLOADED
+      // Update module status to UPLOADED and set S3 key
       await prisma.module.update({
         where: { id: moduleId },
         data: { 

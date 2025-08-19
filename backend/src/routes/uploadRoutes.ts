@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import prisma from '../services/prismaService'
-import { getPresignedUploadUrl } from '../services/presignedUploadService'
+import prisma from '../services/prismaService.js'
+import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
 
 const router = Router()
 
