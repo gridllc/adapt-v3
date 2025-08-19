@@ -1,10 +1,12 @@
 import { Router } from 'express'
 import prisma from '../services/prismaService.js'
 import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
+import { DatabaseService } from '../services/prismaService.js'
+// later: import { enqueueProcessModule } from '../services/qstashQueue'
 
 const router = Router()
 
-// 1) Init Upload → create DB row + presign URL
+// ===== INIT UPLOAD =====
 router.post('/init', async (req, res) => {
   try {
     const { filename } = req.body
@@ -12,25 +14,34 @@ router.post('/init', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing filename' })
     }
 
-    // Create DB row with required fields
+    // 1. Create module row in DB
     const module = await prisma.module.create({
       data: {
         title: filename,
-        filename: filename,
+        filename,
         videoUrl: `training/${Date.now()}-${filename}`, // Temporary URL until S3 upload
         status: 'UPLOADED',
-        s3Key: `training/${Date.now()}-${filename}`,
+        progress: 0,
       },
     })
 
-    // Generate presigned PUT URL
-    const presignedUrl = await getPresignedUploadUrl(module.s3Key!)
+    // 2. Use moduleId as the S3 key
+    const s3Key = `training/${module.id}.mp4`
+
+    // 3. Save the s3Key back to DB
+    await prisma.module.update({
+      where: { id: module.id },
+      data: { s3Key },
+    })
+
+    // 4. Generate presigned URL
+    const presignedUrl = await getPresignedUploadUrl(s3Key)
 
     res.json({
       success: true,
       moduleId: module.id,
       presignedUrl,
-      key: module.s3Key,
+      key: s3Key,
     })
   } catch (err) {
     console.error('❌ upload/init error:', err)
@@ -38,7 +49,7 @@ router.post('/init', async (req, res) => {
   }
 })
 
-// 2) Complete Upload → mark DB status
+// ===== COMPLETE UPLOAD =====
 router.post('/complete', async (req, res) => {
   try {
     const { moduleId } = req.body
@@ -46,10 +57,11 @@ router.post('/complete', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing moduleId' })
     }
 
-    await prisma.module.update({
-      where: { id: moduleId },
-      data: { status: 'PROCESSING', progress: 0 },
-    })
+    // Update status → PROCESSING
+    await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
+
+    // ⏳ Later: enqueue QStash job here
+    // await enqueueProcessModule(moduleId)
 
     res.json({ success: true, moduleId })
   } catch (err) {
