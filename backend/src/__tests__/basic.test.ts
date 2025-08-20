@@ -67,11 +67,11 @@ describe('Basic Test Suite', () => {
     })
 
     it('should validate S3 key format', () => {
-      const validS3Key = 'videos/test-module.mp4'
+      const validS3Key = 'training/test-module.mp4'
       const invalidS3Key = 'invalid-key'
 
-      expect(validS3Key).toMatch(/^videos\/.*\.mp4$/)
-      expect(invalidS3Key).not.toMatch(/^videos\/.*\.mp4$/)
+      expect(validS3Key).toMatch(/^training\/.*\.mp4$/)
+      expect(invalidS3Key).not.toMatch(/^training\/.*\.mp4$/)
     })
   })
 

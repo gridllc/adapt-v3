@@ -46,9 +46,16 @@ const __dirname = path.dirname(__filename)
 
 // Server configuration
 const app = express()
+
 // Use PORT env var if provided (Render sets PORT=10000), fallback to 8000 for local dev
 const PORT = process.env.PORT || 8000
 const NODE_ENV = process.env.NODE_ENV || 'development'
+
+// Trust proxy for production (Render sets X-Forwarded-For)
+if (NODE_ENV === 'production') {
+  app.set('trust proxy', true)
+  console.log('🔒 Trust proxy enabled for production')
+}
 
 // Environment validation
 const validateEnvironment = () => {
@@ -115,23 +122,8 @@ const configureMiddleware = () => {
   // CORS configuration - REFACTORED for production deployment
   const allowedOrigins = [
     // Development origins
-    'http://localhost:3000',
     'http://localhost:5173',
-    'http://localhost:5174', 
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:5178',
-    'http://localhost:5179',
-    'http://localhost:5180',
-    'http://localhost:5181',
-    'http://localhost:5182',
-    'http://localhost:5183',
-    'http://localhost:5184',
-    'http://localhost:5185',
     // Production origins
-    'https://adapt-v3-sepia.vercel.app',
-    'https://adapt-v3.vercel.app',
     'https://adaptord.com',
     'https://www.adaptord.com',
     'https://app.adaptord.com'
@@ -173,8 +165,8 @@ const configureMiddleware = () => {
         return cb(new Error(`Not allowed by CORS: ${origin}`), false)
       }
     },
-    credentials: false, // Set to true only if you use cookies/sessions
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true, // Enable credentials for authenticated requests
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
     allowedHeaders: [
       'Accept',
       'Content-Type',
@@ -229,6 +221,11 @@ const configureRoutes = () => {
   
   // Public Routes (with general rate limiting)
   app.use('/api', healthRoutes)  // Mounts /api/health
+  
+  // Simple health endpoint for monitors/preflight requests
+  app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
+  app.head('/api/health', (_req, res) => res.sendStatus(200))
+  
   app.use('/api/video-url', videoRoutes)
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)

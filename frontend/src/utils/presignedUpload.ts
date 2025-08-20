@@ -1,3 +1,5 @@
+import { api, API_BASE } from '../config/api'
+
 export type UploadResult = { success: boolean; moduleId?: string; error?: string }
 
 interface InitResponse {
@@ -14,32 +16,33 @@ interface CompleteResponse {
 }
 
 export async function uploadWithPresignedUrl({ file, onProgress }: { file: File; onProgress?: (p: number) => void }): Promise<UploadResult> {
-  // 1) init → presigned PUT
-  const initRes = await fetch(`/api/upload/init`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4' })
-  })
-  if (!initRes.ok) return { success: false, error: `init ${initRes.status}` }
-  const { success, moduleId, key, presignedUrl, error } = await initRes.json() as InitResponse
-  if (!success || !moduleId || !presignedUrl) return { success: false, error: error || 'init failed' }
+  try {
+    // 1) init → presigned PUT (NOTE: use api.post or API_BASE)
+    const init = await api.post<InitResponse>('/api/upload/init', {
+      filename: file.name,
+      contentType: file.type || 'video/mp4',
+      sizeBytes: file.size,     // optional, for server validation later
+    })
+    
+    if (!init?.success || !init.presignedUrl || !init.moduleId || !init.key) {
+      return { success: false, error: init?.error || 'init failed' }
+    }
 
-  // 2) PUT to S3 with progress
-  await putWithProgress(presignedUrl, file, onProgress)
+    // 2) PUT to S3 with progress
+    await putWithProgress(init.presignedUrl, file, onProgress)
 
-  // 3) complete
-  const completeRes = await fetch(`/api/upload/complete`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ moduleId, key })
-  })
-  if (!completeRes.ok) return { success: false, error: `complete ${completeRes.status}` }
-  const done = await completeRes.json() as CompleteResponse
-  if (!done.success) return { success: false, error: done.error || 'complete failed' }
-
-  return { success: true, moduleId }
+    // 3) complete
+    const done = await api.post<CompleteResponse>('/api/upload/complete', {
+      moduleId: init.moduleId,
+      key: init.key,
+    })
+    
+    if (!done?.success) return { success: false, error: done?.error || 'complete failed' }
+    return { success: true, moduleId: init.moduleId }
+  } catch (error) {
+    console.error('Upload error:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Upload failed' }
+  }
 }
 
 async function putWithProgress(url: string, file: File, onProgress?: (p: number) => void) {

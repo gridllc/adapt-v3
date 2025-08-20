@@ -25,7 +25,7 @@ router.get('/module/:id', async (req, res) => {
     log('db.ok', { s3Key: moduleRec.videoUrl, status: moduleRec.status })
 
     // 2) S3 HEAD
-    const key = moduleRec.videoUrl || `videos/${id}.mp4`
+    const key = moduleRec.videoUrl || `training/${id}.mp4`
     const head = await storageService.headObject(key) // should throw if missing
     log('s3.head.ok', { contentLength: head.ContentLength, contentType: head.ContentType })
 

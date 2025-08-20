@@ -40,7 +40,7 @@ export const storageService = {
   },
 
   async uploadVideo(file: Express.Multer.File): Promise<string> {
-    const key = `videos/${uuidv4()}-${file.originalname}`
+    const key = `training/${uuidv4()}-${file.originalname}`
     
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -85,7 +85,7 @@ export const storageService = {
       title: 'Your Training Module (Emergency Fix)',
       description: 'Training module - AI processing temporarily disabled',
       status: 'ready', // ← This will stop the polling!
-      videoUrl: 'https://adaptv3-training-videos.s3.us-west-1.amazonaws.com/videos/placeholder.mp4',
+      videoUrl: 'https://adaptv3-training-videos.s3.us-west-1.amazonaws.com/training/placeholder.mp4',
       steps: [
         {
           timestamp: 0,

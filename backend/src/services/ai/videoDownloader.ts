@@ -48,6 +48,6 @@ export async function s3DownloadToTemp(key: string, fileName: string): Promise<s
 
 export function inferS3KeyForModule(opts: { id: string, s3Key?: string | null, videoUrl?: string | null }) {
   if (opts.s3Key) return opts.s3Key
-  if (opts.videoUrl && opts.videoUrl.includes('/videos/')) return `videos/${opts.id}.mp4`
+  if (opts.videoUrl && opts.videoUrl.includes('/videos/')) return `training/${opts.id}.mp4`
   return null
 }
