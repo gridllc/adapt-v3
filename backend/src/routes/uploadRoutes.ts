@@ -69,14 +69,14 @@ router.post('/complete', async (req, res) => {
 
     console.log(`🚀 [UPLOAD] Starting complete process for moduleId=${moduleId}`)
 
-    // Mark status PROCESSING
+    // Mark PROCESSING
     await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
 
-    // 🔥 Fallback: immediately write dummy steps to S3
+    // --- ✅ Fallback: immediately create dummy steps file ---
     const steps = [
-      { start: 0, end: 5, text: "Intro" },
-      { start: 5, end: 10, text: "Main section" },
-      { start: 10, end: 15, text: "Closing" },
+      { start: 0, end: 3, text: "Intro" },
+      { start: 3, end: 7, text: "Main content" },
+      { start: 7, end: 10, text: "Wrap-up" }
     ]
 
     const stepsKey = `training/${moduleId}.json`
@@ -88,7 +88,7 @@ router.post('/complete', async (req, res) => {
     });
     await s3Client.send(command);
 
-    // Update module → READY
+    // Mark READY so frontend can load something
     await prisma.module.update({
       where: { id: moduleId },
       data: {
@@ -98,9 +98,9 @@ router.post('/complete', async (req, res) => {
       },
     })
 
-    console.log(`✅ [UPLOAD] Module ${moduleId} marked READY with dummy steps`)
+    console.log(`✅ [UPLOAD] Module ${moduleId} marked READY with fallback steps`)
 
-    // Still enqueue async AI processing in background
+    // Kick off async AI processing (can overwrite later)
     const jobId = await enqueueProcessModule(moduleId)
 
     console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
