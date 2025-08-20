@@ -13,9 +13,9 @@ export default function TrainingPage() {
   const [error, setError] = useState<string | null>(null)
   const pollCount = useRef(0)
 
-  const apiBase = (import.meta as any).env?.VITE_API_BASE_URL || ''
+  // Use relative URLs - Vercel will proxy to Render backend
   const getJSON = async <T,>(p: string) => {
-    const r = await fetch(`${apiBase}${p}`, { credentials: 'include' })
+    const r = await fetch(p, { credentials: 'include' })
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
     return (await r.json()) as T
   }

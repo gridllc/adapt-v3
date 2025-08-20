@@ -13,7 +13,7 @@ export const ApiDebug: React.FC = () => {
       isDev: import.meta.env.MODE === 'development',
       mode: import.meta.env.MODE,
       baseURL: API_CONFIG.baseURL,
-      envVar: import.meta.env.VITE_API_BASE_URL,
+      proxy: 'Vercel will proxy /api/* to Render backend',
       modulesUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES),
       healthUrl: API_CONFIG.getApiUrl(API_ENDPOINTS.HEALTH),
       origin: window.location.origin,
@@ -28,7 +28,7 @@ export const ApiDebug: React.FC = () => {
 
   const testDirect = async () => {
     try {
-      const response = await fetch('https://adapt-v3-backend.onrender.com/api/health')
+      const response = await fetch('/api/health')
       const data = await response.json()
       setTestResults(prev => ({ ...prev, direct: { success: true, data } }))
     } catch (error) {

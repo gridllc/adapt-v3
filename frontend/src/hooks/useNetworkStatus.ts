@@ -33,8 +33,8 @@ export const useNetworkStatus = (): NetworkStatus => {
     try {
       const startTime = performance.now()
       
-      // Use your backend's health endpoint for realistic speed test
-      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'development' ? 'http://localhost:10000' : 'https://adapt-v3.onrender.com')}/api/health`, {
+      // Use relative URL - Vercel will proxy to Render backend
+      const response = await fetch(`/api/health`, {
         method: 'HEAD',
         cache: 'no-cache',
         headers: {
