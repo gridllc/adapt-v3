@@ -9,6 +9,12 @@ export interface Module {
   createdAt?: string
 }
 
+interface ModulesResponse {
+  success: boolean
+  modules?: Module[]
+  error?: string
+}
+
 export function useModules() {
   const [modules, setModules] = useState<Module[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,10 +26,10 @@ export function useModules() {
       const maxRetries = 3
       let retryCount = 0
       
-      const attemptFetch = async (): Promise<any> => {
+      const attemptFetch = async (): Promise<Module[]> => {
         try {
           console.log(`🔍 Fetching modules... (attempt ${retryCount + 1}/${maxRetries})`)
-          const data = await authenticatedFetch('/api/modules')
+          const data = await authenticatedFetch('/api/modules') as ModulesResponse
           
           console.log('📦 Modules response:', data)
           

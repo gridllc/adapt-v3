@@ -32,6 +32,6 @@ export const API_CONFIG = {
 };
 
 // Legacy authenticatedApi for backward compatibility
-export const authenticatedApi = async (endpoint: string, options?: RequestInit) => {
-  return req(endpoint, options);
+export const authenticatedApi = async <T = any>(endpoint: string, options?: RequestInit): Promise<T> => {
+  return req<T>(endpoint, options);
 };

@@ -1,5 +1,18 @@
 export type UploadResult = { success: boolean; moduleId?: string; error?: string }
 
+interface InitResponse {
+  success: boolean
+  moduleId?: string
+  key?: string
+  presignedUrl?: string
+  error?: string
+}
+
+interface CompleteResponse {
+  success: boolean
+  error?: string
+}
+
 export async function uploadWithPresignedUrl({ file, onProgress }: { file: File; onProgress?: (p: number) => void }): Promise<UploadResult> {
   // 1) init → presigned PUT
   const initRes = await fetch(`/api/upload/init`, {
@@ -9,7 +22,7 @@ export async function uploadWithPresignedUrl({ file, onProgress }: { file: File;
     body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4' })
   })
   if (!initRes.ok) return { success: false, error: `init ${initRes.status}` }
-  const { success, moduleId, key, presignedUrl, error } = await initRes.json()
+  const { success, moduleId, key, presignedUrl, error } = await initRes.json() as InitResponse
   if (!success || !moduleId || !presignedUrl) return { success: false, error: error || 'init failed' }
 
   // 2) PUT to S3 with progress
@@ -23,7 +36,7 @@ export async function uploadWithPresignedUrl({ file, onProgress }: { file: File;
     body: JSON.stringify({ moduleId, key })
   })
   if (!completeRes.ok) return { success: false, error: `complete ${completeRes.status}` }
-  const done = await completeRes.json()
+  const done = await completeRes.json() as CompleteResponse
   if (!done.success) return { success: false, error: done.error || 'complete failed' }
 
   return { success: true, moduleId }

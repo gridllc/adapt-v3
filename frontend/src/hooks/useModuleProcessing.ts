@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 type Status = "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
 
+interface StepsResponse {
+  success: boolean
+  steps?: any[]
+  status?: string
+  progress?: number
+  message?: string
+}
+
 export function useModuleProcessing(moduleId?: string) {
   const [status, setStatus] = useState<Status>("UPLOADED");
   const [progress, setProgress] = useState<number>(0);
@@ -18,7 +26,7 @@ export function useModuleProcessing(moduleId?: string) {
         // Reuse the same steps endpoint your Training page uses.
         // It returns READY with steps, or a PROCESSING/FAILED sentinel in JSON/logs.
         const res = await fetch(`/api/steps/${moduleId}`);
-        const data = await res.json();
+        const data = await res.json() as StepsResponse;
 
         if (cancelled) return;
 
