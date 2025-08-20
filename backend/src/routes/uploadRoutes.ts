@@ -58,19 +58,19 @@ router.post('/complete', async (req, res) => {
 
     console.log(`🚀 [UPLOAD] Starting complete process for moduleId=${moduleId}`)
 
-    // Mark PROCESSING first
-    await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
-
-    // --- ✅ Immediately create dummy steps ---
+    // --- ✅ IMMEDIATELY create dummy steps and mark READY ---
     const dummySteps = [
       { start: 0, end: 2, text: "Preparing training content..." }
     ]
     const stepsKey = `training/${moduleId}.json`
 
     // Save dummy steps to S3
+    console.log(`💾 [UPLOAD] Saving dummy steps to S3: ${stepsKey}`)
     await storageService.putObject(stepsKey, JSON.stringify(dummySteps, null, 2))
+    console.log(`✅ [UPLOAD] Dummy steps saved to S3`)
 
-    // Flip module to READY so frontend can load
+    // CRITICAL: Update module to READY with stepsKey
+    console.log(`🔄 [UPLOAD] Updating module ${moduleId} to READY status`)
     await prisma.module.update({
       where: { id: moduleId },
       data: {
@@ -79,24 +79,32 @@ router.post('/complete', async (req, res) => {
         progress: 100,
       },
     })
+    console.log(`✅ [UPLOAD] Module ${moduleId} marked READY with stepsKey: ${stepsKey}`)
 
-    console.log(`✅ [UPLOAD] Module ${moduleId} marked READY with fallback steps`)
+    // Verify the update worked
+    const updatedModule = await prisma.module.findUnique({
+      where: { id: moduleId },
+      select: { status: true, stepsKey: true, progress: true }
+    })
+    console.log(`🔍 [UPLOAD] Verification - Module status: ${updatedModule?.status}, stepsKey: ${updatedModule?.stepsKey}, progress: ${updatedModule?.progress}`)
 
-    // 🔥 CRITICAL FIX: Start AI processing directly since QStash is fake
-    console.log(`🤖 [UPLOAD] Starting AI processing inline for moduleId=${moduleId}`)
-    
-    // Start AI processing in background (don't await - let it run async)
+    // Return success immediately - frontend should now be able to get steps
+    console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
+    res.json({ 
+      success: true, 
+      moduleId, 
+      status: 'READY',
+      stepsKey,
+      message: 'Module ready with fallback steps'
+    })
+
+    // Start AI processing in background AFTER response is sent
+    console.log(`🤖 [UPLOAD] Starting background AI processing for moduleId=${moduleId}`)
     startProcessing(moduleId).catch(err => {
-      console.error(`❌ [UPLOAD] AI processing failed for moduleId=${moduleId}:`, err)
+      console.error(`❌ [UPLOAD] Background AI processing failed for moduleId=${moduleId}:`, err)
       // Don't fail the upload - user already has fallback steps
     })
 
-    // Still try to enqueue (for future when QStash is real)
-    const jobId = await enqueueProcessModule(moduleId)
-    console.log(`📬 [UPLOAD] QStash job enqueued: ${jobId}`)
-
-    console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
-    res.json({ success: true, moduleId, jobId })
   } catch (err) {
     console.error(`❌ [UPLOAD] upload/complete error for moduleId=${req.body.moduleId}:`, err)
     res.status(500).json({ success: false, error: 'Failed to complete upload' })
