@@ -23,20 +23,21 @@ export const uploadController = {
 
   async complete(req: Request, res: Response) {
     try {
-      const { moduleId, key } = req.body || {}
-      if (!moduleId || !key) return fail(res, 400, 'moduleId and key required')
+      const { moduleId, key } = req.body || {};
+      if (!moduleId || !key) return res.status(400).json({ success:false, error:'moduleId and key required' });
 
-      const exists = await presignedUploadService.confirmHead(key)
-      if (!exists) return fail(res, 404, 'file not found in S3')
+      const exists = await presignedUploadService.confirmHead(key);
+      if (!exists) return res.status(404).json({ success:false, error:'file not found in S3' });
 
-      await ModuleService.markUploaded(moduleId, key)
+      await ModuleService.markUploaded(moduleId, key);
 
-      // inline processing
-      startProcessing(moduleId).catch(e => console.error('startProcessing error', e))
-      return ok(res, { status: 'UPLOADED', moduleId })
+      // Let users play the video immediately.
+      startProcessing(moduleId).catch(e => console.error('startProcessing error', e));
+      await ModuleService.markReady(moduleId);           // <-- video is playable now
+      return res.json({ success:true, status:'READY', moduleId });
     } catch (err) {
-      console.error('upload.complete error', err)
-      return fail(res, 500, 'complete failed')
+      console.error('upload.complete error', err);
+      return res.status(500).json({ success:false, error:'complete failed' });
     }
   }
 }
