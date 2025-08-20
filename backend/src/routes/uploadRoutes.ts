@@ -2,11 +2,9 @@ import { Router } from 'express'
 import prisma from '../services/prismaService.js'
 import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
 import { DatabaseService } from '../services/prismaService.js'
-import { startProcessing } from '../services/ai/aiPipeline.js'
 import { enqueueProcessModule } from '../services/qstashQueue.js'
 
 const router = Router()
-const USE_QSTASH = process.env.USE_QSTASH === 'true'   // toggle inline vs async
 
 // ===== INIT UPLOAD =====
 router.post('/init', async (req, res) => {
@@ -62,20 +60,17 @@ router.post('/complete', async (req, res) => {
     await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
     console.log(`✅ [UPLOAD] Module status updated to PROCESSING for moduleId=${moduleId}`)
 
-    if (USE_QSTASH) {
-      // enqueue async job
-      console.log(`📬 [UPLOAD] QStash enabled, enqueueing job for moduleId=${moduleId}`)
-      const jobId = await enqueueProcessModule(moduleId)
-      console.log('📬 [UPLOAD] Enqueued processing job', { moduleId, jobId })
+    // Process module (QStash or inline based on USE_QSTASH env var)
+    const jobId = await enqueueProcessModule(moduleId)
+    
+    if (jobId) {
+      console.log(`📬 [UPLOAD] QStash job enqueued for moduleId=${moduleId}, jobId=${jobId}`)
     } else {
-      // run inline for testing/dev
-      console.log(`⚙️ [UPLOAD] QStash disabled, running inline processing for moduleId=${moduleId}`)
-      await startProcessing(moduleId)
       console.log(`✅ [UPLOAD] Inline processing completed for moduleId=${moduleId}`)
     }
 
     console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
-    res.json({ success: true, moduleId })
+    res.json({ success: true, moduleId, jobId })
   } catch (err) {
     console.error(`❌ [UPLOAD] upload/complete error for moduleId=${req.body.moduleId}:`, err)
     res.status(500).json({ success: false, error: 'Failed to complete upload' })

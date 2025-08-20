@@ -3,21 +3,11 @@ import express from 'express'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { ModuleService } from '../services/moduleService.js'
 import { log } from '../utils/logger.js'
-import { verifyQStashWebhook } from '../services/qstashQueue.js'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
 
 const router = express.Router()
 
 // Centralized QStash handler function
 const qstashHandler = async (req: express.Request, res: express.Response) => {
-  // Verify QStash webhook signature
-  if (!verifyQStashWebhook(req)) {
-    log.error('❌ QStash webhook verification failed')
-    return res.status(401).json({ error: 'Unauthorized' })
-  }
-
   const { moduleId } = req.body
 
   if (!moduleId) {
@@ -107,16 +97,19 @@ if (process.env.NODE_ENV === 'development') {
       log.info(`🧪 Test processing for ${moduleId}`)
       
       // Check if module exists and has required fields
-      const module = await prisma.module.findUnique({
-        where: { id: moduleId },
-        select: { id: true, status: true, s3Key: true, stepsKey: true }
-      })
+      const moduleResult = await ModuleService.getModuleById(moduleId)
       
-      if (!module) {
+      if (!moduleResult.success || !moduleResult.module) {
         return res.status(404).json({ error: 'Module not found' })
       }
       
-      log.info(`📋 Module details:`, module)
+      const module = moduleResult.module
+      log.info(`📋 Module details:`, { 
+        id: module.id, 
+        status: module.status, 
+        s3Key: module.s3Key, 
+        stepsKey: module.stepsKey 
+      })
       
       // Try to start processing
       const result = await startProcessing(moduleId)
