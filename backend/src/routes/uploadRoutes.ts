@@ -4,18 +4,7 @@ import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { enqueueProcessModule } from '../services/qstashQueue.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'   // 👈 add this
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
-
-// Configure S3 client for immediate fallback steps
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-west-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-});
-
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos';
+import { storageService } from '../services/storageService.js'
 
 const router = Router()
 
@@ -69,26 +58,19 @@ router.post('/complete', async (req, res) => {
 
     console.log(`🚀 [UPLOAD] Starting complete process for moduleId=${moduleId}`)
 
-    // Mark PROCESSING
+    // Mark PROCESSING first
     await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
 
-    // --- ✅ Fallback: immediately create dummy steps file ---
-    const steps = [
-      { start: 0, end: 3, text: "Intro" },
-      { start: 3, end: 7, text: "Main content" },
-      { start: 7, end: 10, text: "Wrap-up" }
+    // --- ✅ Immediately create dummy steps ---
+    const dummySteps = [
+      { start: 0, end: 2, text: "Preparing training content..." }
     ]
-
     const stepsKey = `training/${moduleId}.json`
-    const command = new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: stepsKey,
-      Body: JSON.stringify(steps, null, 2),
-      ContentType: 'application/json',
-    });
-    await s3Client.send(command);
 
-    // Mark READY so frontend can load something
+    // Save dummy steps to S3
+    await storageService.putObject(stepsKey, JSON.stringify(dummySteps, null, 2))
+
+    // Flip module to READY
     await prisma.module.update({
       where: { id: moduleId },
       data: {
@@ -100,10 +82,9 @@ router.post('/complete', async (req, res) => {
 
     console.log(`✅ [UPLOAD] Module ${moduleId} marked READY with fallback steps`)
 
-    // Kick off async AI processing (can overwrite later)
+    // Kick off AI processing async (can overwrite dummy later)
     const jobId = await enqueueProcessModule(moduleId)
 
-    console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
     res.json({ success: true, moduleId, jobId })
   } catch (err) {
     console.error(`❌ [UPLOAD] upload/complete error for moduleId=${req.body.moduleId}:`, err)

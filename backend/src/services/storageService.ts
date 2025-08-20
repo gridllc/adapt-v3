@@ -18,6 +18,29 @@ const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos';
 
 export const storageService = {
   /**
+   * Simple utility to upload any content to S3
+   */
+  async putObject(key: string, content: string, contentType: string = 'application/json'): Promise<void> {
+    try {
+      console.log(`📤 [STORAGE] Uploading to S3: ${key}`);
+      
+      const command = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+        Body: content,
+        ContentType: contentType,
+        CacheControl: 'max-age=3600', // Cache for 1 hour
+      });
+
+      await s3Client.send(command);
+      console.log(`✅ [STORAGE] Upload successful: ${key}`);
+    } catch (error: any) {
+      console.error(`❌ [STORAGE] S3 upload failed for ${key}:`, error);
+      throw new Error(`Failed to upload ${key}: ${error.message}`);
+    }
+  },
+
+  /**
    * Upload video to S3 with proper error handling and validation
    */
   async uploadVideo(file: Express.Multer.File): Promise<string> {
