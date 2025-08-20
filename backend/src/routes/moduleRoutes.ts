@@ -1,28 +1,63 @@
 import { Router } from 'express'
+import { prisma } from '../config/database.js'
 import { ModuleService } from '../services/moduleService.js'
-import { ok, fail } from '../utils/http.js'
 
 export const moduleRoutes = Router()
 
-// GET /api/modules/:id
-moduleRoutes.get('/:id', async (req, res) => {
+// GET /api/modules  -> list recent modules (optionally for the signed-in user)
+moduleRoutes.get('/', async (req: any, res) => {
   try {
-    const module = await ModuleService.get(req.params.id)
-    if (!module) return fail(res, 404, 'not found')
-    const steps = await ModuleService.getSteps(req.params.id)
-    ok(res, { module, steps })
+    const userId = req.auth?.userId ?? null // if you wire Clerk later
+    const modules = await prisma.module.findMany({
+      where: userId ? { userId } : undefined,
+      select: {
+        id: true,
+        title: true,
+        filename: true,
+        status: true,
+        progress: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    return res.json({ success: true, modules })
   } catch (e) {
-    fail(res, 500, 'failed')
+    console.error('GET /api/modules failed', e)
+    return res.status(500).json({ success: false, error: 'failed_to_list_modules' })
   }
 })
 
-// GET /api/modules/:id/status
+// GET /api/modules/:id -> module details + (optional) steps
+moduleRoutes.get('/:id', async (req, res) => {
+  try {
+    const id = req.params.id
+    const mod = await ModuleService.get(id)
+    if (!mod) return res.status(404).json({ success: false, error: 'not_found' })
+    // many UIs want steps bundled
+    const steps = await ModuleService.getSteps(id).catch(() => [])
+    return res.json({ success: true, module: mod, steps })
+  } catch (e) {
+    console.error('GET /api/modules/:id failed', e)
+    return res.status(500).json({ success: false, error: 'failed_to_get_module' })
+  }
+})
+
+// GET /api/modules/:id/status -> lightweight status poll
 moduleRoutes.get('/:id/status', async (req, res) => {
   try {
-    const module = await ModuleService.get(req.params.id)
-    if (!module) return fail(res, 404, 'not found')
-    ok(res, { module })
+    const id = req.params.id
+    const mod = await ModuleService.get(id)
+    if (!mod) return res.status(404).json({ success: false, error: 'not_found' })
+    return res.json({
+      success: true,
+      status: mod.status,
+      progress: mod.progress ?? 0,
+      moduleId: id,
+    })
   } catch (e) {
-    fail(res, 500, 'failed')
+    console.error('GET /api/modules/:id/status failed', e)
+    return res.status(500).json({ success: false, error: 'failed_to_get_status' })
   }
 })
