@@ -99,11 +99,11 @@ if (process.env.NODE_ENV === 'development') {
       // Check if module exists and has required fields
       const moduleResult = await ModuleService.getModuleById(moduleId)
       
-      if (!moduleResult.success || !moduleResult.module) {
+      if (!moduleResult) {
         return res.status(404).json({ error: 'Module not found' })
       }
       
-      const module = moduleResult.module
+      const module = moduleResult
       log.info(`📋 Module details:`, { 
         id: module.id, 
         status: module.status, 

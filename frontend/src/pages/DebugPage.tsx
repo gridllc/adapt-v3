@@ -47,7 +47,7 @@ export default function DebugPage() {
 
   const fetchHealth = async () => {
     try {
-      const response = await api('/api/health')
+      const response = await api.get('/api/health')
       setHealth(response)
     } catch (error) {
       console.error('Failed to fetch health:', error)
@@ -65,7 +65,7 @@ export default function DebugPage() {
         url += '&stuck=true'
       }
       
-      const response: DebugResponse = await api(url)
+      const response: DebugResponse = await api.get(url)
       setModules(response.modules)
     } catch (error) {
       console.error('Failed to fetch modules:', error)
@@ -76,7 +76,7 @@ export default function DebugPage() {
 
   const retryModule = async (moduleId: string) => {
     try {
-      await api(`/api/reprocess/${moduleId}`, { method: 'POST' })
+      await api.post(`/api/reprocess/${moduleId}`, {})
       alert('Retry initiated! Check back in a few minutes.')
       fetchModules(filter)
     } catch (error) {
@@ -89,7 +89,7 @@ export default function DebugPage() {
     if (!confirm('Are you sure you want to delete this module?')) return
     
     try {
-      await api(`/api/modules/${moduleId}`, { method: 'DELETE' })
+      await api.post(`/api/modules/${moduleId}`, { method: 'DELETE' })
       alert('Module deleted successfully')
       fetchModules(filter)
     } catch (error) {

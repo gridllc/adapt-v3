@@ -41,7 +41,7 @@ export default function SharePage() {
 
       try {
         console.log(`🔗 Loading shared module: ${moduleId}`)
-        const response = await api(`/share/${moduleId}`)
+        const response = await api.get(`/share/${moduleId}`)
         
         if (response.data.success) {
           setData(response.data.module)

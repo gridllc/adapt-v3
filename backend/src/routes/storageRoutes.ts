@@ -1,7 +1,7 @@
 // routes/storageRoutes.ts
 import { Router } from 'express'
 import prisma from '../services/prismaService.js'
-import { getSignedPlaybackUrl } from '../services/presignedUploadService.js'
+import { presignedUploadService } from '../services/presignedUploadService.js'
 
 const router = Router()
 
@@ -20,7 +20,7 @@ router.get('/video/:moduleId/play', async (req, res) => {
     }
 
     // Generate a short-lived signed URL for playback
-    const signedUrl = await getSignedPlaybackUrl(module.s3Key)
+    const signedUrl = await presignedUploadService.getSignedPlaybackUrl(module.s3Key)
 
     res.json({ success: true, url: signedUrl })
   } catch (err) {

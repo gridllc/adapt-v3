@@ -7,7 +7,7 @@ export function useStepsProbe(moduleId: string) {
     (async () => {
       try {
         console.log('[AI DEBUG] steps probe start', { moduleId })
-        const r = await api(`/api/steps/${moduleId}`)
+        const r = await api.get(`/api/steps/${moduleId}`)
         if (!r?.success) {
           console.warn('[AI DEBUG] steps probe failed', r)
         } else {

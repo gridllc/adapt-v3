@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { API_BASE_URL } from '../../config/api'
+import { API_BASE } from '../../config/api'
 
 interface Module {
   id: string
@@ -51,7 +51,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchModules = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/modules`)
+      const response = await fetch(`${API_BASE}/modules`)
       const data = await response.json()
       
       if (data.success) {
@@ -66,7 +66,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/modules/stats`)
+      const response = await fetch(`${API_BASE}/modules/stats`)
       const data = await response.json()
       
       if (data.success) {
@@ -79,7 +79,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchOrphanedModules = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/modules/orphaned`)
+      const response = await fetch(`${API_BASE}/modules/orphaned`)
       const data = await response.json()
       
       if (data.success) {
@@ -92,7 +92,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const markOrphanedAsFailed = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/modules/orphaned/mark-failed`, {
+      const response = await fetch(`${API_BASE}/modules/orphaned/mark-failed`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -114,7 +114,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const cleanupOldFailed = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/modules/cleanup`, {
+      const response = await fetch(`${API_BASE}/modules/cleanup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
