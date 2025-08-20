@@ -10,7 +10,7 @@ export type {
 } from './types.js'
 
 // Core pipeline
-export { startProcessing, generateStepsFromVideo } from './aiPipeline.js'
+export { startProcessing } from './aiPipeline.js'
 
 // Individual services - updated for S3-first approach
 export { videoDownloader, s3DownloadToTemp, inferS3KeyForModule } from './videoDownloader.js'
