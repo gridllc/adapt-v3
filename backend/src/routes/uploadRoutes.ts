@@ -3,6 +3,7 @@ import prisma from '../services/prismaService.js'
 import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { enqueueProcessModule } from '../services/qstashQueue.js'
+import { startProcessing } from '../services/ai/aiPipeline.js'  // add this
 
 const router = Router()
 
@@ -60,12 +61,15 @@ router.post('/complete', async (req, res) => {
     await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
     console.log(`✅ [UPLOAD] Module status updated to PROCESSING for moduleId=${moduleId}`)
 
-    // Process module (QStash or inline based on USE_QSTASH env var)
-    const jobId = await enqueueProcessModule(moduleId)
-    
-    if (jobId) {
+    let jobId: string | null = null
+
+    if (process.env.USE_QSTASH === 'true') {
+      const result = await enqueueProcessModule(moduleId)
+      jobId = result || null
       console.log(`📬 [UPLOAD] QStash job enqueued for moduleId=${moduleId}, jobId=${jobId}`)
     } else {
+      console.log(`⚙️ [UPLOAD] Running inline processing for moduleId=${moduleId}`)
+      await startProcessing(moduleId)   // 👈 this was missing
       console.log(`✅ [UPLOAD] Inline processing completed for moduleId=${moduleId}`)
     }
 
