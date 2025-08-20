@@ -70,7 +70,7 @@ router.post('/complete', async (req, res) => {
     // Save dummy steps to S3
     await storageService.putObject(stepsKey, JSON.stringify(dummySteps, null, 2))
 
-    // Flip module to READY
+    // Flip module to READY so frontend can load
     await prisma.module.update({
       where: { id: moduleId },
       data: {
@@ -82,9 +82,20 @@ router.post('/complete', async (req, res) => {
 
     console.log(`✅ [UPLOAD] Module ${moduleId} marked READY with fallback steps`)
 
-    // Kick off AI processing async (can overwrite dummy later)
-    const jobId = await enqueueProcessModule(moduleId)
+    // 🔥 CRITICAL FIX: Start AI processing directly since QStash is fake
+    console.log(`🤖 [UPLOAD] Starting AI processing inline for moduleId=${moduleId}`)
+    
+    // Start AI processing in background (don't await - let it run async)
+    startProcessing(moduleId).catch(err => {
+      console.error(`❌ [UPLOAD] AI processing failed for moduleId=${moduleId}:`, err)
+      // Don't fail the upload - user already has fallback steps
+    })
 
+    // Still try to enqueue (for future when QStash is real)
+    const jobId = await enqueueProcessModule(moduleId)
+    console.log(`📬 [UPLOAD] QStash job enqueued: ${jobId}`)
+
+    console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
     res.json({ success: true, moduleId, jobId })
   } catch (err) {
     console.error(`❌ [UPLOAD] upload/complete error for moduleId=${req.body.moduleId}:`, err)
