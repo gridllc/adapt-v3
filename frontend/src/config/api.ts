@@ -26,7 +26,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     console.log(`🌐 API Request: ${init?.method || 'GET'} ${fullUrl}`)
   }
   
-  const r = await fetch(fullUrl, { credentials: 'include', ...init });
+  const r = await fetch(fullUrl, { 
+    // TEMP: avoid cookie credentials while we harden CORS
+    credentials: 'omit', 
+    ...init 
+  });
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }

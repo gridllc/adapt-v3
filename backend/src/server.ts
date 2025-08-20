@@ -349,20 +349,11 @@ const configureRoutes = () => {
     }
   })
 
-  // Static file serving for uploads with CORS
-  app.use('/uploads', (req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Range')
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-    next()
-  }, express.static(path.join(__dirname, '../uploads')))
+  // Static file serving for uploads
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 
-  // Handle OPTIONS requests for video files
+  // Handle OPTIONS requests for video files (CORS handled by main shim)
   app.options('/uploads/:filename', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Range')
     res.status(200).end()
   })
 

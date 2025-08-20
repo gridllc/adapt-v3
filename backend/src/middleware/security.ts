@@ -235,18 +235,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
   res.setHeader('X-XSS-Protection', '1; mode=block')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   
-  // Set CORS headers appropriately
-  const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    'http://localhost:3000',
-    'http://localhost:8000',
-    'http://localhost:10000'
-  ].filter(Boolean)
-
-  const origin = req.headers.origin
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin)
-  }
+  // CORS is now handled by the main CORS shim at the top of the server
 
   next()
 }

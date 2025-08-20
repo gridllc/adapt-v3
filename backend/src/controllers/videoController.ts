@@ -34,9 +34,6 @@ export const videoController = {
       res.setHeader('Content-Length', fileSize.toString())
       res.setHeader('Accept-Ranges', 'bytes')
       res.setHeader('Cache-Control', 'public, max-age=3600') // Cache for 1 hour
-      res.setHeader('Access-Control-Allow-Origin', '*') // Allow CORS for video files
-      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS')
-      res.setHeader('Access-Control-Allow-Headers', 'Range')
 
       // Handle range requests for video seeking
       const range = req.headers.range
@@ -52,9 +49,6 @@ export const videoController = {
           'Accept-Ranges': 'bytes',
           'Content-Length': chunksize,
           'Content-Type': 'video/mp4',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-          'Access-Control-Allow-Headers': 'Range',
         }
         res.writeHead(206, head)
         file.pipe(res)
@@ -63,9 +57,6 @@ export const videoController = {
         const head = {
           'Content-Length': fileSize,
           'Content-Type': 'video/mp4',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-          'Access-Control-Allow-Headers': 'Range',
         }
         res.writeHead(200, head)
         fs.createReadStream(filePath).pipe(res)
