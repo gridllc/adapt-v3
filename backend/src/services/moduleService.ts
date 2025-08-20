@@ -408,15 +408,12 @@ export class ModuleService {
       })
       
       // Create new steps with proper data mapping
-      // Note: Prisma Step model doesn't have aliases/notes fields, so we'll store
-      // the AI-generated ID in the description or create a metadata field later
       const stepData = steps.map((step, index) => ({
         moduleId: moduleId,
         order: index + 1,
         text: step.text || step.title || step.description || '',
         startTime: step.startTime || step.timestamp || 0,
         endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),
-        // TODO: Consider extending the Prisma schema for aiGeneratedId, aliases, notes, metadata
       }))
       
       const createdSteps = await prisma.step.createMany({
@@ -563,25 +560,4 @@ export class ModuleService {
       }
     }
   }
-
-  /**
-   * Schema Extension Recommendation:
-   * 
-   * To better support AI-generated steps, consider extending the Prisma Step model:
-   * 
-   * ```prisma
-   * model Step {
-   *   // ... existing fields ...
-   *   aiGeneratedId String?  // Preserve AI-generated ID for reference
-   *   aliases      String[]  // Step variations/aliases
-   *   notes        String?   // Additional context from AI
-   *   metadata     Json?     // Flexible metadata storage
-   * }
-   * ```
-   * 
-   * This would allow:
-   * - Better traceability between AI generation and database storage
-   * - Support for step variations and aliases
-   * - Flexible metadata storage for future AI enhancements
-   */
-} 
+}
