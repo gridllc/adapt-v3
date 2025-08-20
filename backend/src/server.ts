@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import { ensureEnv } from './config/env.js'
 import express from 'express'
-import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import { rateLimiters, securityHeaders, sanitizeInput } from './middleware/security.js'
@@ -46,6 +45,42 @@ const __dirname = path.dirname(__filename)
 
 // Server configuration
 const app = express()
+
+// --- hard CORS shim for cookie credentials ---
+const ALLOW = new Set([
+  'https://adaptord.com',
+  'https://app.adaptord.com',
+  'http://localhost:5173',
+])
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string | undefined
+  
+  if (origin && ALLOW.has(origin)) {
+    console.log(`🌐 CORS: Allowing origin: ${origin}`)
+    res.setHeader('Access-Control-Allow-Origin', origin)     // exact origin
+    res.setHeader('Vary', 'Origin')                          // cache correctness
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, ETag')
+  } else if (origin) {
+    console.log(`🌐 CORS: Blocking origin: ${origin}`)
+  } else {
+    console.log('🌐 CORS: No origin header (server-to-server request)')
+  }
+  
+  if (req.method === 'OPTIONS') {
+    console.log('🌐 CORS: Handling preflight request')
+    return res.sendStatus(204)   // short-circuit preflight
+  }
+  
+  next()
+})
+
+// (optional but recommended so Render probes don't 502)
+app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
+app.head('/api/health', (_req, res) => res.sendStatus(200))
 
 // Use PORT env var if provided (Render sets PORT=10000), fallback to 8000 for local dev
 const PORT = process.env.PORT || 8000
@@ -119,86 +154,8 @@ const configureMiddleware = () => {
   // Input sanitization
   app.use(sanitizeInput)
 
-  // CORS configuration - REFACTORED for production deployment
-  const allowedOrigins = [
-    // Development origins
-    'http://localhost:5173',
-    // Production origins
-    'https://adaptord.com',
-    'https://www.adaptord.com',
-    'https://app.adaptord.com'
-  ]
-
-  // Add FRONTEND_URL from environment if specified
-  if (process.env.FRONTEND_URL) {
-    const envOrigins = process.env.FRONTEND_URL
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
-    
-    // Add environment origins to the list
-    allowedOrigins.push(...envOrigins)
-    
-    console.log('🌐 CORS: Added environment origins:', envOrigins)
-  }
-
-  // Remove duplicates and log final list
-  const uniqueOrigins = [...new Set(allowedOrigins)]
-  console.log('🌐 CORS: Allowed origins:', uniqueOrigins)
-
-  const corsOptions: cors.CorsOptions = {
-    origin(origin, cb) {
-      // Allow server-to-server requests and tools (no origin header)
-      if (!origin) {
-        console.log('🌐 CORS: Allowing request with no origin (server-to-server)')
-        return cb(null, true)
-      }
-      
-      // Check if origin is in allowed list
-      const isAllowed = uniqueOrigins.some(allowed => allowed === origin)
-      
-      if (isAllowed) {
-        console.log(`🌐 CORS: Allowing origin: ${origin}`)
-        return cb(null, true)
-      } else {
-        console.log(`🌐 CORS: Blocking origin: ${origin}`)
-        return cb(new Error(`Not allowed by CORS: ${origin}`), false)
-      }
-    },
-    credentials: true, // Enable credentials for authenticated requests
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
-    allowedHeaders: [
-      'Accept',
-      'Content-Type',
-      'Authorization',
-      'Cache-Control',
-      'Pragma',
-      'X-Requested-With',
-      'Range',
-      'X-Upload-Source',
-      'X-File-Size',
-      'X-File-Type',
-      // Clerk / proxies commonly use these:
-      'X-Clerk-Auth',
-      'X-Clerk-Signature',
-    ],
-    exposedHeaders: [
-      'X-Upload-Progress',
-      'X-Upload-Status',
-      'X-Module-ID',
-      'Content-Range',
-      'Accept-Ranges',
-      'ETag',
-      'Cache-Control',
-    ],
-    maxAge: 86400,
-  }
-
-  app.use(cors(corsOptions))
-  // Respond to all preflight requests quickly
-  app.options('*', cors(corsOptions))
-
-  // Note: Rate limiting is applied at the route level for better control
+  // Note: CORS is now handled manually at the top of the app
+  // Rate limiting is applied at the route level for better control
 
   // Body parsing middleware (reduced since we're not receiving file bytes anymore)
   app.use(express.json({ limit: '10mb' }))
@@ -221,10 +178,6 @@ const configureRoutes = () => {
   
   // Public Routes (with general rate limiting)
   app.use('/api', healthRoutes)  // Mounts /api/health
-  
-  // Simple health endpoint for monitors/preflight requests
-  app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
-  app.head('/api/health', (_req, res) => res.sendStatus(200))
   
   app.use('/api/video-url', videoRoutes)
   app.use('/api/feedback', feedbackRoutes)
