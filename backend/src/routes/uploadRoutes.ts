@@ -2,9 +2,11 @@ import { Router } from 'express'
 import prisma from '../services/prismaService.js'
 import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
 import { DatabaseService } from '../services/prismaService.js'
-import { queueOrInline } from '../services/qstashQueue.js'
+import { startProcessing } from '../services/ai/aiPipeline.js'
+import { enqueueProcessModule } from '../services/qstashQueue.js'
 
 const router = Router()
+const USE_QSTASH = process.env.USE_QSTASH === 'true'   // toggle inline vs async
 
 // ===== INIT UPLOAD =====
 router.post('/init', async (req, res) => {
@@ -14,7 +16,6 @@ router.post('/init', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing filename' })
     }
 
-    // 1. Create module row in DB
     const module = await prisma.module.create({
       data: {
         title: filename,
@@ -25,17 +26,14 @@ router.post('/init', async (req, res) => {
       },
     })
 
-    // 2. Use moduleId as the S3 key
     const s3Key = `training/${module.id}.mp4`
     const stepsKey = `training/${module.id}.json`
-
-    // 3. Save the s3Key and stepsKey back to DB
+    
     await prisma.module.update({
       where: { id: module.id },
       data: { s3Key, stepsKey },
     })
 
-    // 4. Generate presigned URL
     const presignedUrl = await getPresignedUploadUrl(s3Key)
 
     res.json({
@@ -58,21 +56,28 @@ router.post('/complete', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing moduleId' })
     }
 
-    // Update status → PROCESSING
-    await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
+    console.log(`🚀 [UPLOAD] Starting complete process for moduleId=${moduleId}`)
 
-    // Enqueue QStash job or process inline
-    try {
-      const jobId = await queueOrInline(moduleId)
-      console.log(`📬 Enqueued processing job moduleId=${moduleId}, jobId=${jobId}`)
-    } catch (processingError) {
-      console.error('Failed to enqueue processing:', processingError)
-      // Continue anyway - the video is uploaded
+    // Mark status PROCESSING
+    await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
+    console.log(`✅ [UPLOAD] Module status updated to PROCESSING for moduleId=${moduleId}`)
+
+    if (USE_QSTASH) {
+      // enqueue async job
+      console.log(`📬 [UPLOAD] QStash enabled, enqueueing job for moduleId=${moduleId}`)
+      const jobId = await enqueueProcessModule(moduleId)
+      console.log('📬 [UPLOAD] Enqueued processing job', { moduleId, jobId })
+    } else {
+      // run inline for testing/dev
+      console.log(`⚙️ [UPLOAD] QStash disabled, running inline processing for moduleId=${moduleId}`)
+      await startProcessing(moduleId)
+      console.log(`✅ [UPLOAD] Inline processing completed for moduleId=${moduleId}`)
     }
 
+    console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
     res.json({ success: true, moduleId })
   } catch (err) {
-    console.error('❌ upload/complete error:', err)
+    console.error(`❌ [UPLOAD] upload/complete error for moduleId=${req.body.moduleId}:`, err)
     res.status(500).json({ success: false, error: 'Failed to complete upload' })
   }
 })

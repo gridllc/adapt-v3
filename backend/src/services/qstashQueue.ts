@@ -89,32 +89,3 @@ export async function enqueueProcessModule(moduleId: string) {
     throw err
   }
 }
-
-/**
- * Process a module directly (fallback when QStash is not available)
- */
-export async function processModuleDirectly(moduleId: string): Promise<void> {
-  log.info('🔄 Processing module directly', { moduleId })
-  await startProcessing(moduleId)
-}
-
-/**
- * Queue or process inline based on QStash availability
- */
-export async function queueOrInline(moduleId: string): Promise<string | null> {
-  if (isEnabled()) {
-    try {
-      const jobId = await enqueueProcessModule(moduleId)
-      log.info('📬 Enqueued processing job', { moduleId, jobId })
-      return jobId
-    } catch (error) {
-      log.warn('⚠️ QStash failed, falling back to inline processing', { moduleId, error })
-      await processModuleDirectly(moduleId)
-      return null
-    }
-  } else {
-    log.info('⚙️ QStash disabled, running inline processing:', moduleId)
-    await processModuleDirectly(moduleId)
-    return null
-  }
-}
