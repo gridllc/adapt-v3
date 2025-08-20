@@ -54,13 +54,22 @@ export const ModuleDashboard: React.FC = () => {
       const response = await fetch(`/api/modules`)
       const data = await response.json()
       
-      if (data.success) {
-        setModules(data.modules)
+      if (data.success && Array.isArray(data.modules)) {
+        // 🎯 Null guard: ensure modules array exists and has valid data
+        const validModules = data.modules.filter((module: any) => 
+          module && 
+          typeof module === 'object' && 
+          module.id && 
+          module.status !== undefined
+        )
+        setModules(validModules)
       } else {
         setError('Failed to fetch modules')
+        setModules([]) // Set empty array to prevent crashes
       }
     } catch (err) {
       setError('Error fetching modules')
+      setModules([]) // Set empty array to prevent crashes
     }
   }
 
@@ -291,36 +300,43 @@ export const ModuleDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {modules.map((module) => (
-                <tr key={module.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{module.title}</div>
-                      <div className="text-sm text-gray-500">{module.filename}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full text-white ${getStatusColor(module.status)}`}>
-                      {module.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full" 
-                        style={{ width: `${module.progress}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-sm text-gray-500">{module.progress}%</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {module.stepCount} steps
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {formatDate(module.createdAt)}
-                  </td>
-                </tr>
-              ))}
+              {modules.map((module) => {
+                // 🎯 Extra null guard: ensure module has valid status before rendering
+                if (!module || !module.status) {
+                  return null // Skip invalid modules
+                }
+                
+                return (
+                  <tr key={module.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{module.title}</div>
+                        <div className="text-sm text-gray-500">{module.filename}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full text-white ${getStatusColor(module.status)}`}>
+                        {module.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full" 
+                          style={{ width: `${module.progress || 0}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm text-gray-500">{module.progress || 0}%</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {module.stepCount || 0} steps
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatDate(module.createdAt)}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

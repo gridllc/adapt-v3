@@ -14,6 +14,16 @@ const SPEED_TEST_CACHE_KEY = 'adapt_connection_speed'
 const SPEED_TEST_TIMESTAMP_KEY = 'adapt_speed_test_timestamp'
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes cache
 
+// 🎯 Safe fetch helper that never throws or dereferences undefined
+async function safeFetch(url: string, init?: RequestInit) {
+  try {
+    const res = await fetch(url, init)
+    return { ok: !!res?.ok, status: res?.status ?? 0 }
+  } catch {
+    return { ok: false, status: 0 }
+  }
+}
+
 export const useNetworkStatus = (): NetworkStatus => {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [connectionSpeed, setConnectionSpeed] = useState<ConnectionSpeed>('testing')
@@ -33,8 +43,8 @@ export const useNetworkStatus = (): NetworkStatus => {
     try {
       const startTime = performance.now()
       
-      // Use relative URL - Vercel will proxy to Render backend
-      const response = await fetch(`/api/health`, {
+      // Use safeFetch to prevent crashes
+      const { ok, status } = await safeFetch(`/api/health`, {
         method: 'HEAD',
         cache: 'no-cache',
         headers: {
@@ -43,8 +53,8 @@ export const useNetworkStatus = (): NetworkStatus => {
         }
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+      if (!ok) {
+        throw new Error(`HTTP ${status}`)
       }
 
       const duration = performance.now() - startTime

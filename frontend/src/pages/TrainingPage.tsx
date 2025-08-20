@@ -28,8 +28,16 @@ export default function TrainingPage() {
       try {
         const data = await getJSON<{ success: boolean; module: ModuleDto; steps?: Step[] }>(`/api/modules/${moduleId}`)
         if (!active) return
+        
+        // 🎯 Null guard: ensure data and module exist before accessing properties
+        if (!data || !data.module) {
+          throw new Error('Invalid module data received')
+        }
+        
         setMod(data.module)
         setSteps(data.steps ?? [])
+        
+        // 🎯 Safe status check with null guard
         if (data.module.status === 'READY') {
           const v = await getJSON<{ url: string }>(`/api/video/${moduleId}/play`)
           if (active) setVideoUrl(v.url)
@@ -53,7 +61,16 @@ export default function TrainingPage() {
       try {
         const s = await getJSON<{ success: boolean; module: ModuleDto }>(`/api/modules/${moduleId}/status`)
         if (!active) return
+        
+        // 🎯 Null guard: ensure status data exists before accessing properties
+        if (!s || !s.module) {
+          console.warn('Invalid status data received during polling')
+          return
+        }
+        
         setMod(s.module)
+        
+        // 🎯 Safe status check with null guard
         if (s.module.status === 'READY') {
           const v = await getJSON<{ url: string }>(`/api/video/${moduleId}/play`)
           if (active) setVideoUrl(v.url)
@@ -61,6 +78,8 @@ export default function TrainingPage() {
           if (active) setSteps(st.steps ?? [])
           return
         }
+        
+        // 🎯 Safe status check with null guard
         if (s.module.status !== 'ERROR') {
           const delay = Math.min(8000, 900 + pollCount.current * 600)
           setTimeout(poll, delay)
