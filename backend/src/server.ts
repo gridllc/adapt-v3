@@ -55,26 +55,24 @@ const ALLOW = new Set([
 
 app.use((req, res, next) => {
   const origin = req.headers.origin as string | undefined
-  
   if (origin && ALLOW.has(origin)) {
-    console.log(`🌐 CORS: Allowing origin: ${origin}`)
-    res.setHeader('Access-Control-Allow-Origin', origin)     // exact origin
-    res.setHeader('Vary', 'Origin')                          // cache correctness
+    // exact origin, required for credentials
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Vary', 'Origin')
     res.setHeader('Access-Control-Allow-Credentials', 'true')
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+    // Echo back the headers the browser asked for (preflight-safe)
+    const reqHeaders = (req.headers['access-control-request-headers'] as string) || ''
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      reqHeaders || 'Content-Type, Authorization, Cache-Control, Pragma, X-Requested-With'
+    )
     res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, ETag')
-  } else if (origin) {
-    console.log(`🌐 CORS: Blocking origin: ${origin}`)
-  } else {
-    console.log('🌐 CORS: No origin header (server-to-server request)')
   }
-  
-  if (req.method === 'OPTIONS') {
-    console.log('🌐 CORS: Handling preflight request')
-    return res.sendStatus(204)   // short-circuit preflight
-  }
-  
+
+  // Short-circuit preflight
+  if (req.method === 'OPTIONS') return res.sendStatus(204)
   next()
 })
 
