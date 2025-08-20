@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 
-import { uploadRoutes } from './routes/uploadRoutes'
+import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import { videoRoutes } from './routes/videoRoutes.js'
