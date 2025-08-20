@@ -46,37 +46,43 @@ const __dirname = path.dirname(__filename)
 // Server configuration
 const app = express()
 
-// --- hard CORS shim for cookie credentials ---
-const ALLOW = new Set([
+// Exact origins that are allowed to call your API
+const ALLOW = new Set<string>([
   'https://adaptord.com',
   'https://app.adaptord.com',
   'http://localhost:5173',
 ])
 
+// Global CORS shim — runs before everything else
 app.use((req, res, next) => {
   const origin = req.headers.origin as string | undefined
+
   if (origin && ALLOW.has(origin)) {
-    // exact origin, required for credentials
+    // Required for credentials mode
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Vary', 'Origin')
     res.setHeader('Access-Control-Allow-Credentials', 'true')
+
+    // Methods allowed
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD')
 
-    // Echo back the headers the browser asked for (preflight-safe)
+    // Echo back whatever headers the browser asked to send in preflight
     const reqHeaders = (req.headers['access-control-request-headers'] as string) || ''
     res.setHeader(
       'Access-Control-Allow-Headers',
-      reqHeaders || 'Content-Type, Authorization, Cache-Control, Pragma, X-Requested-With'
+      reqHeaders || 'Authorization, Content-Type, Cache-Control, Pragma, X-Requested-With'
     )
+
+    // Useful when reading lengths/ETag on GETs
     res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, ETag')
   }
 
-  // Short-circuit preflight
+  // Handle preflight immediately
   if (req.method === 'OPTIONS') return res.sendStatus(204)
   next()
 })
 
-// (optional but recommended so Render probes don't 502)
+// Health (so probes don't 502)
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
 app.head('/api/health', (_req, res) => res.sendStatus(200))
 
@@ -177,7 +183,7 @@ const configureRoutes = () => {
   // Public Routes (with general rate limiting)
   app.use('/api', healthRoutes)  // Mounts /api/health
   
-  app.use('/api/video-url', videoRoutes)
+  app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
   app.use('/api/steps', stepsRoutes)  // ✅ ADD THIS - Fixes 404 for /api/steps/:moduleId
@@ -477,6 +483,13 @@ const configureRoutes = () => {
 const configureErrorHandling = () => {
   // 404 handler
   app.use((req, res) => {
+    // Set CORS headers even for 404s
+    const origin = req.headers.origin as string | undefined
+    if (origin && ALLOW.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+    }
+    
     res.status(404).json({ 
       error: 'Route not found',
       path: req.path,
@@ -486,6 +499,13 @@ const configureErrorHandling = () => {
 
   // Global error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    // Set CORS headers even for errors
+    const origin = req.headers.origin as string | undefined
+    if (origin && ALLOW.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Access-Control-Allow-Credentials', 'true')
+    }
+    
     console.error('❌ Server Error:', {
       error: err.message,
       stack: err.stack,
@@ -514,16 +534,18 @@ const configureErrorHandling = () => {
       console.log(`   🔗 URL: http://localhost:${PORT}`)
     
     console.log('\n📚 Available API Endpoints:')
-      console.log('   POST /api/upload/presigned-url')
-  console.log('   POST /api/upload/process')
-  console.log('   POST /api/upload (legacy)')
-    console.log('   POST /api/ai/chat')
-    console.log('   GET  /api/modules')
-    console.log('   GET  /api/modules/:id')
-    console.log('   GET  /api/modules/:id/steps')
-    console.log('   GET  /api/steps/:moduleId')
-    console.log('   GET  /api/share/:moduleId')
-    console.log('   GET  /api/health')
+      console.log('   POST /api/upload/init')
+      console.log('   POST /api/upload/complete')
+      console.log('   POST /api/upload/presigned-url (alias)')
+      console.log('   POST /api/upload/process (alias)')
+      console.log('   POST /api/ai/chat')
+      console.log('   GET  /api/modules')
+      console.log('   GET  /api/modules/:id')
+      console.log('   GET  /api/modules/:id/steps')
+      console.log('   GET  /api/steps/:moduleId')
+      console.log('   GET  /api/video/:moduleId/play')
+      console.log('   GET  /api/share/:moduleId')
+      console.log('   GET  /api/health')
     
     if (NODE_ENV === 'development') {
       console.log('   GET  /api/test')
