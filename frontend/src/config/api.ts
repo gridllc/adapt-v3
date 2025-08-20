@@ -1,58 +1,24 @@
 // src/config/api.ts
-// Use relative URLs - Vercel will proxy /api/* to Render backend
-export const API_BASE = '';
+const onProd =
+  typeof window !== 'undefined' &&
+  /(^|\.)adaptord\.com$/i.test(window.location.hostname);
 
-// Log API configuration for debugging
-if (import.meta.env.DEV) {
-  console.log('🔧 API Configuration:', {
-    API_BASE,
-    hasBaseUrl: !!API_BASE,
-    proxy: 'Vercel will proxy /api/* to Render backend'
-  })
-}
+export const API_BASE = onProd
+  ? '' // ← force same-origin in prod (Vercel will proxy to Render)
+  : ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:10000');
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  // Use relative URLs - Vercel will proxy to Render backend
-  const fullUrl = path.startsWith('/') ? path : `/${path}`
-  
-  if (import.meta.env.DEV) {
-    console.log(`🌐 API Request: ${init?.method || 'GET'} ${fullUrl}`)
-  }
-  
-  const r = await fetch(fullUrl, { 
-    // No CORS needed - same origin via Vercel proxy
-    credentials: 'include', 
-    ...init 
-  });
+  // No cookies needed for upload/status; avoid CORS complexity in dev too
+  const r = await fetch(`${API_BASE}${path}`, { credentials: 'omit', ...init });
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
 
 export const api = {
-  get: <T = any>(path: string) => req<T>(path),
-  post: <T = any>(path: string, body: any) =>
-    req<T>(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
+  get:  <T=any>(p: string) => req<T>(p),
+  post: <T=any>(p: string, body: any) =>
+    req<T>(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
 };
 
-// Legacy exports for backward compatibility during cleanup
-export const API_ENDPOINTS = {
-  MODULES: '/api/modules',
-  STEPS: (moduleId: string) => `/api/steps/${moduleId}`,
-  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
-  AI_ASK: '/api/ai/ask',
-  HEALTH: '/api/health',
-};
-
-export const API_CONFIG = {
-  baseURL: API_BASE,
-  getApiUrl: (endpoint: string) => endpoint.startsWith('/') ? endpoint : `/${endpoint}`,
-};
-
-// Legacy authenticatedApi for backward compatibility
-export const authenticatedApi = async <T = any>(endpoint: string, options?: RequestInit): Promise<T> => {
-  return req<T>(endpoint, options);
-};
+// Expose for quick verification in devtools
+if (typeof window !== 'undefined') (window as any).__API_BASE__ = API_BASE;
