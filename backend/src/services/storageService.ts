@@ -77,59 +77,32 @@ export const storageService = {
   },
 
   async getModule(moduleId: string): Promise<any> {
-    const creationTime = moduleCreationTimes.get(moduleId)
-    const now = Date.now()
+    console.log(`getModule called for ${moduleId} - EMERGENCY FIX: always returning ready status`)
     
-    // If no creation time recorded, assume it was just created
-    if (!creationTime) {
-      moduleCreationTimes.set(moduleId, now)
-      console.log(`Setting creation time for module ${moduleId}`)
-    }
-    
-    const actualCreationTime = moduleCreationTimes.get(moduleId) || now
-    const timeSinceCreation = now - actualCreationTime
-    
-    console.log(`Module ${moduleId}: ${timeSinceCreation}ms since creation`)
-    
-    // Simulate processing time - after 10 seconds, return ready status
-    const isProcessing = timeSinceCreation < 10000 // 10 seconds
-    
-    if (isProcessing) {
-      console.log(`Module ${moduleId} still processing (${timeSinceCreation}ms < 10000ms)`)
-      return {
-        id: moduleId,
-        title: 'Processing Video...',
-        description: 'AI is analyzing your video and extracting steps',
-        status: 'processing',
-        steps: []
-      }
-    }
-    
-    // After "processing", return completed module
-    console.log(`Module ${moduleId} processing complete (${timeSinceCreation}ms >= 10000ms)`)
+    // ALWAYS return ready status to stop infinite polling
     return {
       id: moduleId,
-      title: 'Your Training Module',
-      description: 'AI-generated training module from your uploaded video',
-      status: 'ready',
-      videoUrl: 'https://example.com/video.mp4',
+      title: 'Your Training Module (Emergency Fix)',
+      description: 'Training module - AI processing temporarily disabled',
+      status: 'ready', // ← This will stop the polling!
+      videoUrl: 'https://adaptv3-training-videos.s3.us-west-1.amazonaws.com/videos/placeholder.mp4',
       steps: [
         {
           timestamp: 0,
-          title: 'Introduction',
-          description: 'Welcome to the training - this step was extracted by AI',
+          title: 'Step 1: Introduction',
+          description: 'Welcome to this training module',
           duration: 30,
         },
         {
           timestamp: 30,
-          title: 'Main Content',
-          description: 'The main content of your training video',
-          duration: 60,
+          title: 'Step 2: Main Content',
+          description: 'The core content of your training',
+          duration: 90,
         },
         {
-          timestamp: 90,
-          title: 'Conclusion',
-          description: 'Wrapping up the training session',
+          timestamp: 120,
+          title: 'Step 3: Conclusion',
+          description: 'Summary and next steps',
           duration: 30,
         }
       ],
