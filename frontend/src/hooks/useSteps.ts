@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 
 interface Step {
   stepTitle: string
@@ -20,7 +20,7 @@ export function useSteps(moduleId?: string) {
         setLoading(true)
         setError(null)
         
-        const data = await api(API_ENDPOINTS.STEPS(moduleId))
+        const data = await api.get(`/api/steps/${moduleId}`)
         
         if (data.success) {
           setSteps(data.steps || [])

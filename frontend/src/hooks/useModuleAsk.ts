@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 
 interface AskResult {
   answer: string | null
@@ -42,11 +42,7 @@ export function useModuleAsk(): AskResult {
       setRaw(null)
       setMeta({ reused: false, similarity: null, questionId: null, source: null })
 
-      const data = await api(API_ENDPOINTS.AI_ASK, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moduleId, question }),
-      })
+      const data = await api.post('/api/ai/ask', { moduleId, question })
 
       if (data.success) {
         setAnswer(data.answer || null)

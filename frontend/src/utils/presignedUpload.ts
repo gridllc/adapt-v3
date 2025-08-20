@@ -1,49 +1,48 @@
-import { apiClient } from '../config/api'
+export type UploadResult = { success: boolean; moduleId?: string; error?: string }
 
-interface UploadResult {
-  success: boolean
-  moduleId?: string
-  error?: string
+export async function uploadWithPresignedUrl({ file, onProgress }: { file: File; onProgress?: (p: number) => void }): Promise<UploadResult> {
+  // 1) init → presigned PUT
+  const initRes = await fetch(`/api/upload/init`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4' })
+  })
+  if (!initRes.ok) return { success: false, error: `init ${initRes.status}` }
+  const { success, moduleId, key, presignedUrl, error } = await initRes.json()
+  if (!success || !moduleId || !presignedUrl) return { success: false, error: error || 'init failed' }
+
+  // 2) PUT to S3 with progress
+  await putWithProgress(presignedUrl, file, onProgress)
+
+  // 3) complete
+  const completeRes = await fetch(`/api/upload/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ moduleId, key })
+  })
+  if (!completeRes.ok) return { success: false, error: `complete ${completeRes.status}` }
+  const done = await completeRes.json()
+  if (!done.success) return { success: false, error: done.error || 'complete failed' }
+
+  return { success: true, moduleId }
 }
 
-export async function uploadWithPresignedUrl({
-  file,
-  onProgress,
-}: {
-  file: File
-  onProgress?: (progress: number) => void
-}): Promise<UploadResult> {
-  try {
-    // Step 1: Init → get presigned URL + moduleId
-    const initRes = await apiClient.post('/upload/init', {
-      filename: file.name,
-    })
-    if (!initRes.data.success) return initRes.data
-
-    const { moduleId, presignedUrl } = initRes.data
-
-    // Step 2: Upload file directly to S3
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      xhr.open('PUT', presignedUrl, true)
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable && onProgress) {
-          onProgress((e.loaded / e.total) * 100)
-        }
-      }
-      xhr.onload = () =>
-        xhr.status === 200 ? resolve() : reject(new Error(`Upload failed ${xhr.status}`))
-      xhr.onerror = () => reject(new Error('Network error'))
-      xhr.setRequestHeader('Content-Type', file.type)
-      xhr.send(file)
-    })
-
-    // Step 3: Tell backend upload is complete
-    await apiClient.post('/upload/complete', { moduleId })
-
-    return { success: true, moduleId }
-  } catch (err: any) {
-    console.error('❌ uploadWithPresignedUrl error:', err)
-    return { success: false, error: err.message }
+async function putWithProgress(url: string, file: File, onProgress?: (p: number) => void) {
+  if (!onProgress) {
+    await fetch(url, { method: 'PUT', body: file })
+    return
   }
+  // XHR for progress
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', url)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`PUT ${xhr.status}`)))
+    xhr.onerror = () => reject(new Error('PUT failed'))
+    xhr.send(file)
+  })
 }

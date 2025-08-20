@@ -31,20 +31,14 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
 
   const handleFeedback = async (action: 'worked' | 'not_working' | 'partially_working') => {
     try {
-      const data = await api('/api/feedback/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type,
-          action,
-          moduleId,
-          context,
-          userMessage,
-          aiResponse,
-          timestamp: new Date().toISOString()
-        })
+      const data = await api.post('/api/feedback/submit', {
+        type,
+        action,
+        moduleId,
+        context,
+        userMessage,
+        aiResponse,
+        timestamp: new Date().toISOString()
       })
       
       if (data.success) {

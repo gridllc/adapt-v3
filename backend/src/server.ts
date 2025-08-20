@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { env } from './config/env.js'
+import { ensureEnv } from './config/env.js'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -11,10 +11,10 @@ import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 
-import uploadRoutes from './routes/uploadRoutes.js'
+import { uploadRoutes } from './routes/uploadRoutes'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
-import videoRoutes from './routes/videoRoutes.js'
+import { videoRoutes } from './routes/videoRoutes.js'
 import feedbackRoutes from './routes/feedbackRoutes.js'
 import transcriptRoutes from './routes/transcriptRoutes.js'
 import reprocessRoutes from './routes/reprocessRoutes.js'
@@ -37,6 +37,8 @@ import './services/qstashQueue.js'
 // Import and validate S3 configuration
 import { validateS3Config } from './services/s3Uploader.js'
 
+// Ensure critical environment variables are set
+ensureEnv()
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url)
@@ -46,7 +48,7 @@ const __dirname = path.dirname(__filename)
 const app = express()
 // Use PORT env var if provided (Render sets PORT=10000), fallback to 8000 for local dev
 const PORT = process.env.PORT || 8000
-const NODE_ENV = env?.NODE_ENV || 'development'
+const NODE_ENV = process.env.NODE_ENV || 'development'
 
 // Environment validation
 const validateEnvironment = () => {

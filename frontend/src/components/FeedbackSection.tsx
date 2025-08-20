@@ -23,16 +23,10 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({ moduleId, step
 
     try {
       // Save improvement feedback for admin review
-      await api('/api/feedback/improvement', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          moduleId,
-          feedback: improvementFeedback,
-          type: 'ai_improvement'
-        }),
+      await api.post('/api/feedback/improvement', {
+        moduleId,
+        feedback: improvementFeedback,
+        type: 'ai_improvement'
       })
 
       setImprovementFeedback('')

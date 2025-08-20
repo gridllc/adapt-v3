@@ -33,7 +33,7 @@ export const FeedbackDashboard: React.FC<FeedbackDashboardProps> = ({ className 
         setLoading(true)
         setError(null)
         
-        const data = await api('/api/feedback/stats')
+        const data = await api.get('/api/feedback/stats')
         
         if (data.success) {
           setStats(data.stats)

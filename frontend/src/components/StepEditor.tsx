@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { InlineStepEditor, StepData } from './InlineStepEditor'
-import { api, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 import { getStart, getEnd, getDuration, toMmSs } from '../utils/timeUtils'
 
 interface Step {
@@ -70,13 +70,10 @@ export const StepEditor: React.FC<StepEditorProps> = ({
       }
 
       // Save to backend
-      await api(API_ENDPOINTS.STEPS(moduleId), {
-        method: 'POST',
-        body: JSON.stringify({ 
-          steps: [updatedStep],
-          action: 'update',
-          stepIndex
-        }),
+      await api.post(`/api/steps/${moduleId}`, { 
+        steps: [updatedStep],
+        action: 'update',
+        stepIndex
       })
 
       onUpdate(updatedStep)
@@ -92,12 +89,9 @@ export const StepEditor: React.FC<StepEditorProps> = ({
 
     setIsDeleting(true)
     try {
-      await api(API_ENDPOINTS.STEPS(moduleId), {
-        method: 'POST',
-        body: JSON.stringify({ 
-          action: 'delete',
-          stepIndex
-        }),
+      await api.post(`/api/steps/${moduleId}`, { 
+        action: 'delete',
+        stepIndex
       })
 
       onDelete()
@@ -144,15 +138,9 @@ export const StepEditor: React.FC<StepEditorProps> = ({
       }
       
       // Call the AI rewrite API with conservative prompt
-      const data = await api(`/api/steps/${moduleId}/rewrite`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: currentDescription,
-          instruction: "Clean up this training step text by removing filler words (um, uh, and then) and fixing basic grammar. Do NOT add new information, change the meaning, or introduce concepts not in the original. Keep the exact same intent and actions. Only improve clarity and readability."
-        }),
+      const data = await api.post(`/api/steps/${moduleId}/rewrite`, {
+        text: currentDescription,
+        instruction: "Clean up this training step text by removing filler words (um, uh, and then) and fixing basic grammar. Do NOT add new information, change the meaning, or introduce concepts not in the original. Keep the exact same intent and actions. Only improve clarity and readability."
       })
       
       console.log('✅ AI rewrite successful:', data)

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { api, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 
 interface AddStepFormProps {
   moduleId: string
@@ -40,12 +40,9 @@ export const AddStepForm: React.FC<AddStepFormProps> = ({ moduleId, onAdd, curre
       }
 
       // Add to existing steps
-      const response = await api(API_ENDPOINTS.STEPS(moduleId), {
-        method: 'POST',
-        body: JSON.stringify({ 
-          steps: [newStep],
-          action: 'add'
-        }),
+      const response = await api.post(`/api/steps/${moduleId}`, { 
+        steps: [newStep],
+        action: 'add'
       })
 
       if (response.success) {

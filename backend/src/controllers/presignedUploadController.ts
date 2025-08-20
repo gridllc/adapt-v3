@@ -71,19 +71,20 @@ export const presignedUploadController = {
         userId 
       })
 
-      const result = await presignedUploadService.generatePresignedUrl(
-        filename, 
+      const result = await presignedUploadService.presignPut({
+        key: `training/${filename}`,
         contentType
-      )
+      })
       
       log.info('Presigned URL generated successfully', { 
         filename, 
-        key: result.key,
+        key: `training/${filename}`,
         userId 
       })
       
       res.json({
-        ...result,
+        url: result.url,
+        key: `training/${filename}`,
         expiresIn: 3600, // 1 hour
         maxFileSize: 500 * 1024 * 1024 // 500MB limit
       })
@@ -124,8 +125,9 @@ export const presignedUploadController = {
         moduleId 
       })
 
-      // Process with AI
-      await aiService.processVideo(videoUrl)
+      // Process with AI - use the new pipeline
+      const { startProcessing } = await import('../services/ai/aiPipeline.js')
+      await startProcessing(moduleId || crypto.randomUUID())
 
       log.info('AI processing completed', { 
         userId 
@@ -188,14 +190,14 @@ export const presignedUploadController = {
 
       log.info('Confirming upload', { key, userId })
 
-      const result = await presignedUploadService.confirmUpload(key)
+      const result = await presignedUploadService.confirmHead(key)
       
-      if (result.success) {
+      if (result) {
         log.info('Upload confirmed successfully', { key, userId })
-        res.json(result)
+        res.json({ success: true, key })
       } else {
-        log.warn('Upload confirmation failed', { key, error: result.error, userId })
-        res.status(404).json(result)
+        log.warn('Upload confirmation failed', { key, userId })
+        res.status(404).json({ success: false, error: 'File not found' })
       }
     } catch (error) {
       log.error('Upload confirmation error', { 
@@ -224,16 +226,17 @@ export const presignedUploadController = {
 
       log.info('Getting upload status', { key, userId })
 
-      const result = await presignedUploadService.confirmUpload(key)
+      const result = await presignedUploadService.confirmHead(key)
       
-      if (result.success) {
+      if (result) {
         // Try to get additional metadata if available
         try {
           const module = await DatabaseService.getModule(key)
           if (module) {
             // Create a new result object with module info
             const enhancedResult = {
-              ...result,
+              success: true,
+              key,
               module: {
                 id: module.id,
                 title: module.title,
@@ -249,7 +252,7 @@ export const presignedUploadController = {
         }
       }
 
-      res.json(result)
+      res.json({ success: result, key })
     } catch (error) {
       log.error('Get upload status error', { 
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -271,12 +274,12 @@ export const presignedUploadController = {
       log.info('Upload service health check requested')
       
       // Test S3 connectivity
-      const testResult = await presignedUploadService.confirmUpload('test-key')
+      const testResult = await presignedUploadService.confirmHead('test-key')
       
       res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        s3: testResult.success ? 'connected' : 'disconnected',
+        s3: testResult ? 'connected' : 'disconnected',
         version: process.env.npm_package_version || '1.0.0'
       })
     } catch (error) {

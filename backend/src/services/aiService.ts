@@ -1,154 +1,106 @@
-import { startProcessing } from './ai/aiPipeline.js'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import OpenAI from 'openai'
 import { ModuleService } from './moduleService.js'
-import { storageService } from './storageService.js'
-import { DatabaseService } from './prismaService.js'
-import { v4 as uuidv4 } from 'uuid'
-import { rewriteStepsWithGPT } from '../utils/transcriptFormatter.js'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { Readable } from 'node:stream'
 
-// Stub for enhanced AI service since the original file was renamed
-const enhancedAiService = {
-  chat: async (message: string, context: any): Promise<string> => {
-    console.log('⚠️ [AI Service] Enhanced AI chat not available, returning placeholder response')
-    return `I'm sorry, but the enhanced AI service is not currently available. Your message was: "${message}"`
-  },
-  processor: {
-    generateContextualResponse: async (message: string, context: any): Promise<string> => {
-      console.log('⚠️ [AI Service] Enhanced AI contextual response not available, returning placeholder response')
-      return `I'm sorry, but the enhanced AI contextual response service is not currently available. Your message was: "${message}"`
-    }
-  }
+const s3 = new S3Client({ region: process.env.AWS_REGION! })
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
+const BUCKET = process.env.AWS_BUCKET_NAME!
+
+async function getS3Stream(key: string) {
+  const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+  return obj.Body as Readable
 }
 
 export const aiService = {
-  /**
-   * Full pipeline to generate steps from a video and save them to the module.
-   * @param moduleId - ID of the module in DB
-   * @param videoKey - S3 key (e.g., "videos/abc.mp4") or full URL for backward compatibility
-   */
-  async generateStepsForModule(moduleId: string, videoKey: string): Promise<void> {
-    console.log(`🤖 [AI Service] Starting step generation for module: ${moduleId}`)
-    
-    // Safety check: Verify module exists and is not a mock ID
-    if (moduleId.startsWith('mock_module_')) {
-      throw new Error(`Cannot process mock module ID: ${moduleId}. Module must exist in database.`)
-    }
-    
-    try {
-      // Verify module exists in database before proceeding
-      const module = await ModuleService.getModuleById(moduleId)
-      if (!module.success || !module.module) {
-        throw new Error(`Module ${moduleId} does not exist in database`)
-      }
-      console.log(`✅ Module verified in database: ${moduleId}`)
-      
-      // Use the new pipeline
-      await startProcessing(moduleId)
-    } catch (err) {
-      await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, 'AI processing failed')
-      throw new Error(`Step generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
-    }
+  // Fetch the S3 object and send to Whisper for transcription
+  async transcribe(moduleId: string): Promise<string> {
+    const m = await ModuleService.get(moduleId)
+    if (!m?.s3Key) throw new Error('missing s3Key for module')
+
+    const stream = await getS3Stream(m.s3Key)
+    // OpenAI SDK expects a Buffer; buffer the stream (small files OK)
+    const chunks: Buffer[] = []
+    for await (const c of stream) chunks.push(Buffer.from(c))
+    const buffer = Buffer.concat(chunks)
+
+    const resp = await openai.audio.transcriptions.create({
+      file: buffer,
+      model: 'whisper-1',
+      response_format: 'text',
+      temperature: 0.2,
+    } as any)
+
+    return String(resp)
   },
 
-  /**
-   * Process video without module context (for testing/development)
-   */
-  async processVideo(videoKey: string): Promise<void> {
-    throw new Error('processVideo without moduleId is no longer supported. Use generateStepsForModule instead.')
+  // Generate structured steps JSON from transcript
+  async generateSteps(moduleId: string, transcript: string) {
+    const prompt = `
+You are creating a short, concrete training outline from a video transcript.
+Return strict JSON: [{"title": "...","description":"...","startTime":0,"endTime":12}, ...]
+
+Rules:
+- 3–8 steps max.
+- startTime/endTime in SECONDS, integers.
+- startTime must be ascending; each endTime >= startTime.
+- Titles are short verbs ("Prep workspace", "Clean filter").
+- If unsure about exact timing, pick reasonable guesses spaced across the video length.
+
+Transcript:
+${transcript.slice(0, 6000)}
+    `.trim()
+
+    const chat = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: 'You return ONLY valid JSON array, nothing else.' },
+        { role: 'user', content: prompt },
+      ],
+    })
+
+    const text = chat.choices[0].message?.content?.trim() || '[]'
+    // tolerant JSON parse
+    const jsonStart = text.indexOf('['); const jsonEnd = text.lastIndexOf(']')
+    const raw = jsonStart >= 0 ? text.slice(jsonStart, jsonEnd + 1) : '[]'
+    let steps: any[] = []
+    try { steps = JSON.parse(raw) } catch { steps = [] }
+    // fallback to one big step if empty
+    if (!steps.length) steps = [{ title: 'Overview', description: 'General walkthrough', startTime: 0, endTime: 60 }]
+    return steps
   },
 
-  /**
-   * Chat with AI about video content
-   */
-  async chat(message: string, context: any): Promise<string> {
-    try {
-      return await enhancedAiService.chat(message, context)
-    } catch (error) {
-      console.error('❌ Chat error:', error)
-      throw new Error('Chat failed')
-    }
-  },
-
-  /**
-   * Generate contextual response based on video content
-   */
-  async generateContextualResponse(message: string, context: any): Promise<string> {
-    try {
-      return enhancedAiService.processor.generateContextualResponse(message, context)
-    } catch (error) {
-      console.error('❌ Contextual response error:', error)
-      throw new Error('Contextual response failed')
-    }
-  },
-
-  /**
-   * Rewrite step text using AI for clarity
-   */
+  // Rewrite step text using AI for clarity
   async rewriteStep(text: string, style?: string): Promise<string> {
     try {
-      // Create a mock step structure for the rewrite function
-      const mockStep = {
-        id: 'temp',
-        text: text,
-        start: 0,
-        end: 0,
-        confidence: 1.0,
-        duration: 0,
-        wordCount: text.split(' ').length,
-        type: 'instruction' as const
-      }
-      
-      const rewrittenSteps = await rewriteStepsWithGPT([mockStep])
-      return rewrittenSteps[0]?.rewrittenText || text
+      const prompt = `
+Rewrite this training step text to be ${style || 'clear and actionable'}:
+
+Original: "${text}"
+
+Rules:
+- Keep it concise and actionable
+- Use imperative verbs when possible
+- Make it easy to follow step-by-step
+- Maintain the same meaning and intent
+
+Rewritten text:`
+
+      const chat = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0.3,
+        messages: [
+          { role: 'system', content: 'You are a training content editor. Return only the rewritten text, nothing else.' },
+          { role: 'user', content: prompt },
+        ],
+      })
+
+      return chat.choices[0].message?.content?.trim() || text
     } catch (error) {
       console.error('❌ Step rewrite error:', error)
       return text // Return original text if rewrite fails
     }
   },
-
-  /**
-   * Get steps for a module
-   */
-  async getSteps(moduleId: string): Promise<any[]> {
-    try {
-      const module = await ModuleService.getModuleById(moduleId)
-      if (!module.success || !module.module) {
-        console.log(`[DEBUG] Module not found for steps: ${moduleId}`)
-        return []
-      }
-      
-      // Get steps from the module
-      const stepsResult = await ModuleService.getModuleSteps(moduleId)
-      const steps = stepsResult.success ? stepsResult.steps : []
-      console.log(`[DEBUG] Found ${steps?.length || 0} steps for module: ${moduleId}`)
-      return steps || []
-    } catch (error) {
-      console.error(`[DEBUG] Error getting steps for module ${moduleId}:`, error)
-      return []
-    }
-  },
-
-  /**
-   * Get job status for a module (QStash/queue/worker)
-   */
-  async getJobStatus(moduleId: string): Promise<any> {
-    try {
-      const module = await ModuleService.getModuleById(moduleId)
-      if (!module.success || !module.module) {
-        return { status: 'not_found', moduleId }
-      }
-      
-      return {
-        status: module.module.status,
-        progress: module.module.progress,
-        moduleId,
-        updatedAt: module.module.updatedAt
-      }
-    } catch (error) {
-      console.error(`[DEBUG] Error getting job status for module ${moduleId}:`, error)
-      return { status: 'error', moduleId, error: error instanceof Error ? error.message : 'Unknown error' }
-    }
-  }
 }
-
-// Re-export types for convenience
-export type { Step } from './ai/types.js'

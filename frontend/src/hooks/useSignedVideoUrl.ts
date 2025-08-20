@@ -1,42 +1,24 @@
 // src/hooks/useSignedVideoUrl.ts
 import { useEffect, useState } from 'react'
-import { apiClient } from '../config/api'
+import { api } from '../config/api'
 
-interface SignedUrlResponse {
-  success: boolean
-  url?: string
-  error?: string
-}
-
-export function useSignedVideoUrl(moduleId: string | null) {
+export function useSignedVideoUrl(moduleId?: string, enabled: boolean = true) {
   const [url, setUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!moduleId) return
-
-    const fetchSignedUrl = async () => {
-      setLoading(true)
-      setError(null)
-
+    if (!enabled || !moduleId) return
+    let active = true
+    ;(async () => {
       try {
-        const res = await apiClient.get<SignedUrlResponse>(`/storage/video/${moduleId}/play`)
-        if (res.data.success && res.data.url) {
-          setUrl(res.data.url)
-        } else {
-          setError(res.data.error || 'Failed to fetch video URL')
-        }
-      } catch (err: any) {
-        console.error('❌ useSignedVideoUrl error:', err)
-        setError(err.message || 'Unknown error')
-      } finally {
-        setLoading(false)
+        const r = await api.get(`/api/video/${moduleId}/play`)
+        if (active) setUrl(r.url)
+      } catch (e: any) {
+        if (active) setError(e?.message || 'failed to sign url')
       }
-    }
+    })()
+    return () => { active = false }
+  }, [moduleId, enabled])
 
-    fetchSignedUrl()
-  }, [moduleId])
-
-  return { url, loading, error }
+  return { url, error }
 }

@@ -38,7 +38,7 @@ export const ApiDebug: React.FC = () => {
 
   const testViaConfig = async () => {
     try {
-      const data = await api(API_ENDPOINTS.HEALTH)
+      const data = await api.get('/api/health')
       setTestResults(prev => ({ ...prev, config: { success: true, data } }))
     } catch (error) {
       setTestResults(prev => ({ ...prev, config: { success: false, error: error.message } }))

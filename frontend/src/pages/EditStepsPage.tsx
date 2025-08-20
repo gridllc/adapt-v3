@@ -1,7 +1,7 @@
 // ✅ EditStepsPage.tsx with Enhanced EditableStep Component
-import { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { api, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 import { EditableStep } from '../components/EditableStep'
 
 interface Step {
@@ -38,7 +38,7 @@ export default function EditStepsPage() {
   useEffect(() => {
     if (!moduleId) return
     setLoading(true)
-    api(API_ENDPOINTS.STEPS(moduleId))
+    api.get(`/api/steps/${moduleId}`)
       .then(data => {
         console.log('📋 Backend steps data:', data.steps)
         const transformedSteps = transformSteps(data.steps || [])
@@ -58,11 +58,7 @@ export default function EditStepsPage() {
     setSteps(newSteps)
 
     try {
-      await api(`/api/steps/${moduleId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ steps: newSteps }),
-      })
+      await api.post(`/api/steps/${moduleId}`, { steps: newSteps })
       console.log(`✅ Step ${index + 1} saved`)
     } catch (err) {
       console.error('❌ Save error:', err)
@@ -71,13 +67,9 @@ export default function EditStepsPage() {
 
   const handleAIRewrite = async (text: string): Promise<string> => {
     try {
-      const data = await api(`/api/steps/${moduleId}/rewrite`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          text,
-          instruction: "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."
-        }),
+      const data = await api.post(`/api/steps/${moduleId}/rewrite`, { 
+        text,
+        instruction: "Rewrite this training step to improve clarity, fix grammar, and make it easier to follow. Add helpful details only if something important is missing. Keep it concise, human, and easy to understand."
       })
       
       return data.text
@@ -109,10 +101,7 @@ export default function EditStepsPage() {
     if (!moduleId) return
     setSaving(true)
     try {
-      await api(API_ENDPOINTS.STEPS(moduleId), {
-        method: 'POST',
-        body: JSON.stringify({ steps }),
-      })
+      await api.post(`/api/steps/${moduleId}`, { steps })
       navigate('/dashboard')
     } catch {
       alert('Failed to save')
@@ -125,7 +114,7 @@ export default function EditStepsPage() {
     if (!moduleId) return
     if (!confirm('Delete all steps for this module?')) return
     try {
-      await api(`/api/steps/${moduleId}`, { method: 'DELETE' })
+      await api.post(`/api/steps/${moduleId}`, { action: 'delete' })
       setSteps([])
     } catch {
       alert('Failed to delete step file')

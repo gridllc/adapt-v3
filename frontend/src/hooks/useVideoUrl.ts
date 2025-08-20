@@ -1,6 +1,6 @@
 // src/hooks/useVideoUrl.ts
 import { useState, useEffect } from 'react'
-import { api, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 
 interface UseVideoUrlResult {
   url: string | null
@@ -45,7 +45,7 @@ export function useVideoUrl(videoKeyOrUrl?: string): UseVideoUrlResult {
         // It's an S3 key, fetch signed URL
         console.log('🔑 Input is S3 key, fetching signed URL...')
         
-        const data = await api(`/api/storage/signed-url?key=${encodeURIComponent(videoKeyOrUrl)}`)
+        const data = await api.get(`/api/storage/signed-url?key=${encodeURIComponent(videoKeyOrUrl)}`)
         
         if (!isMounted) return
         

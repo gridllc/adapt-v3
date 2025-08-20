@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api, API_ENDPOINTS } from '../config/api'
+import { api } from '../config/api'
 
 export function useTranscript(moduleId?: string) {
   const [transcript, setTranscript] = useState<string | any[] | null>(null)
@@ -14,7 +14,7 @@ export function useTranscript(moduleId?: string) {
         setLoading(true)
         setError(null)
         
-        const data = await api(API_ENDPOINTS.TRANSCRIPT(moduleId))
+        const data = await api.get(`/api/transcript/${moduleId}`)
         
         if (data.success) {
           setTranscript(data.transcript)
