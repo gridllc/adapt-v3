@@ -1,3 +1,4 @@
+// ModuleService - Handles all module-related database operations
 import { prisma } from '../config/database.js'
 import { DatabaseService } from './prismaService.js'
 import { Prisma } from '@prisma/client'

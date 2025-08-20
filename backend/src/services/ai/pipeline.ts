@@ -63,7 +63,7 @@ export async function startProcessing(moduleId: string) {
     
     // Save to S3
     const stepsKey = `training/${moduleId}.json`
-    await storageService.putJson(stepsKey, {
+    await storageService.putObject(stepsKey, JSON.stringify({
       moduleId,
       steps: steps.steps,
       transcript: transcript.text,
@@ -75,7 +75,7 @@ export async function startProcessing(moduleId: string) {
         hasStructuredSteps: true,
         hasOriginalSteps: false
       }
-    })
+    }))
     
     console.log('[Pipeline] Results saved to S3:', stepsKey)
     
