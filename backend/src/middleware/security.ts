@@ -2,62 +2,38 @@ import rateLimit from 'express-rate-limit'
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 
+// shared options
+const COMMON = {
+  standardHeaders: true,
+  legacyHeaders: false,
+
+  // IMPORTANT: tell express-rate-limit we intentionally trust the proxy
+  trustProxy: true,
+
+  // stable client key behind a proxy
+  keyGenerator: (req: any) => {
+    // Express already resolves req.ip using app.get('trust proxy')
+    const ip =
+      req.ip ||
+      (Array.isArray(req.ips) && req.ips[0]) ||
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      'unknown'
+    return ip
+  },
+
+  // don't count health / preflight
+  skip: (req: any) => req.method === 'OPTIONS' || req.path === '/api/health',
+}
+
 /**
  * Rate limiting configurations for different endpoint types
  * Note: Generous limits for development/testing, can be tightened for production
  */
 export const rateLimiters = {
-  // General API rate limiting (generous for development)
-  general: rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'production' ? 200 : 1000, // 200 prod, 1000 dev
-    message: {
-      error: 'Too many requests',
-      message: 'Too many requests from this IP, please try again later.',
-      retryAfter: '15 minutes'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
-
-  // Upload rate limiting (much more generous for testing)
-  upload: rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: process.env.NODE_ENV === 'production' ? 20 : 100, // 20 prod, 100 dev (testing friendly)
-    message: {
-      error: 'Upload limit exceeded',
-      message: 'Too many uploads from this IP, please try again later.',
-      retryAfter: '1 hour'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
-
-  // AI processing rate limiting (generous for development)
-  aiProcessing: rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: process.env.NODE_ENV === 'production' ? 10 : 50, // 10 prod, 50 dev
-    message: {
-      error: 'AI processing limit exceeded',
-      message: 'Too many AI processing requests from this IP, please try again later.',
-      retryAfter: '1 hour'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
-
-  // Authentication endpoints
-  auth: rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // limit each IP to 5 login attempts per 15 minutes
-    message: {
-      error: 'Too many authentication attempts',
-      message: 'Too many authentication attempts from this IP, please try again later.',
-      retryAfter: '15 minutes'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  })
+  general: rateLimit({ windowMs: 15 * 60 * 1000, max: 1000, ...COMMON }),
+  upload:  rateLimit({ windowMs:  5 * 60 * 1000, max:   30, ...COMMON }),
+  aiProcessing: rateLimit({ windowMs: 60 * 1000, max: 15, ...COMMON }),
 }
 
 /**

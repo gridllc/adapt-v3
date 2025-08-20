@@ -34,6 +34,10 @@ export const api = {
   get:  <T=any>(p: string) => req<T>(p),
   post: <T=any>(p: string, body: any) =>
     req<T>(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  delete: <T=any>(p: string) =>
+    req<T>(p, { method: 'DELETE' }),
+  put: <T=any>(p: string, body: any) =>
+    req<T>(p, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
 };
 
 // Authenticated API with credentials
@@ -43,6 +47,18 @@ export const authenticatedApi = {
   post: <T=any>(path: string, body: any) =>
     req<T>(path, { 
       method: 'POST', 
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify(body) 
+    }),
+  delete: <T=any>(path: string) =>
+    req<T>(path, { 
+      method: 'DELETE', 
+      credentials: 'include'
+    }),
+  put: <T=any>(path: string, body: any) =>
+    req<T>(path, { 
+      method: 'PUT', 
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(body) 

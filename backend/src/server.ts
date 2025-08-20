@@ -92,8 +92,8 @@ const NODE_ENV = process.env.NODE_ENV || 'development'
 
 // Trust proxy for production (Render sets X-Forwarded-For)
 if (NODE_ENV === 'production') {
-  app.set('trust proxy', true)
-  console.log('🔒 Trust proxy enabled for production')
+  app.set('trust proxy', 1)   // ← was 'true'
+  console.log('🔒 Trust proxy enabled for first hop')
 }
 
 // Environment validation

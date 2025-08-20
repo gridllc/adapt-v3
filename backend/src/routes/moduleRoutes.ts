@@ -61,3 +61,28 @@ moduleRoutes.get('/:id/status', async (req, res) => {
     return res.status(500).json({ success: false, error: 'failed_to_get_status' })
   }
 })
+
+// DELETE /api/modules/:id -> delete module and associated data
+moduleRoutes.delete('/:id', async (req, res) => {
+  try {
+    const id = req.params.id
+    console.log(`🗑️ Deleting module: ${id}`)
+    
+    // Check if module exists
+    const mod = await ModuleService.get(id)
+    if (!mod) {
+      return res.status(404).json({ success: false, error: 'not_found' })
+    }
+    
+    // Delete the module (this should cascade to steps if foreign key constraints are set up)
+    await prisma.module.delete({
+      where: { id }
+    })
+    
+    console.log(`✅ Module deleted: ${id}`)
+    return res.json({ success: true, message: 'Module deleted successfully' })
+  } catch (e) {
+    console.error('DELETE /api/modules/:id failed', e)
+    return res.status(500).json({ success: false, error: 'failed_to_delete_module' })
+  }
+})

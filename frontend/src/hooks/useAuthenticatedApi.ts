@@ -9,6 +9,10 @@ export function useAuthenticatedApi() {
       return await authenticatedApi.get<T>(endpoint)
     } else if (method === 'POST') {
       return await authenticatedApi.post<T>(endpoint, body)
+    } else if (method === 'DELETE') {
+      return await authenticatedApi.delete<T>(endpoint)
+    } else if (method === 'PUT') {
+      return await authenticatedApi.put<T>(endpoint, body)
     } else {
       throw new Error(`Unsupported HTTP method: ${method}`)
     }
