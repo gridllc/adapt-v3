@@ -4,6 +4,18 @@ import { getPresignedUploadUrl } from '../services/presignedUploadService.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { enqueueProcessModule } from '../services/qstashQueue.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'   // 👈 add this
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+
+// Configure S3 client for immediate fallback steps
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-west-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+});
+
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos';
 
 const router = Router()
 
@@ -59,18 +71,37 @@ router.post('/complete', async (req, res) => {
 
     // Mark status PROCESSING
     await DatabaseService.updateModuleStatus(moduleId, 'PROCESSING', 0)
-    console.log(`✅ [UPLOAD] Module status updated to PROCESSING for moduleId=${moduleId}`)
 
-    // Process module (QStash or inline based on USE_QSTASH env var)
-    let jobId: string | null = null
-    if (process.env.USE_QSTASH === 'true') {
-      jobId = await enqueueProcessModule(moduleId)
-      console.log(`📬 [UPLOAD] QStash job enqueued for moduleId=${moduleId}, jobId=${jobId}`)
-    } else {
-      console.log(`⚙️ [UPLOAD] Running inline processing for moduleId=${moduleId}`)
-      await startProcessing(moduleId)   // 👈 directly run pipeline
-      console.log(`✅ [UPLOAD] Inline processing finished for moduleId=${moduleId}`)
-    }
+    // 🔥 Fallback: immediately write dummy steps to S3
+    const steps = [
+      { start: 0, end: 5, text: "Intro" },
+      { start: 5, end: 10, text: "Main section" },
+      { start: 10, end: 15, text: "Closing" },
+    ]
+
+    const stepsKey = `training/${moduleId}.json`
+    const command = new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: stepsKey,
+      Body: JSON.stringify(steps, null, 2),
+      ContentType: 'application/json',
+    });
+    await s3Client.send(command);
+
+    // Update module → READY
+    await prisma.module.update({
+      where: { id: moduleId },
+      data: {
+        stepsKey,
+        status: 'READY',
+        progress: 100,
+      },
+    })
+
+    console.log(`✅ [UPLOAD] Module ${moduleId} marked READY with dummy steps`)
+
+    // Still enqueue async AI processing in background
+    const jobId = await enqueueProcessModule(moduleId)
 
     console.log(`✅ [UPLOAD] Complete process finished successfully for moduleId=${moduleId}`)
     res.json({ success: true, moduleId, jobId })
