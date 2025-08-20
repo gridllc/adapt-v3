@@ -52,8 +52,8 @@ export const validateFile = (
   }
 
   // 🎯 Check file type
-  const normalizedTypes = allowedTypes.map(type => type.trim())
-  const isAllowedType = normalizedTypes.some(type => {
+  const normalizedTypes = allowedTypes.map((type: string) => type.trim())
+  const isAllowedType = normalizedTypes.some((type: string) => {
     if (type.endsWith('/*')) {
       const baseType = type.replace('/*', '')
       return file.mimetype.startsWith(baseType)

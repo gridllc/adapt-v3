@@ -29,9 +29,9 @@ export const ModuleService = {
           prisma.step.createMany({
             data: steps.map((s: any, i: number) => ({
               moduleId,
-              text: s.title || `Step ${i + 1}`, // Required field
+              text: s.title || `Step ${i + 1}`,
               startTime: Math.max(0, Math.floor(s.startTime || 0)),
-              endTime: s.endTime != null ? Math.floor(s.endTime) : 0, // Required field
+              endTime: s.endTime != null ? Math.floor(s.endTime) : 0,
               order: i,
             }))
           })
@@ -53,5 +53,18 @@ export const ModuleService = {
   async markError(id: string, message?: string) {
     // Use a valid status from the schema
     await prisma.module.update({ where: { id }, data: { status: 'FAILED' } })
+  },
+
+  // Backward compatibility methods
+  async getModuleById(id: string) {
+    return this.get(id)
+  },
+
+  async updateModuleStatus(id: string, status: string, progress?: number, error?: string) {
+    const data: any = { status }
+    if (progress !== undefined) data.progress = progress
+    if (error !== undefined) data.error = error
+    
+    await prisma.module.update({ where: { id }, data })
   },
 }

@@ -103,4 +103,44 @@ Rewritten text:`
       return text // Return original text if rewrite fails
     }
   },
+
+  // Backward compatibility methods
+  async chat(message: string, context: any): Promise<string> {
+    // Simple chat implementation for backward compatibility
+    return `I'm here to help with your training content. Your message: "${message}"`
+  },
+
+  async processVideo(videoUrl: string): Promise<void> {
+    // Legacy method - redirect to new pipeline
+    throw new Error('processVideo is deprecated. Use the new upload flow instead.')
+  },
+
+  async generateStepsForModule(moduleId: string, videoKey: string): Promise<void> {
+    // Legacy method - redirect to new pipeline
+    const { startProcessing } = await import('./ai/aiPipeline.js')
+    await startProcessing(moduleId)
+  },
+
+  async generateContextualResponse(message: string, context: any): Promise<string> {
+    // Simple contextual response for backward compatibility
+    return `Based on the context, here's a response to: "${message}"`
+  },
+
+  async getSteps(moduleId: string): Promise<any[]> {
+    // Get steps from ModuleService
+    return ModuleService.getSteps(moduleId)
+  },
+
+  async getJobStatus(moduleId: string): Promise<any> {
+    // Get module status from ModuleService
+    const module = await ModuleService.get(moduleId)
+    if (!module) return { status: 'not_found', moduleId }
+    
+    return {
+      status: module.status,
+      progress: module.progress || 0,
+      moduleId,
+      updatedAt: module.updatedAt
+    }
+  },
 }

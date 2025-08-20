@@ -18,3 +18,13 @@ export function ensureEnv() {
     throw new Error(msg);
   }
 }
+
+// Backward compatibility methods
+export function getUploadConfig() {
+  return {
+    maxFileSize: 209715200, // 200MB default
+    allowedVideoTypes: ['video/mp4', 'video/mov', 'video/webm'],
+    uploadTimeout: 300000, // 5 minutes default
+    enableCompression: true
+  }
+}

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const REGION = process.env.AWS_REGION!
@@ -21,5 +21,11 @@ export const presignedUploadService = {
     } catch {
       return false
     }
+  },
+
+  // Backward compatibility method
+  async getSignedPlaybackUrl(key: string): Promise<string> {
+    const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key })
+    return getSignedUrl(s3, cmd, { expiresIn: 60 * 5 })
   }
 }
