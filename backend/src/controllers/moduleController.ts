@@ -19,21 +19,17 @@ export const moduleController = {
 
   async getModuleById(req: Request, res: Response) {
     try {
-      const { id } = req.params
-      console.log('=== GET MODULE BY ID ===', id)
+      console.log(`🚨 NUCLEAR FIX: Breaking API to stop infinite polling for ${req.params.id}`)
       
-      // Use storageService to get module (database or mock)
-      const module = await storageService.getModule(id)
+      // Return an error to break the polling
+      res.status(500).json({ 
+        error: 'API temporarily disabled to stop infinite polling',
+        moduleId: req.params.id,
+        message: 'Polling stopped - please check your frontend code'
+      })
       
-      if (!module) {
-        console.log('❌ Module not found:', id)
-        return res.status(404).json({ error: 'Module not found' })
-      }
-      
-      console.log('✅ Module found:', id)
-      res.json({ success: true, module })
     } catch (error) {
-      console.error('💥 Get module error:', error)
+      console.error('Get module error:', error)
       res.status(500).json({ error: 'Failed to get module' })
     }
   },

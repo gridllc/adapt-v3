@@ -233,7 +233,7 @@ export const TrainingPage: React.FC = () => {
                       {index + 1}
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{step.title}</h4>
+                      <h4 className="text-lg font-semibold text-gray-900">{step.title}</h4>
                       <p className="text-gray-600 text-sm mt-1">{step.description}</p>
                       <p className="text-gray-500 text-xs mt-2">
                         {Math.floor(step.timestamp / 60)}:{(step.timestamp % 60).toString().padStart(2, '0')} - Duration: {step.duration}s
