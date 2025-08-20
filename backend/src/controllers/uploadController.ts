@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import { ModuleService } from '../services/moduleService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
-import { startProcessing } from '../services/ai/aiPipeline.js'
+import { queueOrInline } from '../services/qstashQueue.js'
 import { ok, fail } from '../utils/http.js'
 
 export const uploadController = {
@@ -29,12 +29,13 @@ export const uploadController = {
       const exists = await presignedUploadService.confirmHead(key);
       if (!exists) return res.status(404).json({ success:false, error:'file not found in S3' });
 
+      // Mark as uploaded first
       await ModuleService.markUploaded(moduleId, key);
 
-      // Let users play the video immediately.
-      startProcessing(moduleId).catch(e => console.error('startProcessing error', e));
-      await ModuleService.markReady(moduleId);           // <-- video is playable now
-      return res.json({ success:true, status:'READY', moduleId });
+      // Queue or run processing inline
+      await queueOrInline(moduleId);
+
+      return res.json({ success:true, status:'UPLOADED', moduleId });
     } catch (err) {
       console.error('upload.complete error', err);
       return res.status(500).json({ success:false, error:'complete failed' });
