@@ -73,6 +73,13 @@ export const ModuleService = {
     })
   },
 
+  async applyTranscript(id: string, transcriptText: string) {
+    return prisma.module.update({
+      where: { id },
+      data: { transcriptText },
+    })
+  },
+
   // ===== Aliases / Backwards Compatibility =====
   async getModuleById(id: string) {
     return this.get(id)

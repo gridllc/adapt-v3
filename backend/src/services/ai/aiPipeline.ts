@@ -47,17 +47,17 @@ export async function startProcessing(
     }
 
     log.info(`🎙️ [${moduleId}] Submitting AssemblyAI job...`)
-    const transcriptJobId = await submitTranscriptJob({ mediaUrl, moduleId })
+    const result = await submitTranscriptJob(moduleId, mod.s3Key)
 
     await prisma.module.update({
       where: { id: moduleId },
-      data: { transcriptJobId, progress: 15 }
+      data: { transcriptJobId: result.jobId, progress: 15 }
     })
-    log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${transcriptJobId}`)
+    log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${result.jobId}`)
     log.info(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
 
     // Do not mark READY here; webhook will finalize.
-    return { ok: true, transcriptJobId }
+    return { ok: true, transcriptJobId: result.jobId }
   } catch (err: any) {
     const msg = err?.message || 'unknown processing error'
     log.error(`💥 [${moduleId}] startProcessing failed: ${msg}`)

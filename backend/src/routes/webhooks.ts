@@ -1,62 +1,43 @@
 import { Router } from "express";
-import { prisma } from "../config/database.js";
-import { generateStepsFromTranscript } from "../services/ai/stepsService.js";
+import { ModuleService } from "../services/moduleService.js";
 
 export const webhooks = Router();
 
-/**
- * AssemblyAI will POST here when the transcript is ready.
- * Make sure body parsing for JSON is enabled on your server.
- */
-webhooks.post("/webhooks/assemblyai", async (req, res) => {
+webhooks.post("/assemblyai", async (req, res) => {
   try {
-    const moduleId = String(req.query.moduleId || "");
-    if (!moduleId) return res.status(400).end();
+    const secret = process.env.ASSEMBLYAI_WEBHOOK_SECRET || "";
+    if (secret) {
+      const got = req.get("x-webhook-secret");
+      if (got !== secret) {
+        return res.status(401).json({ ok: false, error: "invalid_webhook_secret" });
+      }
+    }
 
-    const { status, text, error, id: transcriptId } = req.body || {};
+    const moduleId = String(req.query.moduleId || "");
+    if (!moduleId) return res.status(400).json({ ok: false, error: "missing_moduleId" });
+
+    // AAI payload shape (minimal fields we use)
+    const { status, text, error } = req.body as {
+      status?: "queued" | "processing" | "completed" | "error";
+      text?: string;
+      error?: string;
+    };
 
     if (status === "completed") {
-      // 1) store transcript
-      await prisma.module.update({
-        where: { id: moduleId },
-        data: { transcriptText: text ?? "", transcriptJobId: transcriptId, progress: 70 }
-      });
-
-      // 2) create steps from transcript
-      const steps = await generateStepsFromTranscript(text || "");
-      if (steps?.length) {
-        await prisma.step.createMany({
-          data: steps.map((s: any, i: number) => ({
-            moduleId,
-            order: i,
-            startTime: Math.floor(s.startTimeMs / 1000),
-            endTime: Math.floor(s.endTimeMs / 1000),
-            text: s.text ?? s.description ?? `Step ${i + 1}`
-          }))
-        });
-      }
-
-      // 3) mark READY
-      await prisma.module.update({
-        where: { id: moduleId },
-        data: { status: "READY", progress: 100 }
-      });
-
-      return res.status(204).end();
+      await ModuleService.applyTranscript(moduleId, text || "");
+      await ModuleService.updateModuleStatus(moduleId, "READY", 100);
+    } else if (status === "error") {
+      await ModuleService.updateModuleStatus(moduleId, "FAILED", 0);
+      // Note: We don't have a method to set lastError, so we'll use the existing markError method
+      await ModuleService.markError(moduleId, error || "transcript error");
+    } else {
+      // processing/queued – optional progress updates
+      await ModuleService.updateModuleStatus(moduleId, "PROCESSING");
     }
 
-    if (status === "error") {
-      await prisma.module.update({
-        where: { id: moduleId },
-        data: { status: "FAILED", progress: 100, lastError: error ?? "transcription failed" }
-      });
-      return res.status(204).end();
-    }
-
-    // queued/processing — ignore
-    return res.status(204).end();
-  } catch (e) {
-    console.error("AAI webhook error:", e);
-    return res.status(500).end();
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error("AAI webhook error", e);
+    return res.status(500).json({ ok: false });
   }
 });

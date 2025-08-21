@@ -189,7 +189,7 @@ const configureRoutes = () => {
   app.use('/api', healthRoutes)  // Mounts /api/health
   
   // Webhooks (no rate limiting for external services)
-  app.use(webhooks)
+  app.use('/webhooks', webhooks)
   
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
   app.use('/api/feedback', feedbackRoutes)
