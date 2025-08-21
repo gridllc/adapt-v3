@@ -8,9 +8,9 @@
 - **Result**: Processing starts immediately after upload
 
 ### **2. Videos Stuck at 60% (Webhook Issues)**
-- **Root Cause**: Missing webhook URL in AssemblyAI transcript job creation
-- **Solution**: Added `webhook_url` to AssemblyAI transcript job with proper authentication
-- **Result**: AssemblyAI now calls back to complete the pipeline
+- **Root Cause**: Missing webhook URL in AssemblyAI transcript job creation + **Double JSON parsing causing "Unexpected token o" errors**
+- **Solution**: Added `webhook_url` to AssemblyAI transcript job + **Fixed webhook handler to use req.body directly (no JSON.parse)**
+- **Result**: AssemblyAI now calls back to complete the pipeline + **No more JSON parsing errors**
 
 ### **3. Crypto Errors in Webhook Handler**
 - **Root Cause**: `crypto.timingSafeEqual()` throwing on buffer length mismatch
@@ -66,32 +66,31 @@ const transcript = await AAI.transcripts.create({
 
 ### **Server Configuration**
 ```typescript
-// Raw body parser ONLY for webhook route
-app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }), webhooksRouter)
+// Use JSON parsing for webhook route (no more raw body needed)
+app.use('/webhooks', webhooks)
 
 // Normal JSON parsing for all other routes
 app.use(express.json())
 ```
 
-### **Webhook Handler (Simplified)**
+### **Webhook Handler (Fixed - No Double Parsing)**
 ```typescript
-// Simple token verification (no complex HMAC for now)
+// ✅ Use the already-parsed body. DO NOT JSON.parse(req.body)
+const { transcript_id, status } = req.body as {
+  transcript_id?: string;
+  status?: "completed" | "error";
+};
+
+// Simple token verification
 const token = String(req.query.token || '')
-if (process.env.NODE_ENV === 'production') {
-  if (!token || token !== process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
-    return res.status(401).send('bad token')
-  }
+if (!process.env.ASSEMBLYAI_WEBHOOK_SECRET || token !== process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
+  return res.sendStatus(401);
 }
 
-// Fetch transcript and mark READY
-const r = await fetch(`https://api.assemblyai.com/v2/transcripts/${transcriptId}`)
-const data = await r.json()
-const text = data.text || ''
+// Acknowledge early so AAI doesn't retry
+res.sendStatus(200);
 
-await prisma.module.update({
-  where: { id: moduleId },
-  data: { transcriptText: text, status: 'READY', progress: 100 }
-})
+// Continue processing...
 ```
 
 ## 🧪 **Testing Commands**

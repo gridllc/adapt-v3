@@ -189,10 +189,7 @@ const configureRoutes = () => {
   app.use('/api', healthRoutes)  // Mounts /api/health
   
   // Webhooks (no rate limiting for external services)
-  // 🔴 mount RAW BODY ONLY for webhook route
-  app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }), webhooks)
-  
-  // Other webhook routes (if any) can use regular JSON parsing
+  // Use JSON parsing for webhook route (no more raw body needed)
   app.use('/webhooks', webhooks)
   
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
