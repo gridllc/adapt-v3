@@ -1,145 +1,178 @@
-import { Router } from 'express'
+// backend/src/routes/moduleRoutes.ts
+import { Router, Request, Response } from 'express'
 import { prisma } from '../config/database.js'
 import { ModuleService } from '../services/moduleService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
+import { log } from '../utils/logger.js'
 
 export const moduleRoutes = Router()
 
-// GET /api/modules  -> list recent modules (optionally for the signed-in user)
-moduleRoutes.get('/', async (req: any, res) => {
+/* ------------------------------- Helpers ------------------------------- */
+
+function ok(res: Response, body: any = {}) {
+  return res.json({ success: true, ...body })
+}
+function fail(res: Response, code = 500, error = 'internal_error', extra?: any) {
+  return res.status(code).json({ success: false, error, ...(extra ?? {}) })
+}
+
+/* ------------------------------- Routes -------------------------------- */
+
+/**
+ * GET /api/modules
+ * List recent modules (optionally scoped by user if auth wired)
+ */
+moduleRoutes.get('/', async (req: Request & { auth?: { userId?: string } }, res: Response) => {
   try {
-    const userId = req.auth?.userId ?? null // if you wire Clerk later
+    const userId = req.auth?.userId ?? null
+
     const rawModules = await prisma.module.findMany({
       where: userId ? { userId } : undefined,
       orderBy: { createdAt: 'desc' },
       take: 50,
-      select: { id: true }, // only fetch IDs, details come from ModuleService
+      select: { id: true },
     })
 
     const modules = await Promise.all(
       rawModules.map(async (m) => {
         const mod = await ModuleService.get(m.id)
         if (!mod) return null
+
         let videoUrl: string | undefined
         if (mod.status === 'READY' && mod.s3Key) {
           try {
             videoUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key)
-          } catch {
+          } catch (err: any) {
+            log.warn('Signed URL generation failed', { moduleId: m.id, error: err?.message })
             videoUrl = undefined
           }
         }
-        const steps = await ModuleService.getSteps(m.id).catch(() => [])
+
+        const steps = await ModuleService.getSteps(m.id).catch((e: any) => {
+          log.warn('getSteps failed', { moduleId: m.id, error: e?.message })
+          return []
+        })
+
         return { ...mod, videoUrl, steps }
       })
     )
 
-    return res.json({ success: true, modules: modules.filter(Boolean) })
-  } catch (e) {
-    console.error('GET /api/modules failed', e)
-    return res.status(500).json({ success: false, error: 'failed_to_list_modules' })
+    return ok(res, { modules: modules.filter(Boolean) })
+  } catch (e: any) {
+    log.error('GET /api/modules failed', { error: e?.message })
+    return fail(res, 500, 'failed_to_list_modules')
   }
 })
 
-// GET /api/modules/:id -> module details + (optional) steps
-moduleRoutes.get('/:id', async (req, res) => {
+/**
+ * GET /api/modules/:id
+ * Full module details (+optional signed playback URL + steps)
+ */
+moduleRoutes.get('/:id', async (req: Request, res: Response) => {
+  const id = req.params.id
   try {
-    const id = req.params.id
     const mod = await ModuleService.get(id)
-    if (!mod) return res.status(404).json({ success: false, error: 'not_found' })
+    if (!mod) return fail(res, 404, 'not_found')
 
     let videoUrl: string | undefined
     if (mod.status === 'READY' && mod.s3Key) {
       try {
         videoUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key)
-      } catch {
+      } catch (err: any) {
+        log.warn('Signed URL generation failed', { moduleId: id, error: err?.message })
         videoUrl = undefined
       }
     }
 
-    const steps = await ModuleService.getSteps(id).catch(() => [])
+    const steps = await ModuleService.getSteps(id).catch((e: any) => {
+      log.warn('getSteps failed', { moduleId: id, error: e?.message })
+      return []
+    })
 
-    return res.json({
-      success: true,
+    return ok(res, {
       module: {
         ...mod,
-        videoUrl,                // signed playback url if READY
+        videoUrl,
         transcriptText: mod.transcriptText ?? null,
         steps,
-      }
+      },
     })
-  } catch (e) {
-    console.error('GET /api/modules/:id failed', e)
-    return res.status(500).json({ success: false, error: 'failed_to_get_module' })
+  } catch (e: any) {
+    log.error('GET /api/modules/:id failed', { moduleId: id, error: e?.message })
+    return fail(res, 500, 'failed_to_get_module')
   }
 })
 
-// GET /api/modules/:id/status -> lightweight status poll
-moduleRoutes.get('/:id/status', async (req, res) => {
+/**
+ * GET /api/modules/:id/status
+ * Lightweight poll endpoint used by frontend
+ * Returns consistent shape: { success, status, progress, moduleId }
+ */
+moduleRoutes.get('/:id/status', async (req: Request, res: Response) => {
+  const id = req.params.id
   try {
-    const id = req.params.id
     const mod = await ModuleService.get(id)
-    if (!mod) return res.status(404).json({ success: false, error: 'not_found' })
-    return res.json({
-      success: true,
+    if (!mod) return fail(res, 404, 'not_found')
+
+    return ok(res, {
       status: mod.status,
       progress: mod.progress ?? 0,
       moduleId: id,
+      lastError: mod.lastError ?? null,
     })
-  } catch (e) {
-    console.error('GET /api/modules/:id/status failed', e)
-    return res.status(500).json({ success: false, error: 'failed_to_get_status' })
+  } catch (e: any) {
+    log.error('GET /api/modules/:id/status failed', { moduleId: id, error: e?.message })
+    return fail(res, 500, 'failed_to_get_status')
   }
 })
 
-// GET /api/modules/:id/transcript -> get transcript text
-moduleRoutes.get('/:id/transcript', async (req, res) => {
+/**
+ * GET /api/modules/:id/transcript
+ * Returns transcript text (if available)
+ */
+moduleRoutes.get('/:id/transcript', async (req: Request, res: Response) => {
+  const id = req.params.id
   try {
-    const id = req.params.id
     const mod = await ModuleService.get(id)
-    if (!mod) return res.status(404).json({ success: false, error: 'not_found' })
-    
+    if (!mod) return fail(res, 404, 'not_found')
+
     if (!mod.transcriptText) {
-      return res.json({ 
-        success: true, 
-        transcript: '', 
+      return ok(res, {
+        transcript: '',
         hasTranscript: false,
-        message: 'Transcript not yet available'
+        message: 'Transcript not yet available',
       })
     }
-    
-    return res.json({ 
-      success: true, 
-      transcript: mod.transcriptText, 
+
+    return ok(res, {
+      transcript: mod.transcriptText,
       hasTranscript: true,
-      transcriptLength: mod.transcriptText.length
+      transcriptLength: mod.transcriptText.length,
     })
-  } catch (e) {
-    console.error('GET /api/modules/:id/transcript failed', e)
-    return res.status(500).json({ success: false, error: 'failed_to_get_transcript' })
+  } catch (e: any) {
+    log.error('GET /api/modules/:id/transcript failed', { moduleId: id, error: e?.message })
+    return fail(res, 500, 'failed_to_get_transcript')
   }
 })
 
-// DELETE /api/modules/:id -> delete module and associated data
-moduleRoutes.delete('/:id', async (req, res) => {
+/**
+ * DELETE /api/modules/:id
+ * Deletes the module row (and cascades steps if FK configured)
+ */
+moduleRoutes.delete('/:id', async (req: Request, res: Response) => {
+  const id = req.params.id
   try {
-    const id = req.params.id
-    console.log(`🗑️ Deleting module: ${id}`)
+    log.info('Deleting module', { moduleId: id })
 
-    // Check if module exists
     const mod = await ModuleService.get(id)
-    if (!mod) {
-      return res.status(404).json({ success: false, error: 'not_found' })
-    }
+    if (!mod) return fail(res, 404, 'not_found')
 
-    // Delete the module (this should cascade to steps if foreign key constraints are set up)
-    await prisma.module.delete({
-      where: { id }
-    })
+    await prisma.module.delete({ where: { id } })
 
-    console.log(`✅ Module deleted: ${id}`)
-    return res.json({ success: true, message: 'Module deleted successfully' })
-  } catch (e) {
-    console.error('DELETE /api/modules/:id failed', e)
-    return res.status(500).json({ success: false, error: 'failed_to_delete_module' })
+    log.info('Module deleted', { moduleId: id })
+    return ok(res, { message: 'Module deleted successfully' })
+  } catch (e: any) {
+    log.error('DELETE /api/modules/:id failed', { moduleId: id, error: e?.message })
+    return fail(res, 500, 'failed_to_delete_module')
   }
 })

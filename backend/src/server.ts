@@ -9,7 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
-import { webhooks } from './routes/webhooks.js'
+import { webhookRoutes } from './routes/webhooks.js'
 
 import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
@@ -190,7 +190,7 @@ const configureRoutes = () => {
   
   // Webhooks (no rate limiting for external services)
   // Use JSON parsing for webhook route (no more raw body needed)
-  app.use('/webhooks', webhooks)
+  app.use('/webhooks', webhookRoutes)
   
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
   app.use('/api/feedback', feedbackRoutes)

@@ -1,3 +1,4 @@
+// backend/src/services/ai/aiPipeline.ts
 import { ModuleService } from '../moduleService.js'
 import { presignedUploadService } from '../presignedUploadService.js'
 import { createTranscript } from '../transcription/assembly.js'
@@ -5,12 +6,16 @@ import { prisma } from '../../config/database.js'
 import { log } from '../../utils/logger.js'
 
 /**
- * Starts processing for a module:
- * 1) mark PROCESSING
+ * Pipeline (webhook-driven):
+ * 1) mark PROCESSING @10%
  * 2) require s3Key
- * 3) get signed media URL
+ * 3) generate signed playback URL
  * 4) submit AssemblyAI job (async)
- * 5) store transcriptJobId; webhook completes pipeline
+ * 5) store transcriptJobId + progress=60; webhook finishes to 100%
+ *
+ * Idempotency:
+ * - If module READY → no-op
+ * - If PROCESSING with transcriptJobId and progress >= 60 → no-op (still waiting for webhook)
  */
 export async function startProcessing(
   moduleId: string
@@ -20,77 +25,106 @@ export async function startProcessing(
   try {
     const mod = await ModuleService.getModuleById(moduleId)
     if (!mod) {
-      log.error(`❌ [${moduleId}] Module not found`)
-      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
+      const msg = 'Module not found'
+      log.error(`❌ [${moduleId}] ${msg}`)
+      await safeFail(moduleId, msg)
       return { ok: false }
     }
 
-    // Step 1: Initial processing started - DETERMINISTIC PROGRESS
+    // Short-circuits to avoid duplicate work
+    if (mod.status === 'READY') {
+      log.info(`✅ [${moduleId}] Already READY; skipping.`)
+      return { ok: true, transcriptJobId: mod.transcriptJobId ?? undefined }
+    }
+    if (mod.status === 'PROCESSING' && mod.transcriptJobId && (mod.progress ?? 0) >= 60) {
+      log.info(`⏳ [${moduleId}] Already submitted to AAI (job=${mod.transcriptJobId}); waiting for webhook.`)
+      return { ok: true, transcriptJobId: mod.transcriptJobId }
+    }
+
+    // Step 1: mark PROCESSING (10%)
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 10)
     log.info(`⏳ [${moduleId}] Progress: 10% - Processing started`)
-    console.log(`📊 [${moduleId}] Progress: 10% - Processing started`)
 
-    if (!mod.s3Key) {
-      const msg = 'missing s3Key on module'
+    // Step 2: require s3Key
+    if (!mod.s3Key || typeof mod.s3Key !== 'string' || mod.s3Key.trim().length === 0) {
+      const msg = 'Missing s3Key on module'
       log.error(`❌ [${moduleId}] ${msg}`)
-      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
-      await prisma.module.update({ where: { id: moduleId }, data: { lastError: msg } })
+      await safeFail(moduleId, msg)
       return { ok: false }
     }
 
-    // Step 2: Preparing media URL - DETERMINISTIC PROGRESS
+    // Step 2.5: preparing media URL (25%)
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 25)
     log.info(`⏳ [${moduleId}] Progress: 25% - Preparing media URL`)
-    console.log(`📊 [${moduleId}] Progress: 25% - Preparing media URL`)
-    
+
     let mediaUrl: string
     try {
       mediaUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key)
-    } catch (e) {
-      const msg = `failed to sign playback URL: ${(e as Error)?.message || e}`
+      if (!mediaUrl || typeof mediaUrl !== 'string') {
+        throw new Error('Empty signed URL')
+      }
+    } catch (e: any) {
+      const msg = `Failed to sign playback URL: ${e?.message ?? e}`
       log.error(`❌ [${moduleId}] ${msg}`)
-      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
-      await prisma.module.update({ where: { id: moduleId }, data: { lastError: msg } })
+      await safeFail(moduleId, msg)
       return { ok: false }
     }
 
-    // Step 3: Submitting to AssemblyAI - DETERMINISTIC PROGRESS
+    // Step 3: submitting to AssemblyAI (40%)
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 40)
     log.info(`⏳ [${moduleId}] Progress: 40% - Submitting to AssemblyAI`)
-    console.log(`📊 [${moduleId}] Progress: 40% - Submitting to AssemblyAI`)
-    
     log.info(`🎙️ [${moduleId}] Submitting AssemblyAI job...`)
-    const result = await createTranscript(moduleId, mediaUrl)
 
-    // Step 4: Job submitted, waiting for webhook - DETERMINISTIC PROGRESS
+    let jobId: string
+    try {
+      const result = await createTranscript(moduleId, mediaUrl)
+      jobId = result?.jobId
+      if (!jobId) {
+        throw new Error('AssemblyAI did not return a jobId')
+      }
+    } catch (e: any) {
+      const msg = `Failed to create AssemblyAI transcript: ${e?.message ?? e}`
+      log.error(`❌ [${moduleId}] ${msg}`)
+      await safeFail(moduleId, msg)
+      return { ok: false }
+    }
+
+    // Step 4: job accepted; record jobId and set to 60% (webhook will finish to 100%)
     await prisma.module.update({
       where: { id: moduleId },
-      data: { 
-        transcriptJobId: result.jobId, 
+      data: {
+        transcriptJobId: jobId,
         progress: 60,
-        lastError: null // Clear any previous errors
-      }
+        lastError: null,
+        // status stays PROCESSING; webhook will set READY/FAILED
+      },
     })
-    log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${result.jobId}`)
+    log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${jobId}`)
     log.info(`⏳ [${moduleId}] Progress: 60% - Waiting for webhook`)
-    console.log(`📊 [${moduleId}] Progress: 60% - Waiting for webhook`)
-    console.log(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
-    log.info(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
 
-    // Do not mark READY here; webhook will finalize with 100% progress.
-    return { ok: true, transcriptJobId: result.jobId }
+    return { ok: true, transcriptJobId: jobId }
   } catch (err: any) {
-    const msg = err?.message || 'unknown processing error'
+    const msg = err?.message || 'Unknown processing error'
     log.error(`💥 [${moduleId}] startProcessing failed: ${msg}`)
     log.error(err?.stack || err)
-    console.error(`💥 [${moduleId}] startProcessing failed: ${msg}`)
     try {
-      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
-      await prisma.module.update({ where: { id: moduleId }, data: { lastError: msg } })
-    } catch (persistErr) {
-      log.error(`⚠️ [${moduleId}] failed to persist FAILED state:`, persistErr)
-      console.error(`⚠️ [${moduleId}] failed to persist FAILED state:`, persistErr)
+      await safeFail(moduleId, msg)
+    } catch (persistErr: any) {
+      const persistMsg = persistErr?.message || persistErr?.toString() || 'Unknown persist error'
+      log.error(`⚠️ [${moduleId}] failed to persist FAILED state: ${persistMsg}`)
     }
     return { ok: false }
+  }
+}
+
+/** Marks module FAILED and persists lastError. Safe to call from catch paths. */
+async function safeFail(moduleId: string, reason: string) {
+  try {
+    await ModuleService.updateModuleStatus(moduleId, 'FAILED')
+  } finally {
+    await prisma.module.update({
+      where: { id: moduleId },
+      data: { lastError: reason },
+    })
   }
 }
