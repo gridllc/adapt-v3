@@ -1,19 +1,29 @@
-// services/ai/stepsService.ts
-// Replace this with your Gemini/OpenAI prompt call when ready.
-export async function generateStepsFromTranscript(text: string) {
-  // very basic fallback: split into ~1-minute chunks
-  const sentences = text.split(/(?<=[.!?])\s+/);
-  const chunks: string[] = [];
-  let buf = "";
-  for (const s of sentences) {
-    buf += (buf ? " " : "") + s;
-    if (buf.length > 500) { chunks.push(buf); buf = ""; }
-  }
-  if (buf) chunks.push(buf);
+// Naive step generator: splits text into ~sentences and assigns rough 8–12s windows.
+// Replace later with timestamped chapters when you enable diarization/word timings.
 
-  return chunks.map((c, i) => ({
-    startTimeMs: i * 60_000,
-    endTimeMs:   (i + 1) * 60_000,
-    text: c
-  }));
+type StepLike = { text: string; startTime: number; endTime: number };
+
+export function generateStepsFromTranscript(text: string): StepLike[] {
+  const cleaned = (text || "").trim();
+  if (!cleaned) return [];
+
+  // Split on sentence-ish delimiters
+  const parts = cleaned
+    .split(/(?<=[\.!?])\s+/g)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  if (!parts.length) return [];
+
+  // Assign naive times: 10s per sentence
+  const STEP_SEC = 10;
+  let cursor = 0;
+  const steps: StepLike[] = parts.map(p => {
+    const start = cursor;
+    const end = cursor + STEP_SEC;
+    cursor = end;
+    return { text: p, startTime: start, endTime: end };
+  });
+
+  return steps;
 }

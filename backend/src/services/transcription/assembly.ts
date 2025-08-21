@@ -53,3 +53,8 @@ export async function submitTranscriptJob(moduleId: string, s3Key: string) {
 
   return { jobId: transcript.id, webhookUrl };
 }
+
+// Called by webhook to fetch final text
+export async function getTranscript(transcriptId: string) {
+  return AAI.transcripts.get(transcriptId);
+}
