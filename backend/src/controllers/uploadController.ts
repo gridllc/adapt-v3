@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express'
 import { ModuleService } from '../services/moduleService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
-import { queueOrInline } from '../services/qstashQueue.js'
+// Remove QStash import - force inline processing
 import { ok, fail } from '../utils/http.js'
 
 export const uploadController = {
@@ -32,8 +32,11 @@ export const uploadController = {
       // Mark as uploaded first
       await ModuleService.markUploaded(moduleId, key);
 
-      // Queue or run processing inline
-      await queueOrInline(moduleId);
+      // FORCE INLINE PROCESSING - bypass QStash completely
+      console.log(`⚙️ [${moduleId}] Bypassing QStash, forcing inline processing...`)
+      const { startProcessing } = await import('../services/ai/aiPipeline.js')
+      await startProcessing(moduleId)
+      console.log(`✅ [${moduleId}] Inline processing started successfully`)
 
       return res.json({ success:true, status:'UPLOADED', moduleId });
     } catch (err) {

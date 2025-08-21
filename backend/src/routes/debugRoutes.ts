@@ -10,6 +10,50 @@ import { prisma } from '../config/database.js'
 import { storageService } from '../services/storageService.js' // must expose headObject(key) & getSignedUrl(key)
 import { aiService } from '../services/aiService.js'           // must expose getSteps(moduleId) and getJobStatus(moduleId)
 
+// POST /api/debug/process/:moduleId - Manual kick for stuck modules
+router.post('/process/:moduleId', async (req, res) => {
+  const { moduleId } = req.params
+  
+  try {
+    console.log(`🔧 [DEBUG] Manually kicking processing for module: ${moduleId}`)
+    
+    // Check if module exists
+    const m = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!m) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Module not found',
+        moduleId 
+      })
+    }
+    
+    console.log(`📊 [DEBUG] Current module status: ${m.status} (${m.progress}%)`)
+    
+    // Force restart processing
+    const { startProcessing } = await import('../services/ai/aiPipeline.js')
+    await startProcessing(moduleId)
+    
+    console.log(`✅ [DEBUG] Processing (re)started for module: ${moduleId}`)
+    
+    res.json({ 
+      success: true, 
+      message: 'Processing (re)started', 
+      moduleId,
+      previousStatus: m.status,
+      previousProgress: m.progress,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error(`❌ [DEBUG] Failed to restart processing for module ${moduleId}:`, error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart processing',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      moduleId
+    })
+  }
+})
+
 router.get('/module/:id', async (req, res) => {
   const traceId = crypto.randomBytes(6).toString('hex')
   const log = (msg: string, extra: Record<string, any> = {}) =>

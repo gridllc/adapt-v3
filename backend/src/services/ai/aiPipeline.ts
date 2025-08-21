@@ -25,9 +25,10 @@ export async function startProcessing(
       return { ok: false }
     }
 
-    // Step 1: Initial processing started
+    // Step 1: Initial processing started - DETERMINISTIC PROGRESS
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 10)
     log.info(`⏳ [${moduleId}] Progress: 10% - Processing started`)
+    console.log(`📊 [${moduleId}] Progress: 10% - Processing started`)
 
     if (!mod.s3Key) {
       const msg = 'missing s3Key on module'
@@ -37,9 +38,10 @@ export async function startProcessing(
       return { ok: false }
     }
 
-    // Step 2: Preparing media URL
-    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 20)
-    log.info(`⏳ [${moduleId}] Progress: 20% - Preparing media URL`)
+    // Step 2: Preparing media URL - DETERMINISTIC PROGRESS
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 25)
+    log.info(`⏳ [${moduleId}] Progress: 25% - Preparing media URL`)
+    console.log(`📊 [${moduleId}] Progress: 25% - Preparing media URL`)
     
     let mediaUrl: string
     try {
@@ -52,24 +54,27 @@ export async function startProcessing(
       return { ok: false }
     }
 
-    // Step 3: Submitting to AssemblyAI
-    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 30)
-    log.info(`⏳ [${moduleId}] Progress: 30% - Submitting to AssemblyAI`)
+    // Step 3: Submitting to AssemblyAI - DETERMINISTIC PROGRESS
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 40)
+    log.info(`⏳ [${moduleId}] Progress: 40% - Submitting to AssemblyAI`)
+    console.log(`📊 [${moduleId}] Progress: 40% - Submitting to AssemblyAI`)
     
     log.info(`🎙️ [${moduleId}] Submitting AssemblyAI job...`)
     const result = await submitTranscriptJob(moduleId, mod.s3Key)
 
-    // Step 4: Job submitted, waiting for webhook
+    // Step 4: Job submitted, waiting for webhook - DETERMINISTIC PROGRESS
     await prisma.module.update({
       where: { id: moduleId },
       data: { 
         transcriptJobId: result.jobId, 
-        progress: 40,
+        progress: 60,
         lastError: null // Clear any previous errors
       }
     })
     log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${result.jobId}`)
-    log.info(`⏳ [${moduleId}] Progress: 40% - Waiting for transcription to complete`)
+    log.info(`⏳ [${moduleId}] Progress: 60% - Waiting for transcription to complete`)
+    console.log(`📊 [${moduleId}] Progress: 60% - Waiting for transcription to complete`)
+    console.log(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
     log.info(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
 
     // Do not mark READY here; webhook will finalize with 100% progress.
@@ -78,11 +83,13 @@ export async function startProcessing(
     const msg = err?.message || 'unknown processing error'
     log.error(`💥 [${moduleId}] startProcessing failed: ${msg}`)
     log.error(err?.stack || err)
+    console.error(`💥 [${moduleId}] startProcessing failed: ${msg}`)
     try {
       await ModuleService.updateModuleStatus(moduleId, 'FAILED')
       await prisma.module.update({ where: { id: moduleId }, data: { lastError: msg } })
     } catch (persistErr) {
       log.error(`⚠️ [${moduleId}] failed to persist FAILED state:`, persistErr)
+      console.error(`⚠️ [${moduleId}] failed to persist FAILED state:`, persistErr)
     }
     return { ok: false }
   }
