@@ -12,16 +12,12 @@ function requireHttpsBaseUrl() {
   return base.replace(/\/+$/g, ""); // trim trailing slashes
 }
 
-export async function submitTranscriptJob(moduleId: string, s3Key: string) {
-  // 1) Give AAI a downloadable URL (signed GET)
-  //    30–60 min is fine; AAI fetches once at job start.
-  const audioUrl = await presignedUploadService.getSignedUrl(s3Key, 3600);
-
-  // 2) Build a proper https webhook URL with moduleId and token
+export async function createTranscript(moduleId: string, audioUrl: string) {
+  // 1) Build a proper https webhook URL with moduleId and token
   const base = requireHttpsBaseUrl();
   const webhookUrl = `${base}/webhooks/assemblyai?moduleId=${encodeURIComponent(moduleId)}&token=${encodeURIComponent(process.env.ASSEMBLYAI_WEBHOOK_SECRET || '')}`;
 
-  // 3) Submit transcript job with webhook
+  // 2) Submit transcript job with webhook
   const transcript = await AAI.transcripts.create({
     audio_url: audioUrl,
     // Recommended options

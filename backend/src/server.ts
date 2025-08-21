@@ -166,10 +166,7 @@ const configureMiddleware = () => {
   // Note: CORS is now handled manually at the top of the app
   // Rate limiting is applied at the route level for better control
 
-  // Raw body parsing for webhook signature verification (MUST come before express.json)
-  app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }))
-
-  // Body parsing middleware (reduced since we're not receiving file bytes anymore)
+  // Body parsing middleware - normal JSON for all routes
   app.use(express.json({ limit: '2mb' }))  // Increased for webhook JSON
   app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
@@ -192,6 +189,10 @@ const configureRoutes = () => {
   app.use('/api', healthRoutes)  // Mounts /api/health
   
   // Webhooks (no rate limiting for external services)
+  // 🔴 mount RAW BODY ONLY for webhook route
+  app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }), webhooks)
+  
+  // Other webhook routes (if any) can use regular JSON parsing
   app.use('/webhooks', webhooks)
   
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video

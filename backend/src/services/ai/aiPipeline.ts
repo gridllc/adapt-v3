@@ -1,6 +1,6 @@
 import { ModuleService } from '../moduleService.js'
 import { presignedUploadService } from '../presignedUploadService.js'
-import { submitTranscriptJob } from '../transcription/assembly.js'
+import { createTranscript } from '../transcription/assembly.js'
 import { prisma } from '../../config/database.js'
 import { log } from '../../utils/logger.js'
 
@@ -60,7 +60,7 @@ export async function startProcessing(
     console.log(`📊 [${moduleId}] Progress: 40% - Submitting to AssemblyAI`)
     
     log.info(`🎙️ [${moduleId}] Submitting AssemblyAI job...`)
-    const result = await submitTranscriptJob(moduleId, mod.s3Key)
+    const result = await createTranscript(moduleId, mediaUrl)
 
     // Step 4: Job submitted, waiting for webhook - DETERMINISTIC PROGRESS
     await prisma.module.update({
@@ -72,8 +72,8 @@ export async function startProcessing(
       }
     })
     log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${result.jobId}`)
-    log.info(`⏳ [${moduleId}] Progress: 60% - Waiting for transcription to complete`)
-    console.log(`📊 [${moduleId}] Progress: 60% - Waiting for transcription to complete`)
+    log.info(`⏳ [${moduleId}] Progress: 60% - Waiting for webhook`)
+    console.log(`📊 [${moduleId}] Progress: 60% - Waiting for webhook`)
     console.log(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
     log.info(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
 

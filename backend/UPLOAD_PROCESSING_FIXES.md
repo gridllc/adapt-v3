@@ -44,11 +44,10 @@
 4. AssemblyAI job submitted → Progress: 40%
 5. Job ID saved → Progress: 60% (waiting for webhook)
 6. AssemblyAI completes → Webhook fires with raw body
-7. Signature verified → Payload parsed safely
+7. Token verified → Payload parsed safely
 8. Transcript fetched → From AssemblyAI API
 9. Transcript saved → To database via transcriptText field
-10. Steps generated → From transcript content
-11. Module READY → Status: READY, Progress: 100%
+10. Module READY → Status: READY, Progress: 100%
 ```
 
 ## 🔐 **Webhook Configuration**
@@ -67,25 +66,31 @@ const transcript = await AAI.transcripts.create({
 
 ### **Server Configuration**
 ```typescript
-// Raw body parser for webhook signature verification
-app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }))
+// Raw body parser ONLY for webhook route
+app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }), webhooksRouter)
+
+// Normal JSON parsing for all other routes
+app.use(express.json())
 ```
 
-### **Webhook Handler**
+### **Webhook Handler (Simplified)**
 ```typescript
-// Safe signature verification
-function safeEq(a: Buffer, b: Buffer) {
-  return a.length === b.length && crypto.timingSafeEqual(a, b)
+// Simple token verification (no complex HMAC for now)
+const token = String(req.query.token || '')
+if (process.env.NODE_ENV === 'production') {
+  if (!token || token !== process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
+    return res.status(401).send('bad token')
+  }
 }
 
-// Complete transcript processing
-const resp = await fetch(`https://api.assemblyai.com/v2/transcripts/${transcriptId}`)
-const data = await resp.json()
+// Fetch transcript and mark READY
+const r = await fetch(`https://api.assemblyai.com/v2/transcripts/${transcriptId}`)
+const data = await r.json()
 const text = data.text || ''
 
 await prisma.module.update({
   where: { id: moduleId },
-  data: { transcriptText: text, lastError: null }
+  data: { transcriptText: text, status: 'READY', progress: 100 }
 })
 ```
 

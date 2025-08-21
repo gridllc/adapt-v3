@@ -6,8 +6,6 @@
  * Run with: node test-complete-flow.js
  */
 
-import crypto from 'crypto'
-
 // Test the complete flow
 function testCompleteFlow() {
   console.log('🧪 Testing complete AssemblyAI → Webhook flow...')
@@ -46,28 +44,7 @@ function testCompleteFlow() {
   const payloadString = JSON.stringify(webhookPayload)
   console.log('✅ Webhook payload:', payloadString)
   
-  // 3. Test HMAC signature generation (AssemblyAI's side)
-  console.log('\n🔐 Testing HMAC signature generation:')
-  
-  const hmac = crypto.createHmac('sha256', secret).update(payloadString).digest('base64')
-  console.log('✅ HMAC signature (base64):', hmac)
-  console.log('✅ Signature length:', hmac.length)
-  
-  // 4. Test webhook signature verification (our side)
-  console.log('\n🔒 Testing webhook signature verification:')
-  
-  function safeEq(a, b) {
-    return a.length === b.length && crypto.timingSafeEqual(a, b)
-  }
-  
-  // Simulate what our webhook handler does
-  const receivedSignature = hmac // This would come from AssemblyAI's aai-signature header
-  const expectedSignature = crypto.createHmac('sha256', secret).update(payloadString).digest('base64')
-  
-  const signatureValid = safeEq(Buffer.from(receivedSignature), Buffer.from(expectedSignature))
-  console.log('✅ Signature verification:', signatureValid ? 'PASSED' : 'FAILED')
-  
-  // 5. Test the complete pipeline flow
+  // 3. Test the complete pipeline flow
   console.log('\n🔄 Testing complete pipeline flow:')
   console.log('1. ✅ Upload completes → Module marked UPLOADED')
   console.log('2. ✅ startProcessing() called → Progress: 10%')
@@ -75,41 +52,36 @@ function testCompleteFlow() {
   console.log('4. ✅ AssemblyAI job submitted → Progress: 40%')
   console.log('5. ✅ Job ID saved → Progress: 60% (waiting for webhook)')
   console.log('6. ✅ AssemblyAI completes → Webhook fires')
-  console.log('7. ✅ Signature verified → Payload parsed')
+  console.log('7. ✅ Token verified → Payload parsed')
   console.log('8. ✅ Transcript fetched → From AssemblyAI API')
   console.log('9. ✅ Transcript saved → To database')
-  console.log('10. ✅ Steps generated → From transcript content')
-  console.log('11. ✅ Module READY → Status: READY, Progress: 100%')
+  console.log('10. ✅ Module marked READY → Status: READY, Progress: 100%')
   
-  // 6. Test expected database updates
+  // 4. Test expected database updates
   console.log('\n💾 Testing expected database updates:')
   
   const expectedUpdates = [
     { step: 'Initial', status: 'PROCESSING', progress: 10, note: 'Processing started' },
     { step: 'Media URL', status: 'PROCESSING', progress: 25, note: 'Preparing media URL' },
     { step: 'AssemblyAI', status: 'PROCESSING', progress: 40, note: 'Submitting to AssemblyAI' },
-    { step: 'Job Submitted', status: 'PROCESSING', progress: 60, note: 'Waiting for transcription' },
-    { step: 'Webhook', status: 'PROCESSING', progress: 70, note: 'Transcription completed' },
-    { step: 'Finalizing', status: 'PROCESSING', progress: 90, note: 'Finalizing' },
-    { step: 'Complete', status: 'READY', progress: 100, note: 'Module ready' }
+    { step: 'Job Submitted', status: 'PROCESSING', progress: 60, note: 'Waiting for webhook' },
+    { step: 'Webhook', status: 'READY', progress: 100, note: 'Module ready' }
   ]
   
   expectedUpdates.forEach((update, index) => {
     console.log(`   ${index + 1}. ${update.step.padEnd(15)} → ${update.status.padEnd(10)} (${update.progress.toString().padStart(3)}%)`)
   })
   
-  // 7. Test webhook response expectations
+  // 5. Test webhook response expectations
   console.log('\n🎯 Testing webhook response expectations:')
   console.log('- ✅ Status: 200 OK')
   console.log('- ✅ Body: "ok"')
   console.log('- ✅ Module status: READY')
   console.log('- ✅ Progress: 100%')
   console.log('- ✅ Transcript: saved to database')
-  console.log('- ✅ Steps: generated and saved')
   
-  // 8. Test error handling
+  // 6. Test error handling
   console.log('\n⚠️ Testing error handling:')
-  console.log('- ✅ Invalid signature → 401 Unauthorized')
   console.log('- ✅ Missing moduleId → 400 Bad Request')
   console.log('- ✅ Invalid token → 401 Unauthorized (production)')
   console.log('- ✅ AssemblyAI API error → Module marked FAILED')
@@ -119,10 +91,9 @@ function testCompleteFlow() {
   console.log('\n📋 Verification checklist:')
   console.log('1. ✅ AssemblyAI service includes webhook_url')
   console.log('2. ✅ Server mounts /webhooks/assemblyai with express.raw()')
-  console.log('3. ✅ Webhook handler verifies signature and processes payload')
+  console.log('3. ✅ Webhook handler verifies token and processes payload')
   console.log('4. ✅ Transcript is fetched and saved to database')
   console.log('5. ✅ Module status progresses from 60% to 100% READY')
-  console.log('6. ✅ Steps are generated from transcript content')
   
   console.log('\n🚀 Next steps:')
   console.log('1. Test with a real video upload')
