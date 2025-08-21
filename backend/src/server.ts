@@ -170,6 +170,9 @@ const configureMiddleware = () => {
   app.use(express.json({ limit: '2mb' }))  // Increased for webhook JSON
   app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
+  // Raw body parsing for webhook signature verification
+  app.use('/webhooks/assemblyai', express.raw({ type: 'application/json' }))
+
   // Request logging middleware with traceId
   app.use(requestLogger)
 }

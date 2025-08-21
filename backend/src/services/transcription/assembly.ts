@@ -4,21 +4,14 @@ import { ModuleService } from "../moduleService.js";
 
 const AAI = new AssemblyAI({ apiKey: process.env.ASSEMBLYAI_API_KEY! });
 
-function requireHttpsBaseUrl(): string {
-  const base = (process.env.API_BASE_URL || "").replace(/\/+$/, "");
-  if (!base || !/^https?:\/\//i.test(base)) {
-    throw new Error(
-      "API_BASE_URL must be a full https URL (ex: https://adapt-v3.onrender.com)"
-    );
+function requireHttpsBaseUrl() {
+  const base = process.env.API_BASE_URL?.trim();
+  if (!base || !/^https:\/\//i.test(base)) {
+    throw new Error("API_BASE_URL must be a full https URL (ex: https://adapt-v3.onrender.com)");
   }
-  return base;
+  return base.replace(/\/+$/g, ""); // trim trailing slashes
 }
 
-/**
- * Submit a transcript job to AssemblyAI.
- * @param moduleId - DB id for the module
- * @param s3Key    - S3 key we stored for the uploaded video
- */
 export async function submitTranscriptJob(moduleId: string, s3Key: string) {
   // 1) Give AAI a downloadable URL (signed GET)
   //    30–60 min is fine; AAI fetches once at job start.
@@ -26,9 +19,7 @@ export async function submitTranscriptJob(moduleId: string, s3Key: string) {
 
   // 2) Build a proper https webhook URL
   const base = requireHttpsBaseUrl();
-  const webhookUrl = `${base}/webhooks/assemblyai?moduleId=${encodeURIComponent(
-    moduleId
-  )}`;
+  const webhookUrl = `${base}/webhooks/assemblyai?moduleId=${encodeURIComponent(moduleId)}`;
 
   // 3) Optional secret header to verify callbacks
   const secret = process.env.ASSEMBLYAI_WEBHOOK_SECRET || "";
