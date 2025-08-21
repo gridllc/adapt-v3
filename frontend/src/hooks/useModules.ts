@@ -1,22 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useAuthenticatedApi } from './useAuthenticatedApi'
-
-export interface Module {
-  id: string
-  title: string
-  filename: string
-  status?: string
-  createdAt?: string
-}
+import { normalizeModuleData, NormalizedModule } from '../config/api'
 
 interface ModulesResponse {
   success: boolean
-  modules?: Module[]
+  modules?: any[]
   error?: string
 }
 
 export function useModules() {
-  const [modules, setModules] = useState<Module[]>([])
+  const [modules, setModules] = useState<NormalizedModule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { authenticatedFetch } = useAuthenticatedApi()
@@ -26,7 +19,7 @@ export function useModules() {
       const maxRetries = 3
       let retryCount = 0
       
-      const attemptFetch = async (): Promise<Module[]> => {
+      const attemptFetch = async (): Promise<NormalizedModule[]> => {
         try {
           console.log(`🔍 Fetching modules... (attempt ${retryCount + 1}/${maxRetries})`)
           const data = await authenticatedFetch('/api/modules') as ModulesResponse
@@ -34,7 +27,8 @@ export function useModules() {
           console.log('📦 Modules response:', data)
           
           if (data.success) {
-            return data.modules || []
+            // Normalize each module in the response
+            return (data.modules || []).map(module => normalizeModuleData(module))
           } else {
             throw new Error(data.error || 'Failed to fetch modules')
           }

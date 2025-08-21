@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit'
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 
@@ -10,17 +10,8 @@ const COMMON = {
   // IMPORTANT: tell express-rate-limit we intentionally trust the proxy
   trustProxy: true,
 
-  // stable client key behind a proxy
-  keyGenerator: (req: any) => {
-    // Express already resolves req.ip using app.get('trust proxy')
-    const ip =
-      req.ip ||
-      (Array.isArray(req.ips) && req.ips[0]) ||
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      'unknown'
-    return ip
-  },
+  // ⚠️ IMPORTANT: use ipKeyGenerator() if you want IP-based keys (IPv4/IPv6 safe)
+  keyGenerator: ipKeyGenerator,
 
   // don't count health / preflight
   skip: (req: any) => req.method === 'OPTIONS' || req.path === '/api/health',

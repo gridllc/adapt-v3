@@ -60,9 +60,7 @@ moduleRoutes.get('/:id', async (req, res) => {
 
     return res.json({
       success: true,
-      ...mod,
-      videoUrl,
-      steps
+      module: { ...mod, videoUrl, steps }
     })
   } catch (e) {
     console.error('GET /api/modules/:id failed', e)

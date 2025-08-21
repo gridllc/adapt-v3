@@ -67,3 +67,50 @@ export const authenticatedApi = {
 
 // Optional: quick check in console
 if (typeof window !== 'undefined') (window as any).__API_BASE__ = API_BASE;
+
+// Module data normalization utility
+export interface NormalizedModule {
+  id: string;
+  title: string;
+  filename: string;
+  status: 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED';
+  videoUrl?: string;
+  steps?: Array<{ 
+    id?: string; 
+    text?: string; 
+    startTime?: number; 
+    endTime?: number; 
+    order?: number 
+  }>;
+  transcriptText?: string;
+  progress?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  userId?: string;
+  s3Key?: string;
+  lastError?: string;
+  transcriptJobId?: string;
+}
+
+export function normalizeModuleData(data: any): NormalizedModule {
+  // Normalize: accept both {success:true, ...fields} and {module:{...}}
+  const mod = data.module ? data.module : data;
+
+  // Minimal validation to avoid "Invalid module data received"
+  if (!mod?.id || typeof mod.status !== 'string') {
+    throw new Error('Invalid module data received');
+  }
+
+  return mod as NormalizedModule;
+}
+
+export async function fetchModule(moduleId: string): Promise<NormalizedModule> {
+  const res = await fetch(`/api/modules/${moduleId}`, {
+    credentials: 'include'
+  });
+  const data = await res.json();
+
+  if (!res.ok || !data) throw new Error('Failed to load module');
+
+  return normalizeModuleData(data);
+}
