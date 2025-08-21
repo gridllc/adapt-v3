@@ -1,52 +1,65 @@
 import { prisma } from '../config/database.js'
-import { presignedUploadService } from './presignedUploadService.js'
+import { ModuleStatus } from '@prisma/client'
 
-export class ModuleService {
-  // Fetch a single module with consistent shape
-  static async get(id: string) {
-    const mod = await prisma.module.findUnique({
+export const ModuleService = {
+  // ===== Core Getters =====
+  async get(id: string) {
+    return prisma.module.findUnique({
       where: { id },
-      include: {
-        steps: true,
-      },
+      include: { steps: true },
     })
-    if (!mod) return null
+  },
 
-    // Generate signed playback URL if READY
-    let videoUrl: string | undefined
-    if (mod.status === 'READY' && mod.s3Key) {
-      try {
-        videoUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key)
-      } catch {
-        videoUrl = undefined
-      }
-    }
-
-    return {
-      ...mod,
-      videoUrl,
-      steps: mod.steps ?? [],
-    }
-  }
-
-  // Fetch steps for a module
-  static async getSteps(moduleId: string) {
+  async getSteps(moduleId: string) {
     return prisma.step.findMany({
       where: { moduleId },
-      orderBy: { order: 'asc' },
+      orderBy: { start: 'asc' },
     })
-  }
+  },
 
-  // Create a new module
-  static async create(data: any) {
-    return prisma.module.create({ data })
-  }
+  // ===== Create =====
+  async createForFilename(filename: string, userId?: string) {
+    return prisma.module.create({
+      data: {
+        title: filename,
+        filename,
+        userId,
+        status: ModuleStatus.UPLOADED,
+      },
+    })
+  },
 
-  // Update a module
-  static async update(id: string, data: any) {
+  // ===== Status + Lifecycle =====
+  async updateModuleStatus(id: string, status: ModuleStatus, progress?: number) {
     return prisma.module.update({
       where: { id },
-      data,
+      data: { status, progress },
     })
-  }
+  },
+
+  async markUploaded(id: string, s3Key: string) {
+    return prisma.module.update({
+      where: { id },
+      data: { status: ModuleStatus.UPLOADED, s3Key },
+    })
+  },
+
+  async markProcessing(id: string) {
+    return prisma.module.update({
+      where: { id },
+      data: { status: ModuleStatus.PROCESSING },
+    })
+  },
+
+  async markError(id: string, error: string) {
+    return prisma.module.update({
+      where: { id },
+      data: { status: ModuleStatus.FAILED, lastError: error },
+    })
+  },
+
+  // ===== Aliases / Backwards Compatibility =====
+  async getModuleById(id: string) {
+    return this.get(id)
+  },
 }
