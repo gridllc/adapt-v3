@@ -1,32 +1,32 @@
-import { log } from '../utils/logger.js'
 import { startProcessing } from './ai/aiPipeline.js'
 
-// Check if QStash is enabled
-export function isEnabled(): boolean {
-  return process.env.QSTASH_ENABLED === 'true'
+export function isEnabled() {
+  return !!process.env.QSTASH_TOKEN && process.env.QSTASH_ENABLED !== 'false'
 }
 
-// ✅ Enqueue processing job to QStash
-export async function enqueueProcessModule(moduleId: string): Promise<string | null> {
+export async function queueOrInline(moduleId: string) {
   try {
-    // 🔥 Real enqueue call (your existing QStash logic)
-    // const jobId = await client.publishJSON({ ... })
-    const jobId = 'fake-job-id' // TODO: keep your real code here
-    log.info(`📬 Enqueued processing job via QStash`, { moduleId, jobId })
-    return jobId
-  } catch (err) {
-    log.error(`❌ QStash enqueue failed`, { err })
-    return null
-  }
-}
+    if (isEnabled()) {
+s      const { Client } = await import('@upstash/qstash')
+      const c = new Client({
+        token: process.env.QSTASH_TOKEN!,
+      })
+      const dest = process.env.QSTASH_DESTINATION_URL // your /api/worker/process
+      if (!dest) throw new Error('Missing QSTASH_DESTINATION_URL')
 
-// Queue or run inline based on configuration
-export async function queueOrInline(moduleId: string): Promise<void> {
-  if (isEnabled()) {
-    const jobId = await enqueueProcessModule(moduleId)
-    log.info(`📬 Enqueued processing job`, { moduleId, jobId })
-  } else {
-    log.info(`⚙️ QStash disabled, running inline processing:`, moduleId)
+      const r = await c.publishJSON({
+        url: dest,
+        body: { moduleId },
+      })
+      if (!r.messageId) throw new Error('No messageId returned from QStash')
+      console.log('📬 Enqueued job', { moduleId, messageId: r.messageId })
+      return
+    }
+    // if disabled, run inline
+    console.log('⚙️ QStash disabled → running inline', { moduleId })
+    await startProcessing(moduleId)
+  } catch (err) {
+    console.warn('⚠️ Enqueue failed → INLINE FALLBACK', { moduleId, err })
     await startProcessing(moduleId)
   }
 }

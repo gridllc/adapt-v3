@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { aiService } from '../services/aiService.js'
 import { transcribeS3Video } from '../services/transcriptionService.js'
+import { startProcessing } from '../services/ai/aiPipeline.js'
+import { prisma } from '../config/database.js'
 
 const router = express.Router()
 
@@ -122,6 +124,50 @@ router.get('/:moduleId/status', async (req: Request, res: Response) => {
     console.error(`❌ Failed to get status for module ${moduleId}:`, error)
     res.status(500).json({
       error: 'Failed to get module status',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      moduleId
+    })
+  }
+})
+
+// Temporary admin-only endpoint to re-run processing for stuck modules
+// POST /api/reprocess/debug/process/:moduleId
+router.post('/debug/process/:moduleId', async (req: Request, res: Response) => {
+  const { moduleId } = req.params
+  
+  try {
+    console.log(`🔧 Debug: Manually kicking processing for module: ${moduleId}`)
+    
+    // Check if module exists
+    const m = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!m) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Module not found',
+        moduleId 
+      })
+    }
+    
+    console.log(`📊 Current module status: ${m.status} (${m.progress}%)`)
+    
+    // Force restart processing
+    await startProcessing(moduleId)
+    
+    console.log(`✅ Processing (re)started for module: ${moduleId}`)
+    
+    res.json({ 
+      success: true, 
+      message: 'Processing (re)started', 
+      moduleId,
+      previousStatus: m.status,
+      previousProgress: m.progress,
+      timestamp: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error(`❌ Failed to restart processing for module ${moduleId}:`, error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart processing',
       details: error instanceof Error ? error.message : 'Unknown error',
       moduleId
     })

@@ -25,7 +25,9 @@ export async function startProcessing(
       return { ok: false }
     }
 
-    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 5)
+    // Step 1: Initial processing started
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 10)
+    log.info(`⏳ [${moduleId}] Progress: 10% - Processing started`)
 
     if (!mod.s3Key) {
       const msg = 'missing s3Key on module'
@@ -35,6 +37,10 @@ export async function startProcessing(
       return { ok: false }
     }
 
+    // Step 2: Preparing media URL
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 20)
+    log.info(`⏳ [${moduleId}] Progress: 20% - Preparing media URL`)
+    
     let mediaUrl: string
     try {
       mediaUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key)
@@ -46,17 +52,27 @@ export async function startProcessing(
       return { ok: false }
     }
 
+    // Step 3: Submitting to AssemblyAI
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 30)
+    log.info(`⏳ [${moduleId}] Progress: 30% - Submitting to AssemblyAI`)
+    
     log.info(`🎙️ [${moduleId}] Submitting AssemblyAI job...`)
     const result = await submitTranscriptJob(moduleId, mod.s3Key)
 
+    // Step 4: Job submitted, waiting for webhook
     await prisma.module.update({
       where: { id: moduleId },
-      data: { transcriptJobId: result.jobId, progress: 15 }
+      data: { 
+        transcriptJobId: result.jobId, 
+        progress: 40,
+        lastError: null // Clear any previous errors
+      }
     })
     log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${result.jobId}`)
+    log.info(`⏳ [${moduleId}] Progress: 40% - Waiting for transcription to complete`)
     log.info(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
 
-    // Do not mark READY here; webhook will finalize.
+    // Do not mark READY here; webhook will finalize with 100% progress.
     return { ok: true, transcriptJobId: result.jobId }
   } catch (err: any) {
     const msg = err?.message || 'unknown processing error'

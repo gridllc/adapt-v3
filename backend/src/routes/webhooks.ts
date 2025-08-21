@@ -47,13 +47,16 @@ webhooks.post('/assemblyai', async (req: any, res) => {
 
     // You'll see statuses like: queued → processing → completed | error
     if (payload.status === 'completed') {
+      // Step 5: Transcription completed, generating steps
+      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 70)
+      console.log(`⏳ [${moduleId}] Progress: 70% - Transcription completed, generating steps`)
+      
       // 1) Save transcript
       await prisma.module.update({
         where: { id: moduleId },
         data: {
           transcriptText: payload.text ?? null,
-          status: 'READY',
-          progress: 100
+          lastError: null // Clear any previous errors
         }
       })
 
@@ -81,14 +84,25 @@ webhooks.post('/assemblyai', async (req: any, res) => {
         console.warn('Step generation failed (non-blocking):', e)
       }
 
-      console.log(`✅ [${moduleId}] transcript saved, status: READY`)
+      // Step 6: Finalizing and marking READY
+      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 90)
+      console.log(`⏳ [${moduleId}] Progress: 90% - Finalizing`)
+      
+      // Final status update to READY
+      await ModuleService.updateModuleStatus(moduleId, 'READY', 100)
+      console.log(`✅ [${moduleId}] transcript saved, status: READY, progress: 100%`)
+      
     } else if (payload.status === 'error') {
       await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0)
       console.log(`❌ [${moduleId}] transcription failed: ${payload.error}`)
     } else {
-      // processing/queued — keep the module on PROCESSING, maybe bump progress
-      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 15)
-      console.log(`⏳ [${moduleId}] status: ${payload.status}, progress: 15%`)
+      // processing/queued — update progress based on status
+      let progress = 50 // Default for processing
+      if (payload.status === 'queued') progress = 45
+      if (payload.status === 'processing') progress = 50
+      
+      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', progress)
+      console.log(`⏳ [${moduleId}] status: ${payload.status}, progress: ${progress}%`)
     }
 
     return res.json({ ok: true })
