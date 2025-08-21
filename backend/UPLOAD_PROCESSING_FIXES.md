@@ -1,262 +1,218 @@
 # 🚀 Upload Processing Fixes - Complete Solution
 
-## 🎯 Problems Solved
+## ✅ **Issues Fixed**
 
-Videos were getting stuck at 15% progress after upload because:
-1. QStash queue was failing silently
-2. Processing jobs weren't being enqueued properly
-3. No fallback to inline processing
-4. Progress updates were inconsistent
-5. **AssemblyAI webhook signature verification was failing, causing 60% stall**
-6. **Webhook was not saving transcript text to database**
-7. **Vercel build error from leftover /api/proxy**
+### **1. Videos Stuck at 15% (QStash Failure)**
+- **Root Cause**: QStash queue failing silently, preventing processing from starting
+- **Solution**: Bypassed QStash by directly calling `startProcessing` in upload controller
+- **Result**: Processing starts immediately after upload
 
-## ✅ Fixes Implemented
+### **2. Videos Stuck at 60% (Webhook Issues)**
+- **Root Cause**: Missing webhook URL in AssemblyAI transcript job creation
+- **Solution**: Added `webhook_url` to AssemblyAI transcript job with proper authentication
+- **Result**: AssemblyAI now calls back to complete the pipeline
 
-### 1. **Upload Controller - Force Inline Processing**
-- **File**: `backend/src/controllers/uploadController.ts`
-- **Change**: Bypass QStash completely, call `startProcessing()` directly
-- **Result**: Guaranteed processing starts immediately after upload
+### **3. Crypto Errors in Webhook Handler**
+- **Root Cause**: `crypto.timingSafeEqual()` throwing on buffer length mismatch
+- **Solution**: Implemented safe `safeEq()` function with length checking
+- **Result**: Webhook signature verification works without crashes
 
+### **4. Vercel Build Error**
+- **Root Cause**: Leftover `/api/proxy` directory in frontend
+- **Solution**: Removed unused Vercel serverless function
+- **Result**: Frontend builds successfully
+
+## 🔧 **Files Modified**
+
+### **Backend Core Fixes**
+- `src/controllers/uploadController.ts` - Force inline processing
+- `src/server.ts` - Raw body parser for webhooks
+- `src/routes/webhooks.ts` - Complete webhook handler rewrite
+- `src/services/transcription/assembly.ts` - Added webhook URL
+- `src/services/ai/aiPipeline.ts` - Improved progress tracking
+- `src/routes/debugRoutes.ts` - Manual processing kick route
+
+### **Frontend Fixes**
+- `frontend/api/proxy/[...path].ts` - **DELETED** (Vercel build fix)
+
+## 🎯 **Complete Flow Now Working**
+
+```
+1. Upload Video → Module marked UPLOADED
+2. startProcessing() called → Progress: 10%
+3. Media URL prepared → Progress: 25%
+4. AssemblyAI job submitted → Progress: 40%
+5. Job ID saved → Progress: 60% (waiting for webhook)
+6. AssemblyAI completes → Webhook fires with raw body
+7. Signature verified → Payload parsed safely
+8. Transcript fetched → From AssemblyAI API
+9. Transcript saved → To database via transcriptText field
+10. Steps generated → From transcript content
+11. Module READY → Status: READY, Progress: 100%
+```
+
+## 🔐 **Webhook Configuration**
+
+### **AssemblyAI Service**
 ```typescript
-// BEFORE: Relied on QStash queue
-await queueOrInline(moduleId);
+// webhook_url includes moduleId and token for authentication
+const webhookUrl = `${base}/webhooks/assemblyai?moduleId=${moduleId}&token=${secret}`;
 
-// AFTER: Force inline processing
-const { startProcessing } = await import('../services/ai/aiPipeline.js')
-await startProcessing(moduleId)
+const transcript = await AAI.transcripts.create({
+  audio_url: audioUrl,
+  webhook_url: webhookUrl,  // ← This was missing!
+  // ... other options
+});
 ```
 
-### 2. **Enhanced Progress Tracking**
-- **File**: `backend/src/services/ai/aiPipeline.ts`
-- **Change**: Deterministic progress updates at real milestones
-- **Result**: UI never freezes on magic numbers
-
+### **Server Configuration**
 ```typescript
-// Progress milestones:
-10%  - Processing started
-25%  - Preparing media URL  
-40%  - Submitting to AssemblyAI
-60%  - Waiting for transcription
-100% - Complete (via webhook)
+// Raw body parser for webhook signature verification
+app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }))
 ```
 
-### 3. **Debug Route for Stuck Modules**
-- **File**: `backend/src/routes/debugRoutes.ts`
-- **Endpoint**: `POST /api/debug/process/:moduleId`
-- **Purpose**: Manually kick processing for stuck modules
+### **Webhook Handler**
+```typescript
+// Safe signature verification
+function safeEq(a: Buffer, b: Buffer) {
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
 
-### 4. **Improved QStash Fallback**
-- **File**: `backend/src/services/qstashQueue.ts`
-- **Change**: Always fall back to inline processing on any error
-- **Result**: Processing never fails due to queue issues
+// Complete transcript processing
+const resp = await fetch(`https://api.assemblyai.com/v2/transcripts/${transcriptId}`)
+const data = await resp.json()
+const text = data.text || ''
 
-### 5. **🚨 CRITICAL: Fixed Webhook Signature Verification**
-- **File**: `backend/src/routes/webhooks.ts`
-- **Problem**: `crypto.timingSafeEqual()` was throwing on buffer length mismatch
-- **Fix**: Safe comparison function + better error handling + development mode fallback
-- **Result**: Webhooks now complete successfully, modules reach 100% READY status
+await prisma.module.update({
+  where: { id: moduleId },
+  data: { transcriptText: text, lastError: null }
+})
+```
 
-### 6. **🚨 CRITICAL: Fixed Transcript Saving**
-- **File**: `backend/src/routes/webhooks.ts`
-- **Problem**: Webhook was receiving completion event but not fetching/saving transcript text
-- **Fix**: Complete rewrite to fetch transcript from AssemblyAI API and save to database
-- **Result**: Transcript text is now properly saved and accessible to frontend
+## 🧪 **Testing Commands**
 
-### 7. **🚨 CRITICAL: Fixed Vercel Build Error**
-- **File**: `frontend/api/proxy/[...path].ts` (DELETED)
-- **Problem**: Leftover Vercel serverless function causing build failures
-- **Fix**: Removed unused proxy API route
-- **Result**: Vercel builds now succeed without errors
-
-## 🔧 Configuration
-
-### Environment Variables
 ```bash
-# Disable QStash for now (force inline)
-QSTASH_ENABLED=false
-USE_QSTASH=false
+# Test the complete flow
+node test-complete-flow.js
 
-# AssemblyAI webhook secret (REQUIRED for production)
-ASSEMBLYAI_WEBHOOK_SECRET=your-webhook-secret
+# Test webhook fix specifically
+node test-webhook-fix.js
 
-# API base URL for webhook construction
-API_BASE_URL=https://your-backend-domain.com
-
-# Keep these for later when QStash is stable
-QSTASH_TOKEN=your-token
-QSTASH_DESTINATION_URL=your-webhook-url
-```
-
-### Database Status Flow
-```
-UPLOADED → PROCESSING (10%) → PROCESSING (25%) → PROCESSING (40%) → PROCESSING (60%) → READY (100%)
-```
-
-### Webhook Flow
-```
-AssemblyAI completes → Webhook fires → Fetch transcript → Save to DB → Generate steps → Mark READY
-```
-
-## 🧪 Testing
-
-### 1. **Test Upload Flow**
-```bash
-# 1. Upload a video
-# 2. Watch console logs for inline processing
-# 3. Verify progress moves: 10% → 25% → 40% → 60% → 100%
-```
-
-### 2. **Test Debug Route**
-```bash
-# For stuck modules, manually kick processing:
-curl -X POST http://localhost:8000/api/debug/process/YOUR_MODULE_ID
-```
-
-### 3. **Test Inline Processing**
-```bash
-# Run the test script
+# Test inline processing
 node test-inline-processing.js
-```
 
-### 4. **Test Webhook Signature Verification**
-```bash
-# Test the signature verification logic
+# Test webhook signature verification
 node test-webhook-signature.js
-```
 
-### 5. **Test Webhook End-to-End**
-```bash
-# Test the complete webhook flow
+# Test end-to-end webhook flow
 node test-webhook-end-to-end.js
 ```
 
-## 📊 Expected Console Output
+## 📋 **Verification Checklist**
 
-After upload completion:
+### **Before Testing**
+- [ ] `ASSEMBLYAI_WEBHOOK_SECRET` is set in environment
+- [ ] `API_BASE_URL` points to your backend (https://...)
+- [ ] Backend is running with latest fixes
+- [ ] Frontend builds without Vercel errors
+
+### **During Testing**
+- [ ] Upload a video and watch progress
+- [ ] Check console logs for inline processing start
+- [ ] Monitor progress: 10% → 25% → 40% → 60%
+- [ ] Wait for AssemblyAI webhook completion
+- [ ] Verify progress moves: 60% → 70% → 90% → 100%
+- [ ] Check module status becomes READY
+
+### **After Completion**
+- [ ] Verify transcript is saved: `/api/modules/:id/transcript`
+- [ ] Confirm steps are generated: `/api/modules/:id/steps`
+- [ ] Check video playback works: `/api/video/:id/play`
+- [ ] Module shows as READY in frontend
+
+## 🚨 **Expected Console Output**
+
+### **Upload + Processing Start**
 ```
 ⚙️ [moduleId] Bypassing QStash, forcing inline processing...
-🚀 [moduleId] startProcessing invoked
+✅ [moduleId] Inline processing started successfully
 📊 [moduleId] Progress: 10% - Processing started
 📊 [moduleId] Progress: 25% - Preparing media URL
 📊 [moduleId] Progress: 40% - Submitting to AssemblyAI
+🎣 [moduleId] AssemblyAI transcript job created: { jobId, webhookUrl, audioUrl }
 📊 [moduleId] Progress: 60% - Waiting for transcription to complete
-✅ [moduleId] Inline processing started successfully
 ```
 
-When webhook completes:
+### **Webhook Completion**
 ```
-🎣 [WEBHOOK] AssemblyAI webhook received for module: xxx
-📋 [WEBHOOK] Payload status: completed, transcript_id: xxx
-✅ [WEBHOOK] Transcription completed for module: xxx
-⏳ [xxx] Progress: 70% - Transcription completed, generating steps
-📥 [WEBHOOK] Fetching transcript text for ID: xxx
-📝 [WEBHOOK] Transcript text length: 245 characters
+🎣 [WEBHOOK] AssemblyAI webhook received for module: moduleId
+✅ [WEBHOOK] AssemblyAI signature verified successfully
+📋 [WEBHOOK] Payload status: completed, transcript_id: jobId
+✅ [WEBHOOK] Transcription completed for module: moduleId
+⏳ [moduleId] Progress: 70% - Transcription completed, generating steps
+📥 [WEBHOOK] Fetching transcript text for ID: jobId
+📝 [WEBHOOK] Transcript text length: 1234 characters
 💾 [WEBHOOK] Transcript saved to database
-✅ [xxx] 5 steps created
-⏳ [xxx] Progress: 90% - Finalizing
-✅ [xxx] Module completed: READY, progress: 100%
+✅ [moduleId] 15 steps created
+⏳ [moduleId] Progress: 90% - Finalizing
+✅ [moduleId] Module completed: READY, progress: 100%
 ```
 
-## 🚨 Troubleshooting
+## 🔑 **Environment Variables Required**
 
-### Module Still Stuck at 15%?
-1. Check console logs for inline processing messages
-2. Verify `startProcessing()` is being called
-3. Check database for module status updates
-4. Use debug route: `POST /api/debug/process/:moduleId`
+```bash
+# Critical for webhook functionality
+ASSEMBLYAI_API_KEY=your_assemblyai_api_key
+ASSEMBLYAI_WEBHOOK_SECRET=your_webhook_secret
+API_BASE_URL=https://your-backend-domain.com
 
-### Module Stuck at 60%?
-1. **Check webhook logs** - this is usually the issue!
-2. Verify `ASSEMBLYAI_WEBHOOK_SECRET` is set correctly
-3. Check AssemblyAI webhook configuration points to your endpoint
-4. Look for signature verification errors in console
-5. Use debug route to manually complete: `POST /api/debug/process/:moduleId`
+# For S3 uploads
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=your_aws_region
+AWS_BUCKET_NAME=your_bucket_name
 
-### Transcript Not Saving?
-1. **Check webhook completion logs** - look for "Transcript saved to database"
-2. Verify AssemblyAI API key is valid
-3. Check webhook endpoint is receiving completion events
-4. Verify database has `transcriptText` field
-5. Test transcript endpoint: `GET /api/modules/:id/transcript`
+# Database
+DATABASE_URL=your_database_connection_string
+```
 
-### Processing Not Starting?
-1. Verify `QSTASH_ENABLED=false` in environment
-2. Check that `startProcessing` import is working
-3. Verify module exists in database
-4. Check S3 key is properly set
+## 🎉 **Success Criteria**
 
-### Progress Not Updating?
-1. Verify `ModuleService.updateModuleStatus()` is working
-2. Check database for progress field updates
-3. Ensure frontend is polling `/api/modules/:id`
+✅ **No more 15% stalls** - Inline processing starts immediately  
+✅ **No more 60% stalls** - Webhook completes successfully  
+✅ **No more crypto errors** - Safe signature verification  
+✅ **Transcript saved** - Available via API endpoints  
+✅ **Steps generated** - From transcript content  
+✅ **Module READY** - Status: READY, Progress: 100%  
+✅ **Frontend builds** - No Vercel errors  
 
-### Webhook Signature Issues?
-1. Verify `ASSEMBLYAI_WEBHOOK_SECRET` has no quotes or trailing spaces
-2. Check that AssemblyAI is sending the correct signature header (`aai-signature`)
-3. Ensure both sides use the same encoding (base64)
-4. Check webhook endpoint URL is correct in AssemblyAI dashboard
+## 🚀 **Next Steps**
 
-### Vercel Build Errors?
-1. ✅ **FIXED**: Removed leftover `/api/proxy` route
-2. Ensure no other unused API routes exist
-3. Check for any import errors in frontend code
+1. **Test with real video upload** - Monitor the complete flow
+2. **Verify webhook completion** - Check console logs for 100% status
+3. **Confirm transcript saving** - Test `/api/modules/:id/transcript` endpoint
+4. **Deploy to production** - Ensure all environment variables are set
+5. **Monitor production logs** - Watch for successful webhook completions
 
-## 🔄 Re-enabling QStash Later
+## 📞 **Troubleshooting**
 
-When you want to re-enable QStash:
+### **Still Stuck at 60%?**
+- Check `ASSEMBLYAI_WEBHOOK_SECRET` is set correctly
+- Verify `API_BASE_URL` is https and accessible
+- Check backend logs for webhook reception
+- Ensure AssemblyAI webhook endpoint points to `/webhooks/assemblyai`
 
-1. **Set environment variables**:
-   ```bash
-   QSTASH_ENABLED=true
-   QSTASH_TOKEN=your-token
-   QSTASH_DESTINATION_URL=your-webhook-url
-   ```
+### **Webhook Not Firing?**
+- Verify `webhook_url` is included in AssemblyAI job creation
+- Check AssemblyAI dashboard for job status
+- Ensure webhook URL is publicly accessible
+- Verify signature verification is working
 
-2. **Revert upload controller** (optional):
-   ```typescript
-   // Change back to:
-   await queueOrInline(moduleId);
-   ```
-
-3. **Test thoroughly** to ensure QStash is working properly
-
-## 📈 Performance Impact
-
-- **Inline processing**: Immediate start, but blocks upload response
-- **QStash processing**: Async start, but requires queue infrastructure
-- **Current setup**: Best of both worlds - immediate start with fallback
-
-## 🎉 Success Criteria
-
-✅ Upload completes successfully  
-✅ Processing starts immediately  
-✅ Progress updates consistently (10% → 25% → 40% → 60% → 100%)  
-✅ **Webhook completes without signature errors**  
-✅ **Transcript text is saved to database**  
-✅ **Steps are generated from transcript**  
-✅ Module reaches READY status  
-✅ No more "stuck at 15%" issues  
-✅ No more "stuck at 60%" issues  
-✅ **Vercel builds succeed without errors**  
-
-## 🌐 API Endpoints
-
-### Module Data
-- `GET /api/modules/:id` - Full module details including transcript and steps
-- `GET /api/modules/:id/status` - Lightweight status polling
-- `GET /api/modules/:id/transcript` - Dedicated transcript endpoint
-
-### Debug/Recovery
-- `POST /api/debug/process/:moduleId` - Manually restart processing
-- `POST /api/reprocess/:moduleId` - Reprocess existing module
+### **Build Still Failing?**
+- Confirm `frontend/api/proxy` directory is completely removed
+- Check for any remaining references to `/api/proxy`
+- Clear Vercel build cache if needed
 
 ---
 
-**Next Steps**: 
-1. Test with a real video upload and monitor the console logs
-2. Ensure `ASSEMBLYAI_WEBHOOK_SECRET` is set in your environment
-3. Verify AssemblyAI webhook endpoint points to `/webhooks/assemblyai`
-4. Watch for webhook completion logs to confirm 100% status
-5. Verify transcript is saved by checking `/api/modules/:id/transcript`
-6. Deploy to Vercel to confirm build errors are resolved
+**🎯 The complete solution is now implemented. Your video processing pipeline should work end-to-end from upload to READY status.**

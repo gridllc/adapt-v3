@@ -17,14 +17,11 @@ export async function submitTranscriptJob(moduleId: string, s3Key: string) {
   //    30–60 min is fine; AAI fetches once at job start.
   const audioUrl = await presignedUploadService.getSignedUrl(s3Key, 3600);
 
-  // 2) Build a proper https webhook URL
+  // 2) Build a proper https webhook URL with moduleId and token
   const base = requireHttpsBaseUrl();
-  const webhookUrl = `${base}/webhooks/assemblyai?moduleId=${encodeURIComponent(moduleId)}`;
+  const webhookUrl = `${base}/webhooks/assemblyai?moduleId=${encodeURIComponent(moduleId)}&token=${encodeURIComponent(process.env.ASSEMBLYAI_WEBHOOK_SECRET || '')}`;
 
-  // 3) Optional secret header to verify callbacks
-  const secret = process.env.ASSEMBLYAI_WEBHOOK_SECRET || "";
-
-  // 4) Kick off job
+  // 3) Submit transcript job with webhook
   const transcript = await AAI.transcripts.create({
     audio_url: audioUrl,
     // Recommended options
@@ -33,14 +30,19 @@ export async function submitTranscriptJob(moduleId: string, s3Key: string) {
     format_text: true,
     language_detection: true,
 
-    // Webhook back to us
+    // Webhook back to us - AssemblyAI will use standard aai-signature header
     webhook_url: webhookUrl,
-    webhook_auth_header_name: secret ? "x-webhook-secret" : undefined,
-    webhook_auth_header_value: secret || undefined,
+    // Remove custom auth headers - let AssemblyAI handle signature verification
   });
 
   // Save job id for status/debug
   await ModuleService.updateTranscriptJobId(moduleId, transcript.id);
+
+  console.log(`🎣 [${moduleId}] AssemblyAI transcript job created:`, {
+    jobId: transcript.id,
+    webhookUrl: webhookUrl,
+    audioUrl: audioUrl
+  });
 
   return { jobId: transcript.id, webhookUrl };
 }
