@@ -24,7 +24,7 @@ model Video {
   id        String   @id @default(uuid())
   moduleId  String   @unique
   fileKey   String   @unique
-  status    String   @default("UPLOADING") // UPLOADING | READY
+  status    String   @default("UPLOADING")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
@@ -33,24 +33,26 @@ model Video {
 }
 
 model Module {
-  id        String         @id @default(cuid())
-  title     String
-  filename  String
-  videoUrl  String
-  progress  Int            @default(0)
-  userId    String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  lastError String?
-  s3Key     String?
-  statuses  ModuleStatus[]
-  stepsKey  String?
-  status    ModuleStatus   @default(UPLOADED)
-  feedbacks Feedback[]
-  user      User?          @relation(fields: [userId], references: [id])
-  questions Question[]
-  steps     Step[]
-  video     Video?
+  id              String         @id @default(cuid())
+  title           String
+  filename        String
+  videoUrl        String
+  progress        Int            @default(0)
+  userId          String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  lastError       String?
+  s3Key           String?
+  statuses        ModuleStatus[]
+  stepsKey        String?
+  status          ModuleStatus   @default(UPLOADED)
+  transcriptJobId String?
+  transcriptText  String?
+  feedbacks       Feedback[]
+  user            User?          @relation(fields: [userId], references: [id])
+  questions       Question[]
+  steps           Step[]
+  video           Video?
 
   @@map("modules")
 }

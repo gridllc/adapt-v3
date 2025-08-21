@@ -1,0 +1,16 @@
+---
+📌 Cursor Summary (Current Plan)
+
+Direct-to-S3 flow (init → PUT → complete) is the backbone.
+
+DB required immediately: must store modules table with status, s3Key, transcript job, transcript text. This is the system’s source of truth.
+
+FFmpeg normalization: uploadController enforces browser-safe MP4 (H.264/AAC).
+
+AI Pipeline: uses aiPipeline.ts + aiService.ts to call Whisper (transcribe) + GPT (steps).
+
+ModuleService: saves metadata + status updates into DB.
+
+Frontend: UploadManager → api.ts → TrainingPage polls status & loads signed S3 video + steps.
+
+Next step: enable DB, wire processing jobs into AssemblyAI (or OpenAI Whisper), and confirm the complete upload→AI→training loop.

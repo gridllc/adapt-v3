@@ -19,7 +19,7 @@ export const ModuleService = {
     return prisma.module.findUnique({ where: { id } })
   },
   async getSteps(moduleId: string) {
-    return prisma.step.findMany({ where: { moduleId }, orderBy: { startTime: 'asc' } })
+    return prisma.step.findMany({ where: { moduleId }, orderBy: { order: 'asc' } })
   },
   async saveSteps(moduleId: string, steps: any[]) {
     try {
@@ -52,7 +52,14 @@ export const ModuleService = {
   },
   async markError(id: string, message?: string) {
     // Use a valid status from the schema
-    await prisma.module.update({ where: { id }, data: { status: 'FAILED' } })
+    await prisma.module.update({ 
+      where: { id }, 
+      data: { 
+        status: 'FAILED', 
+        lastError: message || 'Processing failed',
+        progress: 100
+      } 
+    })
   },
 
   // Backward compatibility methods
@@ -63,8 +70,16 @@ export const ModuleService = {
   async updateModuleStatus(id: string, status: string, progress?: number, error?: string) {
     const data: any = { status }
     if (progress !== undefined) data.progress = progress
-    if (error !== undefined) data.error = error
+    if (error !== undefined) data.lastError = error
     
     await prisma.module.update({ where: { id }, data })
   },
+
+  // New method for updating transcript information
+  async updateTranscript(id: string, transcriptText: string, transcriptJobId: string) {
+    await prisma.module.update({
+      where: { id },
+      data: { transcriptText, transcriptJobId }
+    })
+  }
 }

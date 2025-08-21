@@ -26,6 +26,12 @@ export const presignedUploadService = {
   // Backward compatibility method
   async getSignedPlaybackUrl(key: string): Promise<string> {
     const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key })
-    return getSignedUrl(s3, cmd, { expiresIn: 60 * 5 })
+    return getSignedUrl(s3, cmd, { expiresIn: 60 * 60 * 2 }) // 2 hours for playback
+  },
+
+  // Method for getting signed URLs with custom expiration
+  async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key })
+    return getSignedUrl(s3, cmd, { expiresIn })
   }
 }

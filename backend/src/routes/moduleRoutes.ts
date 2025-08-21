@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../config/database.js'
 import { ModuleService } from '../services/moduleService.js'
+import { presignedUploadService } from '../services/presignedUploadService.js'
 
 export const moduleRoutes = Router()
 
@@ -35,9 +36,21 @@ moduleRoutes.get('/:id', async (req, res) => {
     const id = req.params.id
     const mod = await ModuleService.get(id)
     if (!mod) return res.status(404).json({ success: false, error: 'not_found' })
+    
+    let videoUrl: string | undefined;
+    if (mod.status === "READY" && mod.s3Key) {
+      videoUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key);
+    }
+
     // many UIs want steps bundled
     const steps = await ModuleService.getSteps(id).catch(() => [])
-    return res.json({ success: true, module: mod, steps })
+    
+    return res.json({ 
+      success: true, 
+      ...mod, 
+      videoUrl, 
+      steps 
+    })
   } catch (e) {
     console.error('GET /api/modules/:id failed', e)
     return res.status(500).json({ success: false, error: 'failed_to_get_module' })

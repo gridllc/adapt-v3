@@ -1,6 +1,9 @@
 import { ModuleService } from '../moduleService.js'
 import { aiService } from '../aiService.js'
 import { runOneAtATime } from './queue.js'
+import { submitTranscriptJob } from '../transcription/assembly.js'
+import { presignedUploadService } from '../presignedUploadService.js'
+import { prisma } from '../../config/database.js'
 
 export async function startProcessing(moduleId: string) {
   // Use the queue to ensure only one job runs at a time
@@ -9,17 +12,28 @@ export async function startProcessing(moduleId: string) {
     await ModuleService.markProcessing(moduleId)
     
     try {
-      // Real AI processing: transcribe video and generate steps
-      const transcript = await aiService.transcribe(moduleId)
-      const steps = await aiService.generateSteps(moduleId, transcript)
-      
-      // Save the generated steps
-      await ModuleService.saveSteps(moduleId, steps)
-      
-      // Mark as ready with the generated steps
-      await ModuleService.markReady(moduleId)
-      
-      console.log(`✅ AI processing completed for module ${moduleId}`)
+      // Get module to access s3Key
+      const mod = await prisma.module.findUniqueOrThrow({ where: { id: moduleId } });
+
+      // Update progress
+      await prisma.module.update({
+        where: { id: moduleId },
+        data: { status: "PROCESSING", progress: 5 }
+      });
+
+      // get a short-lived signed read URL for the uploaded video
+      const mediaUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key!);
+
+      // submit async job to AssemblyAI
+      const transcriptJobId = await submitTranscriptJob({ mediaUrl, moduleId });
+
+      await prisma.module.update({
+        where: { id: moduleId },
+        data: { transcriptJobId, progress: 15 }
+      });
+
+      // stop here — webhook will finish
+      console.log(`✅ AssemblyAI job submitted for module ${moduleId}, jobId: ${transcriptJobId}`)
       
     } catch (e: any) {
       const msg = String(e?.message || e)

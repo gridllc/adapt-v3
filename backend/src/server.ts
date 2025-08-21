@@ -9,6 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
+import { webhooks } from './routes/webhooks.js'
 
 import { uploadRoutes } from './routes/uploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
@@ -107,6 +108,8 @@ const validateEnvironment = () => {
   console.log(`🏢 GOOGLE_PROJECT_ID: ${process.env.GOOGLE_PROJECT_ID ? 'SET' : 'NOT SET'}`)
   console.log(`🤖 OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? 'SET' : 'NOT SET'}`)
   console.log(`🔮 GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET'}`)
+  console.log(`🎤 ASSEMBLYAI_API_KEY: ${process.env.ASSEMBLYAI_API_KEY ? 'SET' : 'NOT SET'}`)
+  console.log(`🌐 API_BASE_URL: ${process.env.API_BASE_URL ? 'SET' : 'NOT SET'}`)
   
   // Ensure temp directory exists for S3-first pipeline
   const tempDir = process.env.TEMP_DIR || '/app/temp'
@@ -127,6 +130,8 @@ const validateEnvironment = () => {
   if (!process.env.OPENAI_API_KEY) missingOptional.push('OPENAI_API_KEY')
   if (!process.env.GOOGLE_CLIENT_EMAIL) missingOptional.push('GOOGLE_CLIENT_EMAIL')
   if (!process.env.GOOGLE_PRIVATE_KEY) missingOptional.push('GOOGLE_PRIVATE_KEY')
+  if (!process.env.ASSEMBLYAI_API_KEY) missingOptional.push('ASSEMBLYAI_API_KEY')
+  if (!process.env.API_BASE_URL) missingOptional.push('API_BASE_URL')
   
   if (missingCritical.length > 0) {
     console.error(`❌ CRITICAL: Missing environment variables: ${missingCritical.join(', ')}`)
@@ -162,7 +167,7 @@ const configureMiddleware = () => {
   // Rate limiting is applied at the route level for better control
 
   // Body parsing middleware (reduced since we're not receiving file bytes anymore)
-  app.use(express.json({ limit: '10mb' }))
+  app.use(express.json({ limit: '2mb' }))  // Increased for webhook JSON
   app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 
   // Request logging middleware with traceId
@@ -182,6 +187,9 @@ const configureRoutes = () => {
   
   // Public Routes (with general rate limiting)
   app.use('/api', healthRoutes)  // Mounts /api/health
+  
+  // Webhooks (no rate limiting for external services)
+  app.use(webhooks)
   
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
   app.use('/api/feedback', feedbackRoutes)
@@ -207,7 +215,7 @@ const configureRoutes = () => {
 
       console.log(`📥 QStash webhook received for moduleId=${moduleId}`)
       // Use the new pipeline directly
-      const { startProcessing } = await import('./services/ai/pipeline.js')
+      const { startProcessing } = await import('./services/ai/aiPipeline.js')
       await startProcessing(moduleId)
       res.status(200).json({ success: true })
     } catch (err) {
@@ -235,7 +243,7 @@ const configureRoutes = () => {
     
     try {
       // Import the pipeline function dynamically to avoid circular imports
-      const { startProcessing } = await import('./services/ai/pipeline.js')
+      const { startProcessing } = await import('./services/ai/aiPipeline.js')
       await startProcessing(moduleId)
       console.log('🧵 Worker done', { moduleId })
       res.json({ ok: true })
