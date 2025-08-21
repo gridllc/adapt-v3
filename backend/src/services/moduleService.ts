@@ -13,7 +13,7 @@ export const ModuleService = {
   async getSteps(moduleId: string) {
     return prisma.step.findMany({
       where: { moduleId },
-      orderBy: { start: 'asc' },
+      orderBy: { order: 'asc' },
     })
   },
 
@@ -23,7 +23,8 @@ export const ModuleService = {
       data: {
         title: filename,
         filename,
-        userId,
+        videoUrl: `https://placeholder.com/${filename}`, // Required field
+        userId: userId || null,
         status: ModuleStatus.UPLOADED,
       },
     })
@@ -58,8 +59,24 @@ export const ModuleService = {
     })
   },
 
+  async markReady(id: string) {
+    return prisma.module.update({
+      where: { id },
+      data: { status: ModuleStatus.READY, progress: 100 },
+    })
+  },
+
+  async updateTranscriptJobId(id: string, transcriptJobId: string) {
+    return prisma.module.update({
+      where: { id },
+      data: { transcriptJobId },
+    })
+  },
+
   // ===== Aliases / Backwards Compatibility =====
   async getModuleById(id: string) {
     return this.get(id)
   },
 }
+
+

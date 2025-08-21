@@ -17,7 +17,7 @@ const qstashHandler = async (req: express.Request, res: express.Response) => {
 
   try {
     log.info(`🧵 [${moduleId}] Worker started`)
-    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0)
 
     log.info(`🚀 [${moduleId}] Calling startProcessing...`)
     const result = await startProcessing(moduleId)
@@ -29,12 +29,7 @@ const qstashHandler = async (req: express.Request, res: express.Response) => {
     log.error(`❌ Worker error for ${moduleId}:`, err)
     log.error(`❌ Error stack:`, err.stack)
     try {
-      await ModuleService.updateModuleStatus(
-        moduleId,
-        'FAILED',
-        0,
-        err?.message || 'processing failed'
-      )
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0)
     } catch (statusErr) {
       log.error(`⚠️ Failed to update status for ${moduleId}:`, statusErr)
     }
@@ -55,7 +50,7 @@ router.post('/process/:moduleId', async (req, res) => {
   const { moduleId } = req.params
   try {
     log.info(`🧵 Legacy worker start for ${moduleId}`)
-    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0)
 
     log.info(`🚀 [${moduleId}] Calling startProcessing...`)
     const result = await startProcessing(moduleId)
@@ -67,12 +62,7 @@ router.post('/process/:moduleId', async (req, res) => {
     log.error(`❌ Legacy worker error for ${moduleId}:`, err)
     log.error(`❌ Error stack:`, err.stack)
     try {
-      await ModuleService.updateModuleStatus(
-        moduleId,
-        'FAILED',
-        0,
-        err?.message || 'processing failed'
-      )
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0)
     } catch (statusErr) {
       log.error(`⚠️ Failed to update status for ${moduleId}:`, statusErr)
     }
@@ -95,22 +85,22 @@ if (process.env.NODE_ENV === 'development') {
     const { moduleId } = req.params
     try {
       log.info(`🧪 Test processing for ${moduleId}`)
-      
+
       // Check if module exists and has required fields
       const moduleResult = await ModuleService.getModuleById(moduleId)
-      
+
       if (!moduleResult) {
         return res.status(404).json({ error: 'Module not found' })
       }
-      
+
       const module = moduleResult
-      log.info(`📋 Module details:`, { 
-        id: module.id, 
-        status: module.status, 
-        s3Key: module.s3Key, 
-        stepsKey: module.stepsKey 
+      log.info(`📋 Module details:`, {
+        id: module.id,
+        status: module.status,
+        s3Key: module.s3Key,
+        stepsKey: module.stepsKey
       })
-      
+
       // Try to start processing
       const result = await startProcessing(moduleId)
       res.json({ success: true, result, module })

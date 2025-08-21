@@ -1,44 +1,73 @@
 import { ModuleService } from '../moduleService.js'
-import { aiService } from '../aiService.js'
-import { runOneAtATime } from './queue.js'
-import { submitTranscriptJob } from '../transcription/assembly.js'
 import { presignedUploadService } from '../presignedUploadService.js'
+import { submitTranscriptJob } from '../transcription/assembly.js'
 import { prisma } from '../../config/database.js'
+import { log } from '../../utils/logger.js'
 
-export async function startProcessing(moduleId: string) {
-  // Use the queue to ensure only one job runs at a time
-  return runOneAtATime(async () => {
-    // Mark as processing
-    await ModuleService.markProcessing(moduleId)
-    
-    try {
-      // Get module to access s3Key
-      const mod = await prisma.module.findUniqueOrThrow({ where: { id: moduleId } });
+/**
+ * Starts processing for a module:
+ * 1) mark PROCESSING
+ * 2) require s3Key
+ * 3) get signed media URL
+ * 4) submit AssemblyAI job (async)
+ * 5) store transcriptJobId; webhook completes pipeline
+ */
+export async function startProcessing(
+  moduleId: string
+): Promise<{ ok: boolean; transcriptJobId?: string }> {
+  log.info(`🚀 [${moduleId}] startProcessing invoked`)
 
-      // Update progress
-      await prisma.module.update({
-        where: { id: moduleId },
-        data: { status: "PROCESSING", progress: 5 }
-      });
-
-      // get a short-lived signed read URL for the uploaded video
-      const mediaUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key!);
-
-      // submit async job to AssemblyAI
-      const transcriptJobId = await submitTranscriptJob({ mediaUrl, moduleId });
-
-      await prisma.module.update({
-        where: { id: moduleId },
-        data: { transcriptJobId, progress: 15 }
-      });
-
-      // stop here — webhook will finish
-      console.log(`✅ AssemblyAI job submitted for module ${moduleId}, jobId: ${transcriptJobId}`)
-      
-    } catch (e: any) {
-      const msg = String(e?.message || e)
-      console.error('processing failed', msg)
-      await ModuleService.markError(moduleId, msg)
+  try {
+    const mod = await ModuleService.getModuleById(moduleId)
+    if (!mod) {
+      log.error(`❌ [${moduleId}] Module not found`)
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
+      return { ok: false }
     }
-  })
+
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 5)
+
+    if (!mod.s3Key) {
+      const msg = 'missing s3Key on module'
+      log.error(`❌ [${moduleId}] ${msg}`)
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
+      await prisma.module.update({ where: { id: moduleId }, data: { lastError: msg } })
+      return { ok: false }
+    }
+
+    let mediaUrl: string
+    try {
+      mediaUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key)
+    } catch (e) {
+      const msg = `failed to sign playback URL: ${(e as Error)?.message || e}`
+      log.error(`❌ [${moduleId}] ${msg}`)
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
+      await prisma.module.update({ where: { id: moduleId }, data: { lastError: msg } })
+      return { ok: false }
+    }
+
+    log.info(`🎙️ [${moduleId}] Submitting AssemblyAI job...`)
+    const transcriptJobId = await submitTranscriptJob({ mediaUrl, moduleId })
+
+    await prisma.module.update({
+      where: { id: moduleId },
+      data: { transcriptJobId, progress: 15 }
+    })
+    log.info(`✅ [${moduleId}] AssemblyAI job submitted: ${transcriptJobId}`)
+    log.info(`🧵 [${moduleId}] startProcessing complete (awaiting webhook)`)
+
+    // Do not mark READY here; webhook will finalize.
+    return { ok: true, transcriptJobId }
+  } catch (err: any) {
+    const msg = err?.message || 'unknown processing error'
+    log.error(`💥 [${moduleId}] startProcessing failed: ${msg}`)
+    log.error(err?.stack || err)
+    try {
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED')
+      await prisma.module.update({ where: { id: moduleId }, data: { lastError: msg } })
+    } catch (persistErr) {
+      log.error(`⚠️ [${moduleId}] failed to persist FAILED state:`, persistErr)
+    }
+    return { ok: false }
+  }
 }
