@@ -4,46 +4,49 @@ import fetch from 'node-fetch'
 import { prisma } from '../config/database.js'
 import { ModuleService } from '../services/moduleService.js'
 
-export const webhooks = Router()
+const router = Router()
 
-// Safe timing-safe comparison that won't throw on length mismatch
-function safeEq(a: Buffer, b: Buffer): boolean {
+function safeEq(a: Buffer, b: Buffer) {
   return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
-// NOTE: this route receives raw body (set in server.ts)
-webhooks.post('/assemblyai', async (req: any, res) => {
+// IMPORTANT: In server.ts, this route is mounted with express.raw()!
+// app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }), webhooksRouter)
+
+router.post('/assemblyai', async (req, res) => {
   try {
-    const moduleId = (req.query.moduleId as string) || ''
+    const moduleId = req.query.moduleId as string
     if (!moduleId) {
       console.warn('❌ [WEBHOOK] Missing moduleId in query params')
-      return res.status(400).send('missing moduleId')
+      return res.status(400).send('Missing moduleId')
     }
 
     console.log(`🎣 [WEBHOOK] AssemblyAI webhook received for module: ${moduleId}`)
 
-    // OPTIONAL: verify shared token you appended to webhook URL
-    const token = (req.query.token as string) || ''
+    // Optional: verify token you append in webhook_url
+    const token = req.query.token as string
     if (process.env.NODE_ENV === 'production') {
-      if (!token || token !== process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
-        console.warn('❌ [WEBHOOK] Bad token in production')
-        return res.status(401).send('bad token')
+      if (token !== process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
+        console.warn('❌ [WEBHOOK] Invalid token in production')
+        return res.status(401).send('Invalid token')
       }
     }
 
-    // HMAC verification on raw body (if signature header is present)
-    const hdr = req.header('aai-signature') || req.header('x-aai-signature') || ''
-    if (hdr && process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
+    // Optional HMAC check if you want to enforce AssemblyAI's header
+    const sig = req.header('aai-signature') || req.header('x-aai-signature') || ''
+    if (sig && process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
       try {
-        const expected = crypto.createHmac('sha256', process.env.ASSEMBLYAI_WEBHOOK_SECRET)
-          .update(Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body))
-          .digest('base64') // match their encoding
-        
-        if (!safeEq(Buffer.from(expected), Buffer.from(hdr))) {
-          console.warn('❌ [WEBHOOK] Invalid signature')
+        const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body)
+        const expected = crypto
+          .createHmac('sha256', process.env.ASSEMBLYAI_WEBHOOK_SECRET)
+          .update(raw)
+          .digest('base64')
+
+        if (!safeEq(Buffer.from(expected), Buffer.from(sig))) {
+          console.warn('⚠️ [WEBHOOK] AssemblyAI signature mismatch')
           return res.status(401).send('invalid signature')
         }
-        console.log('✅ [WEBHOOK] Signature verified successfully')
+        console.log('✅ [WEBHOOK] AssemblyAI signature verified successfully')
       } catch (hmacErr) {
         console.error('❌ [WEBHOOK] HMAC verification error:', hmacErr)
         // In development, continue anyway
@@ -53,15 +56,12 @@ webhooks.post('/assemblyai', async (req: any, res) => {
       }
     }
 
-    // Parse JSON from raw body
-    const payload = JSON.parse(req.body.toString('utf8'))
+    // Parse body from raw buffer
+    const payload = JSON.parse(
+      Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body)
+    )
+    
     console.log(`📋 [WEBHOOK] Payload status: ${payload.status}, transcript_id: ${payload.id}`)
-
-    // Only act when completed
-    if (payload.status !== 'completed' && payload.status !== 'completed_with_error') {
-      console.log(`⏭️ [WEBHOOK] Ignoring status: ${payload.status}`)
-      return res.status(200).send('ignored')
-    }
 
     if (payload.status === 'completed') {
       console.log(`✅ [WEBHOOK] Transcription completed for module: ${moduleId}`)
@@ -71,15 +71,12 @@ webhooks.post('/assemblyai', async (req: any, res) => {
       console.log(`⏳ [${moduleId}] Progress: 70% - Transcription completed, generating steps`)
       
       try {
-        // Fetch transcript text using transcript_id from payload
         const transcriptId = payload.id || payload.transcript_id
         console.log(`📥 [WEBHOOK] Fetching transcript text for ID: ${transcriptId}`)
         
+        // Fetch transcript text using transcript_id from payload
         const resp = await fetch(`https://api.assemblyai.com/v2/transcripts/${transcriptId}`, {
-          headers: { 
-            Authorization: process.env.ASSEMBLYAI_API_KEY!,
-            'Content-Type': 'application/json'
-          }
+          headers: { Authorization: process.env.ASSEMBLYAI_API_KEY! }
         })
         
         if (!resp.ok) {
@@ -149,8 +146,7 @@ webhooks.post('/assemblyai', async (req: any, res) => {
         return res.status(200).send('transcript fetch failed')
       }
       
-    } else {
-      // completed_with_error
+    } else if (payload.status === 'error' || payload.status === 'completed_with_error') {
       console.log(`❌ [WEBHOOK] Transcription failed for module: ${moduleId}`)
       
       await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0)
@@ -165,6 +161,10 @@ webhooks.post('/assemblyai', async (req: any, res) => {
       
       console.log(`❌ [${moduleId}] Transcription failed: ${payload.error}`)
       return res.status(200).send('transcription failed')
+    } else {
+      // Ignore other statuses (queued, processing, etc.)
+      console.log(`⏭️ [WEBHOOK] Ignoring status: ${payload.status}`)
+      return res.status(200).send('ignored')
     }
     
   } catch (err) {
@@ -173,3 +173,5 @@ webhooks.post('/assemblyai', async (req: any, res) => {
     return res.status(200).send('webhook processing failed')
   }
 })
+
+export { router as webhooks }

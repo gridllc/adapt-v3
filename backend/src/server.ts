@@ -167,7 +167,7 @@ const configureMiddleware = () => {
   // Rate limiting is applied at the route level for better control
 
   // Raw body parsing for webhook signature verification (MUST come before express.json)
-  app.use('/webhooks/assemblyai', express.raw({ type: 'application/json' }))
+  app.use('/webhooks/assemblyai', express.raw({ type: '*/*' }))
 
   // Body parsing middleware (reduced since we're not receiving file bytes anymore)
   app.use(express.json({ limit: '2mb' }))  // Increased for webhook JSON
