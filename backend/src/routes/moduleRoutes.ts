@@ -91,6 +91,34 @@ moduleRoutes.get('/:id/status', async (req, res) => {
   }
 })
 
+// GET /api/modules/:id/transcript -> get transcript text
+moduleRoutes.get('/:id/transcript', async (req, res) => {
+  try {
+    const id = req.params.id
+    const mod = await ModuleService.get(id)
+    if (!mod) return res.status(404).json({ success: false, error: 'not_found' })
+    
+    if (!mod.transcriptText) {
+      return res.json({ 
+        success: true, 
+        transcript: '', 
+        hasTranscript: false,
+        message: 'Transcript not yet available'
+      })
+    }
+    
+    return res.json({ 
+      success: true, 
+      transcript: mod.transcriptText, 
+      hasTranscript: true,
+      transcriptLength: mod.transcriptText.length
+    })
+  } catch (e) {
+    console.error('GET /api/modules/:id/transcript failed', e)
+    return res.status(500).json({ success: false, error: 'failed_to_get_transcript' })
+  }
+})
+
 // DELETE /api/modules/:id -> delete module and associated data
 moduleRoutes.delete('/:id', async (req, res) => {
   try {

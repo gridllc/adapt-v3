@@ -1,165 +1,175 @@
 import { Router } from 'express'
 import crypto from 'crypto'
+import fetch from 'node-fetch'
 import { prisma } from '../config/database.js'
 import { ModuleService } from '../services/moduleService.js'
-
-// AssemblyAI SDK v4 - we'll use manual HMAC verification for now
-// import { webhook as aaiWebhook } from 'assemblyai'
 
 export const webhooks = Router()
 
 // Safe timing-safe comparison that won't throw on length mismatch
-function safeTimingEqual(a: Buffer, b: Buffer): boolean {
-  if (a.length !== b.length) {
-    console.warn(`⚠️ Signature length mismatch: expected ${a.length}, got ${b.length}`)
-    return false
-  }
-  try {
-    return crypto.timingSafeEqual(a, b)
-  } catch (err) {
-    console.warn('⚠️ Timing-safe comparison failed:', err)
-    return false
-  }
+function safeEq(a: Buffer, b: Buffer): boolean {
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
 // NOTE: this route receives raw body (set in server.ts)
 webhooks.post('/assemblyai', async (req: any, res) => {
-  const secret = process.env.ASSEMBLYAI_WEBHOOK_SECRET
-  const NODE_ENV = process.env.NODE_ENV || 'development'
-  
-  if (!secret) {
-    console.warn('⚠️ ASSEMBLYAI_WEBHOOK_SECRET missing — accepting webhook (dev mode)')
-  }
-
   try {
-    // req.body is a Buffer because of express.raw()
-    const rawBody = req.body instanceof Buffer ? req.body : Buffer.from(JSON.stringify(req.body))
-    const rawBodyString = rawBody.toString('utf8')
-    
-    // Get signature from headers (try multiple possible header names)
-    const sig = req.get('aai-signature') ||           // AssemblyAI's current header (lowercase)
-                req.get('AAI-Signature') ||            // AssemblyAI's current header (uppercase)
-                req.get('x-aai-signature') ||          // legacy/edge cases
-                req.get('X-AAI-Signature') ||          // legacy/edge cases
-                req.get('Authorization') || ''          // some older examples used this
+    const moduleId = (req.query.moduleId as string) || ''
+    if (!moduleId) {
+      console.warn('❌ [WEBHOOK] Missing moduleId in query params')
+      return res.status(400).send('missing moduleId')
+    }
 
-    console.log(`🔐 [WEBHOOK] Signature header: ${sig ? 'present' : 'missing'}`)
-    console.log(`🔐 [WEBHOOK] Raw body length: ${rawBody.length} bytes`)
-    console.log(`🔐 [WEBHOOK] Raw body preview: ${rawBodyString.substring(0, 100)}...`)
+    console.log(`🎣 [WEBHOOK] AssemblyAI webhook received for module: ${moduleId}`)
 
-    let verified = true
-    if (secret && sig) {
+    // OPTIONAL: verify shared token you appended to webhook URL
+    const token = (req.query.token as string) || ''
+    if (process.env.NODE_ENV === 'production') {
+      if (!token || token !== process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
+        console.warn('❌ [WEBHOOK] Bad token in production')
+        return res.status(401).send('bad token')
+      }
+    }
+
+    // HMAC verification on raw body (if signature header is present)
+    const hdr = req.header('aai-signature') || req.header('x-aai-signature') || ''
+    if (hdr && process.env.ASSEMBLYAI_WEBHOOK_SECRET) {
       try {
-        // HMAC SHA256 of raw body - use base64 encoding to match AssemblyAI
-        const expectedHmac = crypto.createHmac('sha256', secret).update(rawBody).digest('base64')
+        const expected = crypto.createHmac('sha256', process.env.ASSEMBLYAI_WEBHOOK_SECRET)
+          .update(Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body))
+          .digest('base64') // match their encoding
         
-        // Clean the received signature (remove 'sha256=' prefix if present)
-        const cleanedSig = sig.startsWith('sha256=') ? sig.slice(7) : sig
-        
-        console.log(`🔐 [WEBHOOK] Expected HMAC (base64): ${expectedHmac}`)
-        console.log(`🔐 [WEBHOOK] Received signature: ${cleanedSig}`)
-        console.log(`🔐 [WEBHOOK] Expected length: ${expectedHmac.length}, received length: ${cleanedSig.length}`)
-        
-        // Use safe comparison that won't throw on length mismatch
-        verified = safeTimingEqual(Buffer.from(expectedHmac), Buffer.from(cleanedSig))
-        
-        if (!verified) {
-          console.warn('⚠️ AssemblyAI webhook signature failed verification')
-          // In development, accept anyway to unblock the pipeline
-          if (NODE_ENV === 'development') {
-            console.warn('⚠️ Development mode: accepting webhook despite signature failure')
-            verified = true
-          } else {
-            return res.status(401).json({ ok: false, error: 'invalid signature' })
-          }
-        } else {
-          console.log('✅ AssemblyAI webhook signature verified successfully')
+        if (!safeEq(Buffer.from(expected), Buffer.from(hdr))) {
+          console.warn('❌ [WEBHOOK] Invalid signature')
+          return res.status(401).send('invalid signature')
         }
+        console.log('✅ [WEBHOOK] Signature verified successfully')
       } catch (hmacErr) {
-        console.error('❌ HMAC verification error:', hmacErr)
-        // In development, accept anyway to unblock the pipeline
-        if (NODE_ENV === 'development') {
-          console.warn('⚠️ Development mode: accepting webhook despite HMAC error')
-          verified = true
-        } else {
-          return res.status(401).json({ ok: false, error: 'hmac verification failed' })
+        console.error('❌ [WEBHOOK] HMAC verification error:', hmacErr)
+        // In development, continue anyway
+        if (process.env.NODE_ENV === 'production') {
+          return res.status(401).send('hmac verification failed')
         }
       }
     }
 
-    const payload = JSON.parse(rawBodyString)
-    const moduleId = req.query.moduleId as string
+    // Parse JSON from raw body
+    const payload = JSON.parse(req.body.toString('utf8'))
+    console.log(`📋 [WEBHOOK] Payload status: ${payload.status}, transcript_id: ${payload.id}`)
 
-    console.log('🎣 AssemblyAI webhook received:', { moduleId, status: payload.status, transcript_id: payload.id })
-
-    if (!moduleId) {
-      return res.status(400).json({ ok: false, error: 'missing moduleId' })
+    // Only act when completed
+    if (payload.status !== 'completed' && payload.status !== 'completed_with_error') {
+      console.log(`⏭️ [WEBHOOK] Ignoring status: ${payload.status}`)
+      return res.status(200).send('ignored')
     }
 
-    // You'll see statuses like: queued → processing → completed | error
     if (payload.status === 'completed') {
+      console.log(`✅ [WEBHOOK] Transcription completed for module: ${moduleId}`)
+      
       // Step 5: Transcription completed, generating steps
       await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 70)
       console.log(`⏳ [${moduleId}] Progress: 70% - Transcription completed, generating steps`)
       
-      // 1) Save transcript
+      try {
+        // Fetch transcript text using transcript_id from payload
+        const transcriptId = payload.id || payload.transcript_id
+        console.log(`📥 [WEBHOOK] Fetching transcript text for ID: ${transcriptId}`)
+        
+        const resp = await fetch(`https://api.assemblyai.com/v2/transcripts/${transcriptId}`, {
+          headers: { 
+            Authorization: process.env.ASSEMBLYAI_API_KEY!,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (!resp.ok) {
+          throw new Error(`AssemblyAI API error: ${resp.status} ${resp.statusText}`)
+        }
+        
+        const data: any = await resp.json()
+        const text = data.text || ''
+        
+        console.log(`📝 [WEBHOOK] Transcript text length: ${text.length} characters`)
+        console.log(`📝 [WEBHOOK] Transcript preview: ${text.substring(0, 100)}...`)
+        
+        // Save transcript to database
+        await prisma.module.update({
+          where: { id: moduleId },
+          data: {
+            transcriptText: text,
+            lastError: null // Clear any previous errors
+          }
+        })
+        console.log(`💾 [WEBHOOK] Transcript saved to database`)
+        
+        // Generate steps from transcript using StepsService
+        try {
+          const { StepsService } = await import('../services/ai/stepsService.js')
+          const steps = await StepsService.buildFromTranscript(text)
+          
+          if (steps.length) {
+            // Replace old steps
+            await prisma.step.deleteMany({ where: { moduleId } })
+            await prisma.step.createMany({
+              data: steps.map((s: any, i: number) => ({
+                id: undefined as any, // auto
+                moduleId,
+                order: s.order ?? i + 1,
+                text: s.text ?? "",
+                startTime: Math.max(0, Math.floor(s.startTime ?? 0)),
+                endTime: Math.max(0, Math.floor(s.endTime ?? (s.startTime ?? 0) + 5)),
+              })),
+            })
+            console.log(`✅ [${moduleId}] ${steps.length} steps created`)
+          }
+        } catch (stepErr) {
+          console.warn('⚠️ [WEBHOOK] Step generation failed (non-blocking):', stepErr)
+        }
+        
+        // Step 6: Finalizing and marking READY
+        await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 90)
+        console.log(`⏳ [${moduleId}] Progress: 90% - Finalizing`)
+        
+        // Final status update to READY
+        await ModuleService.updateModuleStatus(moduleId, 'READY', 100)
+        console.log(`✅ [${moduleId}] Module completed: READY, progress: 100%`)
+        
+        return res.status(200).send('ok')
+        
+      } catch (fetchErr) {
+        console.error('❌ [WEBHOOK] Failed to fetch transcript:', fetchErr)
+        
+        // Mark as failed but don't break the webhook
+        await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0)
+        await prisma.module.update({ 
+          where: { id: moduleId }, 
+          data: { lastError: `Failed to fetch transcript: ${fetchErr}` } 
+        })
+        
+        return res.status(200).send('transcript fetch failed')
+      }
+      
+    } else {
+      // completed_with_error
+      console.log(`❌ [WEBHOOK] Transcription failed for module: ${moduleId}`)
+      
+      await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0)
       await prisma.module.update({
         where: { id: moduleId },
-        data: {
-          transcriptText: payload.text ?? null,
-          lastError: null // Clear any previous errors
+        data: { 
+          status: 'FAILED', 
+          lastError: payload.error || 'transcription failed', 
+          progress: 0 
         }
       })
-
-      // 2) Generate steps from transcript using our StepsService
-      try {
-        const { StepsService } = await import('../services/ai/stepsService.js')
-        const steps = await StepsService.buildFromTranscript(payload.text ?? '')
-        
-        if (steps.length) {
-          // Replace old steps
-          await prisma.step.deleteMany({ where: { moduleId } })
-          await prisma.step.createMany({
-            data: steps.map((s: any, i: number) => ({
-              id: undefined as any, // auto
-              moduleId,
-              order: s.order ?? i + 1,
-              text: s.text ?? "",
-              startTime: Math.max(0, Math.floor(s.startTime ?? 0)),
-              endTime: Math.max(0, Math.floor(s.endTime ?? (s.startTime ?? 0) + 5)),
-            })),
-          })
-          console.log(`✅ [${moduleId}] ${steps.length} steps created`)
-        }
-      } catch (e) {
-        console.warn('Step generation failed (non-blocking):', e)
-      }
-
-      // Step 6: Finalizing and marking READY
-      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 90)
-      console.log(`⏳ [${moduleId}] Progress: 90% - Finalizing`)
       
-      // Final status update to READY
-      await ModuleService.updateModuleStatus(moduleId, 'READY', 100)
-      console.log(`✅ [${moduleId}] transcript saved, status: READY, progress: 100%`)
-      
-    } else if (payload.status === 'error') {
-      await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0)
-      console.log(`❌ [${moduleId}] transcription failed: ${payload.error}`)
-    } else {
-      // processing/queued — update progress based on status
-      let progress = 50 // Default for processing
-      if (payload.status === 'queued') progress = 45
-      if (payload.status === 'processing') progress = 50
-      
-      await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', progress)
-      console.log(`⏳ [${moduleId}] status: ${payload.status}, progress: ${progress}%`)
+      console.log(`❌ [${moduleId}] Transcription failed: ${payload.error}`)
+      return res.status(200).send('transcription failed')
     }
-
-    return res.json({ ok: true })
+    
   } catch (err) {
-    console.error('❌ Webhook handler error:', err)
-    // Don't break the pipeline on webhook errors - return 200
-    return res.status(200).json({ ok: false, error: 'webhook processing failed' })
+    console.error('❌ [WEBHOOK] Webhook handler error:', err)
+    // Never block completion loop on webhook—ack and let polling re-try reads
+    return res.status(200).send('webhook processing failed')
   }
 })

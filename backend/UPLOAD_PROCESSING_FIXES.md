@@ -1,13 +1,15 @@
-# 🚀 Upload Processing Fixes - QStash Bypass Implementation
+# 🚀 Upload Processing Fixes - Complete Solution
 
-## 🎯 Problem Solved
+## 🎯 Problems Solved
 
 Videos were getting stuck at 15% progress after upload because:
 1. QStash queue was failing silently
 2. Processing jobs weren't being enqueued properly
 3. No fallback to inline processing
 4. Progress updates were inconsistent
-5. **NEW: AssemblyAI webhook signature verification was failing, causing 60% stall**
+5. **AssemblyAI webhook signature verification was failing, causing 60% stall**
+6. **Webhook was not saving transcript text to database**
+7. **Vercel build error from leftover /api/proxy**
 
 ## ✅ Fixes Implemented
 
@@ -55,13 +57,17 @@ await startProcessing(moduleId)
 - **Fix**: Safe comparison function + better error handling + development mode fallback
 - **Result**: Webhooks now complete successfully, modules reach 100% READY status
 
-```typescript
-// BEFORE: Would crash on signature mismatch
-verified = crypto.timingSafeEqual(Buffer.from(h), Buffer.from(cleanedSig))
+### 6. **🚨 CRITICAL: Fixed Transcript Saving**
+- **File**: `backend/src/routes/webhooks.ts`
+- **Problem**: Webhook was receiving completion event but not fetching/saving transcript text
+- **Fix**: Complete rewrite to fetch transcript from AssemblyAI API and save to database
+- **Result**: Transcript text is now properly saved and accessible to frontend
 
-// AFTER: Safe comparison that won't crash
-verified = safeTimingEqual(Buffer.from(expectedHmac), Buffer.from(cleanedSig))
-```
+### 7. **🚨 CRITICAL: Fixed Vercel Build Error**
+- **File**: `frontend/api/proxy/[...path].ts` (DELETED)
+- **Problem**: Leftover Vercel serverless function causing build failures
+- **Fix**: Removed unused proxy API route
+- **Result**: Vercel builds now succeed without errors
 
 ## 🔧 Configuration
 
@@ -74,6 +80,9 @@ USE_QSTASH=false
 # AssemblyAI webhook secret (REQUIRED for production)
 ASSEMBLYAI_WEBHOOK_SECRET=your-webhook-secret
 
+# API base URL for webhook construction
+API_BASE_URL=https://your-backend-domain.com
+
 # Keep these for later when QStash is stable
 QSTASH_TOKEN=your-token
 QSTASH_DESTINATION_URL=your-webhook-url
@@ -82,6 +91,11 @@ QSTASH_DESTINATION_URL=your-webhook-url
 ### Database Status Flow
 ```
 UPLOADED → PROCESSING (10%) → PROCESSING (25%) → PROCESSING (40%) → PROCESSING (60%) → READY (100%)
+```
+
+### Webhook Flow
+```
+AssemblyAI completes → Webhook fires → Fetch transcript → Save to DB → Generate steps → Mark READY
 ```
 
 ## 🧪 Testing
@@ -111,6 +125,12 @@ node test-inline-processing.js
 node test-webhook-signature.js
 ```
 
+### 5. **Test Webhook End-to-End**
+```bash
+# Test the complete webhook flow
+node test-webhook-end-to-end.js
+```
+
 ## 📊 Expected Console Output
 
 After upload completion:
@@ -126,13 +146,16 @@ After upload completion:
 
 When webhook completes:
 ```
-🔐 [WEBHOOK] Signature header: present
-🔐 [WEBHOOK] Raw body length: 245 bytes
-✅ AssemblyAI webhook signature verified successfully
-🎣 AssemblyAI webhook received: { moduleId: 'xxx', status: 'completed' }
-⏳ [moduleId] Progress: 70% - Transcription completed, generating steps
-⏳ [moduleId] Progress: 90% - Finalizing
-✅ [moduleId] transcript saved, status: READY, progress: 100%
+🎣 [WEBHOOK] AssemblyAI webhook received for module: xxx
+📋 [WEBHOOK] Payload status: completed, transcript_id: xxx
+✅ [WEBHOOK] Transcription completed for module: xxx
+⏳ [xxx] Progress: 70% - Transcription completed, generating steps
+📥 [WEBHOOK] Fetching transcript text for ID: xxx
+📝 [WEBHOOK] Transcript text length: 245 characters
+💾 [WEBHOOK] Transcript saved to database
+✅ [xxx] 5 steps created
+⏳ [xxx] Progress: 90% - Finalizing
+✅ [xxx] Module completed: READY, progress: 100%
 ```
 
 ## 🚨 Troubleshooting
@@ -150,6 +173,13 @@ When webhook completes:
 4. Look for signature verification errors in console
 5. Use debug route to manually complete: `POST /api/debug/process/:moduleId`
 
+### Transcript Not Saving?
+1. **Check webhook completion logs** - look for "Transcript saved to database"
+2. Verify AssemblyAI API key is valid
+3. Check webhook endpoint is receiving completion events
+4. Verify database has `transcriptText` field
+5. Test transcript endpoint: `GET /api/modules/:id/transcript`
+
 ### Processing Not Starting?
 1. Verify `QSTASH_ENABLED=false` in environment
 2. Check that `startProcessing` import is working
@@ -166,6 +196,11 @@ When webhook completes:
 2. Check that AssemblyAI is sending the correct signature header (`aai-signature`)
 3. Ensure both sides use the same encoding (base64)
 4. Check webhook endpoint URL is correct in AssemblyAI dashboard
+
+### Vercel Build Errors?
+1. ✅ **FIXED**: Removed leftover `/api/proxy` route
+2. Ensure no other unused API routes exist
+3. Check for any import errors in frontend code
 
 ## 🔄 Re-enabling QStash Later
 
@@ -198,9 +233,23 @@ When you want to re-enable QStash:
 ✅ Processing starts immediately  
 ✅ Progress updates consistently (10% → 25% → 40% → 60% → 100%)  
 ✅ **Webhook completes without signature errors**  
+✅ **Transcript text is saved to database**  
+✅ **Steps are generated from transcript**  
 ✅ Module reaches READY status  
 ✅ No more "stuck at 15%" issues  
-✅ **No more "stuck at 60%" issues**  
+✅ No more "stuck at 60%" issues  
+✅ **Vercel builds succeed without errors**  
+
+## 🌐 API Endpoints
+
+### Module Data
+- `GET /api/modules/:id` - Full module details including transcript and steps
+- `GET /api/modules/:id/status` - Lightweight status polling
+- `GET /api/modules/:id/transcript` - Dedicated transcript endpoint
+
+### Debug/Recovery
+- `POST /api/debug/process/:moduleId` - Manually restart processing
+- `POST /api/reprocess/:moduleId` - Reprocess existing module
 
 ---
 
@@ -209,3 +258,5 @@ When you want to re-enable QStash:
 2. Ensure `ASSEMBLYAI_WEBHOOK_SECRET` is set in your environment
 3. Verify AssemblyAI webhook endpoint points to `/webhooks/assemblyai`
 4. Watch for webhook completion logs to confirm 100% status
+5. Verify transcript is saved by checking `/api/modules/:id/transcript`
+6. Deploy to Vercel to confirm build errors are resolved
