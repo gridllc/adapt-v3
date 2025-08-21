@@ -1,4 +1,4 @@
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit'
+import rateLimit from 'express-rate-limit'
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 
@@ -10,8 +10,8 @@ const COMMON = {
   // IMPORTANT: tell express-rate-limit we intentionally trust the proxy
   trustProxy: true,
 
-  // ⚠️ IMPORTANT: use ipKeyGenerator() if you want IP-based keys (IPv4/IPv6 safe)
-  keyGenerator: ipKeyGenerator,
+  // ⚠️ IMPORTANT: Remove custom keyGenerator to let express-rate-limit handle IPv6 safely
+  // The default keyGenerator will work correctly with trustProxy: true
 
   // don't count health / preflight
   skip: (req: any) => req.method === 'OPTIONS' || req.path === '/api/health',
