@@ -40,5 +40,41 @@ export const UserService = {
       where: { id: clerkUserId },
       data: { email }
     });
+  },
+
+  // Get user ID from request (for authenticated routes)
+  async getUserIdFromRequest(req: any): Promise<string | null> {
+    try {
+      // The auth middleware adds userId to the request
+      if (req.userId) {
+        return req.userId;
+      }
+      
+      // Fallback to Clerk user ID if available
+      const clerkUser = req.auth?.userId;
+      
+      if (!clerkUser) {
+        return null;
+      }
+
+      const user = await this.getByClerkId(clerkUser);
+      return user?.id || null;
+    } catch (error) {
+      console.error('❌ Error getting user ID from request:', error);
+      return null;
+    }
+  },
+
+  // Check if user owns a module
+  async userOwnsModule(userId: string, moduleId: string): Promise<boolean> {
+    try {
+      const module = await prisma.module.findUnique({
+        where: { id: moduleId }
+      });
+      return module?.userId === userId;
+    } catch (error) {
+      console.error('❌ Error checking module ownership:', error);
+      return false;
+    }
   }
 }; 

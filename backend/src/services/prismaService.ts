@@ -21,6 +21,7 @@ export default prisma
 export class DatabaseService {
   // User operations
   static async createUser(data: {
+    id: string
     email: string
     clerkId?: string
   }) {
