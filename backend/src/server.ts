@@ -3,6 +3,7 @@ import { ensureEnv } from './config/env.js'
 import express from 'express'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
+import cors from 'cors'
 import { rateLimiters, securityHeaders, sanitizeInput } from './middleware/security.js'
 import { logger, addRequestId, httpLogging } from './utils/structuredLogger.js'
 import path from 'path'
@@ -47,41 +48,7 @@ const __dirname = path.dirname(__filename)
 // Server configuration
 const app = express()
 
-// Exact origins that are allowed to call your API
-const ALLOW = new Set<string>([
-  'https://adaptord.com',
-  'https://app.adaptord.com',
-  'http://localhost:5173',
-])
 
-// Global CORS shim — runs before everything else
-app.use((req, res, next) => {
-  const origin = req.headers.origin as string | undefined
-
-  if (origin && ALLOW.has(origin)) {
-    // Required for credentials mode
-    res.setHeader('Access-Control-Allow-Origin', origin)
-    res.setHeader('Vary', 'Origin')
-    res.setHeader('Access-Control-Allow-Credentials', 'true')
-
-    // Methods allowed
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,HEAD')
-
-    // Echo back whatever headers the browser asked to send in preflight
-    const reqHeaders = (req.headers['access-control-request-headers'] as string) || ''
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      reqHeaders || 'Authorization, Content-Type, Cache-Control, Pragma, X-Requested-With'
-    )
-
-    // Useful when reading lengths/ETag on GETs
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, ETag')
-  }
-
-  // Handle preflight immediately
-  if (req.method === 'OPTIONS') return res.sendStatus(204)
-  next()
-})
 
 // Health (so probes don't 502)
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
@@ -163,7 +130,23 @@ const configureMiddleware = () => {
   // Input sanitization
   app.use(sanitizeInput)
 
-  // Note: CORS is now handled manually at the top of the app
+  // CORS configuration
+  const allow = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  app.use(cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl / server-to-server
+      const ok =
+        allow.includes(origin) ||
+        /\.vercel\.app$/i.test(new URL(origin).hostname); // allow Vercel previews
+      cb(ok ? null : new Error("CORS blocked"), ok);
+    },
+    credentials: true,
+  }));
+
   // Rate limiting is applied at the route level for better control
 
   // Body parsing middleware - normal JSON for all routes
@@ -485,7 +468,7 @@ const configureErrorHandling = () => {
   app.use((req, res) => {
     // Set CORS headers even for 404s
     const origin = req.headers.origin as string | undefined
-    if (origin && ALLOW.has(origin)) {
+    if (origin && (allow.includes(origin) || /\.vercel\.app$/i.test(new URL(origin).hostname))) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Access-Control-Allow-Credentials', 'true')
     }
@@ -501,7 +484,7 @@ const configureErrorHandling = () => {
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Set CORS headers even for errors
     const origin = req.headers.origin as string | undefined
-    if (origin && ALLOW.has(origin)) {
+    if (origin && (allow.includes(origin) || /\.vercel\.app$/i.test(new URL(origin).hostname))) {
       res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Access-Control-Allow-Credentials', 'true')
     }
