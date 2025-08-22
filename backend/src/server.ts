@@ -48,7 +48,11 @@ const __dirname = path.dirname(__filename)
 // Server configuration
 const app = express()
 
-
+// ---- CORS Configuration (top level for access by all middleware) ----
+const allow = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
 
 // Health (so probes don't 502)
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
@@ -130,12 +134,7 @@ const configureMiddleware = () => {
   // Input sanitization
   app.use(sanitizeInput)
 
-  // CORS configuration
-  const allow = (process.env.CORS_ORIGINS || "")
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean);
-
+  // CORS configuration (using top-level allow variable)
   app.use(cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true); // curl / server-to-server
