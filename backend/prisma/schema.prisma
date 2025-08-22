@@ -67,7 +67,7 @@ model Step {
   text           String
   startTime      Int
   endTime        Int
-  aliases        Json?      // store string[]
+  aliases        String[]   @default([])  // PostgreSQL text[] array
   notes          String?
   updatedAt      DateTime   @updatedAt
   questions      Question[]
