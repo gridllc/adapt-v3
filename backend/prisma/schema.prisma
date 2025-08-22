@@ -67,6 +67,8 @@ model Step {
   text           String
   startTime      Int
   endTime        Int
+  aliases        Json?      // store string[]
+  notes          String?
   updatedAt      DateTime   @updatedAt
   questions      Question[]
   module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
