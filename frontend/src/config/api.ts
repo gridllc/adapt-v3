@@ -1,5 +1,5 @@
-// Hard-force same-origin in prod so the browser hits /api on adaptord.com
-export const API_BASE = '';  // ← yes, empty string
+// Use environment variable for API base URL, fallback to relative for development
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 // API configuration
 export const API_CONFIG = {

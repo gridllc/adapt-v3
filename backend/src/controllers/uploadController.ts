@@ -15,13 +15,12 @@ export async function initUpload(req: Request, res: Response) {
       return res.status(400).json({ success: false, error: "missing_filename" });
     }
 
-    const moduleId = uuidv4();
     const s3Key = `training/${Date.now()}-${filename}`;
 
-    // create DB record in UPLOADED state
+    // create DB record using existing service method
     const module = await ModuleService.createForFilename(filename);
     
-    // update the module with our generated moduleId and s3Key
+    // update the module with s3Key
     await ModuleService.markUploaded(module.id, s3Key);
 
     // presigned PUT url
@@ -40,6 +39,8 @@ export async function initUpload(req: Request, res: Response) {
       // common aliases so UI code doesn't throw
       uploadUrl: presigned.url,
       putUrl: presigned.url,
+      presignedUrl: presigned.url, // frontend expects this
+      key: s3Key, // frontend expects this
       upload: {
         method: "PUT",
         url: presigned.url,
