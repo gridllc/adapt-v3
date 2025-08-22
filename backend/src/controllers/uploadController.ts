@@ -10,33 +10,46 @@ import { log } from "../utils/logger.js";
 // ===== INIT UPLOAD =====
 export async function initUpload(req: Request, res: Response) {
   try {
-    const { filename } = req.body;
-    if (!filename) {
-      return res.status(400).json({ success: false, error: "Missing filename" });
+    const { filename, contentType } = req.body || {};
+    if (!filename || typeof filename !== "string") {
+      return res.status(400).json({ success: false, error: "missing_filename" });
     }
 
     const moduleId = uuidv4();
     const s3Key = `training/${Date.now()}-${filename}`;
 
-    // Create DB record
+    // create DB record in UPLOADED state
     const module = await ModuleService.createForFilename(filename);
+    
+    // update the module with our generated moduleId and s3Key
+    await ModuleService.markUploaded(module.id, s3Key);
 
-    // Presigned PUT URL for S3 upload
+    // presigned PUT url
     const presigned = await presignedUploadService.presignPut({ 
       key: s3Key, 
-      contentType: 'video/mp4' 
+      contentType: contentType || "video/mp4" 
     });
 
-    log.info("📥 [UPLOAD INIT] Created module", { moduleId, s3Key });
+    log.info("📥 [UPLOAD INIT] Created module", { moduleId: module.id, s3Key });
 
-    return res.json({
+    // return a response that satisfies strict frontends
+    return res.status(200).json({
       success: true,
-      module,
+      moduleId: module.id,
+      s3Key,
+      // common aliases so UI code doesn't throw
       uploadUrl: presigned.url,
+      putUrl: presigned.url,
+      upload: {
+        method: "PUT",
+        url: presigned.url,
+        headers: { "Content-Type": contentType || "video/mp4" },
+      },
+      module, // full module object in case UI shows name/status immediately
     });
   } catch (err: any) {
-    log.error("❌ [UPLOAD INIT] Failed", { error: err.message });
-    return res.status(500).json({ success: false, error: "Failed to init upload" });
+    log.error("❌ [UPLOAD INIT] Failed", { error: err?.message });
+    return res.status(500).json({ success: false, error: "init_failed" });
   }
 }
 
