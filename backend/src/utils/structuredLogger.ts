@@ -101,7 +101,7 @@ export class StructuredLogger {
       path: req.path,
       ip: req.ip,
       userAgent: req.get('User-Agent'),
-      userId: req.userId,
+      userId: req.auth?.userId,
       ...context
     })
   }
@@ -114,7 +114,7 @@ export class StructuredLogger {
       statusCode,
       duration,
       ip: req.ip,
-      userId: req.userId,
+      userId: req.auth?.userId,
       ...context
     })
   }
@@ -178,7 +178,7 @@ export class StructuredLogger {
       path: req.path,
       ip: req.ip,
       userAgent: req.get('User-Agent'),
-      userId: req.userId,
+      userId: req.auth?.userId,
       ...context
     })
   }

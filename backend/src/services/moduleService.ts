@@ -38,10 +38,14 @@ export const ModuleService = {
     })
   },
 
-  async markUploaded(id: string, s3Key: string) {
+  async markUploaded(id: string, s3Key: string, userId?: string) {
     return prisma.module.update({
       where: { id },
-      data: { status: ModuleStatus.UPLOADED, s3Key },
+      data: { 
+        status: ModuleStatus.UPLOADED, 
+        s3Key,
+        ...(userId && { userId })
+      },
     })
   },
 

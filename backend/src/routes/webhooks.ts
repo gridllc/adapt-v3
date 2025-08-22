@@ -120,11 +120,19 @@ router.post('/assemblyai', async (req: Request, res: Response) => {
       logger.warn('⚠️ [WEBHOOK] Failed to cleanup local video file', { moduleId, error: cleanupErr?.message || cleanupErr })
     }
     
-    // Save steps to S3
+    // Save steps to S3 using user-specific path
     const { stepSaver } = await import('../services/ai/stepSaver.js')
+    
+    // Get module to access userId for S3 path
+    const moduleWithUser = await ModuleService.get(moduleId)
+    if (!moduleWithUser?.userId) {
+      throw new Error('Module missing userId for S3 path construction')
+    }
+    
+    const s3Key = `users/${moduleWithUser.userId}/modules/${moduleId}/derived/steps.json`
     await stepSaver.saveStepsToS3({
       moduleId,
-      s3Key: `training/${moduleId}.json`,
+      s3Key,
       steps: steps.steps,
       transcript: text
     })

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { ok, fail } from '../utils/http.js'
 import { prisma } from '../config/database.js'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { mustBeAuthed, currentUserId, authorizeModule } from '../middleware/auth.js'
 
 export const stepsRoutes = Router()
 
@@ -27,12 +28,27 @@ async function getJsonFromS3(key: string): Promise<any> {
  * Returns ordered steps for a module with all fields including aliases and notes
  * Falls back to S3 if database is empty and hydrates the database
  */
-stepsRoutes.get('/:moduleId', async (req, res) => {
+stepsRoutes.get('/:moduleId', mustBeAuthed, async (req, res) => {
   try {
     const { moduleId } = req.params
+    const userId = currentUserId(req)
 
     if (!moduleId) {
       return res.status(400).json({ success: false, error: 'Missing moduleId' })
+    }
+
+    // Verify the module belongs to the authenticated user
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId },
+      select: { userId: true }
+    })
+    
+    if (!module) {
+      return res.status(404).json({ success: false, error: 'Module not found' })
+    }
+    
+    if (module.userId !== userId) {
+      return res.status(403).json({ success: false, error: 'Forbidden: You can only access your own modules' })
     }
 
     console.log(`📋 Loading steps for module: ${moduleId}`)
@@ -60,7 +76,8 @@ stepsRoutes.get('/:moduleId', async (req, res) => {
       console.log(`🔄 Database empty for module ${moduleId}, checking S3...`)
       
       try {
-        const s3Key = `training/${moduleId}.json`
+        // Use user-specific S3 path
+        const s3Key = `users/${userId}/modules/${moduleId}/derived/steps.json`
         const s3Data = await getJsonFromS3(s3Key)
         
         if (s3Data?.steps && Array.isArray(s3Data.steps) && s3Data.steps.length > 0) {
@@ -297,7 +314,19 @@ stepsRoutes.post('/:moduleId', async (req, res) => {
 
     // Sync the updated steps back to S3 to keep both data sources in sync
     try {
-      const s3Key = `training/${moduleId}.json`
+      // Get the module to access userId for S3 path
+      const moduleWithUser = await prisma.module.findUnique({
+        where: { id: moduleId },
+        select: { userId: true }
+      })
+      
+      if (!moduleWithUser?.userId) {
+        console.warn('⚠️ Cannot sync to S3: module missing userId')
+        return
+      }
+      
+      // Use user-specific S3 path
+      const s3Key = `users/${moduleWithUser.userId}/modules/${moduleId}/derived/steps.json`
       const currentS3Data = await getJsonFromS3(s3Key) || {}
       
       // Get the final steps with all fields for S3 sync

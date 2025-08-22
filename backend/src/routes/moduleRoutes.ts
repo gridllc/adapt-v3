@@ -4,6 +4,7 @@ import { prisma } from '../config/database.js'
 import { ModuleService } from '../services/moduleService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
 import { log } from '../utils/logger.js'
+import { mustBeAuthed, currentUserId, authorizeModule } from '../middleware/auth.js'
 
 export const moduleRoutes = Router()
 
@@ -20,14 +21,14 @@ function fail(res: Response, code = 500, error = 'internal_error', extra?: any) 
 
 /**
  * GET /api/modules
- * List recent modules (optionally scoped by user if auth wired)
+ * List modules for the authenticated user only
  */
-moduleRoutes.get('/', async (req: Request & { auth?: { userId?: string } }, res: Response) => {
+moduleRoutes.get('/', mustBeAuthed, async (req: Request, res: Response) => {
   try {
-    const userId = req.auth?.userId ?? null
+    const userId = currentUserId(req)
 
     const rawModules = await prisma.module.findMany({
-      where: userId ? { userId } : undefined,
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: { id: true },
@@ -68,11 +69,17 @@ moduleRoutes.get('/', async (req: Request & { auth?: { userId?: string } }, res:
  * GET /api/modules/:id
  * Full module details (+optional signed playback URL + steps)
  */
-moduleRoutes.get('/:id', async (req: Request, res: Response) => {
+moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
   const id = req.params.id
   try {
+    const userId = currentUserId(req)
     const mod = await ModuleService.get(id)
     if (!mod) return fail(res, 404, 'not_found')
+    
+    // Verify the module belongs to the authenticated user
+    if (mod.userId !== userId) {
+      return fail(res, 403, 'forbidden')
+    }
 
     let videoUrl: string | undefined
     if (mod.status === 'READY' && mod.s3Key) {
@@ -133,11 +140,17 @@ moduleRoutes.get('/:id', async (req: Request, res: Response) => {
  * Lightweight poll endpoint used by frontend
  * Returns consistent shape: { success, status, progress, moduleId }
  */
-moduleRoutes.get('/:id/status', async (req: Request, res: Response) => {
+moduleRoutes.get('/:id/status', mustBeAuthed, async (req: Request, res: Response) => {
   const id = req.params.id
   try {
+    const userId = currentUserId(req)
     const mod = await ModuleService.get(id)
     if (!mod) return fail(res, 404, 'not_found')
+    
+    // Verify the module belongs to the authenticated user
+    if (mod.userId !== userId) {
+      return fail(res, 403, 'forbidden')
+    }
 
     return ok(res, {
       status: mod.status,
@@ -155,11 +168,17 @@ moduleRoutes.get('/:id/status', async (req: Request, res: Response) => {
  * GET /api/modules/:id/transcript
  * Returns transcript text (if available)
  */
-moduleRoutes.get('/:id/transcript', async (req: Request, res: Response) => {
+moduleRoutes.get('/:id/transcript', mustBeAuthed, async (req: Request, res: Response) => {
   const id = req.params.id
   try {
+    const userId = currentUserId(req)
     const mod = await ModuleService.get(id)
     if (!mod) return fail(res, 404, 'not_found')
+    
+    // Verify the module belongs to the authenticated user
+    if (mod.userId !== userId) {
+      return fail(res, 403, 'forbidden')
+    }
 
     if (!mod.transcriptText) {
       return ok(res, {
@@ -184,13 +203,19 @@ moduleRoutes.get('/:id/transcript', async (req: Request, res: Response) => {
  * DELETE /api/modules/:id
  * Deletes the module row (and cascades steps if FK configured)
  */
-moduleRoutes.delete('/:id', async (req: Request, res: Response) => {
+moduleRoutes.delete('/:id', mustBeAuthed, async (req: Request, res: Response) => {
   const id = req.params.id
   try {
-    log.info('Deleting module', { moduleId: id })
+    const userId = currentUserId(req)
+    log.info('Deleting module', { moduleId: id, userId })
 
     const mod = await ModuleService.get(id)
     if (!mod) return fail(res, 404, 'not_found')
+    
+    // Verify the module belongs to the authenticated user
+    if (mod.userId !== userId) {
+      return fail(res, 403, 'forbidden')
+    }
 
     await prisma.module.delete({ where: { id } })
 

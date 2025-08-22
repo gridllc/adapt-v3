@@ -6,6 +6,7 @@ import { DatabaseService } from '../services/prismaService.js'
 import { UserService } from '../services/userService.js'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import { extractStepNumber } from '../utils/parseStepOrdinal.js'
+import { mustBeAuthed, currentUserId, authorizeModule } from '../middleware/auth.js'
 
 const router = express.Router()
 
@@ -38,7 +39,7 @@ function trimToFirstParagraph(s: string, maxChars = 160): string {
  * Body: { moduleId: string, stepId?: string, question: string }
  * Returns: { success: true, answer: string, sources?: Array<{type:'step'|'transcript', id?:string, startTime?:number, endTime?:number, snippet?:string}> }
  */
-router.post('/ask', async (req, res) => {
+router.post('/ask', mustBeAuthed, async (req, res) => {
   try {
     const { moduleId, stepId, question, mode = 'brief' } = req.body || {}
     
@@ -58,7 +59,8 @@ router.post('/ask', async (req, res) => {
         id: true, 
         title: true, 
         transcriptText: true,
-        status: true 
+        status: true,
+        userId: true
       },
     })
     
@@ -66,6 +68,15 @@ router.post('/ask', async (req, res) => {
       return res.status(404).json({ 
         success: false, 
         error: 'Module not found' 
+      })
+    }
+
+    // Verify the module belongs to the authenticated user
+    const userId = currentUserId(req);
+    if (module.userId !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Forbidden: You can only access your own modules' 
       })
     }
 
@@ -83,7 +94,8 @@ router.post('/ask', async (req, res) => {
       
       // Try to get steps from S3 first (fastest)
       try {
-        const s3Key = `training/${moduleId}.json`;
+        // Use user-specific S3 path
+        const s3Key = `users/${userId}/modules/${moduleId}/derived/steps.json`;
         const s3Data = await getJsonFromS3(s3Key);
         
         if (s3Data?.steps && Array.isArray(s3Data.steps) && s3Data.steps.length > 0) {
@@ -132,7 +144,8 @@ router.post('/ask', async (req, res) => {
       console.log(`🔄 Database empty for module ${moduleId}, checking S3...`)
       
       try {
-        const s3Key = `training/${moduleId}.json`
+        // Use user-specific S3 path
+        const s3Key = `users/${userId}/modules/${moduleId}/derived/steps.json`
         const s3Data = await getJsonFromS3(s3Key)
         
         if (s3Data?.steps && Array.isArray(s3Data.steps) && s3Data.steps.length > 0) {

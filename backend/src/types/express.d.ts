@@ -26,6 +26,13 @@ declare global {
         email: string
         [key: string]: any
       }
+      auth?: {
+        userId: string
+        sessionId: string
+        actor?: any
+        sessionClaims?: any
+        [key: string]: any
+      }
     }
   }
 }
