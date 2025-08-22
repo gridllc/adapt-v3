@@ -158,6 +158,9 @@ const configureMiddleware = () => {
 
 // Route configuration
 const configureRoutes = () => {
+  // Webhooks (no rate limiting for external services) - mount first
+  app.use('/webhooks', webhookRoutes)
+  
   // Apply general rate limiting to all API routes
   app.use('/api/', rateLimiters.general)
   
@@ -169,10 +172,6 @@ const configureRoutes = () => {
   
   // Public Routes (with general rate limiting)
   app.use('/api', healthRoutes)  // Mounts /api/health
-  
-  // Webhooks (no rate limiting for external services)
-  // Use JSON parsing for webhook route (no more raw body needed)
-  app.use('/webhooks', webhookRoutes)
   
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
   app.use('/api/feedback', feedbackRoutes)
