@@ -23,8 +23,8 @@ export const moduleController = {
       console.log(`📖 Getting module by ID: ${id}`)
       
       // Get module from database
-      const { DatabaseService } = await import('../services/prismaService.js')
-      const module = await DatabaseService.getModule(id)
+      const { ModuleService } = await import('../services/moduleService.js')
+      const module = await ModuleService.get(id)
       
       if (!module) {
         return res.status(404).json({ error: 'Module not found' })
@@ -34,20 +34,29 @@ export const moduleController = {
       let steps = []
       let transcriptText = ''
       
+      console.log(`🔍 Module ${id} status: ${module.status}`)
+      
       if (module.status === 'READY') {
         try {
           const { storageService } = await import('../services/storageService.js')
           const stepsKey = `training/${id}.json`
+          console.log(`📂 Attempting to load steps from S3 key: ${stepsKey}`)
+          
           const stepsData = await storageService.getJson(stepsKey)
           
           if (stepsData) {
             steps = stepsData.steps || []
             transcriptText = stepsData.transcript || ''
-            console.log(`✅ Loaded ${steps.length} steps and transcript for module ${id}`)
+            console.log(`✅ Loaded ${steps.length} steps and transcript (${transcriptText.length} chars) for module ${id}`)
+            console.log(`📋 Step preview:`, steps.slice(0, 2).map((s: any) => ({ id: s.id, text: s.text?.substring(0, 50) })))
+          } else {
+            console.warn(`⚠️ No steps data found in S3 for key: ${stepsKey}`)
           }
         } catch (stepsError) {
-          console.warn(`⚠️ Failed to load steps for module ${id}:`, stepsError)
+          console.error(`❌ Failed to load steps for module ${id}:`, stepsError)
         }
+      } else {
+        console.log(`⏳ Module ${id} not ready yet, status: ${module.status}`)
       }
       
       // Generate signed video URL if module has s3Key
