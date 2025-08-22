@@ -42,6 +42,8 @@ export default function TrainingPage() {
   const [polling, setPolling] = useState(false);
   const [pollCount, setPollCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [micStatus, setMicStatus] = useState<'checking' | 'available' | 'denied' | 'not-supported'>('checking');
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const canPlay = mod?.status === "READY" && !!mod.videoUrl;
@@ -55,6 +57,37 @@ export default function TrainingPage() {
       return ao - bo;
     });
   }, [mod]);
+
+  // Check microphone availability
+  useEffect(() => {
+    const checkMicrophone = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setMicStatus('not-supported');
+          return;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        setMicStatus('available');
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setMicStatus('denied');
+        } else {
+          setMicStatus('not-supported');
+        }
+      }
+    };
+
+    checkMicrophone();
+  }, []);
+
+  // Request notification permission for processing completion
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   // Handler functions for interactive buttons
   const handleAddStep = () => {
@@ -171,6 +204,19 @@ export default function TrainingPage() {
       if (status === "READY") {
         await fetchModule(moduleId);
         setPolling(false);
+        
+        // Show success banner
+        setShowSuccessBanner(true);
+        setTimeout(() => setShowSuccessBanner(false), 5000);
+        
+        // Show success notification
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          new Notification('Video Processing Complete!', {
+            body: 'Your training module is ready to use.',
+            icon: '/favicon.ico'
+          });
+        }
+        
         return;
       }
       if (status === "FAILED") {
@@ -220,6 +266,69 @@ export default function TrainingPage() {
     );
   }
 
+  // Enhanced processing screen
+  if (mod?.status === "PROCESSING") {
+    const getProgressStep = (progress?: number) => {
+      if (!progress) return "Starting...";
+      if (progress < 25) return "Initializing processing...";
+      if (progress < 40) return "Preparing media URL...";
+      if (progress < 60) return "Submitting to transcription service...";
+      if (progress < 100) return "Transcribing and analyzing...";
+      return "Finalizing...";
+    };
+
+    return (
+      <div className="py-16 text-center max-w-2xl mx-auto">
+        <div className="animate-spin h-16 w-16 rounded-full border-b-4 border-blue-600 mx-auto mb-6" />
+        <h1 className="text-3xl font-bold text-gray-900 mb-4">Processing Your Video</h1>
+        <div className="space-y-4 text-gray-600">
+          <p className="text-lg">
+            Our AI is analyzing your video and generating training steps...
+          </p>
+          
+          {/* Progress Bar */}
+          {typeof mod?.progress === "number" && (
+            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+              <div 
+                className="bg-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${mod.progress}%` }}
+              />
+            </div>
+          )}
+          
+          <div className="text-lg font-medium text-blue-600">
+            {getProgressStep(mod?.progress)}
+          </div>
+          
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+            <h3 className="font-medium text-blue-900 mb-2">What's happening:</h3>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Extracting audio from video</li>
+              <li>• Transcribing speech with OpenAI Whisper</li>
+              <li>• Analyzing content to identify key steps</li>
+              <li>• Generating structured training guide</li>
+            </ul>
+          </div>
+          
+          <div className="text-sm text-gray-500">
+            Status checks: {pollCount} • Progress: {typeof mod?.progress === "number" ? `${mod.progress}%` : "Analyzing..."}
+          </div>
+          
+          <div className="text-xs text-gray-400">
+            This usually takes 1-3 minutes depending on video length
+          </div>
+          
+          {/* Estimated time remaining */}
+          {pollCount > 0 && (
+            <div className="text-xs text-gray-400">
+              Checked {pollCount} time{pollCount !== 1 ? 's' : ''} • Next check in {pollCount < 3 ? '2-3' : '5-8'} seconds
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
@@ -229,15 +338,6 @@ export default function TrainingPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {mod?.status === "PROCESSING" && (
-            <>
-              <div className="animate-spin h-4 w-4 rounded-full border-b-2 border-blue-600" />
-              <span className="text-blue-600 text-sm">
-                Processing… {polling ? `(checks: ${pollCount})` : ""}
-                {typeof mod?.progress === "number" ? ` • ${mod.progress}%` : ""}
-              </span>
-            </>
-          )}
           {mod?.status === "READY" && (
             <span className="text-green-600 text-sm font-medium">✓ Ready</span>
           )}
@@ -250,6 +350,32 @@ export default function TrainingPage() {
       {error && (
         <div className="bg-red-50 border border-red-200 p-3 rounded text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {showSuccessBanner && (
+        <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-green-800">Processing Complete!</h3>
+              <p className="text-sm text-green-700 mt-1">
+                Your video has been processed and is ready for training. You can now view the steps and start using the AI assistant.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSuccessBanner(false)}
+              className="flex-shrink-0 text-green-400 hover:text-green-600"
+            >
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
@@ -266,7 +392,7 @@ export default function TrainingPage() {
               />
             ) : (
               <div className="h-full w-full flex items-center justify-center text-white text-sm">
-                {mod?.status === "PROCESSING" ? "Preparing video…" : "No video"}
+                No video
               </div>
             )}
           </div>
@@ -355,19 +481,69 @@ export default function TrainingPage() {
         </div>
 
         {/* Transcript / Assistant */}
-        <aside className="bg-white border rounded p-4 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Transcript</h3>
-          {mod?.transcriptText ? (
-            <div className="text-sm text-gray-800 whitespace-pre-wrap max-h-[60vh] overflow-auto">
-              {mod.transcriptText}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500">
-              {mod?.status === "PROCESSING"
-                ? "Transcribing… this will populate automatically."
-                : "No transcript was saved for this module."}
+        <aside className="space-y-4">
+          {/* Microphone Status */}
+          {mod?.status === "READY" && (
+            <div className="bg-white border rounded p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">AI Assistant</h3>
+              <div className="space-y-3">
+                {micStatus === 'checking' && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="animate-spin h-4 w-4 rounded-full border-b-2 border-blue-600" />
+                    Checking microphone...
+                  </div>
+                )}
+                {micStatus === 'available' && (
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    Microphone ready for AI chat
+                  </div>
+                )}
+                {micStatus === 'denied' && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+                    <div className="flex items-center gap-2 text-sm text-yellow-800">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      Microphone access denied
+                    </div>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Click the microphone icon in your browser's address bar to enable audio access
+                    </p>
+                  </div>
+                )}
+                {micStatus === 'not-supported' && (
+                  <div className="bg-gray-50 border border-gray-200 rounded p-3">
+                    <div className="text-sm text-gray-600">
+                      Microphone not supported in this browser
+                    </div>
+                  </div>
+                )}
+                <button
+                  onClick={() => navigate(`/training/${moduleId}#chat`)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+                >
+                  Start AI Chat
+                </button>
+              </div>
             </div>
           )}
+
+          {/* Transcript */}
+          <div className="bg-white border rounded p-4">
+            <h3 className="text-lg font-semibold text-gray-900">Transcript</h3>
+            {mod?.transcriptText ? (
+              <div className="text-sm text-gray-800 whitespace-pre-wrap max-h-[60vh] overflow-auto mt-3">
+                {mod.transcriptText}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 mt-3">
+                No transcript was saved for this module.
+              </div>
+            )}
+          </div>
         </aside>
       </div>
     </div>
