@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import VoiceAsk from "../components/VoiceAsk";
+import StickyVoiceBar from "../components/StickyVoiceBar";
+import { useVoiceAsk } from "@/hooks/useVoiceAsk";
+import { useToast } from "@/components/Toast";
 
 type ModuleStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
 
@@ -158,7 +160,15 @@ export default function TrainingPage() {
   const [error, setError] = useState<string | null>(null);
   const [micStatus, setMicStatus] = useState<'checking' | 'available' | 'denied' | 'not-supported'>('checking');
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [showTextQA, setShowTextQA] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Voice controller with toast notifications
+  const toast = useToast();
+  const voice = useVoiceAsk(moduleId!, {
+    onAnswer: (a) => toast(a),                // ✅ Answer toast
+    onError: (msg) => toast(msg),            // show errors too
+  });
 
   const canPlay = mod?.status === "READY" && !!mod.videoUrl;
 
@@ -203,6 +213,8 @@ export default function TrainingPage() {
     }
   }, []);
 
+
+
   // Handler functions for interactive buttons
   const handleAddStep = () => {
     // For now, redirect to full edit page for adding steps
@@ -222,6 +234,11 @@ export default function TrainingPage() {
   const handleDeleteStep = (step: Step, index: number) => {
     // For now, redirect to full edit page for deleting steps
     navigate(`/edit-steps/${moduleId}`);
+  };
+
+  const handleStepClick = (step: Step, index: number) => {
+    // Regular click - could be used for step navigation later
+    console.log('Step clicked:', step);
   };
 
   async function fetchModule(id: string) {
@@ -461,6 +478,11 @@ export default function TrainingPage() {
         </div>
       </header>
 
+      {/* Sticky Voice Bar */}
+      {mod?.status === "READY" && (
+        <StickyVoiceBar controller={voice} />
+      )}
+
       {error && (
         <div className="bg-red-50 border border-red-200 p-3 rounded text-sm text-red-700">
           {error}
@@ -540,7 +562,26 @@ export default function TrainingPage() {
                 )}
               </div>
                              {sortedSteps.map((s, i) => (
-                 <div key={s.id ?? i} className="border rounded p-3">
+                 <div 
+                   key={s.id ?? i} 
+                   className="border rounded p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                   onClick={() => handleStepClick(s, i)}
+                   onPointerDown={(e) => {
+                     e.preventDefault();
+                     // Start long-press timer (450ms)
+                     const timer = setTimeout(() => {
+                       voice.startWithPrefix(`Explain this step: ${s.text}. In one sentence,`);
+                     }, 450);
+                     const cleanup = () => clearTimeout(timer);
+                     e.currentTarget.addEventListener('pointerup', cleanup, { once: true });
+                     e.currentTarget.addEventListener('pointerleave', cleanup, { once: true });
+                   }}
+                   onPointerUp={(e) => {
+                     // If we already started (long-press triggered), stop to send
+                     if (voice.listening) voice.stop();
+                   }}
+                   title="Click to select, long-press to ask about this step"
+                 >
                    <div className="flex items-start gap-3">
                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-sm font-medium">
                        {i + 1}
@@ -559,7 +600,7 @@ export default function TrainingPage() {
                      {mod?.status === "READY" && (
                        <div className="flex items-center gap-1 ml-2">
                          <button
-                           onClick={() => handleEditStep(s, i)}
+                           onClick={(e) => { e.stopPropagation(); handleEditStep(s, i); }}
                            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors duration-200"
                            title="Edit step"
                          >
@@ -568,7 +609,7 @@ export default function TrainingPage() {
                            </svg>
                          </button>
                          <button
-                           onClick={() => handleAIRewrite(s, i)}
+                           onClick={(e) => { e.stopPropagation(); handleAIRewrite(s, i); }}
                            className="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition-colors duration-200"
                            title="AI Rewrite step"
                          >
@@ -577,7 +618,7 @@ export default function TrainingPage() {
                            </svg>
                          </button>
                          <button
-                           onClick={() => handleDeleteStep(s, i)}
+                           onClick={(e) => { e.stopPropagation(); handleDeleteStep(s, i); }}
                            className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
                            title="Delete step"
                          >
@@ -604,13 +645,7 @@ export default function TrainingPage() {
             </div>
           )}
 
-          {/* Voice Assistant */}
-          {mod?.status === "READY" && (
-            <div className="bg-white border rounded p-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Voice Assistant</h3>
-              <VoiceAsk moduleId={moduleId!} />
-            </div>
-          )}
+
 
           {/* Transcript */}
           <div className="bg-white border rounded p-4">
@@ -627,6 +662,25 @@ export default function TrainingPage() {
           </div>
         </aside>
       </div>
+
+      {/* Collapsible Text QA at bottom */}
+      {mod?.status === "READY" && (
+        <section className="border rounded-md bg-white">
+          <button
+            onClick={() => setShowTextQA(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+          >
+            <span className="font-semibold text-gray-900">AI Assistant (Type instead)</span>
+            <span className="text-sm text-gray-500">{showTextQA ? "Hide" : "Show"}</span>
+          </button>
+          {showTextQA && (
+            <div className="px-4 pb-4 border-t">
+              <AskBox moduleId={moduleId!} />
+            </div>
+          )}
+        </section>
+      )}
+
     </div>
   );
 }

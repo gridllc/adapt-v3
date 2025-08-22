@@ -16,6 +16,7 @@ import { SignUpPage } from '@pages/SignUpPage'
 import { ApiDebug } from '@components/ApiDebug'
 import { GlobalErrorBoundary, NavigationErrorBoundary, UploadErrorBoundary } from '@components/common/ErrorBoundaries'
 import { LoadingSpinner } from '@components/common/LoadingSpinner'
+import { Toaster } from '@components/Toast'
 
 // Conditional Home Component
 const ConditionalHome = () => {
@@ -65,6 +66,9 @@ function App() {
           <LoadingSpinner />
         </div>
       )}
+      
+      {/* Toast notifications */}
+      <Toaster />
       
       <Routes>
         {/* Always show home page at root */}
