@@ -68,7 +68,7 @@ router.post('/ask', async (req, res) => {
     let focusStep = null
     let focusWindow = undefined
     if (stepId) {
-      focusStep = steps.find(s => s.id === stepId)
+      focusStep = steps.find((s: any) => s.id === stepId)
       if (focusStep) {
         focusWindow = { 
           start: focusStep.startTime ?? 0, 
@@ -85,7 +85,7 @@ router.post('/ask', async (req, res) => {
         id: module.id, 
         title: module.title 
       },
-      steps: steps.map(s => ({
+      steps: steps.map((s: any) => ({
         id: s.id,
         text: s.text,
         startTime: s.startTime,

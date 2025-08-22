@@ -1,12 +1,31 @@
 import { Router } from 'express'
 import { ok, fail } from '../utils/http.js'
 import { prisma } from '../config/database.js'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 
 export const stepsRoutes = Router()
+
+// S3 client for getting JSON data
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-west-1' })
+const BUCKET = process.env.AWS_BUCKET_NAME || 'adaptv3-training-videos'
+
+// Helper function to get JSON from S3
+async function getJsonFromS3(key: string): Promise<any> {
+  try {
+    const command = new GetObjectCommand({ Bucket: BUCKET, Key: key })
+    const response = await s3Client.send(command)
+    const body = await response.Body?.transformToString()
+    return body ? JSON.parse(body) : null
+  } catch (error) {
+    console.warn(`Failed to get JSON from S3: ${key}`, error)
+    return null
+  }
+}
 
 /**
  * GET /api/steps/:moduleId
  * Returns ordered steps for a module with all fields including aliases and notes
+ * Falls back to S3 if database is empty and hydrates the database
  */
 stepsRoutes.get('/:moduleId', async (req, res) => {
   try {
@@ -18,7 +37,8 @@ stepsRoutes.get('/:moduleId', async (req, res) => {
 
     console.log(`📋 Loading steps for module: ${moduleId}`)
 
-    const steps = await prisma.step.findMany({
+    // First try to get steps from database
+    let steps = await prisma.step.findMany({
       where: { moduleId },
       orderBy: [{ order: 'asc' }, { startTime: 'asc' }],
       select: {
@@ -28,12 +48,67 @@ stepsRoutes.get('/:moduleId', async (req, res) => {
         startTime: true,
         endTime: true,
         aiConfidence: true,
-        aliases: true,  // Json field containing string[]
+        aliases: true,  // String[] field containing string[]
         notes: true,
         createdAt: true,
         updatedAt: true,
       },
     })
+
+    // If database is empty, try to load from S3 and hydrate the database
+    if (steps.length === 0) {
+      console.log(`🔄 Database empty for module ${moduleId}, checking S3...`)
+      
+      try {
+        const s3Key = `training/${moduleId}.json`
+        const s3Data = await getJsonFromS3(s3Key)
+        
+        if (s3Data?.steps && Array.isArray(s3Data.steps) && s3Data.steps.length > 0) {
+          console.log(`📥 Found ${s3Data.steps.length} steps in S3, hydrating database...`)
+          
+          // Map S3 steps to database format
+          const dbSteps = s3Data.steps.map((s: any, i: number) => ({
+            moduleId,
+            order: i,
+            text: String(s.text || ''),
+            startTime: Number(s.startTime || s.start || 0),
+            endTime: Number(s.endTime || s.end || 1),
+            aiConfidence: null,
+            aliases: Array.isArray(s.aliases) ? s.aliases.map(String) : [],
+            notes: s.notes ? String(s.notes) : null,
+          }))
+
+          // Create steps in database
+          const createdSteps = await prisma.step.createMany({
+            data: dbSteps,
+            skipDuplicates: true,
+          })
+
+          console.log(`✅ Hydrated database with ${createdSteps.count} steps from S3`)
+
+          // Fetch the newly created steps
+          steps = await prisma.step.findMany({
+            where: { moduleId },
+            orderBy: [{ order: 'asc' }, { startTime: 'asc' }],
+            select: {
+              id: true,
+              order: true,
+              text: true,
+              startTime: true,
+              endTime: true,
+              aiConfidence: true,
+              aliases: true,
+              notes: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          })
+        }
+      } catch (s3Error) {
+        console.warn(`⚠️ Failed to load from S3 for module ${moduleId}:`, s3Error)
+        // Continue with empty steps array
+      }
+    }
 
     console.log(`✅ Found ${steps.length} steps for module: ${moduleId}`)
 
@@ -112,7 +187,7 @@ stepsRoutes.post('/:moduleId', async (req, res) => {
     })
 
     // Execute transaction with better error handling
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       console.log(`🔄 Transaction started: updating steps for module ${moduleId}`)
 
       // Get existing step IDs to track what needs to be deleted
@@ -122,18 +197,18 @@ stepsRoutes.post('/:moduleId', async (req, res) => {
       })
 
       const incomingIds = sanitizedSteps
-        .map(s => s.id)
+        .map((s: any) => s.id)
         .filter(Boolean) as string[]
 
       // Delete steps that are no longer in the incoming list
       const stepsToDelete = existingSteps.filter(
-        existing => !incomingIds.includes(existing.id)
+        (existing: any) => !incomingIds.includes(existing.id)
       )
 
       if (stepsToDelete.length > 0) {
         await tx.step.deleteMany({
           where: {
-            id: { in: stepsToDelete.map(s => s.id) }
+            id: { in: stepsToDelete.map((s: any) => s.id) }
           }
         })
         console.log(`🗑️ Deleted ${stepsToDelete.length} removed steps`)
@@ -205,7 +280,7 @@ stepsRoutes.post('/:moduleId', async (req, res) => {
       })
 
       await Promise.all(
-        finalSteps.map((step, index) =>
+        finalSteps.map((step: any, index: number) =>
           tx.step.update({
             where: { id: step.id },
             data: { order: index }
@@ -219,6 +294,47 @@ stepsRoutes.post('/:moduleId', async (req, res) => {
     })
 
     console.log(`✅ Successfully saved ${result.count} steps for module: ${moduleId}`)
+
+    // Sync the updated steps back to S3 to keep both data sources in sync
+    try {
+      const s3Key = `training/${moduleId}.json`
+      const currentS3Data = await getJsonFromS3(s3Key) || {}
+      
+      // Get the final steps with all fields for S3 sync
+      const finalStepsForS3 = await prisma.step.findMany({
+        where: { moduleId },
+        orderBy: [{ order: 'asc' }, { startTime: 'asc' }],
+        select: {
+          id: true,
+          order: true,
+          text: true,
+          startTime: true,
+          endTime: true,
+          aliases: true,
+          notes: true,
+        }
+      })
+
+      // Update S3 with the new steps data
+      const updatedS3Data = {
+        ...currentS3Data,
+        steps: finalStepsForS3,
+        meta: {
+          ...currentS3Data.meta,
+          updatedAt: new Date().toISOString(),
+          source: 'database-sync'
+        }
+      }
+
+      // Use the storageService to save back to S3
+      const { storageService } = await import('../services/storageService.js')
+      await storageService.putObject(s3Key, JSON.stringify(updatedS3Data), 'application/json')
+      
+      console.log(`🔄 Synced ${finalStepsForS3.length} steps back to S3: ${s3Key}`)
+    } catch (s3SyncError) {
+      console.warn('⚠️ Failed to sync steps back to S3:', s3SyncError)
+      // Don't fail the request if S3 sync fails
+    }
 
     return res.json({ 
       success: true, 
