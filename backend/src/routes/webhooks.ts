@@ -86,7 +86,29 @@ router.post('/assemblyai', async (req: Request, res: Response) => {
 
     // 4) Generate steps and save
     const { generateVideoSteps } = await import('../services/ai/stepGenerator.js')
-    const steps = await generateVideoSteps(text, [], { duration: 0 }, moduleId)
+    
+    // Get module to access s3Key for video duration extraction
+    const module = await ModuleService.get(moduleId)
+    if (!module?.s3Key) {
+      throw new Error('Module missing s3Key for video processing')
+    }
+    
+    // Extract video duration from S3 file for proper timestamp normalization
+    const { videoDownloader } = await import('../services/ai/videoDownloader.js')
+    const localVideoPath = await videoDownloader.fromS3(module.s3Key)
+    const videoDuration = await videoDownloader.getVideoDurationSeconds(localVideoPath)
+    
+    logger.info('📹 [WEBHOOK] Video duration extracted', { moduleId, duration: videoDuration })
+    
+    const steps = await generateVideoSteps(text, [], { duration: videoDuration }, moduleId)
+    
+    // Clean up local video file
+    try {
+      const { unlink } = await import('fs/promises')
+      await unlink(localVideoPath)
+    } catch (cleanupErr: any) {
+      logger.warn('⚠️ [WEBHOOK] Failed to cleanup local video file', { moduleId, error: cleanupErr?.message || cleanupErr })
+    }
     
     // Save steps to S3
     const { stepSaver } = await import('../services/ai/stepSaver.js')

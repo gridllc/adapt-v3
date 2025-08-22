@@ -19,14 +19,60 @@ export const moduleController = {
 
   async getModuleById(req: Request, res: Response) {
     try {
-      console.log(`🚨 NUCLEAR FIX: Breaking API to stop infinite polling for ${req.params.id}`)
+      const { id } = req.params
+      console.log(`📖 Getting module by ID: ${id}`)
       
-      // Return an error to break the polling
-      res.status(500).json({ 
-        error: 'API temporarily disabled to stop infinite polling',
-        moduleId: req.params.id,
-        message: 'Polling stopped - please check your frontend code'
-      })
+      // Get module from database
+      const { DatabaseService } = await import('../services/prismaService.js')
+      const module = await DatabaseService.getModule(id)
+      
+      if (!module) {
+        return res.status(404).json({ error: 'Module not found' })
+      }
+      
+      // Get steps from S3 if module is READY
+      let steps = []
+      let transcriptText = ''
+      
+      if (module.status === 'READY') {
+        try {
+          const { storageService } = await import('../services/storageService.js')
+          const stepsKey = `training/${id}.json`
+          const stepsData = await storageService.getJson(stepsKey)
+          
+          if (stepsData) {
+            steps = stepsData.steps || []
+            transcriptText = stepsData.transcript || ''
+            console.log(`✅ Loaded ${steps.length} steps and transcript for module ${id}`)
+          }
+        } catch (stepsError) {
+          console.warn(`⚠️ Failed to load steps for module ${id}:`, stepsError)
+        }
+      }
+      
+      // Generate signed video URL if module has s3Key
+      let videoUrl = null
+      if (module.s3Key) {
+        try {
+          const { presignedUploadService } = await import('../services/presignedUploadService.js')
+          videoUrl = await presignedUploadService.getSignedPlaybackUrl(module.s3Key)
+        } catch (urlError) {
+          console.warn(`⚠️ Failed to generate video URL for module ${id}:`, urlError)
+        }
+      }
+      
+      const response = {
+        success: true,
+        module: {
+          ...module,
+          videoUrl,
+          steps,
+          transcriptText
+        }
+      }
+      
+      console.log(`✅ Returning module ${id} with ${steps.length} steps`)
+      res.json(response)
       
     } catch (error) {
       console.error('Get module error:', error)

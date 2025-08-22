@@ -10,6 +10,7 @@ const normalizeStep = (step: any, index: number) => {
       id: step.id || `step_${index + 1}`,
       start: step.startTime,
       end: step.endTime,
+      timestamp: step.startTime, // Add timestamp for frontend compatibility
       title: step.text || '',
       description: step.text || '',
       aliases: step.aliases || [],
@@ -24,6 +25,7 @@ const normalizeStep = (step: any, index: number) => {
       id: step.id || `step_${index + 1}`,
       start: start,
       end: end,
+      timestamp: start, // Add timestamp for frontend compatibility
       title: step.text || '',
       description: step.text || '',
       aliases: step.aliases || [],
@@ -38,6 +40,7 @@ const normalizeStep = (step: any, index: number) => {
       id: step.id || `step_${index + 1}`,
       start: start,
       end: end,
+      timestamp: start, // Add timestamp for frontend compatibility
       title: step.text || step.title || '',
       description: step.text || step.description || '',
       aliases: step.aliases || [],
