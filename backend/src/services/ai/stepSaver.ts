@@ -31,6 +31,17 @@ export const stepSaver = {
     transcript: string;
     meta?: Record<string, any>;
   }) {
+    // Debug: Log what we're saving
+    console.log('🔍 [StepSaver] About to save to S3:', {
+      moduleId,
+      s3Key,
+      stepCount: steps?.length || 0,
+      stepsType: typeof steps,
+      isArray: Array.isArray(steps),
+      firstStep: steps?.[0],
+      lastStep: steps?.[steps?.length - 1]
+    })
+    
     const body = JSON.stringify({
       version: 3,
       moduleId,
@@ -47,6 +58,6 @@ export const stepSaver = {
       ContentType: 'application/json',
     }));
     
-    console.log('✅ Steps + transcript saved to S3:', s3Key, `(${steps.length} steps, ${transcript.length} chars)`)
+    console.log('✅ Steps + transcript saved to S3:', s3Key, `(${steps?.length || 0} steps, ${transcript.length} chars)`)
   },
 }

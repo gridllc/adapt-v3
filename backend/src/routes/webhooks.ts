@@ -102,6 +102,16 @@ router.post('/assemblyai', async (req: Request, res: Response) => {
     
     const steps = await generateVideoSteps(text, [], { duration: videoDuration }, moduleId)
     
+    // Debug: Log what we're about to save
+    logger.info('🔍 [WEBHOOK] About to save steps to S3', { 
+      moduleId, 
+      stepsObject: steps,
+      stepsArray: steps.steps,
+      stepCount: steps.steps?.length || 0,
+      firstStep: steps.steps?.[0],
+      lastStep: steps.steps?.[steps.steps?.length - 1]
+    })
+    
     // Clean up local video file
     try {
       const { unlink } = await import('fs/promises')

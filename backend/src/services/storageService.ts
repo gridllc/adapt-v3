@@ -133,32 +133,29 @@ export const storageService = {
     try {
       console.log(`📖 Fetching JSON from S3: ${key}`);
       
-      // For now, return mock data since we're not actually using S3
-      // In production, this would fetch from S3
-      return {
-        steps: [
-          {
-            timestamp: 0,
-            title: 'Introduction',
-            description: 'Welcome to the training - this step was extracted by AI',
-            duration: 30,
-          },
-          {
-            timestamp: 30,
-            title: 'Main Content',
-            description: 'The main content of your training video',
-            duration: 60,
-          },
-          {
-            timestamp: 90,
-            title: 'Conclusion',
-            description: 'Wrapping up the training session',
-            duration: 30,
-          }
-        ],
-        transcript: 'This is a mock transcript for testing purposes.',
-        meta: { duration: 120, keyFrameCount: 3 }
-      };
+      // Actually fetch from S3 using GetObjectCommand
+      const { GetObjectCommand } = await import('@aws-sdk/client-s3')
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      })
+      
+      const response = await s3Client.send(command)
+      if (!response.Body) {
+        throw new Error('Empty response body from S3')
+      }
+      
+      // Convert stream to string and parse JSON
+      const bodyContents = await response.Body.transformToString()
+      const data = JSON.parse(bodyContents)
+      
+      console.log(`✅ Successfully loaded JSON from S3: ${key}`, {
+        stepCount: data.steps?.length || 0,
+        hasTranscript: !!data.transcript,
+        dataKeys: Object.keys(data)
+      })
+      
+      return data
     } catch (error: any) {
       console.error(`❌ Failed to fetch JSON from S3: ${key}:`, error);
       throw new Error(`Failed to fetch JSON: ${error?.message || error}`);
