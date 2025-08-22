@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
 type ModuleStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
 
@@ -36,6 +36,7 @@ const API = (path: string) =>
 
 export default function TrainingPage() {
   const { moduleId } = useParams<{ moduleId: string }>();
+  const navigate = useNavigate();
   const [mod, setMod] = useState<ModuleDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [polling, setPolling] = useState(false);
@@ -252,7 +253,20 @@ export default function TrainingPage() {
           {/* Steps */}
           {sortedSteps.length > 0 && (
             <div className="mt-6 space-y-3">
-              <h3 className="text-lg font-semibold text-gray-900">Training Steps</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Training Steps</h3>
+                {mod?.status === "READY" && (
+                  <button
+                    onClick={() => navigate(`/edit-steps/${moduleId}`)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Steps
+                  </button>
+                )}
+              </div>
               {sortedSteps.map((s, i) => (
                 <div key={s.id ?? i} className="border rounded p-3">
                   <div className="flex items-start gap-3">
