@@ -84,10 +84,35 @@ moduleRoutes.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    const steps = await ModuleService.getSteps(id).catch((e: any) => {
-      log.warn('getSteps failed', { moduleId: id, error: e?.message })
-      return []
-    })
+    // Load steps from S3 if module is READY, fallback to database
+    let steps = []
+    if (mod.status === 'READY') {
+      try {
+        const { storageService } = await import('../services/storageService.js')
+        const stepsKey = `training/${id}.json`
+        const stepsData = await storageService.getJson(stepsKey)
+        
+        if (stepsData?.steps) {
+          steps = stepsData.steps
+          log.info('✅ Loaded steps from S3', { moduleId: id, stepCount: steps.length })
+        } else {
+          log.warn('⚠️ No steps found in S3', { moduleId: id, stepsKey })
+          // Fallback to database steps
+          steps = await ModuleService.getSteps(id).catch((e: any) => {
+            log.warn('Database steps fallback failed', { moduleId: id, error: e?.message })
+            return []
+          })
+        }
+      } catch (s3Error) {
+        log.warn('⚠️ S3 steps loading failed, falling back to database', { moduleId: id, error: s3Error })
+        steps = await ModuleService.getSteps(id).catch((e: any) => {
+          log.warn('Database steps fallback failed', { moduleId: id, error: e?.message })
+          return []
+        })
+      }
+    } else {
+      log.info('⏳ Module not ready yet, no steps to load', { moduleId: id, status: mod.status })
+    }
 
     return ok(res, {
       module: {
