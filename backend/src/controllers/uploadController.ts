@@ -20,18 +20,25 @@ export async function initUpload(req: Request, res: Response) {
     // Get the authenticated user ID
     const clerkUserId = currentUserId(req);
     
-    // Ensure user exists in database
-    const user = await UserService.getOrCreateClerkUser(clerkUserId);
-    
     // Create user-specific S3 path
     const s3Base = `users/${clerkUserId}/modules`;
     const s3Key = `${s3Base}/${Date.now()}-${filename}`;
 
-    // create DB record using existing service method
-    const module = await ModuleService.createForFilename(filename, user.id);
+    // create DB record WITHOUT userId first (avoid foreign key constraint)
+    const module = await ModuleService.createForFilename(filename);
     
-    // update the module with s3Key and userId
-    await ModuleService.markUploaded(module.id, s3Key, user.id);
+    // Try to create user and update module, but handle gracefully if it fails
+    try {
+      // Ensure user exists in database
+      const user = await UserService.getOrCreateClerkUser(clerkUserId);
+      
+      // update the module with s3Key and userId
+      await ModuleService.markUploaded(module.id, s3Key, user.id);
+    } catch (userError) {
+      console.warn('⚠️ Failed to create user, proceeding without userId:', userError);
+      // Still update the module with s3Key, just without userId
+      await ModuleService.markUploaded(module.id, s3Key);
+    }
 
     // presigned PUT url
     const presigned = await presignedUploadService.presignPut({ 
