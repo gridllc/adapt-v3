@@ -8,9 +8,9 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(cuid())
+  id           String        @id // This will be the Clerk user ID
   email        String        @unique
-  clerkId      String?       @unique
+  clerkId      String?       @unique // Keep for backward compatibility
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   activityLogs ActivityLog[]

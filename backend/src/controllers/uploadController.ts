@@ -7,6 +7,7 @@ import { queueOrInline } from "../services/qstashQueue.js";
 import { startProcessing } from "../services/ai/aiPipeline.js";
 import { log } from "../utils/logger.js";
 import { currentUserId } from "../middleware/auth.js";
+import { UserService } from "../services/userService.js";
 
 // ===== INIT UPLOAD =====
 export async function initUpload(req: Request, res: Response) {
@@ -17,17 +18,20 @@ export async function initUpload(req: Request, res: Response) {
     }
 
     // Get the authenticated user ID
-    const userId = currentUserId(req);
+    const clerkUserId = currentUserId(req);
+    
+    // Ensure user exists in database
+    const user = await UserService.getOrCreateClerkUser(clerkUserId);
     
     // Create user-specific S3 path
-    const s3Base = `users/${userId}/modules`;
+    const s3Base = `users/${clerkUserId}/modules`;
     const s3Key = `${s3Base}/${Date.now()}-${filename}`;
 
     // create DB record using existing service method
-    const module = await ModuleService.createForFilename(filename);
+    const module = await ModuleService.createForFilename(filename, user.id);
     
     // update the module with s3Key and userId
-    await ModuleService.markUploaded(module.id, s3Key, userId);
+    await ModuleService.markUploaded(module.id, s3Key, user.id);
 
     // presigned PUT url
     const presigned = await presignedUploadService.presignPut({ 

@@ -1,74 +1,44 @@
-import { DatabaseService } from './prismaService.js'
+import { prisma } from '../config/database.js';
 
-export class UserService {
-  /**
-   * Get or create user from Clerk data
-   */
-  static async getOrCreateUser(clerkUser: any) {
+export const UserService = {
+  // Get or create a user from Clerk ID
+  async getOrCreateClerkUser(clerkUserId: string, email?: string) {
     try {
-      // Try to find existing user by Clerk ID
-      let user = await DatabaseService.getUserByClerkId(clerkUser.id)
-      
+      // First try to find existing user
+      let user = await prisma.user.findUnique({
+        where: { id: clerkUserId }
+      });
+
+      // If not found, create one
       if (!user) {
-        // Try to find by email
-        user = await DatabaseService.getUserByEmail(clerkUser.emailAddresses[0]?.emailAddress)
-        
-        if (!user) {
-          // Create new user
-          user = await DatabaseService.createUser({
-            email: clerkUser.emailAddresses[0]?.emailAddress || 'unknown@example.com',
-            clerkId: clerkUser.id
-          })
-          console.log('✅ Created new user:', user.id)
-        } else {
-          // Update existing user with Clerk ID
-          // Note: We'd need to add an updateUser method to DatabaseService
-          console.log('✅ Found existing user by email:', user.id)
-        }
-      }
-      
-      return user
-    } catch (error) {
-      console.error('❌ Error getting/creating user:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Get user ID from request (for authenticated routes)
-   */
-  static async getUserIdFromRequest(req: any): Promise<string | null> {
-    try {
-      // The auth middleware adds userId to the request
-      if (req.userId) {
-        return req.userId
-      }
-      
-      // Fallback to Clerk user ID if available
-      const clerkUser = req.auth?.userId
-      
-      if (!clerkUser) {
-        return null
+        user = await prisma.user.create({
+          data: {
+            id: clerkUserId,
+            email: email || `user-${clerkUserId}@clerk.local`,
+            clerkId: clerkUserId, // Keep for backward compatibility
+          }
+        });
       }
 
-      const user = await DatabaseService.getUserByClerkId(clerkUser)
-      return user?.id || null
+      return user;
     } catch (error) {
-      console.error('❌ Error getting user ID from request:', error)
-      return null
+      console.error('Failed to get or create Clerk user:', error);
+      throw error;
     }
-  }
+  },
 
-  /**
-   * Check if user owns a module
-   */
-  static async userOwnsModule(userId: string, moduleId: string): Promise<boolean> {
-    try {
-      const module = await DatabaseService.getModule(moduleId)
-      return module?.userId === userId
-    } catch (error) {
-      console.error('❌ Error checking module ownership:', error)
-      return false
-    }
+  // Get user by Clerk ID
+  async getByClerkId(clerkUserId: string) {
+    return prisma.user.findUnique({
+      where: { id: clerkUserId }
+    });
+  },
+
+  // Update user email if needed
+  async updateEmail(clerkUserId: string, email: string) {
+    return prisma.user.update({
+      where: { id: clerkUserId },
+      data: { email }
+    });
   }
-} 
+}; 

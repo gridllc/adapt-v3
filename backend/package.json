@@ -19,7 +19,8 @@
     "check-ffmpeg": "ffmpeg -version",
     "postinstall": "npx prisma generate && npm run check-ffmpeg",
     "migrate:deploy": "prisma migrate deploy",
-    "render:start": "npm run migrate:deploy && npm run start"
+    "fix:user-schema": "node scripts/fix-user-schema.js",
+    "render:start": "npm run migrate:deploy && npm run fix:user-schema && npm run start"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",
