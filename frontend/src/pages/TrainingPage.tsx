@@ -34,6 +34,119 @@ const humanTime = (s?: number) =>
 const API = (path: string) =>
   `${import.meta.env.VITE_API_BASE_URL ?? ""}${path}` || `/api${path}`;
 
+// AI Chat component
+function AskBox({ moduleId }: { moduleId: string }) {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const askQuestion = async () => {
+    if (!question.trim()) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      setAnswer(null);
+
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/qa/ask`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ moduleId, question: question.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.answer) {
+        setAnswer(data.answer);
+      } else {
+        setAnswer(data.answer || "No answer returned from AI.");
+      }
+    } catch (e: any) {
+      console.error("AI Chat error:", e);
+      setError(e?.message || "Failed to get AI response");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      askQuestion();
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <label htmlFor="question" className="block text-sm font-medium text-gray-700">
+          Ask about any step or the training content
+        </label>
+        <textarea
+          id="question"
+          className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+          rows={3}
+          placeholder="e.g., What's the first step? How do I handle errors? What tools do I need?"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyPress={handleKeyPress}
+          disabled={loading}
+        />
+      </div>
+      
+      <button
+        onClick={askQuestion}
+        disabled={loading || !question.trim()}
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed"
+      >
+        {loading ? (
+          <>
+            <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+            Asking AI...
+          </>
+        ) : (
+          "Ask AI Assistant"
+        )}
+      </button>
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-red-800 text-sm">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">Error: {error}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Answer Display */}
+      {answer && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-green-800 mb-2">AI Response:</h4>
+              <div className="text-sm text-green-700 whitespace-pre-wrap">
+                {answer}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TrainingPage() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
@@ -482,52 +595,11 @@ export default function TrainingPage() {
 
         {/* Transcript / Assistant */}
         <aside className="space-y-4">
-          {/* Microphone Status */}
+          {/* AI Assistant */}
           {mod?.status === "READY" && (
             <div className="bg-white border rounded p-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">AI Assistant</h3>
-              <div className="space-y-3">
-                {micStatus === 'checking' && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <div className="animate-spin h-4 w-4 rounded-full border-b-2 border-blue-600" />
-                    Checking microphone...
-                  </div>
-                )}
-                {micStatus === 'available' && (
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                    Microphone ready for AI chat
-                  </div>
-                )}
-                {micStatus === 'denied' && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                    <div className="flex items-center gap-2 text-sm text-yellow-800">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                      </svg>
-                      Microphone access denied
-                    </div>
-                    <p className="text-xs text-yellow-700 mt-1">
-                      Click the microphone icon in your browser's address bar to enable audio access
-                    </p>
-                  </div>
-                )}
-                {micStatus === 'not-supported' && (
-                  <div className="bg-gray-50 border border-gray-200 rounded p-3">
-                    <div className="text-sm text-gray-600">
-                      Microphone not supported in this browser
-                    </div>
-                  </div>
-                )}
-                <button
-                  onClick={() => navigate(`/training/${moduleId}#chat`)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
-                >
-                  Start AI Chat
-                </button>
-              </div>
+              <AskBox moduleId={moduleId!} />
             </div>
           )}
 

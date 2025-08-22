@@ -122,6 +122,7 @@ Provide a clear, helpful response.`
     return { status: 'steps_generated', moduleId }
   },
 
+  // Legacy method - keep for backward compatibility
   async generateContextualResponse(message: string, context: any): Promise<string> {
     const prompt = `Based on the following context, provide a helpful response to the user's message:
 
@@ -143,6 +144,8 @@ Provide a relevant and helpful response.`
     return r.choices[0].message?.content?.trim() ?? 'I apologize, but I could not generate a response at this time.'
   },
 
+
+
   async getSteps(moduleId: string): Promise<any[]> {
     // Placeholder implementation - this would retrieve steps for a module
     console.log(`Getting steps for module: ${moduleId}`)
@@ -153,5 +156,138 @@ Provide a relevant and helpful response.`
     // Placeholder implementation - this would check job status
     console.log(`Getting job status for: ${jobId}`)
     return { status: 'completed', jobId }
+  },
+
+  /**
+   * Enhanced Q&A method with better context prioritization
+   * @param input - Contains module, steps, transcript, focus window, and question
+   * @returns {answer, sources} with detailed source tracking
+   */
+  async buildQaContextAndAsk(input: {
+    module: { id: string; title: string };
+    steps: Array<{ 
+      id: string; 
+      text: string; 
+      startTime?: number; 
+      endTime?: number; 
+      aliases?: string[]; 
+      notes?: string;
+      order?: number;
+    }>;
+    transcript: string;
+    focusWindow?: { start?: number; end?: number };
+    question: string;
+  }): Promise<{ answer: string; sources: Array<{
+    type: 'step' | 'transcript';
+    id?: string;
+    startTime?: number;
+    endTime?: number;
+    snippet: string;
+    orderHint?: number;
+  }> }> {
+    try {
+      // Prioritize steps based on focus window or use all steps
+      const prioritizedSteps = (() => {
+        if (!input.focusWindow?.start && !input.focusWindow?.end) {
+          // No focus window - return first 8 steps ordered by sequence
+          return input.steps
+            .sort((a, b) => (a.order ?? a.startTime ?? 0) - (b.order ?? b.startTime ?? 0))
+            .slice(0, 8);
+        }
+        
+        // Calculate center of focus window
+        const focusCenter = (Number(input.focusWindow?.start ?? 0) + Number(input.focusWindow?.end ?? 0)) / 2;
+        
+        // Sort steps by proximity to focus center, then take top 8
+        return [...input.steps]
+          .sort((a, b) => {
+            const aCenter = ((a.startTime ?? 0) + (a.endTime ?? 0)) / 2;
+            const bCenter = ((b.startTime ?? 0) + (b.endTime ?? 0)) / 2;
+            return Math.abs(aCenter - focusCenter) - Math.abs(bCenter - focusCenter);
+          })
+          .slice(0, 8);
+      })();
+
+      // Build enhanced system prompt
+      const systemPrompt = `You are an AI training tutor answering questions about a specific training video.
+Use the provided STEPS (with timestamps) and TRANSCRIPT excerpts to give accurate, practical answers.
+Be concise and reference specific step numbers when relevant.
+If the information isn't available, explain what you do know and suggest the closest relevant step.`;
+
+      // Build structured user prompt
+      const userPrompt = [
+        `Module: ${input.module.title} (ID: ${input.module.id})`,
+        ``,
+        `QUESTION: ${input.question}`,
+        ``,
+        `RELEVANT STEPS:`,
+        ...prioritizedSteps.map((step, index) => {
+          const timeRange = (step.startTime !== undefined && step.endTime !== undefined) 
+            ? `[${step.startTime}s-${step.endTime}s]` 
+            : '[time unknown]';
+          
+          let stepText = `${index + 1}. ${timeRange} ${step.text}`;
+          
+          if (step.aliases && step.aliases.length > 0) {
+            stepText += ` (also called: ${step.aliases.join(', ')})`;
+          }
+          
+          if (step.notes) {
+            stepText += ` [NOTE: ${step.notes}]`;
+          }
+          
+          return stepText;
+        }),
+        ``,
+        `TRANSCRIPT EXCERPT:`,
+        input.transcript.slice(0, 4000) + (input.transcript.length > 4000 ? '...' : ''),
+        ``,
+        `Please provide a clear, step-by-step answer. Reference specific step numbers when applicable.`
+      ].join('\n');
+
+      // Generate response using OpenAI
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0.2,
+        max_tokens: 500,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+
+      const answer = response.choices[0]?.message?.content?.trim() || 'No answer could be generated.';
+
+      // Build sources array with enhanced metadata
+      const sources = [
+        // Add transcript as a source if it exists
+        ...(input.transcript ? [{
+          type: 'transcript' as const,
+          snippet: input.transcript.length > 200 
+            ? input.transcript.substring(0, 200) + '...' 
+            : input.transcript
+        }] : []),
+        // Add prioritized steps as sources
+        ...prioritizedSteps.map((step, index) => ({
+          type: 'step' as const,
+          id: step.id,
+          startTime: step.startTime,
+          endTime: step.endTime,
+          snippet: step.text?.slice(0, 160) ?? '',
+          orderHint: index + 1,
+        }))
+      ];
+
+      return { answer, sources };
+      
+    } catch (error) {
+      console.error('❌ buildQaContextAndAsk error:', error);
+      
+      // Fallback to simple response
+      return {
+        answer: 'I apologize, but I encountered an error while processing your question. Please try again.',
+        sources: []
+      };
+    }
   },
 }
