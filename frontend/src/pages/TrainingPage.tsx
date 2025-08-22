@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import VoiceAsk from "../components/VoiceAsk";
 
 type ModuleStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
 
@@ -600,6 +601,14 @@ export default function TrainingPage() {
             <div className="bg-white border rounded p-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">AI Assistant</h3>
               <AskBox moduleId={moduleId!} />
+            </div>
+          )}
+
+          {/* Voice Assistant */}
+          {mod?.status === "READY" && (
+            <div className="bg-white border rounded p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Voice Assistant</h3>
+              <VoiceAsk moduleId={moduleId!} />
             </div>
           )}
 
