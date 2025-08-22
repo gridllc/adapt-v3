@@ -17,6 +17,14 @@ interface CompleteResponse {
 
 export async function uploadWithPresignedUrl({ file, onProgress }: { file: File; onProgress?: (p: number) => void }): Promise<UploadResult> {
   try {
+    // Check if user is authenticated before attempting upload
+    if (typeof window !== 'undefined' && window.Clerk?.session) {
+      const token = await window.Clerk.session.getToken();
+      if (!token) {
+        return { success: false, error: 'Authentication required. Please sign in.' };
+      }
+    }
+
     // 1) init → presigned PUT (NOTE: use api.post or API_BASE)
     const init = await api.post<InitResponse>('/api/upload/init', {
       filename: file.name,
@@ -41,7 +49,19 @@ export async function uploadWithPresignedUrl({ file, onProgress }: { file: File;
     return { success: true, moduleId: init.moduleId }
   } catch (error) {
     console.error('Upload error:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Upload failed' }
+    
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('401') || error.message.includes('403')) {
+        return { success: false, error: 'Authentication failed. Please sign in again.' };
+      }
+      if (error.message.includes('302')) {
+        return { success: false, error: 'Authentication required. Please sign in.' };
+      }
+      return { success: false, error: error.message };
+    }
+    
+    return { success: false, error: 'Upload failed' }
   }
 }
 

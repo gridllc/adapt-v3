@@ -24,8 +24,35 @@ export const API_ENDPOINTS = {
 };
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  // uploads/status don't need cookies; keeps dev simple too
-  const r = await fetch(`${API_BASE}${path}`, { credentials: 'omit', ...init });
+  // Get Clerk auth token if available
+  let headers = { ...init?.headers };
+  
+  try {
+    // Check if Clerk is available and user is authenticated
+    if (typeof window !== 'undefined' && window.Clerk?.session) {
+      const token = await window.Clerk.session.getToken();
+      if (token) {
+        headers = {
+          ...headers,
+          'Authorization': `Bearer ${token}`,
+        };
+        console.log('🔑 Auth token included in request:', { path, tokenLength: token.length });
+      } else {
+        console.warn('⚠️ No auth token available for request:', path);
+      }
+    } else {
+      console.warn('⚠️ Clerk not available for request:', path);
+    }
+  } catch (error) {
+    console.warn('Failed to get auth token:', error);
+  }
+
+  const r = await fetch(`${API_BASE}${path}`, { 
+    credentials: 'omit', 
+    ...init,
+    headers 
+  });
+  
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
@@ -40,7 +67,7 @@ export const api = {
     req<T>(p, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
 };
 
-// Authenticated API with credentials
+// Authenticated API with credentials and auth token
 export const authenticatedApi = {
   get: <T=any>(path: string) => 
     req<T>(path, { credentials: 'include' }),

@@ -5,13 +5,27 @@ import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
 import { validateFile } from '@utils/uploadUtils'
 import { uploadWithPresignedUrl } from '@utils/presignedUpload'
+import { useAuth } from '@clerk/clerk-react'
 
 export const UploadManager: React.FC = () => {
   const navigate = useNavigate()
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
+  const { isSignedIn, isLoaded } = useAuth()
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
+      // Check authentication first
+      if (!isLoaded) {
+        console.warn('⚠️ Auth not loaded yet, waiting...');
+        return;
+      }
+      
+      if (!isSignedIn) {
+        console.error('❌ User not authenticated, cannot upload');
+        markError('auth-required', new Error('Please sign in to upload videos'));
+        return;
+      }
+
       for (const file of acceptedFiles) {
         try {
           // Validate file
@@ -59,6 +73,38 @@ export const UploadManager: React.FC = () => {
     maxSize: 100 * 1024 * 1024, // 100MB
     multiple: false, // one file at a time
   })
+
+  // Show loading state while auth is loading
+  if (!isLoaded) {
+    return (
+      <div className="space-y-4">
+        <div className="border-2 border-dashed rounded-lg p-8 text-center">
+          <div className="text-4xl">⏳</div>
+          <h3 className="text-lg font-medium text-gray-900">Loading...</h3>
+          <p className="text-sm text-gray-500">Please wait while we check your authentication</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show sign-in prompt if not authenticated
+  if (!isSignedIn) {
+    return (
+      <div className="space-y-4">
+        <div className="border-2 border-dashed rounded-lg p-8 text-center bg-yellow-50 border-yellow-300">
+          <div className="text-4xl">🔐</div>
+          <h3 className="text-lg font-medium text-gray-900">Authentication Required</h3>
+          <p className="text-sm text-gray-500">Please sign in to upload training videos</p>
+          <button 
+            onClick={() => navigate('/sign-in')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
