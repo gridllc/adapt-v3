@@ -74,9 +74,9 @@ function App() {
         {/* Always show home page at root */}
         <Route path="/" element={<HomePage />} />
         
-        {/* Clerk authentication routes - using path-based routing */}
-        <Route path="/sign-in" element={<SignInPage />} />
-        <Route path="/sign-up" element={<SignUpPage />} />
+        {/* Clerk authentication routes - using path-based routing with wildcards for nested routes */}
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/sign-up/*" element={<SignUpPage />} />
         <Route path="/sso-callback" element={<div>Loading...</div>} />
 
         {/* Protected routes */}

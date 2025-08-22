@@ -11,10 +11,10 @@ export const SignInPage: React.FC = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-8">
-          <SignIn 
-            routing="path" 
-            path="/sign-in" 
-            redirectUrl="https://adaptord.com/dashboard"
+                  <SignIn 
+          routing="path" 
+          path="/sign-in" 
+          redirectUrl="/dashboard"
             appearance={{
               elements: {
                 rootBox: "mx-auto",
