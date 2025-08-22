@@ -177,6 +177,7 @@ Provide a relevant and helpful response.`
     transcript: string;
     focusWindow?: { start?: number; end?: number };
     question: string;
+    mode?: 'brief' | 'normal';
   }): Promise<{ answer: string; sources: Array<{
     type: 'step' | 'transcript';
     id?: string;
@@ -208,8 +209,17 @@ Provide a relevant and helpful response.`
           .slice(0, 8);
       })();
 
-      // Build enhanced system prompt
-      const systemPrompt = `You are an AI training tutor answering questions about a specific training video.
+      // Build enhanced system prompt based on mode
+      const isBrief = input.mode === 'brief';
+      const systemPrompt = isBrief 
+        ? `You are Adapt Tutor. Default style = BRIEF.
+Rules:
+1) Answer in one short paragraph (<= 25 words) unless user says "details" or asks "why/how".
+2) If the user asks for a specific step, return ONLY that step in one line: "Step N: <text>".
+3) No preambles like "Sure" or "According to the steps".
+4) Never restate previous steps unless explicitly requested.
+5) Be direct and concise.`
+        : `You are an AI training tutor answering questions about a specific training video.
 Use the provided STEPS (with timestamps) and TRANSCRIPT excerpts to give accurate, practical answers.
 Be concise and reference specific step numbers when relevant.
 If the information isn't available, explain what you do know and suggest the closest relevant step.`;
@@ -245,11 +255,13 @@ If the information isn't available, explain what you do know and suggest the clo
         `Please provide a clear, step-by-step answer. Reference specific step numbers when applicable.`
       ].join('\n');
 
-      // Generate response using OpenAI
+      // Generate response using OpenAI with mode-specific parameters
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        temperature: 0.2,
-        max_tokens: 500,
+        temperature: isBrief ? 0.1 : 0.2,
+        max_tokens: isBrief ? 60 : 500,
+        top_p: isBrief ? 0.8 : 1.0,
+        stop: isBrief ? ['\n\n'] : undefined,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
