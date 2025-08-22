@@ -56,6 +56,27 @@ export default function TrainingPage() {
     });
   }, [mod]);
 
+  // Handler functions for interactive buttons
+  const handleAddStep = () => {
+    // For now, redirect to full edit page for adding steps
+    navigate(`/edit-steps/${moduleId}`);
+  };
+
+  const handleEditStep = (step: Step, index: number) => {
+    // For now, redirect to full edit page for editing steps
+    navigate(`/edit-steps/${moduleId}`);
+  };
+
+  const handleAIRewrite = (step: Step, index: number) => {
+    // For now, redirect to full edit page for AI rewrite
+    navigate(`/edit-steps/${moduleId}`);
+  };
+
+  const handleDeleteStep = (step: Step, index: number) => {
+    // For now, redirect to full edit page for deleting steps
+    navigate(`/edit-steps/${moduleId}`);
+  };
+
   async function fetchModule(id: string) {
     try {
       setLoading(true);
@@ -256,37 +277,79 @@ export default function TrainingPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Training Steps</h3>
                 {mod?.status === "READY" && (
-                  <button
-                    onClick={() => navigate(`/edit-steps/${moduleId}`)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit Steps
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleAddStep()}
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      Add Step
+                    </button>
+                    <button
+                      onClick={() => navigate(`/edit-steps/${moduleId}`)}
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Full Edit
+                    </button>
+                  </div>
                 )}
               </div>
-              {sortedSteps.map((s, i) => (
-                <div key={s.id ?? i} className="border rounded p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-sm font-medium">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm text-gray-700 whitespace-pre-line">
-                        {s.text || "(no text)"}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {humanTime(s.startTime)} – {humanTime(s.endTime)}
-                        {typeof s.aiConfidence === "number"
-                          ? ` • conf: ${(s.aiConfidence * 100).toFixed(0)}%`
-                          : ""}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                             {sortedSteps.map((s, i) => (
+                 <div key={s.id ?? i} className="border rounded p-3">
+                   <div className="flex items-start gap-3">
+                     <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-sm font-medium">
+                       {i + 1}
+                     </div>
+                     <div className="flex-1">
+                       <div className="text-sm text-gray-700 whitespace-pre-line">
+                         {s.text || "(no text)"}
+                       </div>
+                       <div className="text-xs text-gray-500 mt-1">
+                         {humanTime(s.startTime)} – {humanTime(s.endTime)}
+                         {typeof s.aiConfidence === "number"
+                           ? ` • conf: ${(s.aiConfidence * 100).toFixed(0)}%`
+                           : ""}
+                       </div>
+                     </div>
+                     {mod?.status === "READY" && (
+                       <div className="flex items-center gap-1 ml-2">
+                         <button
+                           onClick={() => handleEditStep(s, i)}
+                           className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors duration-200"
+                           title="Edit step"
+                         >
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                           </svg>
+                         </button>
+                         <button
+                           onClick={() => handleAIRewrite(s, i)}
+                           className="p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition-colors duration-200"
+                           title="AI Rewrite step"
+                         >
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                           </svg>
+                         </button>
+                         <button
+                           onClick={() => handleDeleteStep(s, i)}
+                           className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors duration-200"
+                           title="Delete step"
+                         >
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                           </svg>
+                         </button>
+                       </div>
+                     )}
+                   </div>
+                 </div>
+               ))}
             </div>
           )}
         </div>
