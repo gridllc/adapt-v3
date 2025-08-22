@@ -9,8 +9,11 @@ const USE_GEMINI =
   !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim())
 
 const OAI_MODEL = process.env.OPENAI_MODEL_STEPS || 'gpt-4o-mini'
-const TEMP = Number(process.env.AI_TEMPERATURE ?? 0.2)
-const MAX_OUT = Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 800)
+const TEMP = Number(process.env.AI_TEMPERATURE ?? 0.1) // Reduced from 0.2 for faster responses
+const MAX_OUT = Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 400) // Reduced from 800 for faster responses
+
+// For ultra-fast processing, you can set OPENAI_MODEL_STEPS=gpt-3.5-turbo
+// This will be 3-5x faster than gpt-4o-mini for step generation
 
 // Initialize clients lazily
 let geminiClient: GoogleGenerativeAI | null = null
@@ -178,34 +181,29 @@ async function generateWithGemini(
   const label = `Module ${moduleId || 'unknown'}`
   const model = client.getGenerativeModel({ model: geminiModel })
 
-  const prompt = `Analyze this video transcript and create a structured step-by-step guide:
+  const prompt = `Create a step-by-step guide from this video transcript:
 
 TRANSCRIPT: ${transcript}
-VIDEO DURATION: ${metadata.duration} seconds
+DURATION: ${metadata.duration}s
 
-Create a JSON response with this exact structure:
+Return JSON with this structure:
 {
-  "title": "Brief, descriptive title",
-  "description": "2-3 sentence summary",
+  "title": "Brief title",
+  "description": "Short summary",
   "steps": [
     {
       "id": "step-1",
-      "text": "What happens in this step",
+      "text": "What happens",
       "startTime": 0,
       "endTime": 15,
-      "aliases": ["alternative names"],
-      "notes": "optional additional info"
+      "aliases": ["alt names"],
+      "notes": "optional info"
     }
   ],
   "totalDuration": ${metadata.duration}
 }
 
-Rules:
-- Create 5-15 logical steps
-- Each step should be 10-60 seconds
-- Use clear, actionable language
-- Ensure steps cover the entire video
-- Make step text concise but descriptive`
+Rules: 5-15 steps, 10-60s each, cover entire video, concise text.`
 
   const result = await model.generateContent(prompt)
   const response = await result.response
@@ -281,6 +279,8 @@ Return ONLY valid JSON.`
       { role: 'system', content: 'Return strict JSON with steps only.' },
       { role: 'user', content: prompt }
     ]
+  }, {
+    timeout: 30000 // 30 second timeout to prevent hanging
   })
 
   const response = completion.choices[0]?.message?.content
