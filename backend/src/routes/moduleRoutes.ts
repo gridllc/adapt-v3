@@ -125,12 +125,13 @@ moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
     if (mod.status === 'READY') {
       try {
         const { storageService } = await import('../services/storageService.js')
-        const stepsKey = `training/${id}.json`
+        // Fix: Use stepsKey from database instead of hardcoding
+        const stepsKey = mod.stepsKey || `training/${id}.json`
         const stepsData = await storageService.getJson(stepsKey)
         
         if (stepsData?.steps) {
           steps = stepsData.steps
-          log.info('✅ Loaded steps from S3', { moduleId: id, stepCount: steps.length })
+          log.info('✅ Loaded steps from S3', { moduleId: id, stepCount: steps.length, stepsKey })
         } else {
           log.warn('⚠️ No steps found in S3', { moduleId: id, stepsKey })
           // Fallback to database steps

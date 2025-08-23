@@ -39,7 +39,8 @@ export const moduleController = {
       if (module.status === 'READY') {
         try {
           const { storageService } = await import('../services/storageService.js')
-          const stepsKey = `training/${id}.json`
+          // Fix: Use stepsKey from database instead of hardcoding
+          const stepsKey = module.stepsKey || `training/${id}.json`
           console.log(`📂 Attempting to load steps from S3 key: ${stepsKey}`)
           
           const stepsData = await storageService.getJson(stepsKey)
