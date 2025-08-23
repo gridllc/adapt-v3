@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useNavigate } from 'react-router-dom'
 import { UploadItem } from './UploadItem'
@@ -9,8 +9,11 @@ import { useAuth } from '@clerk/clerk-react'
 
 export const UploadManager: React.FC = () => {
   const navigate = useNavigate()
-  const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
+  const { uploads, addUpload, updateProgress, markSuccess, markError, updateUpload, hasProcessingUploads } = useUploadStore()
   const { isSignedIn, isLoaded } = useAuth()
+  
+  // Track processing modules
+  const processingModules = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   // Auto-navigate to training page when upload completes successfully
   useEffect(() => {
@@ -28,6 +31,110 @@ export const UploadManager: React.FC = () => {
       }, 1200)
     }
   }, [uploads, navigate])
+
+  // Poll for processing completion
+  const pollForProcessingComplete = useCallback(async (uploadId: string, moduleId: string) => {
+    console.log(`🔄 Starting processing poll for module: ${moduleId}`)
+    
+    const poll = async (attempts = 0) => {
+      try {
+        const response = await fetch(`/api/modules/${moduleId}`, {
+          credentials: 'include'
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Polling failed: ${response.status}`)
+        }
+
+        const data = await response.json()
+        const module = data.module || data
+        
+        console.log(`📊 Module ${moduleId} status: ${module.status}, progress: ${module.progress || 0}`)
+        
+        // Update progress in upload store
+        if (module.progress !== undefined) {
+          updateProgress(uploadId, module.progress)
+        }
+        
+        if (module.status === 'READY' && module.steps && module.steps.length > 0) {
+          // Processing complete! Module is ready with steps
+          console.log('✅ Module processing complete:', moduleId)
+          updateProgress(uploadId, 100)
+          
+          // Clear polling interval
+          const intervalId = processingModules.current.get(moduleId)
+          if (intervalId) {
+            clearTimeout(intervalId)
+            processingModules.current.delete(moduleId)
+          }
+          
+          return
+        }
+        
+        if (module.status === 'FAILED') {
+          console.error('❌ Module processing failed:', moduleId)
+          markError(uploadId, new Error('Video processing failed. Please try again.'))
+          
+          // Clear polling interval
+          const intervalId = processingModules.current.get(moduleId)
+          if (intervalId) {
+            clearTimeout(intervalId)
+            processingModules.current.delete(moduleId)
+          }
+          
+          return
+        }
+
+        // Continue polling if not ready yet
+        if (attempts < 60) { // Max 2 minutes of polling
+          const intervalId = setTimeout(() => poll(attempts + 1), 2000) // Poll every 2 seconds
+          processingModules.current.set(moduleId, intervalId)
+        } else {
+          console.warn('⚠️ Polling timed out for module:', moduleId)
+          markError(uploadId, new Error('Processing is taking longer than expected. Please check back later.'))
+          
+          // Clear polling interval
+          const intervalId = processingModules.current.get(moduleId)
+          if (intervalId) {
+            clearTimeout(intervalId)
+            processingModules.current.delete(moduleId)
+          }
+        }
+      } catch (error) {
+        console.error('Polling error:', error)
+        
+        // Continue polling on error (up to max attempts)
+        if (attempts < 60) {
+          const intervalId = setTimeout(() => poll(attempts + 1), 2000)
+          processingModules.current.set(moduleId, intervalId)
+        } else {
+          console.error('❌ Polling failed after max attempts for module:', moduleId)
+          markError(uploadId, new Error('Failed to check processing status. Please refresh the page.'))
+          
+          // Clear polling interval
+          const intervalId = processingModules.current.get(moduleId)
+          if (intervalId) {
+            clearTimeout(intervalId)
+            processingModules.current.delete(moduleId)
+          }
+        }
+      }
+    }
+
+    // Start polling after a short delay
+    const initialPoll = setTimeout(() => poll(), 1000)
+    processingModules.current.set(moduleId, initialPoll)
+  }, [updateProgress, markError, updateUpload])
+
+  // Cleanup polling intervals on unmount
+  useEffect(() => {
+    return () => {
+      processingModules.current.forEach((intervalId) => {
+        clearTimeout(intervalId)
+      })
+      processingModules.current.clear()
+    }
+  }, [])
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -61,7 +168,11 @@ export const UploadManager: React.FC = () => {
           })
 
           if (result.success && result.moduleId) {
+            // Mark upload as successful but keep polling for processing
             markSuccess(uploadId, result.moduleId)
+            
+            // Start polling for processing completion
+            pollForProcessingComplete(uploadId, result.moduleId)
 
             // Navigate to training page after small delay
             setTimeout(() => {
@@ -78,7 +189,7 @@ export const UploadManager: React.FC = () => {
         }
       }
     },
-    [addUpload, updateProgress, markSuccess, markError, navigate]
+    [addUpload, updateProgress, markSuccess, markError, navigate, pollForProcessingComplete]
   )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -152,6 +263,21 @@ export const UploadManager: React.FC = () => {
       {Object.keys(uploads).length > 0 && (
         <div className="space-y-2">
           <h3 className="text-lg font-medium text-gray-900">Upload Status</h3>
+          
+          {/* Processing Status Message */}
+          {hasProcessingUploads() && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-blue-800 text-sm">
+                <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                <span className="font-medium">AI Processing Active</span>
+              </div>
+              <p className="text-blue-700 text-xs mt-1">
+                Your videos are being analyzed by AI. This usually takes 1-3 minutes. 
+                You'll be redirected to training when ready.
+              </p>
+            </div>
+          )}
+          
           {Object.entries(uploads)
             .sort(([, a], [, b]) => b.timestamp - a.timestamp)
             .map(([id, upload]) => (

@@ -48,6 +48,8 @@ interface UploadState {
   getActiveUploads: () => UploadEntry[]
   getCompletedUploads: () => UploadEntry[]
   getFailedUploads: () => UploadEntry[]
+  getProcessingUploads: () => UploadEntry[]
+  hasProcessingUploads: () => boolean
   
   // State management
   setMaxConcurrentUploads: (max: number) => void
@@ -171,8 +173,8 @@ export const useUploadStore = create<UploadState>()(
           newUploads.set(id, {
             ...upload,
             status: 'success',
-            progress: 100,
-            totalProgress: 100,
+            progress: 80, // Keep at 80% to show processing progress
+            totalProgress: 80,
             moduleId,
             completedAt: new Date()
           })
@@ -277,6 +279,16 @@ export const useUploadStore = create<UploadState>()(
 
       getFailedUploads: () => {
         return Array.from(get().uploads.values()).filter(upload => upload.status === 'error')
+      },
+
+      getProcessingUploads: () => {
+        return Array.from(get().uploads.values()).filter(upload => 
+          upload.status === 'success' && upload.moduleId && upload.progress < 100
+        )
+      },
+
+      hasProcessingUploads: () => {
+        return get().getProcessingUploads().length > 0
       },
 
       setMaxConcurrentUploads: (max: number) => {

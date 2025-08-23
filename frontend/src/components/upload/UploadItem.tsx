@@ -37,6 +37,14 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
   const getStatusText = () => {
     switch (upload.status) {
       case 'success':
+        // Check if module is still processing
+        if (upload.moduleId && upload.progress < 100) {
+          if (upload.progress < 25) return 'Processing: Initializing...'
+          if (upload.progress < 50) return 'Processing: Transcribing...'
+          if (upload.progress < 75) return 'Processing: Analyzing...'
+          if (upload.progress < 100) return 'Processing: Finalizing...'
+          return 'Processing: Almost done...'
+        }
         return 'Upload complete'
       case 'error':
         return upload.error || 'Upload failed'
@@ -62,6 +70,10 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
   const getProgressBarColor = () => {
     switch (upload.status) {
       case 'success':
+        // Show blue for processing, green for complete
+        if (upload.moduleId && upload.progress < 100) {
+          return 'bg-blue-500'
+        }
         return 'bg-green-500'
       case 'error':
         return 'bg-red-500'
@@ -77,6 +89,7 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
   const canCancel = upload.status === 'uploading' || upload.status === 'queued'
   const canRemove = upload.status === 'success' || upload.status === 'error' || upload.status === 'canceled'
   const canRetry = upload.status === 'error' && upload.attempts < upload.maxAttempts
+  const isProcessing = upload.status === 'success' && upload.moduleId && upload.progress < 100
 
   return (
     <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -145,7 +158,7 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
             href={`/training/${upload.moduleId}`}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium"
           >
-            View Training →
+            {isProcessing ? 'Processing...' : 'View Training →'}
           </a>
         )}
         
@@ -155,6 +168,32 @@ export const UploadItem: React.FC<UploadItemProps> = ({ id, upload, onCancel }) 
           </span>
         )}
       </div>
+
+      {/* Processing Progress Details */}
+      {isProcessing && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-medium text-blue-700">AI Processing Progress</p>
+            <span className="text-xs text-blue-500">
+              {upload.progress}% complete
+            </span>
+          </div>
+          
+          <div className="w-full bg-gray-200 rounded-full h-1">
+            <div
+              className="h-1 rounded-full transition-all duration-200 bg-blue-500"
+              style={{ width: `${upload.progress}%` }}
+            />
+          </div>
+          
+          <div className="mt-2 text-xs text-blue-600">
+            {upload.progress < 25 && '• Extracting audio from video'}
+            {upload.progress >= 25 && upload.progress < 50 && '• Transcribing with OpenAI Whisper'}
+            {upload.progress >= 50 && upload.progress < 75 && '• Analyzing content for key steps'}
+            {upload.progress >= 75 && upload.progress < 100 && '• Generating training guide'}
+          </div>
+        </div>
+      )}
 
       {/* Upload Progress Details */}
       {upload.status === 'uploading' && (
