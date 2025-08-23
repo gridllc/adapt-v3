@@ -6,7 +6,8 @@ export const ModuleService = {
   async get(id: string) {
     return prisma.module.findUnique({
       where: { id },
-      include: { steps: true },
+      // Fix: Don't include steps from database since they're stored in S3
+      // include: { steps: true },
     })
   },
 
