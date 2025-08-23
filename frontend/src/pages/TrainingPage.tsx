@@ -294,7 +294,7 @@ export default function TrainingPage() {
 
   async function checkStatus(id: string) {
     try {
-      const r = await fetch(apiUrl(`/api/status/${id}`), {
+      const r = await fetch(API(`/api/status/${id}`), {
         credentials: "include",
       });
       if (!r.ok) throw new Error(`Status check failed (${r.status})`);
