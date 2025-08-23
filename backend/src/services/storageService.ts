@@ -1,16 +1,18 @@
 // backend/src/services/storageService.ts - Quick Fix
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuidv4 } from 'uuid'
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'us-west-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
 })
 
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
+// Fix: Use the correct bucket name that matches the rest of the codebase
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adaptv3-training-videos'
 
 // Track when modules were created (in-memory for now)
 const moduleCreationTimes = new Map<string, number>()
@@ -76,54 +78,68 @@ export const storageService = {
     return moduleId
   },
 
+  /**
+   * Get a signed playback URL for a video
+   * IMPORTANT: do not set Content-Disposition so the browser streams instead of downloads
+   */
+  async getSignedPlaybackUrl(key: string, expiresSeconds: number = 600): Promise<string> {
+    try {
+      console.log(`🎬 [STORAGE] Generating signed playback URL for: ${key}`);
+      
+      const command = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: key,
+      });
+
+      const url = await getSignedUrl(s3Client, command, { expiresIn: expiresSeconds });
+      console.log(`✅ [STORAGE] Generated signed URL, expires in ${expiresSeconds}s`);
+      
+      return url;
+    } catch (error: any) {
+      console.error(`❌ [STORAGE] Failed to generate signed URL for ${key}:`, error);
+      throw new Error(`Failed to generate signed URL: ${error.message}`);
+    }
+  },
+
   async getModule(moduleId: string): Promise<any> {
-    console.log(`getModule called for ${moduleId} - EMERGENCY FIX: always returning ready status`)
+    console.log(`📖 [STORAGE] Getting module ${moduleId} from database`)
     
-    // ALWAYS return ready status to stop infinite polling
-    return {
-      id: moduleId,
-      title: 'Your Training Module (Emergency Fix)',
-      description: 'Training module - AI processing temporarily disabled',
-      status: 'ready', // ← This will stop the polling!
-      videoUrl: 'https://adaptv3-training-videos.s3.us-west-1.amazonaws.com/training/placeholder.mp4',
-      steps: [
-        {
-          timestamp: 0,
-          title: 'Step 1: Introduction',
-          description: 'Welcome to this training module',
-          duration: 30,
-        },
-        {
-          timestamp: 30,
-          title: 'Step 2: Main Content',
-          description: 'The core content of your training',
-          duration: 90,
-        },
-        {
-          timestamp: 120,
-          title: 'Step 3: Conclusion',
-          description: 'Summary and next steps',
-          duration: 30,
-        }
-      ],
+    // Get the real module from database instead of returning mock data
+    try {
+      const { ModuleService } = await import('./moduleService.js')
+      const module = await ModuleService.get(moduleId)
+      
+      if (!module) {
+        console.warn(`⚠️ [STORAGE] Module ${moduleId} not found in database`)
+        return null
+      }
+      
+      console.log(`✅ [STORAGE] Retrieved module ${moduleId} from database:`, {
+        status: module.status,
+        hasS3Key: !!module.s3Key,
+        hasStepsKey: !!module.stepsKey
+      })
+      
+      return module
+    } catch (error) {
+      console.error(`❌ [STORAGE] Failed to get module ${moduleId} from database:`, error)
+      return null
     }
   },
 
   async getAllModules(): Promise<any[]> {
-    return [
-      {
-        id: '1',
-        title: 'Coffee Maker Training',
-        description: 'Learn how to use your coffee maker',
-        videoUrl: 'https://example.com/coffee.mp4',
-      },
-      {
-        id: '2',
-        title: ' Fire TV Remote',
-        description: 'Master your Fire TV remote controls',
-        videoUrl: 'https://example.com/firetv.mp4',
-      },
-    ]
+    console.log(`📚 [STORAGE] Getting all modules from database`)
+    
+    try {
+      const { ModuleService } = await import('./moduleService.js')
+      const modules = await ModuleService.getAllModules()
+      
+      console.log(`✅ [STORAGE] Retrieved ${modules.length} modules from database`)
+      return modules
+    } catch (error) {
+      console.error(`❌ [STORAGE] Failed to get all modules:`, error)
+      return []
+    }
   },
 
   /**
@@ -178,7 +194,9 @@ export const storageService = {
       });
 
       await s3Client.send(command);
-      return `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`;
+      // Fix: Use correct region in S3 URL
+      const region = process.env.AWS_REGION || 'us-west-1';
+      return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
     } catch (error: any) {
       console.error('❌ Failed to save JSON to S3:', error);
       throw new Error(`Failed to save JSON: ${error?.message || error}`);
@@ -214,7 +232,9 @@ export const storageService = {
       
       // For now, return mock signed URL since we're not actually using S3
       // In production, this would generate a real signed URL
-      return `https://${BUCKET_NAME}.s3.amazonaws.com/${key}?mock-signed=true&expires=${expiresIn}`;
+      // Fix: Use correct region in S3 URL
+      const region = process.env.AWS_REGION || 'us-west-1';
+      return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}?mock-signed=true&expires=${expiresIn}`;
     } catch (error: any) {
       console.error(`❌ Failed to generate signed URL for ${key}:`, error);
       throw new Error(`Failed to generate signed URL: ${error?.message || error}`);

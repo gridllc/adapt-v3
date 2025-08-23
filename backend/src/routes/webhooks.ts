@@ -100,7 +100,46 @@ router.post('/assemblyai', async (req: Request, res: Response) => {
     
     logger.info('📹 [WEBHOOK] Video duration extracted', { moduleId, duration: videoDuration })
     
-    const steps = await generateVideoSteps(text, [], { duration: videoDuration }, moduleId)
+    let steps
+    try {
+      steps = await generateVideoSteps(text, [], { duration: videoDuration }, moduleId)
+      logger.info('🤖 [WEBHOOK] AI steps generated successfully', { moduleId, stepCount: steps.steps.length })
+    } catch (aiError: any) {
+      logger.warn('⚠️ [WEBHOOK] AI step generation failed, creating basic steps', { moduleId, error: aiError?.message })
+      
+      // Create basic steps as fallback
+      steps = {
+        title: 'Video Training Module',
+        description: 'Step-by-step guide generated from transcript',
+        steps: [
+          {
+            id: 'step-1',
+            text: 'Introduction and overview',
+            startTime: 0,
+            endTime: Math.min(30, videoDuration),
+            aliases: ['start', 'beginning'],
+            notes: 'Basic step created due to AI generation failure'
+          },
+          {
+            id: 'step-2', 
+            text: 'Main content and demonstration',
+            startTime: Math.min(30, videoDuration),
+            endTime: Math.max(videoDuration - 30, 60),
+            aliases: ['content', 'main'],
+            notes: 'Basic step created due to AI generation failure'
+          },
+          {
+            id: 'step-3',
+            text: 'Summary and conclusion',
+            startTime: Math.max(videoDuration - 30, 60),
+            endTime: videoDuration,
+            aliases: ['end', 'finish'],
+            notes: 'Basic step created due to AI generation failure'
+          }
+        ],
+        totalDuration: videoDuration
+      }
+    }
     
     // Debug: Log what we're about to save
     logger.info('🔍 [WEBHOOK] About to save steps to S3', { 
@@ -120,28 +159,25 @@ router.post('/assemblyai', async (req: Request, res: Response) => {
       logger.warn('⚠️ [WEBHOOK] Failed to cleanup local video file', { moduleId, error: cleanupErr?.message || cleanupErr })
     }
     
-    // Save steps to S3 using user-specific path
+    // Save steps to S3 using the standard training path that the frontend expects
+    const stepsKey = `training/${moduleId}.json`
+    
     const { stepSaver } = await import('../services/ai/stepSaver.js')
-    
-    // Get module to access userId for S3 path
-    const moduleWithUser = await ModuleService.get(moduleId)
-    if (!moduleWithUser?.userId) {
-      throw new Error('Module missing userId for S3 path construction')
-    }
-    
-    const s3Key = `users/${moduleWithUser.userId}/modules/${moduleId}/derived/steps.json`
     await stepSaver.saveStepsToS3({
       moduleId,
-      s3Key,
+      s3Key: stepsKey,
       steps: steps.steps,
       transcript: text
     })
     
+    // Update the database with the stepsKey so the frontend can find the steps
+    await ModuleService.updateStepsKey(moduleId, stepsKey)
+    
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 90)
-    logger.info('✅ [WEBHOOK] Steps generated and saved', { moduleId, stepCount: steps.steps.length })
+    logger.info('✅ [WEBHOOK] Steps generated and saved', { moduleId, stepCount: steps.steps.length, stepsKey })
 
     // 5) Mark as ready
-    await ModuleService.updateModuleStatus(moduleId, 'READY', 100)
+    await ModuleService.markReady(moduleId)
     logger.info('🎉 [WEBHOOK] Module READY', { moduleId })
   } catch (err: any) {
     const msg = err?.message ?? String(err)

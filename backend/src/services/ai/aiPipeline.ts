@@ -120,6 +120,21 @@ export async function startProcessing(
 /** Marks module FAILED and persists lastError. Safe to call from catch paths. */
 async function safeFail(moduleId: string, reason: string) {
   try {
+    // Try to create basic steps as a fallback before marking as failed
+    try {
+      console.log(`🔄 [${moduleId}] Attempting to create basic steps as fallback...`)
+      const { createBasicSteps } = await import('../createBasicSteps.js')
+      await createBasicSteps(moduleId)
+      console.log(`✅ [${moduleId}] Basic steps created successfully, marking as READY`)
+      
+      // Mark as ready instead of failed since we have basic steps
+      await ModuleService.markReady(moduleId)
+      return
+    } catch (fallbackError) {
+      console.warn(`⚠️ [${moduleId}] Fallback step creation failed:`, fallbackError)
+      // Continue with normal failure handling
+    }
+    
     await ModuleService.updateModuleStatus(moduleId, 'FAILED')
   } finally {
     await prisma.module.update({

@@ -9,6 +9,7 @@ const router = Router()
 import { prisma } from '../config/database.js'
 import { storageService } from '../services/storageService.js' // must expose headObject(key) & getSignedUrl(key)
 import { aiService } from '../services/aiService.js'           // must expose getSteps(moduleId) and getJobStatus(moduleId)
+import { ModuleService } from '../services/moduleService.js' // must expose get(id)
 
 // POST /api/debug/process/:moduleId - Manual kick for stuck modules
 router.post('/process/:moduleId', async (req, res) => {
@@ -108,6 +109,78 @@ router.get('/module/:id', async (req, res) => {
   } catch (err: any) {
     console.error('[DEBUG ERROR]', err)
     return res.status(500).json({ ok: false, error: err?.message || 'unknown', stack: err?.stack })
+  }
+})
+
+// Add this new debug endpoint
+router.get('/api/debug/module/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    console.log('🔍 Debug request for module:', id)
+    
+    const mod = await ModuleService.get(id)
+    if (!mod) {
+      return res.json({ success: false, error: 'Module not found' })
+    }
+    
+    // Return raw module data for debugging
+    return res.json({
+      success: true,
+      module: {
+        id: mod.id,
+        status: mod.status,
+        s3Key: mod.s3Key,
+        videoUrl: mod.videoUrl,
+        userId: mod.userId,
+        createdAt: mod.createdAt,
+        updatedAt: mod.updatedAt,
+        // Don't include sensitive fields
+      }
+    })
+  } catch (error: any) {
+    console.error('Debug endpoint error:', error)
+    return res.status(500).json({ success: false, error: error.message })
+  }
+})
+
+// Add endpoint to refresh video URL for a READY module
+router.post('/api/debug/refresh-video/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    console.log('🔄 Refresh video URL request for module:', id)
+    
+    const videoUrl = await ModuleService.refreshVideoUrl(id)
+    
+    return res.json({
+      success: true,
+      message: 'Video URL refreshed successfully',
+      videoUrl
+    })
+  } catch (error: any) {
+    console.error('Refresh video URL error:', error)
+    return res.status(500).json({ success: false, error: error.message })
+  }
+})
+
+// Add endpoint to test storageService directly
+router.get('/api/debug/test-storage/:s3Key', async (req, res) => {
+  try {
+    const { s3Key } = req.params
+    console.log('🧪 Testing storageService with s3Key:', s3Key)
+    
+    const { storageService } = await import('../services/storageService.js')
+    const videoUrl = await storageService.getSignedPlaybackUrl(s3Key, 60 * 10) // 10 min
+    
+    return res.json({
+      success: true,
+      message: 'Storage service test successful',
+      s3Key,
+      videoUrl: videoUrl.substring(0, 100) + '...',
+      expiresIn: '10 minutes'
+    })
+  } catch (error: any) {
+    console.error('Storage service test error:', error)
+    return res.status(500).json({ success: false, error: error.message })
   }
 })
 

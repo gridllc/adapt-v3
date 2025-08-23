@@ -21,8 +21,9 @@
     "migrate:deploy": "prisma migrate deploy",
     "fix:user-schema": "node scripts/fix-user-schema.js",
     "simple-schema-fix": "node scripts/simple-schema-fix.js",
-    "render:start": "npm run simple-schema-fix && npm run start",
-    "render:start-no-migrate": "npm run simple-schema-fix && npm run start"
+    "render:start": "node scripts/comprehensive-schema-fix.js && npm run start",
+    "render:start-no-migrate": "node scripts/comprehensive-schema-fix.js && npm run start",
+    "emergency-start": "npm run start"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",

@@ -48,6 +48,17 @@ moduleRoutes.get('/', mustBeAuthed, async (req: Request, res: Response) => {
             videoUrl = undefined
           }
         }
+        
+        // Guarantee a playback URL when module is READY - even if DB doesn't store it
+        if (mod.status === 'READY' && !videoUrl && mod.s3Key) {
+          try {
+            const { storageService } = await import('../services/storageService.js')
+            videoUrl = await storageService.getSignedPlaybackUrl(mod.s3Key, 60 * 10) // 10 min
+            log.info('✅ Generated fallback signed URL for READY module in list', { moduleId: m.id })
+          } catch (err: any) {
+            log.warn('Fallback signed URL generation failed in list', { moduleId: m.id, error: err?.message })
+          }
+        }
 
         const steps = await ModuleService.getSteps(m.id).catch((e: any) => {
           log.warn('getSteps failed', { moduleId: m.id, error: e?.message })
@@ -84,10 +95,28 @@ moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
     let videoUrl: string | undefined
     if (mod.status === 'READY' && mod.s3Key) {
       try {
+        console.log(`🎬 [moduleRoutes] Attempting presignedUploadService.getSignedPlaybackUrl for module ${id}`)
         videoUrl = await presignedUploadService.getSignedPlaybackUrl(mod.s3Key)
+        console.log(`✅ [moduleRoutes] presignedUploadService generated URL: ${videoUrl?.substring(0, 100)}...`)
       } catch (err: any) {
+        console.error(`❌ [moduleRoutes] presignedUploadService failed:`, err)
         log.warn('Signed URL generation failed', { moduleId: id, error: err?.message })
         videoUrl = undefined
+      }
+    }
+    
+    // Guarantee a playback URL when module is READY - even if DB doesn't store it
+    if (mod.status === 'READY' && !videoUrl && mod.s3Key) {
+      try {
+        console.log(`🔄 [moduleRoutes] Fallback: generating videoUrl with storageService for module ${id}`)
+        const { storageService } = await import('../services/storageService.js')
+        console.log(`✅ [moduleRoutes] storageService imported successfully`)
+        videoUrl = await storageService.getSignedPlaybackUrl(mod.s3Key, 60 * 10) // 10 min
+        console.log(`✅ [moduleRoutes] Fallback generated videoUrl: ${videoUrl?.substring(0, 100)}...`)
+        log.info('✅ Generated fallback signed URL for READY module', { moduleId: id })
+      } catch (err: any) {
+        console.error(`❌ [moduleRoutes] Fallback failed:`, err)
+        log.warn('Fallback signed URL generation failed', { moduleId: id, error: err?.message })
       }
     }
 
