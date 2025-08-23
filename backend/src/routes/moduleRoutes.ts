@@ -72,6 +72,12 @@ moduleRoutes.get('/', mustBeAuthed, async (req: Request, res: Response) => {
  */
 moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
   const id = req.params.id
+  
+  // ✅ CRITICAL: Guard against placeholder IDs
+  if (/^<.*>$/.test(id)) {
+    return fail(res, 400, 'placeholder_module_id', { message: 'Placeholder module id detected' });
+  }
+  
   try {
     const userId = currentUserId(req)
     const mod = await ModuleService.get(id)
@@ -93,6 +99,19 @@ moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
         console.error(`❌ [moduleRoutes] Signed URL generation failed:`, err)
         log.warn('Signed URL generation failed', { moduleId: id, error: err?.message })
         videoUrl = undefined
+      }
+    }
+    
+    // ✅ CRITICAL: Ensure videoUrl is always generated for READY modules
+    if (mod.status === 'READY' && !videoUrl && mod.s3Key) {
+      try {
+        console.log(`🔄 [moduleRoutes] Fallback: generating videoUrl for READY module ${id}`)
+        const { s3Service } = await import('../services/s3Service.js')
+        videoUrl = await s3Service.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
+        console.log(`✅ [moduleRoutes] Fallback generated videoUrl: ${videoUrl?.substring(0, 100)}...`)
+      } catch (err: any) {
+        console.error(`❌ [moduleRoutes] Fallback failed:`, err)
+        log.warn('Fallback videoUrl generation failed', { moduleId: id, error: err?.message })
       }
     }
 
@@ -148,6 +167,12 @@ moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
  */
 moduleRoutes.get('/:id/status', mustBeAuthed, async (req: Request, res: Response) => {
   const id = req.params.id
+  
+  // ✅ CRITICAL: Guard against placeholder IDs
+  if (/^<.*>$/.test(id)) {
+    return fail(res, 400, 'placeholder_module_id', { message: 'Placeholder module id detected' });
+  }
+  
   try {
     const userId = currentUserId(req)
     const mod = await ModuleService.get(id)

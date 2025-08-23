@@ -12,6 +12,11 @@ export const videoRoutes = Router()
 videoRoutes.get('/:moduleId/play', mustBeAuthed, async (req: Request, res: Response) => {
   const moduleId = req.params.moduleId
   
+  // ✅ CRITICAL: Guard against placeholder IDs
+  if (/^<.*>$/.test(moduleId)) {
+    return res.status(400).json({ success: false, error: 'Placeholder module id' });
+  }
+  
   try {
     const userId = currentUserId(req)
     

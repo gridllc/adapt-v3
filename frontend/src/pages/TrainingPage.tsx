@@ -34,8 +34,9 @@ const humanTime = (s?: number) =>
     ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`
     : "-";
 
-const API = (path: string) =>
-  `${import.meta.env.VITE_API_BASE_URL ?? ""}${path}` || `/api${path}`;
+// ✅ FIXED: Safe API function that avoids double slashes and has clear fallback
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+const API = (path: string) => `${API_BASE}${path}`;
 
 // AI Chat component
 function AskBox({ moduleId }: { moduleId: string }) {
@@ -162,6 +163,18 @@ export default function TrainingPage() {
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [showTextQA, setShowTextQA] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  // ✅ CRITICAL: Validate moduleId early to prevent infinite spinner
+  if (!moduleId || /<|>/.test(moduleId)) {
+    return (
+      <div className="bg-red-50 border border-red-200 p-4 rounded">
+        <div className="text-red-700 font-medium">Invalid module link</div>
+        <div className="text-red-600 text-sm mt-1">
+          This page was opened with a placeholder module id. Please return to the dashboard and open the module again.
+        </div>
+      </div>
+    );
+  }
 
   // Voice controller with toast notifications
   const toast = useToast();
@@ -291,8 +304,14 @@ export default function TrainingPage() {
         progress: Number(data.progress ?? 0),
       };
     } catch (e: any) {
-      // don't throw to avoid breaking the poll loop on transient failures
-      return { status: mod?.status ?? "PROCESSING", progress: mod?.progress ?? 0 };
+      // ✅ FIXED: Attempt recovery instead of returning PROCESSING forever
+      try {
+        const refreshed = await fetchModule(id);
+        return { status: refreshed.status, progress: Number(refreshed.progress ?? 0) };
+      } catch {
+        // Give up gracefully; don't force PROCESSING forever
+        return { status: (mod?.status ?? "UPLOADED") as ModuleStatus, progress: Number(mod?.progress ?? 0) };
+      }
     }
   }
 
@@ -325,8 +344,18 @@ export default function TrainingPage() {
       return 8000;
     };
 
+    // ✅ FIXED: Add MAX_POLLS limit to prevent infinite polling
+    const MAX_POLLS = 60; // ~5–8 min depending on backoff
+    
     async function loop(n = 0): Promise<void> {
       if (!isActive) return;
+      
+      // Stop polling after max attempts to prevent infinite spinner
+      if (n > MAX_POLLS) {
+        setError("Still processing? This usually means the link was opened with a placeholder id or the tab lost auth. Try opening the module from the dashboard.");
+        setPolling(false);
+        return;
+      }
 
       const { status, progress } = await checkStatus(moduleId);
       setMod((m) => (m ? { ...m, status, progress } : m));
