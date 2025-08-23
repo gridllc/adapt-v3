@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { useNavigate } from 'react-router-dom'
 import { UploadItem } from './UploadItem'
@@ -11,6 +11,23 @@ export const UploadManager: React.FC = () => {
   const navigate = useNavigate()
   const { uploads, addUpload, updateProgress, markSuccess, markError } = useUploadStore()
   const { isSignedIn, isLoaded } = useAuth()
+
+  // Auto-navigate to training page when upload completes successfully
+  useEffect(() => {
+    const successfulUploads = Object.entries(uploads).filter(([, upload]) => 
+      upload.status === 'success' && upload.moduleId
+    )
+    
+    if (successfulUploads.length > 0) {
+      const [id, upload] = successfulUploads[0]
+      console.log(`🚀 Auto-navigating to training page for module: ${upload.moduleId}`)
+      
+      // Navigate to training page after small delay
+      setTimeout(() => {
+        navigate(`/training/${upload.moduleId}`)
+      }, 1200)
+    }
+  }, [uploads, navigate])
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
