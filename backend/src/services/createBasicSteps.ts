@@ -1,9 +1,10 @@
 import { ModuleService } from './moduleService.js'
 import { stepSaver } from './ai/stepSaver.js'
+import { DatabaseService } from './prismaService.js'
 
 export interface BasicStepData {
   moduleId: string
-  status: 'processing' | 'queued' | 'ready' | 'failed'
+  status: 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED'  // Fixed: Use correct enum values
   progress: number
   message: string
   createdAt: string
@@ -52,7 +53,7 @@ export const createBasicSteps = async (moduleId: string): Promise<{
     // Create basic training data
     const trainingData: BasicStepData = {
       moduleId,
-      status: 'ready',
+      status: 'READY',  // Fixed: Use correct enum value
       progress: 100,
       message: 'Basic steps created - AI processing will enhance these later',
       createdAt: new Date().toISOString(),
@@ -112,53 +113,6 @@ export const createBasicSteps = async (moduleId: string): Promise<{
     return { trainingData, stepsData }
   } catch (error: any) {
     console.error(`❌ [createBasicSteps] Failed to create basic steps for module ${moduleId}:`, error)
-    throw error
-  }
-}
-
-/**
- * Updates the training data with new status and progress
- * NOTE: This function is commented out due to type incompatibility with ModuleStatus enum
- * The local BasicStepData interface uses different status values than the Prisma enum
- */
-/*
-export const updateTrainingData = async (moduleId: string, updates: Partial<BasicStepData>): Promise<void> => {
-  try {
-    console.log(`📝 Updating training data for ${moduleId}:`, updates)
-    
-    // Update module status in database
-    if (updates.status && updates.progress !== undefined) {
-      await DatabaseService.updateModuleStatus(
-        moduleId, 
-        updates.status, 
-        updates.progress, 
-        updates.message
-      )
-    }
-    
-    console.log(`✅ Training data updated for ${moduleId} in database`)
-  } catch (error) {
-    console.error(`❌ Failed to update training data for ${moduleId}:`, error)
-    console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
-    throw error
-  }
-}
-*/
-
-/**
- * Updates the steps data with new steps
- */
-export const updateStepsData = async (moduleId: string, steps: any[]): Promise<void> => {
-  try {
-    console.log(`📝 Updating steps data for ${moduleId} with ${steps.length} steps`)
-    
-    // Save steps to database
-    await DatabaseService.createSteps(moduleId, steps)
-    
-    console.log(`✅ Steps data updated for ${moduleId} in database`)
-  } catch (error) {
-    console.error(`❌ Failed to update steps data for ${moduleId}:`, error)
-    console.error(`❌ Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
     throw error
   }
 } 
