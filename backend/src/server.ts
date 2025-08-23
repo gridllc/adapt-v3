@@ -303,9 +303,9 @@ const configureRoutes = () => {
           
           if (updatedModule?.status) {
             return res.json({
+              success: true,
               status: updatedModule.status,
               progress: updatedModule.progress,
-              message: 'Status initialized',
               moduleId,
               timestamp: new Date().toISOString()
             })
@@ -323,9 +323,9 @@ const configureRoutes = () => {
 
       console.log(`✅ Returning status for ${moduleId}: ${module.status} (${module.progress}%)`)
       return res.json({
+        success: true,
         status: module.status,
         progress: module.progress,
-        message: 'Current status',
         moduleId,
         timestamp: new Date().toISOString()
       })
