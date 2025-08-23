@@ -1,28 +1,18 @@
-import { ListObjectsV2Command } from '@aws-sdk/client-s3'
-import { s3Client, isS3Configured } from './s3Uploader.js'
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
-// Export the shared client for compatibility
-export { s3Client as s3 }
+const s3 = new S3Client({
+  region: process.env.AWS_REGION!,             // e.g. "us-west-1"
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+})
+const BUCKET = process.env.AWS_BUCKET_NAME!    // e.g. "adaptv3-training-videos"
 
-// Health check function
-export async function checkS3Health(): Promise<boolean> {
-  try {
-    if (!isS3Configured() || !process.env.AWS_BUCKET_NAME) {
-      console.log('[TEST] Cloud storage not configured - skipping health check')
-      return false
-    }
+export async function getSignedUrlForKey(key: string, expiresSec = 3600) {
+  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key })
+  return await getSignedUrl(s3, cmd, { expiresIn: expiresSec })
+}
 
-    const command = new ListObjectsV2Command({
-      Bucket: process.env.AWS_BUCKET_NAME,
-      MaxKeys: 1
-    })
-
-    await s3Client().send(command)
-    
-    console.log(`[TEST] ✅ Cloud storage health check passed: ${process.env.AWS_BUCKET_NAME}`)
-    return true
-  } catch (error) {
-    console.error('[TEST] Cloud storage health check failed:', error)
-    return false
-  }
-} 
+export const s3Service = { getSignedUrl: getSignedUrlForKey } 

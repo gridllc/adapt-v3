@@ -24,7 +24,7 @@ export const ModuleService = {
       data: {
         title: filename,
         filename,
-        videoUrl: `https://placeholder.com/${filename}`, // Required field
+        videoUrl: '', // Empty placeholder - we'll generate presigned URL on read
         userId: userId || null,
         status: ModuleStatus.UPLOADED,
         stepsKey: `training/placeholder.json`, // Will be updated with actual module ID
@@ -80,31 +80,15 @@ export const ModuleService = {
       throw new Error(`Module ${id} not found`)
     }
     
-    console.log(`🔍 [markReady] Module ${id}: s3Key=${module.s3Key}, videoUrl=${module.videoUrl}`)
+    console.log(`🔍 [markReady] Module ${id}: s3Key=${module.s3Key}`)
     
-    // If module has s3Key but no videoUrl, generate a signed URL
-    let videoUrl = module.videoUrl
-    if (module.s3Key && !videoUrl) {
-      try {
-        console.log(`🎬 [markReady] Generating videoUrl for module ${id} with s3Key: ${module.s3Key}`)
-        const { storageService } = await import('./storageService.js')
-        console.log(`✅ [markReady] storageService imported successfully`)
-        videoUrl = await storageService.getSignedPlaybackUrl(module.s3Key, 60 * 60 * 24) // 24 hours
-        console.log(`✅ [markReady] Generated videoUrl: ${videoUrl?.substring(0, 100)}...`)
-      } catch (error: any) {
-        console.error(`❌ [markReady] Failed to generate videoUrl for module ${id}:`, error)
-        // Don't fail the markReady operation if URL generation fails
-      }
-    } else {
-      console.log(`ℹ️ [markReady] Module ${id}: s3Key=${!!module.s3Key}, videoUrl=${!!videoUrl}`)
-    }
-    
+    // Only mark as READY - don't store videoUrl (we'll generate it on-demand)
     return prisma.module.update({
       where: { id },
       data: { 
         status: ModuleStatus.READY, 
-        progress: 100,
-        ...(videoUrl && { videoUrl }) // Only update videoUrl if we have one
+        progress: 100
+        // DO NOT set videoUrl here - we'll generate presigned URL on read
       },
     })
   },
