@@ -33,7 +33,8 @@
       "@services/*": ["./src/services/*"],
       "@utils/*": ["./src/utils/*"],
       "@types/*": ["./src/types/*"]
-    }
+    },
+    "composite": true
   },
   "include": ["src", "vite-env.d.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]

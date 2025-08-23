@@ -1,46 +1,35 @@
-// One place to build API URLs safely
-const raw = import.meta.env.VITE_API_BASE_URL?.trim();
+// One place to build API URLs safely - ABSOLUTE ONLY
+const DEFAULT_API = 'https://adapt-v3.onrender.com';
 
 // 1) Use env if present
 // 2) Else, if we're already on the backend domain (local dev proxy), use window.origin
 // 3) Else, hard-default to your Render backend
-export const API_BASE =
-  (raw && raw.replace(/\/+$/, "")) ||
+const API_BASE =
+  (import.meta as any)?.env?.VITE_API_BASE_URL ||
   (typeof window !== "undefined" && window.location.origin.includes("onrender.com")
     ? window.location.origin
-    : "https://adapt-v3.onrender.com");
+    : DEFAULT_API);
 
-export const apiUrl = (path: string) =>
-  `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
-
-// API configuration
-export const API_CONFIG = {
-  baseURL: API_BASE,
-  timeout: 30000,
-  retries: 3,
-  getApiUrl: (endpoint: string) => `${API_BASE}${endpoint}`
+// CRITICAL: Build absolute URLs using URL constructor
+const url = (path: string) => {
+  // Remove leading slash to avoid double slashes
+  const cleanPath = path.replace(/^\//, '');
+  // Ensure API_BASE ends with slash for URL constructor
+  const base = API_BASE.endsWith('/') ? API_BASE : API_BASE + '/';
+  return new URL(cleanPath, base).toString();
 };
 
-// API endpoints
-export const API_ENDPOINTS = {
-  MODULES: '/api/modules',
-  UPLOAD: {
-    INIT: '/api/upload/init',
-    COMPLETE: '/api/upload/complete'
-  },
-  TRAINING: '/api/training',
-  QA: '/api/qa/ask',
-  STEPS: '/api/steps',
-  AUTH: '/api/auth',
-  HEALTH: '/api/health'
-};
+// Export the base for debugging
+export const API_BASE_URL = API_BASE;
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+// Main API function that builds absolute URLs
+async function apiRequest(path: string, init: RequestInit = {}) {
+  const reqUrl = url(path);
+  
   // Get Clerk auth token if available
   let headers = { ...init?.headers };
   
   try {
-    // Check if Clerk is available and user is authenticated
     if (typeof window !== 'undefined' && window.Clerk?.session) {
       const token = await window.Clerk.session.getToken();
       if (token) {
@@ -59,7 +48,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     console.warn('Failed to get auth token:', error);
   }
 
-  const r = await fetch(`${API_BASE}${path}`, { 
+  const r = await fetch(reqUrl, { 
     credentials: 'omit', 
     ...init,
     headers 
@@ -69,39 +58,74 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return r.json();
 }
 
+// Main API object with methods (maintaining old structure)
 export const api = {
-  get:  <T=any>(p: string) => req<T>(p),
-  post: <T=any>(p: string, body: any) =>
-    req<T>(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
-  delete: <T=any>(p: string) =>
-    req<T>(p, { method: 'DELETE' }),
-  put: <T=any>(p: string, body: any) =>
-    req<T>(p, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  get: <T=any>(path: string) => 
+    apiRequest(path, { method: 'GET' }),
+  post: <T=any>(path: string, body: any) =>
+    apiRequest(path, { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify(body) 
+    }),
+  delete: <T=any>(path: string) =>
+    apiRequest(path, { method: 'DELETE' }),
+  put: <T=any>(path: string, body: any) =>
+    apiRequest(path, { 
+      method: 'PUT', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify(body) 
+    }),
 };
 
 // Authenticated API with credentials and auth token
 export const authenticatedApi = {
   get: <T=any>(path: string) => 
-    req<T>(path, { credentials: 'include' }),
+    apiRequest(path, { credentials: 'include' }),
   post: <T=any>(path: string, body: any) =>
-    req<T>(path, { 
+    apiRequest(path, { 
       method: 'POST', 
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(body) 
     }),
   delete: <T=any>(path: string) =>
-    req<T>(path, { 
+    apiRequest(path, { 
       method: 'DELETE', 
       credentials: 'include'
     }),
   put: <T=any>(path: string, body: any) =>
-    req<T>(path, { 
+    apiRequest(path, { 
       method: 'PUT', 
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(body) 
     }),
+};
+
+// Legacy compatibility - but now builds absolute URLs
+export const apiUrl = (path: string) => url(path);
+
+// API configuration
+export const API_CONFIG = {
+  baseURL: API_BASE,
+  timeout: 30000,
+  retries: 3,
+  getApiUrl: (endpoint: string) => url(endpoint)
+};
+
+// API endpoints (now used with the api() function)
+export const API_ENDPOINTS = {
+  MODULES: 'api/modules',
+  UPLOAD: {
+    INIT: 'api/upload/init',
+    COMPLETE: 'api/upload/complete'
+  },
+  TRAINING: 'api/training',
+  QA: 'api/qa/ask',
+  STEPS: 'api/steps',
+  AUTH: 'api/auth',
+  HEALTH: 'api/health'
 };
 
 // Optional: quick check in console
@@ -144,7 +168,7 @@ export function normalizeModuleData(data: any): NormalizedModule {
 }
 
 export async function fetchModule(moduleId: string): Promise<NormalizedModule> {
-  const res = await fetch(`/api/modules/${moduleId}`, {
+  const res = await fetch(url(`api/modules/${moduleId}`), {
     credentials: 'include'
   });
   const data = await res.json();

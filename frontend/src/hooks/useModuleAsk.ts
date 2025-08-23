@@ -42,7 +42,7 @@ export function useModuleAsk(): AskResult {
       setRaw(null)
       setMeta({ reused: false, similarity: null, questionId: null, source: null })
 
-      const data = await api.post('/api/ai/ask', { moduleId, question })
+      const data = await api.post('api/ai/ask', { moduleId, question })
 
       if (data.success) {
         setAnswer(data.answer || null)

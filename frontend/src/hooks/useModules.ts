@@ -22,7 +22,7 @@ export function useModules() {
       const attemptFetch = async (): Promise<NormalizedModule[]> => {
         try {
           console.log(`🔍 Fetching modules... (attempt ${retryCount + 1}/${maxRetries})`)
-          const data = await authenticatedFetch('/api/modules') as ModulesResponse
+          const data = await authenticatedFetch('api/modules') as ModulesResponse
           
           console.log('📦 Modules response:', data)
           

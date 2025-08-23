@@ -17,7 +17,7 @@ export const DashboardPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this module?')) return
     try {
-      await authenticatedFetch(`/api/modules/${id}`, { method: 'DELETE' })
+              await authenticatedFetch(`api/modules/${id}`, { method: 'DELETE' })
       setDeleted(prev => [...prev, id])
     } catch (error) {
       console.error('Error deleting module:', error)

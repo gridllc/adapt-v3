@@ -1,4 +1,4 @@
-import { api, API_BASE } from '../config/api'
+import { api } from '../config/api'
 
 export type UploadResult = { success: boolean; moduleId?: string; error?: string }
 
@@ -26,7 +26,7 @@ export async function uploadWithPresignedUrl({ file, onProgress }: { file: File;
     }
 
     // 1) init → presigned PUT (NOTE: use api.post or API_BASE)
-    const init = await api.post<InitResponse>('/api/upload/init', {
+    const init = await api.post<InitResponse>('api/upload/init', {
       filename: file.name,
       contentType: file.type || 'video/mp4',
       sizeBytes: file.size,     // optional, for server validation later
@@ -40,7 +40,7 @@ export async function uploadWithPresignedUrl({ file, onProgress }: { file: File;
     await putWithProgress(init.presignedUrl, file, onProgress)
 
     // 3) complete
-    const done = await api.post<CompleteResponse>('/api/upload/complete', {
+    const done = await api.post<CompleteResponse>('api/upload/complete', {
       moduleId: init.moduleId,
       key: init.key,
     })

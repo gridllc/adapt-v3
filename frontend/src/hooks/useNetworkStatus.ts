@@ -44,7 +44,7 @@ export const useNetworkStatus = (): NetworkStatus => {
       const startTime = performance.now()
       
       // Use safeFetch to prevent crashes
-      const { ok, status } = await safeFetch(`/api/health`, {
+      const { ok, status } = await safeFetch(`api/health`, {
         method: 'HEAD',
         cache: 'no-cache',
         headers: {

@@ -47,7 +47,7 @@ export default function DebugPage() {
 
   const fetchHealth = async () => {
     try {
-      const response = await api.get('/api/health')
+      const response = await api.get('api/health')
       setHealth(response)
     } catch (error) {
       console.error('Failed to fetch health:', error)
@@ -57,7 +57,7 @@ export default function DebugPage() {
   const fetchModules = async (filterType: string = 'all') => {
     try {
       setRefreshing(true)
-      let url = '/api/debug/modules/debug?limit=50'
+              let url = 'api/debug/modules/debug?limit=50'
       
       if (filterType === 'failed') {
         url += '&status=failed'

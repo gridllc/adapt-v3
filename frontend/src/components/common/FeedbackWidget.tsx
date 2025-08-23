@@ -31,7 +31,7 @@ export const FeedbackWidget: React.FC<FeedbackWidgetProps> = ({
 
   const handleFeedback = async (action: 'worked' | 'not_working' | 'partially_working') => {
     try {
-      const data = await api.post('/api/feedback/submit', {
+      const data = await api.post('api/feedback/submit', {
         type,
         action,
         moduleId,

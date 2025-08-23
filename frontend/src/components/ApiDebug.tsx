@@ -28,8 +28,7 @@ export const ApiDebug: React.FC = () => {
 
   const testDirect = async () => {
     try {
-      const response = await fetch('/api/health')
-      const data = await response.json()
+      const data = await api.get('api/health')
       setTestResults(prev => ({ ...prev, direct: { success: true, data } }))
     } catch (error) {
       setTestResults(prev => ({ ...prev, direct: { success: false, error: error.message } }))
@@ -38,7 +37,7 @@ export const ApiDebug: React.FC = () => {
 
   const testViaConfig = async () => {
     try {
-      const data = await api.get('/api/health')
+      const data = await api.get('api/health')
       setTestResults(prev => ({ ...prev, config: { success: true, data } }))
     } catch (error) {
       setTestResults(prev => ({ ...prev, config: { success: false, error: error.message } }))
@@ -47,9 +46,7 @@ export const ApiDebug: React.FC = () => {
 
   const testModules = async () => {
     try {
-      const url = API_CONFIG.getApiUrl(API_ENDPOINTS.MODULES)
-      const response = await fetch(url)
-      const data = await response.json()
+      const data = await api.get('api/modules')
       setTestResults(prev => ({ ...prev, modules: { success: true, data } }))
     } catch (error) {
       setTestResults(prev => ({ ...prev, modules: { success: false, error: error.message } }))

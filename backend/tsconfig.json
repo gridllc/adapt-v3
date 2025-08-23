@@ -12,7 +12,11 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"]
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "types": ["node", "jest"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

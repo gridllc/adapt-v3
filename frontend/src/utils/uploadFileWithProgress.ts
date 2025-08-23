@@ -39,7 +39,7 @@ export const uploadFileWithProgress = (
   options: UploadOptions = {}
 ): Promise<UploadResponse> => {
   const {
-    url = '/api/upload',
+            url = 'api/upload',
     timeout = 60000, // 60 seconds default
     headers = {},
     signal

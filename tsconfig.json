@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./frontend" },
+    { "path": "./backend" }
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "declaration": false,
+    "declarationMap": false,
+    "skipLibCheck": true
+  }
+}

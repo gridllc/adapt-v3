@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useModuleAsk } from '@/hooks/useModuleAsk'
 import { AISuggestionFeedback } from './common/FeedbackWidget'
+import { api } from '@/config/api'
 
 interface Props {
   moduleId: string
@@ -55,7 +56,7 @@ export const ChatTutor: React.FC<Props> = ({ moduleId }) => {
 
       console.log('📤 Sending audio for transcription...')
       
-      const response = await fetch('/api/ai/transcribe', {
+      const response = await api.post('api/ai/transcribe', {
         method: 'POST',
         body: formData,
       })
