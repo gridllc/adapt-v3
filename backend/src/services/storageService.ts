@@ -12,7 +12,7 @@ const s3Client = new S3Client({
 })
 
 const prisma = new PrismaClient()
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adaptv3-training-videos'
+const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adaptv3-training-videos'
 
 // Track when modules were created (in-memory for now)
 const moduleCreationTimes = new Map<string, number>()
@@ -102,6 +102,8 @@ export const storageService = {
   // ✅ FIXED: Now queries Prisma database instead of returning mock data
   async getModule(moduleId: string): Promise<any> {
     try {
+      console.log(`🔍 [StorageService] Fetching module: ${moduleId}`) // ADD THIS LINE
+      
       // Query the actual database using Prisma
       const module = await prisma.module.findUnique({
         where: { id: moduleId },
@@ -121,7 +123,7 @@ export const storageService = {
           id: module.id,
           title: module.title || module.filename || 'Untitled Module',
           filename: module.filename,
-          status: module.status || 'PROCESSING', // Keep original case from database
+          status: module.status || 'processing', // Use lowercase to match your backend logs
           progress: module.progress || 0,
           videoUrl: module.videoUrl,
           transcriptText: module.transcriptText,
@@ -149,6 +151,8 @@ export const storageService = {
   // ✅ FIXED: Now queries Prisma database
   async getAllModules(): Promise<any[]> {
     try {
+      console.log(`🔍 [StorageService] Fetching all modules`) // ADD THIS LINE
+      
       const modules = await prisma.module.findMany({
         include: {
           steps: {
@@ -162,7 +166,7 @@ export const storageService = {
         id: module.id,
         title: module.title || module.filename || 'Untitled Module',
         filename: module.filename,
-        status: module.status || 'PROCESSING',
+        status: module.status || 'processing',
         progress: module.progress || 0,
         videoUrl: module.videoUrl,
         duration: 0, // Duration not available in current schema
