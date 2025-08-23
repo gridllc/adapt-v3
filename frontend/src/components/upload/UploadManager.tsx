@@ -49,16 +49,21 @@ export const UploadManager: React.FC = () => {
         const data = await response.json()
         const module = data.module || data
         
-        console.log(`📊 Module ${moduleId} status: ${module.status}, progress: ${module.progress || 0}`)
+        console.log(`📊 Module ${moduleId} status: ${module.status}, progress: ${module.progress || 0}, steps: ${module.steps?.length || 0}`)
         
         // Update progress in upload store
         if (module.progress !== undefined) {
           updateProgress(uploadId, module.progress)
         }
         
+        // Check if processing is complete - status should be 'READY' and have steps
         if (module.status === 'READY' && module.steps && module.steps.length > 0) {
           // Processing complete! Module is ready with steps
-          console.log('✅ Module processing complete:', moduleId)
+          console.log('✅ Module processing complete:', moduleId, {
+            status: module.status,
+            stepCount: module.steps.length,
+            title: module.title
+          })
           updateProgress(uploadId, 100)
           
           // Clear polling interval

@@ -72,6 +72,54 @@ export const uploadWithProgress = async (options: UploadOptions): Promise<Respon
 }
 
 /**
+ * Upload file to S3 presigned URL with progress tracking (PUT method)
+ */
+export const uploadWithProgressS3 = async (options: {
+  file: File
+  url: string
+  onProgress: (progress: number) => void
+  timeout?: number
+}): Promise<Response> => {
+  const { file, url, onProgress, timeout = 60000 } = options
+  
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    
+    // Set up progress tracking
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100)
+        onProgress(percent)
+      }
+    })
+
+    // Set up completion handlers
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(new Response(xhr.response, { status: xhr.status }))
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`))
+      }
+    })
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'))
+    })
+
+    xhr.addEventListener('timeout', () => {
+      reject(new Error('Upload timed out'))
+    })
+
+    // Configure request
+    xhr.timeout = timeout
+    xhr.open('PUT', url) // Use PUT for S3 presigned URLs
+
+    // Send the file directly (not as FormData for S3)
+    xhr.send(file)
+  })
+}
+
+/**
  * Validate file before upload
  */
 export const validateFile = async (file: File): Promise<ValidationResult> => {

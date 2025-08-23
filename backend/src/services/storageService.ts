@@ -1,6 +1,6 @@
 // backend/src/services/storageService.ts - Quick Fix
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { PrismaClient } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
 
 const s3Client = new S3Client({
@@ -11,7 +11,7 @@ const s3Client = new S3Client({
   },
 })
 
-// Fix: Use the correct bucket name that matches the rest of the codebase
+const prisma = new PrismaClient()
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adaptv3-training-videos'
 
 // Track when modules were created (in-memory for now)
@@ -42,7 +42,7 @@ export const storageService = {
   },
 
   async uploadVideo(file: Express.Multer.File): Promise<string> {
-    const key = `training/${uuidv4()}-${file.originalname}`
+    const key = `videos/${uuidv4()}-${file.originalname}`
     
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -66,10 +66,7 @@ export const storageService = {
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
-      Body: JSON.stringify({
-        ...moduleData,
-        status: 'processing'
-      }),
+      Body: JSON.stringify(moduleData),
       ContentType: 'application/json',
     })
 
@@ -91,7 +88,8 @@ export const storageService = {
         Key: key,
       });
 
-      const url = await getSignedUrl(s3Client, command, { expiresIn: expiresSeconds });
+      const response = await s3Client.send(command);
+      const url = `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`;
       console.log(`✅ [STORAGE] Generated signed URL, expires in ${expiresSeconds}s`);
       
       return url;
@@ -101,44 +99,81 @@ export const storageService = {
     }
   },
 
+  // ✅ FIXED: Now queries Prisma database instead of returning mock data
   async getModule(moduleId: string): Promise<any> {
-    console.log(`📖 [STORAGE] Getting module ${moduleId} from database`)
-    
-    // Get the real module from database instead of returning mock data
     try {
-      const { ModuleService } = await import('./moduleService.js')
-      const module = await ModuleService.get(moduleId)
-      
+      // Query the actual database using Prisma
+      const module = await prisma.module.findUnique({
+        where: { id: moduleId },
+        include: {
+          steps: {
+            orderBy: { startTime: 'asc' }
+          }
+        }
+      })
+
       if (!module) {
-        console.warn(`⚠️ [STORAGE] Module ${moduleId} not found in database`)
         return null
       }
-      
-      console.log(`✅ [STORAGE] Retrieved module ${moduleId} from database:`, {
-        status: module.status,
-        hasS3Key: !!module.s3Key,
-        hasStepsKey: !!module.stepsKey
-      })
-      
-      return module
+
+              // Return module with proper format that matches frontend expectations
+        return {
+          id: module.id,
+          title: module.title || module.filename || 'Untitled Module',
+          filename: module.filename,
+          status: module.status || 'PROCESSING', // Keep original case from database
+          progress: module.progress || 0,
+          videoUrl: module.videoUrl,
+          transcriptText: module.transcriptText,
+          steps: module.steps?.map(step => ({
+            id: step.id,
+            text: step.text,
+            startTime: step.startTime,
+            endTime: step.endTime,
+            order: step.order,
+            aliases: step.aliases,
+            notes: step.notes
+          })) || [],
+          lastError: module.lastError,
+          createdAt: module.createdAt,
+          updatedAt: module.updatedAt,
+          userId: module.userId,
+          s3Key: module.s3Key
+        }
     } catch (error) {
-      console.error(`❌ [STORAGE] Failed to get module ${moduleId} from database:`, error)
-      return null
+      console.error('Error fetching module from database:', error)
+      throw error
     }
   },
 
+  // ✅ FIXED: Now queries Prisma database
   async getAllModules(): Promise<any[]> {
-    console.log(`📚 [STORAGE] Getting all modules from database`)
-    
     try {
-      const { ModuleService } = await import('./moduleService.js')
-      const modules = await ModuleService.getAllModules()
-      
-      console.log(`✅ [STORAGE] Retrieved ${modules.length} modules from database`)
-      return modules
+      const modules = await prisma.module.findMany({
+        include: {
+          steps: {
+            orderBy: { startTime: 'asc' }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+
+      return modules.map(module => ({
+        id: module.id,
+        title: module.title || module.filename || 'Untitled Module',
+        filename: module.filename,
+        status: module.status || 'PROCESSING',
+        progress: module.progress || 0,
+        videoUrl: module.videoUrl,
+        duration: 0, // Duration not available in current schema
+        stepCount: module.steps?.length || 0,
+        createdAt: module.createdAt,
+        updatedAt: module.updatedAt,
+        userId: module.userId
+      }))
     } catch (error) {
-      console.error(`❌ [STORAGE] Failed to get all modules:`, error)
-      return []
+      console.error('Error fetching modules from database:', error)
+      throw error
     }
   },
 
