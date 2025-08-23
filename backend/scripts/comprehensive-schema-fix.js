@@ -5,7 +5,7 @@
  * This script ensures the database is in a working state for uploads
  */
 
-import { PrismaClient } from '@prisma/client';
+const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 

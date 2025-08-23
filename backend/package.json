@@ -21,8 +21,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "fix:user-schema": "node scripts/fix-user-schema.js",
     "simple-schema-fix": "node scripts/simple-schema-fix.js",
-    "render:start": "node scripts/comprehensive-schema-fix.js && npm run start",
-    "render:start-no-migrate": "node scripts/comprehensive-schema-fix.js && npm run start",
+    "render:start": "npm run start",
+    "render:start-no-migrate": "npm run start",
     "emergency-start": "npm run start"
   },
   "dependencies": {
