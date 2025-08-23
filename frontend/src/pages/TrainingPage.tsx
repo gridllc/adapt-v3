@@ -294,15 +294,15 @@ export default function TrainingPage() {
 
   async function checkStatus(id: string) {
     try {
-      const r = await fetch(API(`/api/status/${id}`), {
+      const r = await fetch(API(`/api/modules/${id}`), {
         credentials: "include",
       });
       if (!r.ok) throw new Error(`Status check failed (${r.status})`);
       const data = await r.json();
-      if (!data?.success) throw new Error("Invalid status response");
+      if (!data?.success || !data?.module) throw new Error("Invalid module response");
       return {
-        status: data.status as ModuleStatus,
-        progress: Number(data.progress ?? 0),
+        status: data.module.status as ModuleStatus,
+        progress: Number(data.module.progress ?? 0),
       };
     } catch (e: any) {
       // ✅ FIXED: Attempt recovery instead of returning PROCESSING forever
