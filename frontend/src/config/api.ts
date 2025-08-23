@@ -1,5 +1,17 @@
-// Use environment variable for API base URL, fallback to relative for development
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+// One place to build API URLs safely
+const raw = import.meta.env.VITE_API_BASE_URL?.trim();
+
+// 1) Use env if present
+// 2) Else, if we're already on the backend domain (local dev proxy), use window.origin
+// 3) Else, hard-default to your Render backend
+export const API_BASE =
+  (raw && raw.replace(/\/+$/, "")) ||
+  (typeof window !== "undefined" && window.location.origin.includes("onrender.com")
+    ? window.location.origin
+    : "https://adapt-v3.onrender.com");
+
+export const apiUrl = (path: string) =>
+  `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
 
 // API configuration
 export const API_CONFIG = {

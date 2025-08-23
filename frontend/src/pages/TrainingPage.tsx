@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import StickyVoiceBar from "../components/StickyVoiceBar";
 import { useVoiceAsk } from "@/hooks/useVoiceAsk";
 import { useToast } from "@/components/Toast";
+import { apiUrl } from "@/config/api";
 
 type ModuleStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
 
@@ -34,9 +35,7 @@ const humanTime = (s?: number) =>
     ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`
     : "-";
 
-// ✅ FIXED: Safe API function that avoids double slashes and has clear fallback
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-const API = (path: string) => `${API_BASE}${path}`;
+// ✅ FIXED: Using canonical API helper from config/api.ts
 
 // AI Chat component
 function AskBox({ moduleId }: { moduleId: string }) {
@@ -53,7 +52,7 @@ function AskBox({ moduleId }: { moduleId: string }) {
       setError(null);
       setAnswer(null);
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/qa/ask`, {
+      const response = await fetch(apiUrl("/api/qa/ask"), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -260,7 +259,7 @@ export default function TrainingPage() {
       setError(null);
       abortRef.current?.abort();
       abortRef.current = new AbortController();
-      const r = await fetch(API(`/api/modules/${id}`), {
+      const r = await fetch(apiUrl(`/api/modules/${id}`), {
         signal: abortRef.current.signal,
         credentials: "include",
       });
@@ -293,7 +292,7 @@ export default function TrainingPage() {
 
   async function checkStatus(id: string) {
     try {
-      const r = await fetch(API(`/api/modules/${id}/status`), {
+      const r = await fetch(apiUrl(`/api/modules/${id}/status`), {
         credentials: "include",
       });
       if (!r.ok) throw new Error(`Status check failed (${r.status})`);
@@ -318,6 +317,18 @@ export default function TrainingPage() {
   // Initial load
   useEffect(() => {
     if (!moduleId) return;
+    
+    // ✅ FIXED: Add optimistic state for immediate feedback
+    if (!mod && !loading) {
+      setMod({ 
+        id: moduleId, 
+        title: "Processing…", 
+        filename: "Video", 
+        status: "PROCESSING", 
+        progress: 10 
+      });
+    }
+    
     fetchModule(moduleId).catch(() => {});
     // cleanup inflight fetches on unmount
     return () => abortRef.current?.abort();

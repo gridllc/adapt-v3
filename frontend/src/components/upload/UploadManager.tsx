@@ -6,6 +6,7 @@ import { useUploadStore } from '@stores/uploadStore'
 import { validateFile } from '@utils/uploadUtils'
 import { uploadWithPresignedUrl } from '@utils/presignedUpload'
 import { useAuth } from '@clerk/clerk-react'
+import { apiUrl } from '@/config/api'
 
 export const UploadManager: React.FC = () => {
   const navigate = useNavigate()
@@ -25,10 +26,8 @@ export const UploadManager: React.FC = () => {
       const [id, upload] = successfulUploads[0]
       console.log(`🚀 Auto-navigating to training page for module: ${upload.moduleId}`)
       
-      // Navigate to training page after small delay
-      setTimeout(() => {
-        navigate(`/training/${upload.moduleId}`)
-      }, 1200)
+      // ✅ FIXED: Navigate immediately instead of waiting 1.2 seconds
+      navigate(`/training/${upload.moduleId}`)
     }
   }, [uploads, navigate])
 
@@ -38,7 +37,7 @@ export const UploadManager: React.FC = () => {
     
     const poll = async (attempts = 0) => {
       try {
-        const response = await fetch(`/api/modules/${moduleId}`, {
+        const response = await fetch(apiUrl(`/api/modules/${moduleId}`), {
           credentials: 'include'
         })
         

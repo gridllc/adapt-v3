@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { apiUrl } from '@/config/api'
 
 
 interface Module {
@@ -51,7 +52,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchModules = async () => {
     try {
-      const response = await fetch(`/api/modules`)
+      const response = await fetch(apiUrl(`/api/modules`))
       const data = await response.json()
       
       if (data.success && Array.isArray(data.modules)) {
@@ -75,7 +76,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`/api/modules/stats`)
+      const response = await fetch(apiUrl(`/api/modules/stats`))
       const data = await response.json()
       
       if (data.success) {
@@ -88,7 +89,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchOrphanedModules = async () => {
     try {
-      const response = await fetch(`/api/modules/orphaned`)
+      const response = await fetch(apiUrl(`/api/modules/orphaned`))
       const data = await response.json()
       
       if (data.success) {
@@ -101,7 +102,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const markOrphanedAsFailed = async () => {
     try {
-      const response = await fetch(`/api/modules/orphaned/mark-failed`, {
+      const response = await fetch(apiUrl(`/api/modules/orphaned/mark-failed`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -123,7 +124,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const cleanupOldFailed = async () => {
     try {
-      const response = await fetch(`/api/modules/cleanup`, {
+      const response = await fetch(apiUrl(`/api/modules/cleanup`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

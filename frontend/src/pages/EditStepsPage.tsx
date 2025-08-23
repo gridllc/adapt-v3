@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { apiUrl } from "@/config/api";
 
 type StepDto = {
   id?: string;
@@ -15,7 +16,7 @@ type StepDto = {
 type StepsResponse = { success: true; steps: StepDto[] } | { success: false; error: string };
 type SaveResponse = { success: true; count: number } | { success: false; error: string };
 
-const API = (p: string) => `${import.meta.env.VITE_API_BASE_URL ?? ""}${p}` || `/api${p}`;
+// ✅ FIXED: Using canonical API helper from config/api.ts
 
 // Improved time utilities with validation
 const toSeconds = (v: string): number => {
@@ -91,7 +92,7 @@ export default function EditStepsPage() {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(API(`/api/steps/${moduleId}`), { 
+        const response = await fetch(apiUrl(`/api/steps/${moduleId}`), { 
           credentials: "include" 
         });
         
@@ -192,7 +193,7 @@ export default function EditStepsPage() {
         notes: step.notes?.trim() || "",
       }));
 
-      const response = await fetch(API(`/api/steps/${moduleId}`), {
+              const response = await fetch(apiUrl(`/api/steps/${moduleId}`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
