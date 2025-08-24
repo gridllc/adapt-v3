@@ -26,6 +26,7 @@ import { adminRoutes } from './routes/adminRoutes.js'
 import { qaRoutes } from './routes/qaRoutes.js'
 import { workerRoutes } from './routes/workerRoutes.js'
 import { requireAuth, optionalAuth } from './middleware/auth.js'
+import { clerkMiddleware } from '@clerk/express'
 import { testAuthRoutes } from './routes/testAuth.js'
 import debugRoutes from './routes/debugRoutes.js'
 import { requestLogger } from './middleware/requestLogger.js'
@@ -195,6 +196,16 @@ const configureMiddleware = () => {
   // Request ID and logging
   app.use(addRequestId)
   app.use(httpLogging)
+
+  // ✅ CRITICAL: Clerk middleware must be registered BEFORE any auth routes
+  try {
+    app.use(clerkMiddleware())
+    console.log('🔐 Clerk middleware registered successfully')
+  } catch (clerkError: any) {
+    console.error('❌ Failed to register Clerk middleware:', clerkError.message)
+    console.error('🔍 Check CLERK_SECRET_KEY and other Clerk environment variables')
+    throw clerkError
+  }
 
   // Security middleware - disable CSP for API
   app.use(helmet({
