@@ -25,41 +25,74 @@ function fail(res: Response, code = 500, error = 'internal_error', extra?: any) 
  */
 moduleRoutes.get('/', mustBeAuthed, async (req: Request, res: Response) => {
   try {
-    const userId = currentUserId(req)
+    console.log('🔍 [GET /api/modules] Starting request')
+    
+    let userId: string
+    try {
+      userId = currentUserId(req)
+      console.log('✅ [GET /api/modules] User authenticated:', userId)
+    } catch (authError: any) {
+      console.error('❌ [GET /api/modules] Auth failed:', authError.message)
+      return fail(res, 401, 'authentication_required')
+    }
 
+    console.log('📊 [GET /api/modules] Fetching modules from database')
     const rawModules = await prisma.module.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: { id: true },
     })
+    
+    console.log(`📦 [GET /api/modules] Found ${rawModules.length} raw modules`)
 
+    console.log('🔄 [GET /api/modules] Processing modules with details')
     const modules = await Promise.all(
-      rawModules.map(async (m) => {
-        const mod = await ModuleService.get(m.id)
-        if (!mod) return null
-
-        let videoUrl: string | undefined
-        if (mod.status === 'READY' && mod.s3Key) {
-          try {
-            const { presignedUploadService } = await import('../services/presignedUploadService.js')
-            videoUrl = await presignedUploadService.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
-          } catch (err: any) {
-            log.warn('Signed URL generation failed', { moduleId: m.id, error: err?.message })
-            videoUrl = undefined
+      rawModules.map(async (m, index) => {
+        try {
+          console.log(`📋 [GET /api/modules] Processing module ${index + 1}/${rawModules.length}: ${m.id}`)
+          
+          const mod = await ModuleService.get(m.id)
+          if (!mod) {
+            console.log(`⚠️ [GET /api/modules] Module ${m.id} not found in service`)
+            return null
           }
+
+          console.log(`✅ [GET /api/modules] Module ${m.id} loaded, status: ${mod.status}`)
+
+          let videoUrl: string | undefined
+          if (mod.status === 'READY' && mod.s3Key) {
+            try {
+              console.log(`🎬 [GET /api/modules] Generating video URL for ${m.id}`)
+              const { presignedUploadService } = await import('../services/presignedUploadService.js')
+              videoUrl = await presignedUploadService.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
+              console.log(`✅ [GET /api/modules] Video URL generated for ${m.id}`)
+            } catch (err: any) {
+              console.log(`❌ [GET /api/modules] Video URL failed for ${m.id}:`, err.message)
+              log.warn('Signed URL generation failed', { moduleId: m.id, error: err?.message })
+              videoUrl = undefined
+            }
+          }
+
+          console.log(`📚 [GET /api/modules] Fetching steps for ${m.id}`)
+          const steps = await ModuleService.getSteps(m.id).catch((e: any) => {
+            console.log(`❌ [GET /api/modules] Steps failed for ${m.id}:`, e.message)
+            log.warn('getSteps failed', { moduleId: m.id, error: e?.message })
+            return []
+          })
+
+          console.log(`✅ [GET /api/modules] Module ${m.id} complete with ${steps.length} steps`)
+          return { ...mod, videoUrl, steps }
+        } catch (moduleError: any) {
+          console.error(`💥 [GET /api/modules] Error processing module ${m.id}:`, moduleError.message)
+          return null
         }
-
-        const steps = await ModuleService.getSteps(m.id).catch((e: any) => {
-          log.warn('getSteps failed', { moduleId: m.id, error: e?.message })
-          return []
-        })
-
-        return { ...mod, videoUrl, steps }
       })
     )
 
-    return ok(res, { modules: modules.filter(Boolean) })
+    const filteredModules = modules.filter(Boolean)
+    console.log(`🎉 [GET /api/modules] Returning ${filteredModules.length} modules`)
+    return ok(res, { modules: filteredModules })
   } catch (e: any) {
     log.error('GET /api/modules failed', { error: e?.message })
     return fail(res, 500, 'failed_to_list_modules')

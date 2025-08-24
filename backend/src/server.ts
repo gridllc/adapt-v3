@@ -280,8 +280,8 @@ const configureRoutes = () => {
     }
   })
   
-  // Module Routes (temporarily optional for debugging - change back to requireAuth after testing)
-  app.use('/api/modules', optionalAuth, moduleRoutes)
+  // Module Routes (with proper auth)
+  app.use('/api/modules', moduleRoutes)
   
   // Admin Routes (protected)
   app.use('/api/admin', requireAuth, adminRoutes)
