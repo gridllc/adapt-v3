@@ -10,7 +10,7 @@ import { ModuleService } from './moduleService.js'
 const pipeline = promisify(_pipeline)
 const s3 = new S3Client({ region: process.env.AWS_REGION! })
 const BUCKET = process.env.AWS_BUCKET_NAME!
-const MAX_MB = parseInt(process.env.MAX_TRANSCRIBE_MB || '60', 10)
+const MAX_MB = parseInt(process.env.MAX_TRANSCRIBE_MB || '50', 10)
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
 async function headSize(key: string) {
@@ -30,18 +30,73 @@ export const aiService = {
     if (!m?.s3Key) throw new Error('missing s3Key')
 
     const bytes = await headSize(m.s3Key)
-    const limit = MAX_MB * 1024 * 1024
-    if (bytes > limit) throw new Error(`TOO_LARGE: ${(bytes/1e6|0)}MB > ${MAX_MB}MB cap`)
+    const whisperLimit = 25 * 1024 * 1024 // OpenAI Whisper 25MB limit
+    const downloadLimit = 50 * 1024 * 1024 // Support up to 50MB videos
+    
+    if (bytes > downloadLimit) throw new Error(`TOO_LARGE: ${(bytes/1e6|0)}MB > ${MAX_MB}MB cap`)
 
     const tmp = await downloadToTemp(m.s3Key, moduleId)
+    let fileToProcess = tmp
+    
     try {
-      const file = fs.createReadStream(tmp) as any
+      // If file is too large for Whisper, compress it
+      if (bytes > whisperLimit) {
+        console.log(`📦 [TRANSCRIBE] File too large for Whisper (${(bytes/1e6).toFixed(1)}MB), compressing...`)
+        fileToProcess = await this.compressVideoForWhisper(tmp, moduleId)
+        console.log(`✅ [TRANSCRIBE] Compressed video ready for Whisper`)
+      }
+      
+      const file = fs.createReadStream(fileToProcess) as any
       const resp = await openai.audio.transcriptions.create({
         file, model: 'whisper-1', response_format: 'text', temperature: 0.2
       } as any)
       return String(resp)
     } finally {
+      // Clean up both original and compressed files
       fs.promises.unlink(tmp).catch(()=>{})
+      if (fileToProcess !== tmp) {
+        fs.promises.unlink(fileToProcess).catch(()=>{})
+      }
+    }
+  },
+
+  // Compress video to fit Whisper's 25MB limit
+  async compressVideoForWhisper(inputPath: string, moduleId: string): Promise<string> {
+    const { exec } = await import('child_process')
+    const { promisify } = await import('util')
+    const execAsync = promisify(exec)
+    
+    const outputPath = inputPath.replace('.mp4', '-compressed.mp4')
+    
+    try {
+      // Compress video with ffmpeg - reduce bitrate and resolution if needed
+      const cmd = `ffmpeg -i "${inputPath}" -c:v libx264 -crf 28 -preset fast -c:a aac -b:a 64k -ac 1 -ar 22050 "${outputPath}"`
+      
+      console.log(`🔧 [COMPRESS] Running ffmpeg compression for ${moduleId}`)
+      await execAsync(cmd)
+      
+      const { stat } = await import('fs/promises')
+      const compressedSize = (await stat(outputPath)).size
+      
+      console.log(`📊 [COMPRESS] Compressed to ${(compressedSize/1e6).toFixed(1)}MB`)
+      
+      // If still too large, try more aggressive compression
+      if (compressedSize > 24 * 1024 * 1024) {
+        const aggressivePath = inputPath.replace('.mp4', '-aggressive.mp4')
+        const aggressiveCmd = `ffmpeg -i "${inputPath}" -c:v libx264 -crf 32 -preset fast -vf "scale=-2:360" -c:a aac -b:a 32k -ac 1 -ar 16000 "${aggressivePath}"`
+        
+        console.log(`🔧 [COMPRESS] File still too large, applying aggressive compression`)
+        await execAsync(aggressiveCmd)
+        
+        // Clean up intermediate file
+        fs.promises.unlink(outputPath).catch(()=>{})
+        return aggressivePath
+      }
+      
+      return outputPath
+    } catch (error: any) {
+      console.error(`❌ [COMPRESS] FFmpeg compression failed:`, error.message)
+      throw new Error(`Video compression failed: ${error.message}`)
     }
   },
 

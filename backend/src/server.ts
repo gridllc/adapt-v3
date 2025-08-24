@@ -49,7 +49,7 @@ const __dirname = path.dirname(__filename)
 const app = express()
 
 // ---- CORS Configuration (top level for access by all middleware) ----
-const allow = (process.env.CORS_ORIGINS || "https://adaptord.com,http://localhost:5173")
+const allow = (process.env.CORS_ORIGINS || "https://adaptord.com,https://app.adaptord.com,https://adapt-v3.vercel.app,http://localhost:5173")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);

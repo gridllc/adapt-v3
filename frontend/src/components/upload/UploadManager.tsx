@@ -95,16 +95,45 @@ export const UploadManager: React.FC = () => {
             processingModules.current.delete(moduleId)
           }
         }
-      } catch (error) {
-        console.error('Polling error:', error)
+      } catch (error: any) {
+        console.error(`❌ Polling error (attempt ${attempts + 1}):`, error)
         
-        // Continue polling on error (up to max attempts)
+        // ✅ Better error handling for connectivity issues
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+          console.warn(`🌐 Network connectivity issue detected for ${moduleId}`)
+          
+          // Try status endpoint as fallback
+          try {
+            const statusData = await apiGet<any>(`api/modules/${moduleId}/status`)
+            if (statusData?.status) {
+              console.log(`✅ Recovered using status endpoint: ${statusData.status}`)
+              const module = { status: statusData.status, progress: statusData.progress || 0 }
+              updateProgress(uploadId, module.progress)
+              
+              if (module.status === 'READY') {
+                updateProgress(uploadId, 100)
+                clearTimeout(processingModules.current.get(moduleId)!)
+                processingModules.current.delete(moduleId)
+                navigate(`/training/${moduleId}`)
+                return
+              }
+            }
+          } catch (statusError) {
+            console.error(`❌ Status endpoint also failed:`, statusError)
+          }
+        }
+        
+        // Continue polling on error (up to max attempts) with exponential backoff
         if (attempts < 60) {
-          const intervalId = setTimeout(() => poll(attempts + 1), 2000)
+          const delay = Math.min(2000 * Math.pow(1.2, Math.floor(attempts / 5)), 10000) // Max 10s delay
+          const intervalId = setTimeout(() => poll(attempts + 1), delay)
           processingModules.current.set(moduleId, intervalId)
         } else {
           console.error('❌ Polling failed after max attempts for module:', moduleId)
-          markError(uploadId, new Error('Failed to check processing status. Please refresh the page.'))
+          updateUpload(uploadId, { 
+            status: 'error', 
+            error: 'Network issues detected. Check your connection and refresh the page, or visit the Dashboard to see if your video processed successfully.' 
+          })
           
           // Clear polling interval
           const intervalId = processingModules.current.get(moduleId)
@@ -191,7 +220,7 @@ export const UploadManager: React.FC = () => {
       'video/mp4': ['.mp4'],
       'video/webm': ['.webm'],
     },
-    maxSize: 100 * 1024 * 1024, // 100MB
+    maxSize: 50 * 1024 * 1024, // 50MB
     multiple: false, // one file at a time
   })
 

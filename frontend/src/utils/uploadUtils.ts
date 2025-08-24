@@ -131,12 +131,12 @@ export const validateFile = async (file: File): Promise<ValidationResult> => {
     }
   }
 
-  // Check file size (200MB limit)
-  const maxSize = 200 * 1024 * 1024
+  // Check file size (50MB limit)
+  const maxSize = 50 * 1024 * 1024
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: `File size exceeds 200MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB)`
+      error: `File size exceeds 50MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB)`
     }
   }
 
