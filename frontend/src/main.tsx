@@ -5,6 +5,8 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import { ErrorBoundary } from '@components/common/ErrorBoundary'
 import App from './App'
 import './index.css'
+import './lib/healthCheck' // Import health check to run on app boot
+import './lib/apiTest' // Import API test to verify connectivity
 
 // Disable console errors in production to prevent Sentry-like rate limiting
 if (import.meta.env.PROD) {

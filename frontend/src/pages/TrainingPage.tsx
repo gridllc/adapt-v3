@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import StickyVoiceBar from "../components/StickyVoiceBar";
 import { useVoiceAsk } from "@/hooks/useVoiceAsk";
 import { useToast } from "@/components/Toast";
+import { retry } from "@/lib/api";
 
 type ModuleStatus = "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
 
@@ -35,9 +36,7 @@ const humanTime = (s?: number) =>
     : "-";
 
 // ✅ FIXED: Using consistent API helper
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "")) || "";
-const API = (path: string) => `${API_BASE}${path}`;
+import { apiGet, apiUrl } from '@/lib/api';
 
 // AI Chat component
 function AskBox({ moduleId }: { moduleId: string }) {
@@ -54,18 +53,7 @@ function AskBox({ moduleId }: { moduleId: string }) {
       setError(null);
       setAnswer(null);
 
-      const response = await fetch(API("/api/qa/ask"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ moduleId, question: question.trim() }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
+      const data = await apiPost("/api/qa/ask", { moduleId, question: question.trim() });
       
       if (data.success && data.answer) {
         setAnswer(data.answer);
@@ -261,12 +249,18 @@ export default function TrainingPage() {
       setError(null);
       abortRef.current?.abort();
       abortRef.current = new AbortController();
-      const r = await fetch(API(`/api/modules/${id}`), {
-        signal: abortRef.current.signal,
-        credentials: "include",
+      
+      // Use the new API helper with retry logic
+      console.log(`🔍 [TRAINING] Fetching module: ${id}`);
+      const data = await apiGet(`/api/modules/${id}`);
+      console.log(`📊 [TRAINING] Module data received:`, {
+        success: data?.success,
+        hasModule: !!data?.module,
+        status: data?.module?.status,
+        hasSteps: !!(data?.module?.steps?.length),
+        stepCount: data?.module?.steps?.length || 0
       });
-      if (!r.ok) throw new Error(`Failed to fetch module (${r.status})`);
-      const data = await r.json();
+      
       // moduleRoutes returns { success, module: { ...mod, videoUrl, steps } }
       if (!data?.success || !data?.module) throw new Error("Invalid module data received");
       const hydrated: ModuleDto = {
@@ -294,11 +288,14 @@ export default function TrainingPage() {
 
   async function checkStatus(id: string) {
     try {
-      const r = await fetch(API(`/api/modules/${id}`), {
-        credentials: "include",
+      console.log(`🔍 [STATUS] Checking status for module: ${id}`);
+      const data = await apiGet(`/api/modules/${id}`);
+      console.log(`📊 [STATUS] Status data received:`, {
+        success: data?.success,
+        status: data?.module?.status,
+        progress: data?.module?.progress
       });
-      if (!r.ok) throw new Error(`Status check failed (${r.status})`);
-      const data = await r.json();
+      
       if (!data?.success || !data?.module) throw new Error("Invalid module response");
       return {
         status: data.module.status as ModuleStatus,
@@ -370,7 +367,7 @@ export default function TrainingPage() {
         return;
       }
 
-      const { status, progress } = await checkStatus(moduleId);
+      const { status, progress } = await retry(() => checkStatus(moduleId));
       setMod((m) => (m ? { ...m, status, progress } : m));
       setPollCount((c) => c + 1);
 

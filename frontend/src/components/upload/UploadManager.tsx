@@ -6,7 +6,7 @@ import { useUploadStore } from '@stores/uploadStore'
 import { validateFile } from '@utils/uploadUtils'
 import { uploadWithPresignedUrl } from '@utils/presignedUpload'
 import { useAuth } from '@clerk/clerk-react'
-import { apiUrl } from '@/config/api'
+import { apiGet, apiUrl } from '@/lib/api'
 
 export const UploadManager: React.FC = () => {
   const navigate = useNavigate()
@@ -16,20 +16,8 @@ export const UploadManager: React.FC = () => {
   // Track processing modules
   const processingModules = useRef<Map<string, NodeJS.Timeout>>(new Map())
 
-  // Auto-navigate to training page when upload completes successfully
-  useEffect(() => {
-    const successfulUploads = Object.entries(uploads).filter(([, upload]) => 
-      upload.status === 'success' && upload.moduleId
-    )
-    
-    if (successfulUploads.length > 0) {
-      const [id, upload] = successfulUploads[0]
-      console.log(`🚀 Auto-navigating to training page for module: ${upload.moduleId}`)
-      
-      // ✅ FIXED: Navigate immediately instead of waiting 1.2 seconds
-      navigate(`/training/${upload.moduleId}`)
-    }
-  }, [uploads, navigate])
+  // ✅ FIXED: Removed conflicting auto-navigation logic
+  // Navigation now happens in the polling logic when processing completes
 
   // Poll for processing completion
   const pollForProcessingComplete = useCallback(async (uploadId: string, moduleId: string) => {
@@ -37,15 +25,14 @@ export const UploadManager: React.FC = () => {
     
     const poll = async (attempts = 0) => {
       try {
-        const response = await fetch(apiUrl(`/api/modules/${moduleId}`), {
-          credentials: 'include'
+        console.log(`🔍 [POLL] Fetching module status for: ${moduleId}`)
+        const data = await apiGet<any>(`/api/modules/${moduleId}`)
+        console.log(`📊 [POLL] Module data received:`, { 
+          status: data?.module?.status || data?.status, 
+          progress: data?.module?.progress || data?.progress,
+          hasSteps: !!(data?.module?.steps?.length || data?.steps?.length),
+          stepCount: data?.module?.steps?.length || data?.steps?.length || 0
         })
-        
-        if (!response.ok) {
-          throw new Error(`Polling failed: ${response.status}`)
-        }
-
-        const data = await response.json()
         const module = data.module || data
         
         console.log(`📊 Module ${moduleId} status: ${module.status}, progress: ${module.progress || 0}, steps: ${module.steps?.length || 0}`)
@@ -71,6 +58,10 @@ export const UploadManager: React.FC = () => {
             clearTimeout(intervalId)
             processingModules.current.delete(moduleId)
           }
+          
+          // ✅ FIXED: Navigate to training page immediately when processing completes
+          console.log(`🚀 Auto-navigating to training page for completed module: ${moduleId}`)
+          navigate(`/training/${moduleId}`)
           
           return
         }
@@ -178,10 +169,8 @@ export const UploadManager: React.FC = () => {
             // Start polling for processing completion
             pollForProcessingComplete(uploadId, result.moduleId)
 
-            // Navigate to training page after small delay
-            setTimeout(() => {
-              navigate(`/training/${result.moduleId}`)
-            }, 1200)
+            // ✅ FIXED: Don't navigate here - let the polling logic handle navigation when READY
+            // The navigation will happen automatically when processing completes
           } else {
             console.error('❌ Upload failed:', result.error)
             markError(uploadId, new Error(result.error || 'Upload failed'))

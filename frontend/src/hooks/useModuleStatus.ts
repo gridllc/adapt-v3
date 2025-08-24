@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api } from '../config/api'
+import { apiGet } from '../lib/api'
 
 interface ModuleStatus {
   status: 'processing' | 'ready' | 'failed' | 'complete' | 'error'
@@ -34,7 +34,7 @@ export function useModuleStatus(moduleId: string, enabled = true) {
         console.log(`🔍 Checking status for module: ${moduleId}`)
         
         // Get module status from the status endpoint
-        const data = await api.get(`/api/status/${moduleId}`)
+        const data = await apiGet(`/api/status/${moduleId}`)
         console.log(`📊 Module status from status endpoint:`, data)
         
         setStatus(data)
