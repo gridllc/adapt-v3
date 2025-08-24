@@ -73,26 +73,46 @@ export async function initUpload(req: Request, res: Response) {
 
 // ===== COMPLETE UPLOAD =====
 export async function completeUpload(req: Request, res: Response) {
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   try {
-    const { moduleId } = req.body;
+    const { moduleId, key } = req.body;
     if (!moduleId) {
       return res.status(400).json({ success: false, error: "Missing moduleId" });
     }
+
+    log.info(`📬 [UPLOAD COMPLETE] Request started`, { requestId, moduleId, key });
 
     const module = await ModuleService.get(moduleId);
     if (!module) {
       return res.status(404).json({ success: false, error: "Module not found" });
     }
 
-    // Update status
+    // ✅ CRITICAL: Verify S3 object exists before processing
+    if (module.s3Key) {
+      try {
+        log.info(`🔍 [UPLOAD COMPLETE] Verifying S3 object exists`, { requestId, moduleId, s3Key: module.s3Key });
+        const { presignedUploadService } = await import('../services/presignedUploadService.js');
+        await presignedUploadService.headObject(module.s3Key);
+        log.info(`✅ [UPLOAD COMPLETE] S3 object verified`, { requestId, moduleId });
+      } catch (headError: any) {
+        log.error(`❌ [UPLOAD COMPLETE] S3 object not found`, { requestId, moduleId, s3Key: module.s3Key, error: headError.message });
+        return res.status(400).json({ success: false, error: "Video file not found in S3" });
+      }
+    }
+
+    // Update status with logging
+    log.info(`⏳ [UPLOAD COMPLETE] Marking as PROCESSING`, { requestId, moduleId });
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 10);
 
-    // Use the queueOrInline function which handles both QStash and inline processing
+    // ✅ CRITICAL: Always trigger processing with comprehensive logging
+    log.info(`🚀 [UPLOAD COMPLETE] Triggering queueOrInline`, { requestId, moduleId });
     await queueOrInline(moduleId);
+    log.info(`📬 [UPLOAD COMPLETE] Processing triggered successfully`, { requestId, moduleId });
 
-    return res.json({ success: true, moduleId });
+    return res.json({ success: true, moduleId, requestId });
   } catch (err: any) {
-    log.error("❌ [UPLOAD COMPLETE] Failed", { error: err.message });
-    return res.status(500).json({ success: false, error: "Failed to complete upload" });
+    log.error(`❌ [UPLOAD COMPLETE] Failed`, { requestId, error: err.message, stack: err.stack });
+    return res.status(500).json({ success: false, error: "Failed to complete upload", requestId });
   }
 }

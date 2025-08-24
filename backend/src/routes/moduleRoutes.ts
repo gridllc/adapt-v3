@@ -42,8 +42,8 @@ moduleRoutes.get('/', mustBeAuthed, async (req: Request, res: Response) => {
         let videoUrl: string | undefined
         if (mod.status === 'READY' && mod.s3Key) {
           try {
-            const { s3Service } = await import('../services/s3Service.js')
-            videoUrl = await s3Service.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
+            const { presignedUploadService } = await import('../services/presignedUploadService.js')
+            videoUrl = await presignedUploadService.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
           } catch (err: any) {
             log.warn('Signed URL generation failed', { moduleId: m.id, error: err?.message })
             videoUrl = undefined
@@ -92,8 +92,8 @@ moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
     if (mod.status === 'READY' && mod.s3Key) {
       try {
         console.log(`🎬 [moduleRoutes] Generating signed URL for module ${id} with s3Key: ${mod.s3Key}`)
-        const { s3Service } = await import('../services/s3Service.js')
-        videoUrl = await s3Service.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
+        const { presignedUploadService } = await import('../services/presignedUploadService.js')
+        videoUrl = await presignedUploadService.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
         console.log(`✅ [moduleRoutes] Generated signed URL: ${videoUrl?.substring(0, 100)}...`)
       } catch (err: any) {
         console.error(`❌ [moduleRoutes] Signed URL generation failed:`, err)
@@ -106,8 +106,8 @@ moduleRoutes.get('/:id', mustBeAuthed, async (req: Request, res: Response) => {
     if (mod.status === 'READY' && !videoUrl && mod.s3Key) {
       try {
         console.log(`🔄 [moduleRoutes] Fallback: generating videoUrl for READY module ${id}`)
-        const { s3Service } = await import('../services/s3Service.js')
-        videoUrl = await s3Service.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
+        const { presignedUploadService } = await import('../services/presignedUploadService.js')
+        videoUrl = await presignedUploadService.getSignedUrl(mod.s3Key, 60 * 60) // 1 hour
         console.log(`✅ [moduleRoutes] Fallback generated videoUrl: ${videoUrl?.substring(0, 100)}...`)
       } catch (err: any) {
         console.error(`❌ [moduleRoutes] Fallback failed:`, err)

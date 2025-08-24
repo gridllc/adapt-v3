@@ -23,6 +23,11 @@ export const presignedUploadService = {
     }
   },
 
+  // Check if S3 object exists (throws if not found)
+  async headObject(key: string): Promise<void> {
+    await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }))
+  },
+
   // Backward compatibility method
   async getSignedPlaybackUrl(key: string): Promise<string> {
     const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key })

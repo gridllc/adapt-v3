@@ -6,16 +6,17 @@ import { prisma } from '../../config/database.js'
 import { log } from '../../utils/logger.js'
 
 /**
- * Pipeline (webhook-driven):
+ * MVP Pipeline (inline processing):
  * 1) mark PROCESSING @10%
- * 2) require s3Key
- * 3) generate signed playback URL
- * 4) submit AssemblyAI job (async)
- * 5) store transcriptJobId + progress=60; webhook finishes to 100%
+ * 2) require s3Key  
+ * 3) run complete inline processing with Whisper
+ * 4) mark READY @100%
  *
+ * Fallback to AssemblyAI webhook only if FORCE_ASSEMBLYAI=true
+ * 
  * Idempotency:
  * - If module READY → no-op
- * - If PROCESSING with transcriptJobId and progress >= 60 → no-op (still waiting for webhook)
+ * - If PROCESSING and using AssemblyAI webhook → continue webhook flow
  */
 export async function startProcessing(
   moduleId: string
@@ -52,6 +53,17 @@ export async function startProcessing(
       await safeFail(moduleId, msg)
       return { ok: false }
     }
+
+    // ✅ MVP: Use inline processing with Whisper (simpler, more reliable)
+    if (process.env.FORCE_ASSEMBLYAI !== 'true') {
+      log.info(`🚀 [${moduleId}] Using inline Whisper processing (MVP mode)`)
+      const { processModuleInline } = await import('./inlineProcessor.js')
+      await processModuleInline(moduleId)
+      return { ok: true }
+    }
+
+    // ⚠️ Legacy AssemblyAI webhook flow (only if FORCE_ASSEMBLYAI=true)
+    log.info(`🔄 [${moduleId}] Using AssemblyAI webhook flow (legacy mode)`)
 
     // Step 2.5: preparing media URL (25%)
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 25)
