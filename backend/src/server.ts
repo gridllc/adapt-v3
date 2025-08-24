@@ -536,6 +536,30 @@ const configureErrorHandling = () => {
     }
   })
 
+  // ✅ Critical: Handle unhandled promise rejections and exceptions
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Promise Rejection:', {
+      reason: reason instanceof Error ? reason.message : reason,
+      stack: reason instanceof Error ? reason.stack : undefined,
+      promise: promise.toString(),
+      timestamp: new Date().toISOString()
+    })
+    // Don't crash the server, just log the error
+  })
+
+  process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    })
+    // Log but don't crash in production
+    if (NODE_ENV === 'development') {
+      console.log('🔄 Exiting in development mode due to uncaught exception')
+      process.exit(1)
+    }
+  })
+
   // Graceful shutdown
   process.on('SIGTERM', () => {
     console.log('🛑 SIGTERM received, shutting down gracefully...')

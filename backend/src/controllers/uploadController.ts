@@ -105,10 +105,41 @@ export async function completeUpload(req: Request, res: Response) {
     log.info(`⏳ [UPLOAD COMPLETE] Marking as PROCESSING`, { requestId, moduleId });
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 10);
 
-    // ✅ CRITICAL: Always trigger processing with comprehensive logging
+    // ✅ CRITICAL: Always trigger processing with comprehensive logging and error handling
     log.info(`🚀 [UPLOAD COMPLETE] Triggering queueOrInline`, { requestId, moduleId });
-    await queueOrInline(moduleId);
-    log.info(`📬 [UPLOAD COMPLETE] Processing triggered successfully`, { requestId, moduleId });
+    
+    try {
+      await queueOrInline(moduleId);
+      log.info(`📬 [UPLOAD COMPLETE] Processing triggered successfully`, { requestId, moduleId });
+    } catch (queueError: any) {
+      log.error(`❌ [UPLOAD COMPLETE] QueueOrInline failed`, { requestId, moduleId, error: queueError.message });
+      
+      // Try fallback inline processing
+      try {
+        log.info(`🔄 [UPLOAD COMPLETE] Attempting fallback inline processing`, { requestId, moduleId });
+        const { startProcessing } = await import('../services/ai/aiPipeline.js');
+        
+        // Run processing in background to avoid blocking the response
+        setImmediate(async () => {
+          try {
+            await startProcessing(moduleId);
+            log.info(`✅ [FALLBACK] Processing completed`, { moduleId });
+          } catch (fallbackError: any) {
+            log.error(`❌ [FALLBACK] Processing failed`, { moduleId, error: fallbackError.message });
+            try {
+              await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, `Processing failed: ${fallbackError.message}`);
+            } catch (updateError) {
+              log.error(`❌ [FALLBACK] Status update failed`, { moduleId, error: updateError });
+            }
+          }
+        });
+        
+        log.info(`🚀 [UPLOAD COMPLETE] Fallback processing started`, { requestId, moduleId });
+      } catch (fallbackSetupError: any) {
+        log.error(`❌ [UPLOAD COMPLETE] Fallback setup failed`, { requestId, moduleId, error: fallbackSetupError.message });
+        throw queueError; // Re-throw original error if fallback fails to setup
+      }
+    }
 
     return res.json({ success: true, moduleId, requestId });
   } catch (err: any) {

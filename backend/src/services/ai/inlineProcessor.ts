@@ -118,6 +118,12 @@ export async function processModuleInline(moduleId: string): Promise<void> {
     await ModuleService.markReady(moduleId)
     log.info(`🎉 [INLINE] Module processing completed`, { moduleId, timestamp })
     
+    // ✅ CLEANUP: Force garbage collection to prevent memory leaks
+    if (global.gc) {
+      global.gc()
+      log.info(`🗑️ [INLINE] Forced garbage collection`, { moduleId })
+    }
+    
   } catch (error: any) {
     log.error(`💥 [INLINE] Processing failed`, { 
       moduleId, 
