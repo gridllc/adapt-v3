@@ -34,7 +34,7 @@ export function useModuleStatus(moduleId: string, enabled = true) {
         console.log(`🔍 Checking status for module: ${moduleId}`)
         
         // Get module status from the status endpoint
-        const data = await apiGet(`/api/status/${moduleId}`)
+        const data = await apiGet<any>(`/api/status/${moduleId}`)
         console.log(`📊 Module status from status endpoint:`, data)
         
         setStatus(data)
@@ -42,7 +42,7 @@ export function useModuleStatus(moduleId: string, enabled = true) {
         setError(null)
 
         // Track progress for stuck detection
-        const currentProgress = data.progress || 0
+        const currentProgress = data?.progress || 0
         if (currentProgress === 0 && lastProgress === 0) {
           if (!stuckStartTime) {
             setStuckStartTime(Date.now())
@@ -60,14 +60,14 @@ export function useModuleStatus(moduleId: string, enabled = true) {
         setLastProgress(currentProgress)
 
         // Stop polling when ready, complete, or failed
-        if (data.status === 'ready' || data.status === 'failed' || data.status === 'complete' || data.status === 'error') {
+        if (data?.status === 'ready' || data?.status === 'failed' || data?.status === 'complete' || data?.status === 'error') {
           console.log(`✅ Module ${moduleId} processing complete: ${data.status}`)
           clearInterval(interval)
           if (stuckTimeout) clearTimeout(stuckTimeout)
           if (timeoutTimer) clearTimeout(timeoutTimer)
           
           // Auto-refresh page when processing completes
-          if (data.status === 'ready') {
+          if (data?.status === 'ready') {
             console.log(`🔄 Module ${moduleId} is ready - refreshing page in 2 seconds...`)
             setTimeout(() => {
               // Remove processing parameter and refresh

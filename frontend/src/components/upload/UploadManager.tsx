@@ -33,7 +33,7 @@ export const UploadManager: React.FC = () => {
           hasSteps: !!(data?.module?.steps?.length || data?.steps?.length),
           stepCount: data?.module?.steps?.length || data?.steps?.length || 0
         })
-        const module = data.module || data
+        const module = data?.module || data
         
         console.log(`📊 Module ${moduleId} status: ${module.status}, progress: ${module.progress || 0}, steps: ${module.steps?.length || 0}`)
         

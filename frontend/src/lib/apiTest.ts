@@ -14,7 +14,7 @@ export async function testApiConnectivity() {
     
     // Test 2: Check if we can reach the modules endpoint
     console.log('🧪 [API TEST] Testing modules endpoint...');
-    const modulesResponse = await apiGet('/api/modules');
+    const modulesResponse = await apiGet<any>('/api/modules');
     console.log('✅ [API TEST] Modules endpoint working:', {
       success: modulesResponse?.success,
       moduleCount: modulesResponse?.modules?.length || 0

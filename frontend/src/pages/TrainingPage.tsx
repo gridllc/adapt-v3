@@ -36,7 +36,7 @@ const humanTime = (s?: number) =>
     : "-";
 
 // ✅ FIXED: Using consistent API helper
-import { apiGet, apiUrl } from '@/lib/api';
+import { apiGet, apiPost, apiUrl } from '@/lib/api';
 
 // AI Chat component
 function AskBox({ moduleId }: { moduleId: string }) {
@@ -53,12 +53,12 @@ function AskBox({ moduleId }: { moduleId: string }) {
       setError(null);
       setAnswer(null);
 
-      const data = await apiPost("/api/qa/ask", { moduleId, question: question.trim() });
+      const data = await apiPost<any>("/api/qa/ask", { moduleId, question: question.trim() });
       
-      if (data.success && data.answer) {
+      if (data?.success && data?.answer) {
         setAnswer(data.answer);
       } else {
-        setAnswer(data.answer || "No answer returned from AI.");
+        setAnswer(data?.answer || "No answer returned from AI.");
       }
     } catch (e: any) {
       console.error("AI Chat error:", e);
@@ -252,7 +252,7 @@ export default function TrainingPage() {
       
       // Use the new API helper with retry logic
       console.log(`🔍 [TRAINING] Fetching module: ${id}`);
-      const data = await apiGet(`/api/modules/${id}`);
+      const data = await apiGet<any>(`/api/modules/${id}`);
       console.log(`📊 [TRAINING] Module data received:`, {
         success: data?.success,
         hasModule: !!data?.module,
@@ -289,7 +289,7 @@ export default function TrainingPage() {
   async function checkStatus(id: string) {
     try {
       console.log(`🔍 [STATUS] Checking status for module: ${id}`);
-      const data = await apiGet(`/api/modules/${id}`);
+      const data = await apiGet<any>(`/api/modules/${id}`);
       console.log(`📊 [STATUS] Status data received:`, {
         success: data?.success,
         status: data?.module?.status,

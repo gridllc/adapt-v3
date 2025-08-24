@@ -5,9 +5,9 @@ import { apiGet } from './api';
 
 export async function checkBackendHealth(): Promise<{ healthy: boolean; message: string }> {
   try {
-    const response = await apiGet('/api/health');
+    const response = await apiGet<any>('/api/health');
     
-    if (response.status === 'healthy') {
+    if (response?.status === 'healthy') {
       console.log('✅ Backend health check passed');
       return { healthy: true, message: 'Backend reachable' };
     } else {
