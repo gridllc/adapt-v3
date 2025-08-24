@@ -20,7 +20,7 @@ export function useSteps(moduleId?: string) {
         setLoading(true)
         setError(null)
         
-        const data = await api.get(`/api/steps/${moduleId}`)
+        const data = await api.get(`api/steps/${moduleId}`)
         
         if (data.success) {
           setSteps(data.steps || [])

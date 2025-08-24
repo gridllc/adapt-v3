@@ -14,7 +14,7 @@ export function useTranscript(moduleId?: string) {
         setLoading(true)
         setError(null)
         
-        const data = await api.get(`/api/transcript/${moduleId}`)
+        const data = await api.get(`api/transcript/${moduleId}`)
         
         if (data.success) {
           setTranscript(data.transcript)

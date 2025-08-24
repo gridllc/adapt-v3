@@ -6,9 +6,9 @@ export function useAuthenticatedApi() {
     const { method = 'GET', body, ...restOptions } = options
     
     if (method === 'GET') {
-      return await apiGet<T>(`/api/${endpoint}`)
+      return await apiGet<T>(endpoint)
     } else if (method === 'POST') {
-      return await apiPost<T>(`/api/${endpoint}`, body)
+      return await apiPost<T>(endpoint, body)
     } else {
       throw new Error(`Unsupported HTTP method: ${method}`)
     }

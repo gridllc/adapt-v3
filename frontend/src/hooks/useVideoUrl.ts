@@ -45,7 +45,7 @@ export function useVideoUrl(videoKeyOrUrl?: string): UseVideoUrlResult {
         // It's an S3 key, fetch signed URL
         console.log('🔑 Input is S3 key, fetching signed URL...')
         
-        const data = await api.get(`/api/storage/signed-url?key=${encodeURIComponent(videoKeyOrUrl)}`)
+        const data = await api.get(`api/storage/signed-url?key=${encodeURIComponent(videoKeyOrUrl)}`)
         
         if (!isMounted) return
         

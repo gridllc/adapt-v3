@@ -26,7 +26,7 @@ export const UploadManager: React.FC = () => {
     const poll = async (attempts = 0) => {
       try {
         console.log(`🔍 [POLL] Fetching module status for: ${moduleId}`)
-        const data = await apiGet<any>(`/api/modules/${moduleId}`)
+        const data = await apiGet<any>(`api/modules/${moduleId}`)
         console.log(`📊 [POLL] Module data received:`, { 
           status: data?.module?.status || data?.status, 
           progress: data?.module?.progress || data?.progress,

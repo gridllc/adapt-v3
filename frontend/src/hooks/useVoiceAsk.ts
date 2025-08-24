@@ -117,7 +117,7 @@ export function useVoiceAsk(
   }
 
   async function askQa(text: string): Promise<QaResponse> {
-    const r = await fetch(api("/api/qa/ask"), {
+    const r = await fetch(api("api/qa/ask"), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },

@@ -40,7 +40,7 @@ export const AddStepForm: React.FC<AddStepFormProps> = ({ moduleId, onAdd, curre
       }
 
       // Add to existing steps
-      const response = await api.post(`/api/steps/${moduleId}`, { 
+      const response = await api.post(`api/steps/${moduleId}`, { 
         steps: [newStep],
         action: 'add'
       })

@@ -92,7 +92,7 @@ export default function EditStepsPage() {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(apiUrl(`/api/steps/${moduleId}`), { 
+        const response = await fetch(apiUrl(`api/steps/${moduleId}`), { 
           credentials: "include" 
         });
         
@@ -193,7 +193,7 @@ export default function EditStepsPage() {
         notes: step.notes?.trim() || "",
       }));
 
-              const response = await fetch(apiUrl(`/api/steps/${moduleId}`), {
+              const response = await fetch(apiUrl(`api/steps/${moduleId}`), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

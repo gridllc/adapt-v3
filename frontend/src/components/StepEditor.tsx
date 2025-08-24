@@ -70,7 +70,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
       }
 
       // Save to backend
-      await api.post(`/api/steps/${moduleId}`, { 
+      await api.post(`api/steps/${moduleId}`, { 
         steps: [updatedStep],
         action: 'update',
         stepIndex
@@ -89,7 +89,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
 
     setIsDeleting(true)
     try {
-      await api.post(`/api/steps/${moduleId}`, { 
+      await api.post(`api/steps/${moduleId}`, { 
         action: 'delete',
         stepIndex
       })
@@ -138,7 +138,7 @@ export const StepEditor: React.FC<StepEditorProps> = ({
       }
       
       // Call the AI rewrite API with conservative prompt
-      const data = await api.post(`/api/steps/${moduleId}/rewrite`, {
+      const data = await api.post(`api/steps/${moduleId}/rewrite`, {
         text: currentDescription,
         instruction: "Clean up this training step text by removing filler words (um, uh, and then) and fixing basic grammar. Do NOT add new information, change the meaning, or introduce concepts not in the original. Keep the exact same intent and actions. Only improve clarity and readability."
       })

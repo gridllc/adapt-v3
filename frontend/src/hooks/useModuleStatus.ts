@@ -34,7 +34,7 @@ export function useModuleStatus(moduleId: string, enabled = true) {
         console.log(`🔍 Checking status for module: ${moduleId}`)
         
         // Get module status from the status endpoint
-        const data = await apiGet<any>(`/api/status/${moduleId}`)
+        const data = await apiGet<any>(`api/status/${moduleId}`)
         console.log(`📊 Module status from status endpoint:`, data)
         
         setStatus(data)

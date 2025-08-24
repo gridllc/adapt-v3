@@ -76,7 +76,7 @@ export default function DebugPage() {
 
   const retryModule = async (moduleId: string) => {
     try {
-      await api.post(`/api/reprocess/${moduleId}`, {})
+      await api.post(`api/reprocess/${moduleId}`, {})
       alert('Retry initiated! Check back in a few minutes.')
       fetchModules(filter)
     } catch (error) {
@@ -89,7 +89,7 @@ export default function DebugPage() {
     if (!confirm('Are you sure you want to delete this module?')) return
     
     try {
-      await api.post(`/api/modules/${moduleId}`, { method: 'DELETE' })
+      await api.post(`api/modules/${moduleId}`, { method: 'DELETE' })
       alert('Module deleted successfully')
       fetchModules(filter)
     } catch (error) {

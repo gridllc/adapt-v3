@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { api } from '../config/api'
+import { api, apiUrl } from '../config/api'
 
 interface Step {
   id: string
@@ -161,7 +161,7 @@ export default function SharePage() {
                 controls
                 className="w-full rounded-t-lg"
                 onTimeUpdate={handleVideoTimeUpdate}
-                src={`/api/video-url/${moduleId}`}
+                src={apiUrl(`api/video-url/${moduleId}`)}
               >
                 Your browser does not support the video tag.
               </video>

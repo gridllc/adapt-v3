@@ -11,7 +11,7 @@ export function useSignedVideoUrl(moduleId?: string, enabled: boolean = true) {
     let active = true
     ;(async () => {
       try {
-        const r = await api.get(`/api/video/${moduleId}/play`)
+        const r = await api.get(`api/video/${moduleId}/play`)
         if (active) setUrl(r.url)
       } catch (e: any) {
         if (active) setError(e?.message || 'failed to sign url')
