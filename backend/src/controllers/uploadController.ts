@@ -127,7 +127,7 @@ export async function completeUpload(req: Request, res: Response) {
           } catch (fallbackError: any) {
             log.error(`❌ [FALLBACK] Processing failed`, { moduleId, error: fallbackError.message });
             try {
-              await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, `Processing failed: ${fallbackError.message}`);
+              await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0);
             } catch (updateError) {
               log.error(`❌ [FALLBACK] Status update failed`, { moduleId, error: updateError });
             }

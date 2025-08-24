@@ -14,7 +14,7 @@ export async function checkBackendHealth(): Promise<{ healthy: boolean; message:
     
     const response = await r.json();
     
-    if (response?.status === 'healthy') {
+    if (response?.ok === true) {
       console.log('✅ [HEALTH] Backend health check passed');
       return { healthy: true, message: 'Backend reachable' };
     } else {
