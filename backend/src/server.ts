@@ -38,6 +38,30 @@ import './services/qstashQueue.js'
 // Import and validate S3 configuration
 import { validateS3Config } from './services/s3Uploader.js'
 
+// ✅ CRITICAL: Set up global error handlers FIRST (before anything else)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Promise Rejection:', {
+    reason: reason instanceof Error ? reason.message : reason,
+    stack: reason instanceof Error ? reason.stack : undefined,
+    promise: promise.toString(),
+    timestamp: new Date().toISOString()
+  })
+  // Don't crash the server, just log the error
+})
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', {
+    error: error.message,
+    stack: error.stack,
+    timestamp: new Date().toISOString()
+  })
+  // Log but don't crash in production
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Exiting in development mode due to uncaught exception')
+    process.exit(1)
+  }
+})
+
 // Ensure critical environment variables are set
 ensureEnv()
 
@@ -60,14 +84,21 @@ console.log('🌐 [CORS] Allowed origins:', allow);
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
 app.head('/api/health', (_req, res) => res.sendStatus(200))
 
-// Use PORT env var if provided (Render sets PORT=10000), fallback to 8000 for local dev
-const PORT = process.env.PORT || 8000
+// ✅ RENDER: Use PORT env var if provided (Render sets this), fallback to 8000 for local dev
+const PORT = parseInt(process.env.PORT || '8000', 10)
 const NODE_ENV = process.env.NODE_ENV || 'development'
 
+// Detect if running on Render
+const IS_RENDER = !!(process.env.RENDER || process.env.RENDER_SERVICE_ID)
+
+console.log(`🌍 Environment: ${NODE_ENV}`)
+console.log(`🚀 Port: ${PORT}`)
+console.log(`☁️ Platform: ${IS_RENDER ? 'Render' : 'Local/Other'}`)
+
 // Trust proxy for production (Render sets X-Forwarded-For)
-if (NODE_ENV === 'production') {
-  app.set('trust proxy', 1)   // ← was 'true'
-  console.log('🔒 Trust proxy enabled for first hop')
+if (NODE_ENV === 'production' || IS_RENDER) {
+  app.set('trust proxy', 1)
+  console.log('🔒 Trust proxy enabled for production/Render')
 }
 
 // Environment validation
@@ -511,10 +542,16 @@ const configureErrorHandling = () => {
 
   // Server startup
   const startServer = () => {
-    const server = app.listen(Number(PORT), "0.0.0.0", () => {
+    const server = app.listen(Number(PORT), "0.0.0.0", (err?: Error) => {
+      if (err) {
+        console.error('❌ Server failed to start:', err)
+        process.exit(1)
+      }
+      
       console.log(`🚀 Server running on port ${PORT}`)
       console.log(`   🌍 Environment: ${NODE_ENV}`)
-      console.log(`   🔗 URL: http://localhost:${PORT}`)
+      console.log(`   🔗 URL: http://0.0.0.0:${PORT}`)
+      console.log(`   ☁️ Platform: ${IS_RENDER ? 'Render' : 'Local/Other'}`)
     
     console.log('\n📚 Available API Endpoints:')
       console.log('   POST /api/upload/init')
@@ -536,46 +573,37 @@ const configureErrorHandling = () => {
     }
   })
 
-  // ✅ Critical: Handle unhandled promise rejections and exceptions
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Promise Rejection:', {
-      reason: reason instanceof Error ? reason.message : reason,
-      stack: reason instanceof Error ? reason.stack : undefined,
-      promise: promise.toString(),
-      timestamp: new Date().toISOString()
-    })
-    // Don't crash the server, just log the error
-  })
-
-  process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', {
-      error: error.message,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    })
-    // Log but don't crash in production
-    if (NODE_ENV === 'development') {
-      console.log('🔄 Exiting in development mode due to uncaught exception')
+  // ✅ Handle server errors  
+  server.on('error', (error: any) => {
+    console.error('❌ Server error:', error)
+    if (error.code === 'EADDRINUSE') {
+      console.error(`💥 Port ${PORT} is already in use`)
       process.exit(1)
     }
   })
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('🛑 SIGTERM received, shutting down gracefully...')
-    server.close(() => {
+  // ✅ Graceful shutdown with timeout
+  const gracefulShutdown = (signal: string) => {
+    console.log(`🛑 ${signal} received, shutting down gracefully...`)
+    
+    server.close((err) => {
+      if (err) {
+        console.error('❌ Error during server shutdown:', err)
+        process.exit(1)
+      }
       console.log('✅ Server closed')
       process.exit(0)
     })
-  })
+    
+    // Force exit after 30 seconds if graceful shutdown fails
+    setTimeout(() => {
+      console.error('⏰ Graceful shutdown timeout, forcing exit')
+      process.exit(1)
+    }, 30000)
+  }
 
-  process.on('SIGINT', () => {
-    console.log('🛑 SIGINT received, shutting down gracefully...')
-    server.close(() => {
-      console.log('✅ Server closed')
-      process.exit(0)
-    })
-  })
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
   return server
 }
@@ -607,27 +635,64 @@ const testDatabaseConnection = async () => {
   return false
 }
 
-// Initialize server
+// Initialize server with comprehensive error handling
 const initializeServer = async () => {
   try {
-    validateEnvironment()
-    validateS3Config() // Validate S3 configuration
+    console.log('🔄 Initializing server...')
     
-    // Test database connection (but don't fail if it's not available)
+    // Step 1: Environment validation
+    console.log('1️⃣ Validating environment...')
+    validateEnvironment()
+    
+    // Step 2: S3 configuration
+    console.log('2️⃣ Validating S3 configuration...')
+    validateS3Config()
+    
+    // Step 3: Database connection (non-blocking)
+    console.log('3️⃣ Testing database connection...')
     await testDatabaseConnection()
     
+    // Step 4: Configure middleware
+    console.log('4️⃣ Configuring middleware...')
     configureMiddleware()
+    
+    // Step 5: Configure routes
+    console.log('5️⃣ Configuring routes...')
     configureRoutes()
+    
+    // Step 6: Configure error handling
+    console.log('6️⃣ Configuring error handling...')
     configureErrorHandling()
+    
+    // Step 7: Start server
+    console.log('7️⃣ Starting server...')
     return startServer()
-  } catch (error) {
-    console.error('❌ Failed to initialize server:', error)
-    process.exit(1)
+    
+  } catch (error: any) {
+    console.error('❌ Server initialization failed:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    })
+    
+    // Give a moment for logs to flush before exiting
+    setTimeout(() => {
+      process.exit(1)
+    }, 1000)
   }
 }
 
-// Start the server
+// Start the server with error recovery
+console.log('🚀 Starting Adapt v3 Backend...')
 initializeServer().catch(error => {
-  console.error('❌ Failed to start server:', error)
-  process.exit(1)
+  console.error('❌ Critical startup failure:', {
+    error: error instanceof Error ? error.message : error,
+    stack: error instanceof Error ? error.stack : undefined,
+    timestamp: new Date().toISOString()
+  })
+  
+  // Give a moment for logs to flush before exiting
+  setTimeout(() => {
+    process.exit(1)
+  }, 1000)
 })
