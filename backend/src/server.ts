@@ -49,10 +49,12 @@ const __dirname = path.dirname(__filename)
 const app = express()
 
 // ---- CORS Configuration (top level for access by all middleware) ----
-const allow = (process.env.CORS_ORIGINS || "")
+const allow = (process.env.CORS_ORIGINS || "https://adaptord.com,http://localhost:5173")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
+
+console.log('🌐 [CORS] Allowed origins:', allow);
 
 // Health (so probes don't 502)
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))

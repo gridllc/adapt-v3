@@ -1,27 +1,37 @@
 // src/lib/api.ts
 // One canonical API helper - use this everywhere instead of hand-built fetch URLs
 
-const RAW = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
-export const API_BASE = RAW || ""; // "" -> same-origin
+// ✅ FIXED: Make the API base unambiguous (one place)
+const BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, ""); // no trailing slash
 
 export function apiUrl(path: string) {
   const p = path.startsWith("/") ? path : `/${path}`;
-  const base = API_BASE ? API_BASE : ""; // same-origin if not set
-  return `${base}${p}`.replace(/([^:]\/)\/+/g, "$1"); // collapse //
+  // If BASE is set, use it; otherwise default to relative /api
+  return BASE ? `${BASE}${p}` : `/api${p}`;
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}) {
+  const res = await fetch(apiUrl(path), {
+    credentials: "include",
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers || {}),
+    },
+  });
+  return res;
 }
 
 // convenience wrappers that always send cookies
-export async function apiGet<T>(path: string, init: RequestInit = {}) {
-  const r = await fetch(apiUrl(path), { credentials: "include", ...init });
+export async function apiGet<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const r = await apiFetch(path, init);
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return (await r.json()) as T;
 }
 
-export async function apiPost<T>(path: string, body?: unknown, init: RequestInit = {}) {
-  const r = await fetch(apiUrl(path), {
+export async function apiPost<T>(path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
+  const r = await apiFetch(path, {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(init.headers || {}) },
     body: body == null ? null : JSON.stringify(body),
     ...init,
   });
@@ -45,6 +55,9 @@ export async function retry<T>(fn: () => Promise<T>, attempts = 3, backoff = 400
 }
 
 // Log the resolved API base at startup
-console.log("[API] base =", API_BASE || "(same-origin)");
 console.log("[API] VITE_API_BASE_URL =", import.meta.env.VITE_API_BASE_URL || "(not set)");
+console.log("[API] BASE =", BASE || "(using relative /api)");
 console.log("[API] window.location.origin =", typeof window !== 'undefined' ? window.location.origin : "(SSR)");
+console.log("[API] Example URLs:");
+console.log("  - /api/health ->", apiUrl("/api/health"));
+console.log("  - /api/modules ->", apiUrl("/api/modules"));

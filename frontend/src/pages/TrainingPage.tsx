@@ -261,12 +261,22 @@ export default function TrainingPage() {
         stepCount: data?.module?.steps?.length || 0
       });
       
-      // moduleRoutes returns { success, module: { ...mod, videoUrl, steps } }
-      if (!data?.success || !data?.module) throw new Error("Invalid module data received");
+      // ✅ FIXED: Ensure consistent module shape with type guard
+      if (!data?.success || !data?.module) {
+        console.error("❌ [TRAINING] Invalid module response:", data);
+        throw new Error("Invalid module data received");
+      }
+      
+      // Validate required fields
+      if (!data.module.id || !data.module.status) {
+        console.error("❌ [TRAINING] Missing required module fields:", data.module);
+        throw new Error("Module missing required fields");
+      }
+      
       const hydrated: ModuleDto = {
         id: data.module.id,
-        title: data.module.title,
-        filename: data.module.filename,
+        title: data.module.title || "Untitled Module",
+        filename: data.module.filename || "Video",
         status: data.module.status,
         progress: data.module.progress ?? 0,
         videoUrl: data.module.videoUrl,
@@ -296,19 +306,32 @@ export default function TrainingPage() {
         progress: data?.module?.progress
       });
       
-      if (!data?.success || !data?.module) throw new Error("Invalid module response");
-      return {
-        status: data.module.status as ModuleStatus,
-        progress: Number(data.module.progress ?? 0),
-      };
+      // ✅ FIXED: Better validation with fallback values
+      if (!data?.success || !data?.module) {
+        console.warn(`⚠️ [STATUS] Invalid status response for ${id}, attempting recovery...`);
+        throw new Error("Invalid module response");
+      }
+      
+      // Ensure we have valid status and progress
+      const status = data.module.status as ModuleStatus || "PROCESSING";
+      const progress = Number(data.module.progress ?? 0);
+      
+      return { status, progress };
     } catch (e: any) {
+      console.warn(`⚠️ [STATUS] Status check failed for ${id}:`, e.message);
+      
       // ✅ FIXED: Attempt recovery instead of returning PROCESSING forever
       try {
+        console.log(`🔄 [STATUS] Attempting to fetch full module for recovery...`);
         const refreshed = await fetchModule(id);
         return { status: refreshed.status, progress: Number(refreshed.progress ?? 0) };
-      } catch {
+      } catch (recoveryError) {
+        console.error(`❌ [STATUS] Recovery failed for ${id}:`, recoveryError);
         // Give up gracefully; don't force PROCESSING forever
-        return { status: (mod?.status ?? "UPLOADED") as ModuleStatus, progress: Number(mod?.progress ?? 0) };
+        return { 
+          status: (mod?.status ?? "UPLOADED") as ModuleStatus, 
+          progress: Number(mod?.progress ?? 0) 
+        };
       }
     }
   }

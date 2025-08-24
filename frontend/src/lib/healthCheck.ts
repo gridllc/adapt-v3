@@ -1,21 +1,28 @@
 // src/lib/healthCheck.ts
 // Simple health check that runs on app boot to verify backend connectivity
 
-import { apiGet } from './api';
+import { apiFetch } from './api';
 
 export async function checkBackendHealth(): Promise<{ healthy: boolean; message: string }> {
   try {
-    const response = await apiGet<any>('/api/health');
+    console.log('🔍 [HEALTH] Checking backend health...');
+    const r = await apiFetch('/api/health');
+    
+    if (!r.ok) {
+      throw new Error(`health ${r.status}`);
+    }
+    
+    const response = await r.json();
     
     if (response?.status === 'healthy') {
-      console.log('✅ Backend health check passed');
+      console.log('✅ [HEALTH] Backend health check passed');
       return { healthy: true, message: 'Backend reachable' };
     } else {
-      console.warn('⚠️ Backend health check failed:', response);
+      console.warn('⚠️ [HEALTH] Backend health check failed:', response);
       return { healthy: false, message: 'Backend unhealthy' };
     }
   } catch (error) {
-    console.error('❌ Backend health check failed:', error);
+    console.error('❌ [HEALTH] Backend health check failed:', error);
     return { 
       healthy: false, 
       message: `Backend unreachable: ${error instanceof Error ? error.message : 'Unknown error'}` 
