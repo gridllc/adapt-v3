@@ -44,23 +44,64 @@ process.on('unhandledRejection', (reason, promise) => {
     reason: reason instanceof Error ? reason.message : reason,
     stack: reason instanceof Error ? reason.stack : undefined,
     promise: promise.toString(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    pid: process.pid,
+    memoryUsage: process.memoryUsage()
   })
-  // Don't crash the server, just log the error
+  // Don't crash the server, just log the error and cleanup
+  if (global.gc) {
+    try {
+      global.gc()
+      console.log('🗑️ Forced garbage collection after unhandled rejection')
+    } catch (gcError) {
+      console.warn('⚠️ GC failed:', gcError)
+    }
+  }
 })
 
 process.on('uncaughtException', (error) => {
   console.error('❌ Uncaught Exception:', {
     error: error.message,
     stack: error.stack,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    pid: process.pid,
+    memoryUsage: process.memoryUsage()
   })
-  // Log but don't crash in production
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔄 Exiting in development mode due to uncaught exception')
+  
+  // In production, try to recover gracefully
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🩹 Production mode: attempting graceful recovery')
+    // Force cleanup
+    if (global.gc) {
+      try {
+        global.gc()
+        console.log('🗑️ Emergency garbage collection completed')
+      } catch (gcError) {
+        console.warn('⚠️ Emergency GC failed:', gcError)
+      }
+    }
+    // Don't exit in production, try to continue
+  } else {
+    console.log('🔄 Development mode: exiting due to uncaught exception')
     process.exit(1)
   }
 })
+
+// ✅ Monitor memory usage and warn about leaks
+setInterval(() => {
+  const usage = process.memoryUsage()
+  const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024)
+  const heapTotalMB = Math.round(usage.heapTotal / 1024 / 1024)
+  
+  // Warn if memory usage is high
+  if (heapUsedMB > 300) {
+    console.warn(`⚠️ High memory usage: ${heapUsedMB}MB / ${heapTotalMB}MB`)
+    if (global.gc && heapUsedMB > 400) {
+      global.gc()
+      console.log('🗑️ Triggered garbage collection due to high memory usage')
+    }
+  }
+}, 60000) // Check every minute
 
 // Ensure critical environment variables are set
 ensureEnv()
@@ -608,7 +649,7 @@ const configureErrorHandling = () => {
   return server
 }
 
-// Test database connection with retry
+// Test database connection with retry and timeout
 const testDatabaseConnection = async () => {
   const maxAttempts = 5
   let attempt = 1
@@ -616,8 +657,23 @@ const testDatabaseConnection = async () => {
   while (attempt <= maxAttempts) {
     try {
       console.log(`🔍 Testing database connection (attempt ${attempt}/${maxAttempts})...`)
-      await prisma.$queryRaw`SELECT 1`
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database connection timeout')), 15000)
+      )
+      
+      const queryPromise = prisma.$queryRaw`SELECT 1`
+      
+      await Promise.race([queryPromise, timeoutPromise])
       console.log('✅ Database connection successful')
+      
+      // Setup database error handlers
+      prisma.$on('error', (e) => {
+        console.error('❌ Database error:', e)
+        // Don't crash, just log
+      })
+      
       return true
     } catch (error) {
       console.log(`❌ Database connection failed (attempt ${attempt}/${maxAttempts}):`, error instanceof Error ? error.message : 'Unknown error')
@@ -627,8 +683,8 @@ const testDatabaseConnection = async () => {
         return false
       }
       
-      console.log('⏳ Waiting 10 seconds before retry...')
-      await new Promise(resolve => setTimeout(resolve, 10000))
+      console.log('⏳ Waiting 5 seconds before retry...')
+      await new Promise(resolve => setTimeout(resolve, 5000))
       attempt++
     }
   }
