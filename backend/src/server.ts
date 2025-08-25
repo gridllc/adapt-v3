@@ -316,6 +316,11 @@ const configureRoutes = () => {
   // AI processing routes (with strictest rate limiting)
   app.use('/api/ai', rateLimiters.aiProcessing, aiRoutes)
   
+  // Simple health endpoint for Render (no complex middleware)
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() })
+  })
+  
   // Public Routes (with general rate limiting)
   // app.use('/api', healthRoutes)  // Temporarily disabled - causing 508 loops
   
