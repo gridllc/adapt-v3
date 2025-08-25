@@ -49,4 +49,6 @@ services:
       - key: CLERK_SECRET_KEY
         sync: false
       - key: FRONTEND_URL
+        value: https://adapt-v3.vercel.app,https://adaptord.com,https://www.adaptord.com
+      - key: CORS_ORIGINS
         value: https://adapt-v3.vercel.app,https://adaptord.com,https://www.adaptord.com 
