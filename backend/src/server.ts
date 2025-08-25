@@ -317,8 +317,9 @@ const configureRoutes = () => {
   app.use('/api/ai', rateLimiters.aiProcessing, aiRoutes)
   
   // Public Routes (with general rate limiting)
-  app.use('/api', healthRoutes)  // Mounts /api/health
+  // app.use('/api', healthRoutes)  // Temporarily disabled - causing 508 loops
   
+  app.use('/api/modules', moduleRoutes)  // Add module routes
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
