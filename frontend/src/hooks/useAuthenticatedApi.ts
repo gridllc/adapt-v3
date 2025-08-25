@@ -9,7 +9,14 @@ export function useAuthenticatedApi() {
       init: RequestInit = {}
     ): Promise<T> => {
     // Grab a Clerk JWT
-    const token = await getToken()
+    let token: string | null = null;
+    try {
+      token = await getToken();
+      console.log('🧩 [useAuthenticatedApi] JWT token:', token);
+    } catch (tokenError) {
+      console.error('❌ [useAuthenticatedApi] Failed to get token:', tokenError);
+    }
+    if (!token) throw new Error('No authentication token available');
     const res = await fetch(apiUrl(endpoint), {
       ...init,
       credentials: init.credentials ?? 'include', // include cookies if needed
