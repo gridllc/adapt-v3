@@ -156,9 +156,7 @@ const allow = Array.from(
 
 console.log('🌐 [CORS] Allowed origins:', allow);
 
-// ✅ Simple health endpoints for Render platform
-app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
-app.head('/api/health', (_req, res) => res.sendStatus(200))
+// (Removed duplicate /api/health endpoints; using healthRoutes with CORS)
 
 // ✅ Add Render-specific health endpoint
 app.get('/health', (_req, res) => res.json({ ok: true, status: 'running' }))
