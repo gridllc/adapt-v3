@@ -138,11 +138,21 @@ const __dirname = path.dirname(__filename)
 const app = express()
 
 // ---- CORS Configuration (top level for access by all middleware) ----
-const rawOrigins = process.env.CORS_ORIGINS || process.env.FRONTEND_URL || "https://adaptord.com,https://app.adaptord.com,https://adapt-v3.vercel.app,http://localhost:5173,https://www.adaptord.com";
-const allow = rawOrigins
-  .split(",")
-  .map(s => s.trim())
-  .filter(Boolean);
+// Combine lists from CORS_ORIGINS and FRONTEND_URL, or use defaults
+const corsList = process.env.CORS_ORIGINS?.split(',') ?? [];
+const frontList = process.env.FRONTEND_URL?.split(',') ?? [];
+const defaultList = [
+  'https://adaptord.com',
+  'https://app.adaptord.com',
+  'https://adapt-v3.vercel.app',
+  'http://localhost:5173',
+  'https://www.adaptord.com'
+];
+const rawList = (corsList.length || frontList.length) ? [...corsList, ...frontList] : defaultList;
+// Trim, filter empties, and dedupe
+const allow = Array.from(
+  new Set(rawList.map(s => s.trim()).filter(Boolean))
+);
 
 console.log('🌐 [CORS] Allowed origins:', allow);
 
