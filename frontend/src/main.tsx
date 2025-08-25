@@ -6,7 +6,7 @@ import { ErrorBoundary } from '@components/common/ErrorBoundary'
 import App from './App'
 import './index.css'
 // import './lib/healthCheck' // Disabled - backend working but health check has CORS issues
-import './lib/apiTest' // Import API test to verify connectivity
+// import './lib/apiTest' // Disabled: legacy API test causing 401 on protected endpoints
 
 // Disable console errors in production to prevent Sentry-like rate limiting
 if (import.meta.env.PROD) {
