@@ -102,11 +102,20 @@ export const ModuleDashboard: React.FC = () => {
 
   const markOrphanedAsFailed = async () => {
     try {
-      await authenticatedFetch('api/reprocess/${moduleId}', { method: 'POST' })
-      alert(`Marked ${data.updatedCount} orphaned modules as failed`)
+      // Call orphaned mark-failed endpoint and capture result
+      const data = await authenticatedFetch<{ success: boolean; updatedCount: number }>(
+        'api/modules/orphaned/mark-failed',
+        { method: 'POST' }
+      )
+      if (data.success) {
+        alert(`Marked ${data.updatedCount} orphaned modules as failed`)
+      } else {
+        alert('Failed to mark orphaned modules as failed')
+      }
       fetchOrphanedModules()
       fetchStats()
     } catch (err) {
+      console.error('Error marking orphaned modules as failed:', err)
       alert('Error marking orphaned modules as failed')
     }
   }
