@@ -48,10 +48,10 @@ async function apiRequest(path: string, init: RequestInit = {}) {
     console.warn('Failed to get auth token:', error);
   }
 
-  const r = await fetch(reqUrl, { 
-    credentials: 'omit', 
+  const r = await fetch(reqUrl, {
     ...init,
-    headers 
+    credentials: init.credentials ?? 'include', // include cookies when not specified
+    headers
   });
   
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
