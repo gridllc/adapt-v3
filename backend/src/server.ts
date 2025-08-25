@@ -93,6 +93,10 @@ setInterval(() => {
   const usage = process.memoryUsage()
   const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024)
   const heapTotalMB = Math.round(usage.heapTotal / 1024 / 1024)
+  const externalMB = Math.round(usage.external / 1024 / 1024)
+  
+  // Log memory usage every 5 minutes for monitoring
+  console.log(`📊 Memory usage: Heap ${heapUsedMB}/${heapTotalMB}MB, External ${externalMB}MB, RSS ${Math.round(usage.rss / 1024 / 1024)}MB`)
   
   // Warn if memory usage is high
   if (heapUsedMB > 300) {
@@ -102,7 +106,12 @@ setInterval(() => {
       console.log('🗑️ Triggered garbage collection due to high memory usage')
     }
   }
-}, 60000) // Check every minute
+}, 300000) // Check every 5 minutes
+
+// ✅ Add process monitoring
+setInterval(() => {
+  console.log(`💓 Server heartbeat - PID: ${process.pid}, Uptime: ${Math.round(process.uptime())}s`)
+}, 120000) // Every 2 minutes
 
 // Ensure critical environment variables are set
 ensureEnv()
@@ -297,11 +306,45 @@ const configureRoutes = () => {
   // Admin Routes (protected)
   app.use('/api/admin', requireAuth, adminRoutes)
   
-  // Test Routes (for development)
+  // Test Routes (for development and production debugging)
+  app.use('/api/test-auth', testAuthRoutes)
   if (NODE_ENV === 'development') {
-    app.use('/api/test-auth', testAuthRoutes)
     app.use('/api/debug', debugRoutes)
   }
+  
+  // ✅ Add simple auth test endpoint for production debugging
+  app.get('/api/auth-test', async (req, res) => {
+    try {
+      const { getAuth } = await import('@clerk/express')
+      const auth = getAuth(req)
+      
+      console.log('🧪 [AUTH-TEST] Request received:', {
+        hasAuth: !!auth,
+        userId: auth?.userId,
+        sessionId: auth?.sessionId,
+        headers: {
+          authorization: req.headers.authorization ? 'SET' : 'NOT SET',
+          origin: req.headers.origin,
+          userAgent: req.headers['user-agent']?.substring(0, 50)
+        }
+      })
+      
+      res.json({
+        success: true,
+        authenticated: !!auth?.userId,
+        userId: auth?.userId || null,
+        sessionId: auth?.sessionId || null,
+        timestamp: new Date().toISOString()
+      })
+    } catch (error: any) {
+      console.error('❌ [AUTH-TEST] Error:', error.message)
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      })
+    }
+  })
 
   // QStash worker endpoint for processing modules
   app.post('/internal/qstash/process/:moduleId', async (req, res) => {

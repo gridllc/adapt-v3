@@ -26,6 +26,20 @@ export const HomePage: React.FC = () => {
   console.log('🌐 Current URL:', window.location.href)
   console.log('🔗 Current domain:', window.location.hostname)
 
+  // ✅ Add auth test function
+  const testAuth = async () => {
+    try {
+      console.log('🧪 Testing authentication...')
+      const { authenticatedApi } = await import('../config/api')
+      const result = await authenticatedApi.get('api/auth-test')
+      console.log('✅ Auth test result:', result)
+      alert(`Auth test: ${result.authenticated ? 'SUCCESS' : 'FAILED'}\nUser ID: ${result.userId || 'None'}`)
+    } catch (error: any) {
+      console.error('❌ Auth test failed:', error)
+      alert(`Auth test FAILED: ${error.message}`)
+    }
+  }
+
   const features = [
     {
       icon: <Play className="h-6 w-6" />,
@@ -101,6 +115,12 @@ export const HomePage: React.FC = () => {
                     >
                       Upload Video
                     </Link>
+                    <button
+                      onClick={testAuth}
+                      className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors text-xs font-medium"
+                    >
+                      Test Auth
+                    </button>
                   </>
                 ) : clerkConfigured ? (
                   // Not signed in, Clerk configured - show auth buttons
