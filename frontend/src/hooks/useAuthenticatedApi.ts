@@ -1,18 +1,26 @@
 import { useCallback } from 'react'
-import { authenticatedApi } from '../config/api'
+import { authenticatedApi, apiUrl } from '../config/api'
+import { useAuth } from '@clerk/clerk-react'
 
 export function useAuthenticatedApi() {
-  const authenticatedFetch = useCallback(async <T = any>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-    const { method = 'GET', body, ...restOptions } = options
-    
-    if (method === 'GET') {
-      return await authenticatedApi.get<T>(endpoint)
-    } else if (method === 'POST') {
-      return await authenticatedApi.post<T>(endpoint, body)
-    } else {
-      throw new Error(`Unsupported HTTP method: ${method}`)
-    }
-  }, [])
+  const { getToken } = useAuth()
+  const authenticatedFetch = useCallback(async <T = any>(
+      endpoint: string,
+      init: RequestInit = {}
+    ): Promise<T> => {
+    // Grab a Clerk JWT
+    const token = await getToken()
+    const res = await fetch(apiUrl(endpoint), {
+      ...init,
+      credentials: init.credentials ?? 'include', // include cookies if needed
+      headers: {
+        ...(init.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    return res.json()
+  }, [getToken])
 
   return { authenticatedFetch }
 }
