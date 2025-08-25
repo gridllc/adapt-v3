@@ -12,7 +12,7 @@ const s3Client = new S3Client({
 })
 
 const prisma = new PrismaClient()
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'adaptv3-training-videos'
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adaptv3-training-videos'
 
 // Track when modules were created (in-memory for now)
 const moduleCreationTimes = new Map<string, number>()
