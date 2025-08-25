@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { apiUrl } from '@/config/api'
+import { useAuthenticatedApi } from '@/hooks/useAuthenticatedApi'
 
 
 interface Module {
@@ -44,6 +45,8 @@ interface OrphanedModule {
 }
 
 export const ModuleDashboard: React.FC = () => {
+  // use authenticated fetch to include JWT
+  const { authenticatedFetch } = useAuthenticatedApi()
   const [modules, setModules] = useState<Module[]>([])
   const [stats, setStats] = useState<ModuleStats | null>(null)
   const [orphanedModules, setOrphanedModules] = useState<OrphanedModule[]>([])
@@ -52,8 +55,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchModules = async () => {
     try {
-      const response = await fetch(apiUrl(`api/modules`))
-      const data = await response.json()
+      const data = await authenticatedFetch<{ success: boolean; modules: Module[] }>('api/modules')
       
       if (data.success && Array.isArray(data.modules)) {
         // 🎯 Null guard: ensure modules array exists and has valid data
@@ -76,8 +78,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(apiUrl(`api/modules/stats`))
-      const data = await response.json()
+      const data = await authenticatedFetch<{ success: boolean; stats: ModuleStats }>('api/modules/stats')
       
       if (data.success) {
         setStats(data.stats)
@@ -89,8 +90,7 @@ export const ModuleDashboard: React.FC = () => {
 
   const fetchOrphanedModules = async () => {
     try {
-      const response = await fetch(apiUrl(`api/modules/orphaned`))
-      const data = await response.json()
+      const data = await authenticatedFetch<{ success: boolean; orphanedModules: OrphanedModule[] }>('api/modules/orphaned')
       
       if (data.success) {
         setOrphanedModules(data.orphanedModules)
@@ -102,21 +102,10 @@ export const ModuleDashboard: React.FC = () => {
 
   const markOrphanedAsFailed = async () => {
     try {
-      const response = await fetch(apiUrl(`api/modules/orphaned/mark-failed`), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-      const data = await response.json()
-      
-      if (data.success) {
-        alert(`Marked ${data.updatedCount} orphaned modules as failed`)
-        fetchOrphanedModules()
-        fetchStats()
-      } else {
-        alert('Failed to mark orphaned modules as failed')
-      }
+      await authenticatedFetch('api/reprocess/${moduleId}', { method: 'POST' })
+      alert(`Marked ${data.updatedCount} orphaned modules as failed`)
+      fetchOrphanedModules()
+      fetchStats()
     } catch (err) {
       alert('Error marking orphaned modules as failed')
     }
@@ -124,14 +113,11 @@ export const ModuleDashboard: React.FC = () => {
 
   const cleanupOldFailed = async () => {
     try {
-      const response = await fetch(apiUrl(`api/modules/cleanup`), {
+      const data = await authenticatedFetch<{ success: boolean; deletedCount: number }>('api/modules/cleanup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ daysOld: 7 })
       })
-      const data = await response.json()
       
       if (data.success) {
         alert(`Cleaned up ${data.deletedCount} old failed modules`)

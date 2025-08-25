@@ -1,7 +1,9 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://adapt-v3.onrender.com/api/$1" },
-    { "source": "/(.*)", "destination": "/" }
+    {
+      "source": "/api/:path*",
+      "destination": "https://adapt-v3.onrender.com/api/:path*"
+    }
   ],
   "headers": [
     {
