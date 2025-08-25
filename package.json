@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@clerk/clerk-react": "^5.43.1",
     "@upstash/qstash": "^2.8.2"
   }
 }

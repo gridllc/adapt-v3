@@ -1,14 +1,11 @@
 // One place to build API URLs safely - ABSOLUTE ONLY
-const DEFAULT_API = 'https://adapt-v3.onrender.com';
+const DEFAULT_API = 'https://adaptord.com';
 
-// 1) Use env if present
-// 2) Else, if we're already on the backend domain (local dev proxy), use window.origin
-// 3) Else, hard-default to your Render backend
+// Use env override if set, else use current origin (frontend domain), else fallback
 const API_BASE =
   (import.meta as any)?.env?.VITE_API_BASE_URL ||
-  (typeof window !== "undefined" && window.location.origin.includes("onrender.com")
-    ? window.location.origin
-    : DEFAULT_API);
+  (typeof window !== "undefined" && window.location.origin) ||
+  DEFAULT_API;
 
 // CRITICAL: Build absolute URLs using URL constructor
 const url = (path: string) => {
@@ -125,7 +122,7 @@ export const API_ENDPOINTS = {
   QA: 'api/qa/ask',
   STEPS: 'api/steps',
   AUTH: 'api/auth',
-  HEALTH: 'api/health'
+  HEALTH: 'health'
 };
 
 // Optional: quick check in console
