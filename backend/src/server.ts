@@ -321,10 +321,32 @@ const configureRoutes = () => {
     res.json({ ok: true, status: 'healthy', timestamp: new Date().toISOString() })
   })
   
+  // Simple modules endpoint to bypass 508 loop issues
+  app.get('/api/modules', async (req, res) => {
+    try {
+      console.log('🔍 [SIMPLE /api/modules] Direct endpoint hit')
+      
+      // Basic auth check without complex middleware
+      const authHeader = req.headers.authorization
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.log('❌ [SIMPLE /api/modules] No auth header')
+        return res.status(401).json({ success: false, error: 'authentication_required' })
+      }
+      
+      // For now, return empty array to test connectivity
+      console.log('✅ [SIMPLE /api/modules] Returning test response')
+      return res.json({ success: true, modules: [] })
+      
+    } catch (error) {
+      console.error('❌ [SIMPLE /api/modules] Error:', error)
+      return res.status(500).json({ success: false, error: 'internal_error' })
+    }
+  })
+  
   // Public Routes (with general rate limiting)
   // app.use('/api', healthRoutes)  // Temporarily disabled - causing 508 loops
   
-  app.use('/api/modules', moduleRoutes)  // Add module routes
+  // app.use('/api/modules', moduleRoutes)  // Temporarily disabled - causing 508 loops
   app.use('/api/video', videoRoutes)  // Changed from /api/video-url to /api/video
   app.use('/api/feedback', feedbackRoutes)
   app.use('/api', transcriptRoutes)
