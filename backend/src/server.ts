@@ -39,21 +39,25 @@ import './services/qstashQueue.js'
 // Import and validate S3 configuration
 import { validateS3Config } from './services/s3Uploader.js'
 
-// ✅ CRITICAL: Set up global error handlers FIRST (before anything else)
+// ✅ CRITICAL: Enhanced error tracking to identify SIGTERM causes
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('❌ Unhandled Promise Rejection:', {
+  console.error('🚨 UNHANDLED PROMISE REJECTION - POTENTIAL SIGTERM CAUSE:', {
     reason: reason instanceof Error ? reason.message : reason,
     stack: reason instanceof Error ? reason.stack : undefined,
     promise: promise.toString(),
     timestamp: new Date().toISOString(),
     pid: process.pid,
-    memoryUsage: process.memoryUsage()
+    memoryUsage: process.memoryUsage(),
+    uptime: Math.round(process.uptime())
   })
-  // Don't crash the server, just log the error and cleanup
+  
+  // ✅ This is likely what's causing your SIGTERM crashes!
+  console.error('🔍 SIGTERM Investigation: This rejection may cause process termination in 30-60s')
+  
   if (global.gc) {
     try {
       global.gc()
-      console.log('🗑️ Forced garbage collection after unhandled rejection')
+      console.log('🗑️ Emergency cleanup after unhandled rejection')
     } catch (gcError) {
       console.warn('⚠️ GC failed:', gcError)
     }
@@ -61,57 +65,67 @@ process.on('unhandledRejection', (reason, promise) => {
 })
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Uncaught Exception:', {
+  console.error('💥 UNCAUGHT EXCEPTION - DEFINITE SIGTERM CAUSE:', {
     error: error.message,
     stack: error.stack,
     timestamp: new Date().toISOString(),
     pid: process.pid,
-    memoryUsage: process.memoryUsage()
+    memoryUsage: process.memoryUsage(),
+    uptime: Math.round(process.uptime())
   })
   
-  // In production, try to recover gracefully
+  console.error('🔍 SIGTERM Investigation: This exception WILL cause SIGTERM')
+  
+  // In production, exit cleanly to prevent corruption
   if (process.env.NODE_ENV === 'production') {
-    console.log('🩹 Production mode: attempting graceful recovery')
-    // Force cleanup
-    if (global.gc) {
-      try {
-        global.gc()
-        console.log('🗑️ Emergency garbage collection completed')
-      } catch (gcError) {
-        console.warn('⚠️ Emergency GC failed:', gcError)
-      }
-    }
-    // Don't exit in production, try to continue
+    console.log('🔄 Production: exiting cleanly to prevent SIGTERM')
+    process.exit(1)
   } else {
     console.log('🔄 Development mode: exiting due to uncaught exception')
     process.exit(1)
   }
 })
 
-// ✅ Monitor memory usage and warn about leaks
-setInterval(() => {
+// ✅ Memory monitoring for 2GB Standard plan
+const monitoringInterval = setInterval(() => {
   const usage = process.memoryUsage()
   const heapUsedMB = Math.round(usage.heapUsed / 1024 / 1024)
-  const heapTotalMB = Math.round(usage.heapTotal / 1024 / 1024)
-  const externalMB = Math.round(usage.external / 1024 / 1024)
+  const rssMB = Math.round(usage.rss / 1024 / 1024)
+  const uptime = Math.round(process.uptime())
   
-  // Log memory usage every 5 minutes for monitoring
-  console.log(`📊 Memory usage: Heap ${heapUsedMB}/${heapTotalMB}MB, External ${externalMB}MB, RSS ${Math.round(usage.rss / 1024 / 1024)}MB`)
-  
-  // Warn if memory usage is high
-  if (heapUsedMB > 300) {
-    console.warn(`⚠️ High memory usage: ${heapUsedMB}MB / ${heapTotalMB}MB`)
-    if (global.gc && heapUsedMB > 400) {
-      global.gc()
-      console.log('🗑️ Triggered garbage collection due to high memory usage')
-    }
+  // Log memory usage every 10 minutes or if high
+  if (heapUsedMB > 500 || uptime % 600 === 0) {
+    console.log(`📊 Memory: Heap ${heapUsedMB}MB, RSS ${rssMB}MB, Uptime: ${uptime}s`)
   }
-}, 300000) // Check every 5 minutes
+  
+  // Garbage collection for high memory usage (2GB plan can handle more)
+  if (global.gc && heapUsedMB > 1200) {
+    global.gc()
+    console.log('🗑️ Garbage collection triggered at 1.2GB')
+  }
+  
+  // Warning at 1.5GB (still plenty of room on 2GB plan)
+  if (rssMB > 1500) {
+    console.warn(`⚠️ High memory usage: ${rssMB}MB on 2GB plan`)
+  }
+}, 120000) // Check every 2 minutes
 
-// ✅ Add process monitoring
-setInterval(() => {
-  console.log(`💓 Server heartbeat - PID: ${process.pid}, Uptime: ${Math.round(process.uptime())}s`)
-}, 120000) // Every 2 minutes
+// ✅ Enhanced SIGTERM tracking for investigation
+process.on('SIGTERM', () => {
+  const usage = process.memoryUsage()
+  console.error('🛑 SIGTERM RECEIVED - CRASH DETECTED:', {
+    timestamp: new Date().toISOString(),
+    pid: process.pid,
+    uptime: Math.round(process.uptime()),
+    memoryUsedMB: Math.round(usage.heapUsed / 1024 / 1024),
+    rssMB: Math.round(usage.rss / 1024 / 1024),
+    externalMB: Math.round(usage.external / 1024 / 1024)
+  })
+  
+  console.log('🔍 SIGTERM Investigation: Check logs above for unhandled rejections/exceptions')
+  console.log('🛑 SIGTERM - cleaning up intervals')
+  clearInterval(monitoringInterval)
+})
 
 // Ensure critical environment variables are set
 ensureEnv()
@@ -131,9 +145,13 @@ const allow = (process.env.CORS_ORIGINS || "https://adaptord.com,https://app.ada
 
 console.log('🌐 [CORS] Allowed origins:', allow);
 
-// Health (so probes don't 502)
+// ✅ Simple health endpoints for Render platform
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: Date.now() }))
 app.head('/api/health', (_req, res) => res.sendStatus(200))
+
+// ✅ Add Render-specific health endpoint
+app.get('/health', (_req, res) => res.json({ ok: true, status: 'running' }))
+app.head('/health', (_req, res) => res.sendStatus(200))
 
 // ✅ RENDER: Use PORT env var if provided (Render sets this), fallback to 8000 for local dev
 const PORT = parseInt(process.env.PORT || '8000', 10)
@@ -228,16 +246,41 @@ const configureMiddleware = () => {
   // Input sanitization
   app.use(sanitizeInput)
 
-  // CORS configuration (using top-level allow variable)
+  // ✅ ENHANCED CORS configuration with explicit headers
   app.use(cors({
     origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // curl / server-to-server
-      const ok =
-        allow.includes(origin) ||
-        /\.vercel\.app$/i.test(new URL(origin).hostname); // allow Vercel previews
-      cb(ok ? null : new Error("CORS blocked"), ok);
+      console.log(`🌐 [CORS] Checking origin: ${origin || 'none'}`)
+      
+      if (!origin) {
+        console.log(`✅ [CORS] Allowing request with no origin (server-to-server)`)
+        return cb(null, true); // curl / server-to-server
+      }
+      
+      const ok = allow.includes(origin) || /\.vercel\.app$/i.test(new URL(origin).hostname);
+      
+      if (ok) {
+        console.log(`✅ [CORS] Allowing origin: ${origin}`)
+        cb(null, true);
+      } else {
+        console.log(`❌ [CORS] Blocking origin: ${origin}`)
+        console.log(`🔍 [CORS] Allowed origins:`, allow)
+        cb(new Error("CORS blocked"), false);
+      }
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'X-Requested-With', 
+      'Accept', 
+      'Origin',
+      'Access-Control-Request-Method',
+      'Access-Control-Request-Headers'
+    ],
+    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+    optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+    preflightContinue: false
   }));
 
   // Rate limiting is applied at the route level for better control
@@ -678,23 +721,34 @@ const configureErrorHandling = () => {
   })
 
   // ✅ Graceful shutdown with timeout
-  const gracefulShutdown = (signal: string) => {
+  const gracefulShutdown = async (signal: string) => {
     console.log(`🛑 ${signal} received, shutting down gracefully...`)
     
-    server.close((err) => {
-      if (err) {
-        console.error('❌ Error during server shutdown:', err)
-        process.exit(1)
-      }
-      console.log('✅ Server closed')
-      process.exit(0)
-    })
+    try {
+      // Close Prisma connections
+      console.log('🔌 Closing database connections...')
+      await prisma.$disconnect()
+      console.log('✅ Database disconnected')
+      
+      // Close server
+      server.close((err) => {
+        if (err) {
+          console.error('❌ Error during server shutdown:', err)
+          process.exit(1)
+        }
+        console.log('✅ Server closed')
+        process.exit(0)
+      })
+    } catch (error) {
+      console.error('❌ Error during cleanup:', error)
+      process.exit(1)
+    }
     
-    // Force exit after 30 seconds if graceful shutdown fails
+    // Force exit after 15 seconds (reduced timeout)
     setTimeout(() => {
       console.error('⏰ Graceful shutdown timeout, forcing exit')
       process.exit(1)
-    }, 30000)
+    }, 15000)
   }
 
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))

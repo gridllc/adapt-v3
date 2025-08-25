@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 
-// Prisma setup
+// ✅ Prisma setup optimized for 2GB Standard plan
 export const prisma = new PrismaClient({
   datasources: {
     db: {

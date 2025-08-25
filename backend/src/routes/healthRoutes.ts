@@ -4,13 +4,48 @@ import { isS3Configured, validateS3Config } from '../services/s3Uploader.js'
 
 const router = express.Router()
 
-// Dedicated health check endpoint for Docker healthcheck and monitoring
-router.get('/health', async (_req, res) => {
+// ✅ SIMPLIFIED health check - no database queries to prevent timeouts
+router.get('/health', (_req, res) => {
+  try {
+    // Simple, fast health check that won't cause SIGTERM
+    const response = {
+      ok: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: Math.round(process.uptime()),
+      memory: {
+        heapUsedMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        rssMB: Math.round(process.memoryUsage().rss / 1024 / 1024)
+      },
+      pid: process.pid,
+      version: '1.0.0'
+    }
+
+    // Only log occasionally to reduce noise
+    if (Math.round(process.uptime()) % 300 === 0) { // Every 5 minutes
+      console.log(`✅ Health check OK - Uptime: ${response.uptime}s, Memory: ${response.memory.heapUsedMB}MB`)
+    }
+    
+    return res.status(200).json(response)
+
+  } catch (error: any) {
+    console.error('❌ Health check failed:', error.message)
+    return res.status(500).json({
+      ok: false,
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    })
+  }
+})
+
+// ✅ Detailed health check (separate endpoint for debugging)
+router.get('/health/detailed', async (_req, res) => {
   const healthStatus: Record<string, string> = {}
   let overallStatus = 200
   
   try {
-    console.log('[TEST] 🔍 Running health check...')
+    console.log('[DETAILED] 🔍 Running detailed health check...')
     
     // Test Database Connection
     try {
@@ -23,11 +58,11 @@ router.get('/health', async (_req, res) => {
         select: { id: true, s3Key: true, stepsKey: true, status: true }
       })
       healthStatus.postgres = '✅ Connected'
-      console.log('[TEST] 📊 Database: OK')
+      console.log('[DETAILED] 📊 Database: OK')
     } catch (dbError: any) {
       healthStatus.postgres = `❌ Failed: ${dbError.message}`
       overallStatus = 500
-      console.error('[TEST] 📊 Database: FAILED', dbError.message)
+      console.error('[DETAILED] 📊 Database: FAILED', dbError.message)
     }
 
     // Cloud storage configuration
@@ -35,28 +70,14 @@ router.get('/health', async (_req, res) => {
       const storageValid = isS3Configured()
       if (storageValid) {
         healthStatus.storage = '✅ Configuration Valid'
-        console.log('[TEST] 📦 Storage: Configuration OK')
+        console.log('[DETAILED] 📦 Storage: Configuration OK')
       } else {
         healthStatus.storage = '⚠️ Configuration Missing'
-        console.warn('[TEST] 📦 Storage: Configuration incomplete')
+        console.warn('[DETAILED] 📦 Storage: Configuration incomplete')
       }
     } catch (s3Error: any) {
       healthStatus.storage = `❌ Error: ${s3Error.message}`
-      console.error('[TEST] 📦 Storage: ERROR', s3Error.message)
-    }
-
-    // QStash Queue (Optional - for async job processing)
-    try {
-      if (process.env.QSTASH_TOKEN) {
-        healthStatus.qstash = '✅ Configured'
-        console.log('[TEST] 📡 QStash: Configured')
-      } else {
-        healthStatus.qstash = '⚠️ Not Configured'
-        console.log('[TEST] 📡 QStash: Not configured (optional)')
-      }
-    } catch (qstashError: any) {
-      healthStatus.qstash = `❌ Error: ${qstashError.message}`
-      console.error('[TEST] 📡 QStash: ERROR', qstashError.message)
+      console.error('[DETAILED] 📦 Storage: ERROR', s3Error.message)
     }
 
     // Check environment variables
@@ -66,10 +87,10 @@ router.get('/health', async (_req, res) => {
     if (missingEnvVars.length > 0) {
       healthStatus.environment = `❌ Missing: ${missingEnvVars.join(', ')}`
       overallStatus = 500
-      console.error('[TEST] 🔧 Environment: Missing vars', missingEnvVars)
+      console.error('[DETAILED] 🔧 Environment: Missing vars', missingEnvVars)
     } else {
       healthStatus.environment = '✅ Required vars present'
-      console.log('[TEST] 🔧 Environment: OK')
+      console.log('[DETAILED] 🔧 Environment: OK')
     }
 
     // Response
@@ -82,11 +103,11 @@ router.get('/health', async (_req, res) => {
       version: process.env.npm_package_version || '1.0.0'
     }
 
-    console.log(`[TEST] ✅ Health check completed with status: ${overallStatus}`)
+    console.log(`[DETAILED] ✅ Health check completed with status: ${overallStatus}`)
     return res.status(overallStatus).json(response)
 
   } catch (error: any) {
-    console.error('[TEST] ❌ Health check failed:', error.message)
+    console.error('[DETAILED] ❌ Health check failed:', error.message)
     return res.status(500).json({
       status: 'error',
       timestamp: new Date().toISOString(),

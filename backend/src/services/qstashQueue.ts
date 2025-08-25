@@ -3,6 +3,7 @@ import { startProcessing } from './ai/aiPipeline.js'
 export function isEnabled() {
   // Force disable QStash for MVP (more reliable inline processing)
   if (process.env.FORCE_INLINE_PROCESSING === 'true') {
+    console.log(`🔧 Using inline processing (FORCE_INLINE_PROCESSING=true)`)
     return false
   }
   

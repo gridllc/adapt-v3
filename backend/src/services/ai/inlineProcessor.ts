@@ -14,7 +14,10 @@ export async function processModuleInline(moduleId: string): Promise<void> {
   const timestamp = new Date().toISOString()
   
   try {
-    log.info(`🚀 [INLINE] Starting inline processing`, { moduleId, timestamp })
+    log.info(`🚀 [INLINE] Starting inline processing`, { 
+      moduleId, 
+      timestamp
+    })
     
     // Step 1: Get and validate module
     const module = await ModuleService.get(moduleId)
