@@ -1,4 +1,4 @@
-s// QA Parsing Utilities
+// QA Parsing Utilities
 export function parseOrdinalQuery(question: string): number | null {
   const msg = question.toLowerCase().trim();
   

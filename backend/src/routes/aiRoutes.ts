@@ -57,29 +57,12 @@ router.post('/ask', async (req: any, res: any) => {
     console.log(`📝 Question: "${question}"`);
     console.log(`🎬 Context: time=${currentTime}s, step=${currentStepIndex}, total=${totalSteps}`);
 
-    // Call the new controller
-    const result = await answerQuestion(req, res);
+    // Call the new controller - it will handle the response directly
+    await answerQuestion(req, res);
     
-    // If controller already sent response, return
+    // If controller already sent response, we're done
     if (res.headersSent) {
       return;
-    }
-
-    // Transform response to match expected format
-    if (result.ok) {
-      return res.status(200).json({
-        success: true,
-        response: result.answer,
-        answer: result.answer,
-        source: result.source,
-        meta: result.meta || {},
-        cites: result.cites || []
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: result.error || 'Unknown error'
-      });
     }
 
   } catch (err: any) {
@@ -122,80 +105,11 @@ router.post('/contextual-response', async (req: any, res: any) => {
 
   // Replace request body and call new endpoint
   req.body = transformedBody;
-  return router._router.stack.find((layer: any) => layer.route?.path === '/ask')?.handle(req, res);
+  
+  // Call the ask endpoint directly with transformed data
+  req.body = transformedBody;
+  return router.post('/ask', req, res);
 });
-
-/**
- * Simple AI ask endpoint for the frontend useModuleAsk hook
- */
-router.post('/ask', async (req: any, res: any) => {
-  try {
-    const { moduleId, question } = req.body
-
-    if (!moduleId || !question) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Module ID and question are required' 
-      })
-    }
-
-    console.log(`🤖 AI ask request for module ${moduleId}`)
-    console.log(`📝 Question: "${question}"`)
-
-    // Get user ID from request
-    const userId = await UserService.getUserIdFromRequest(req)
-
-    // Get module and steps for context
-    const module = await DatabaseService.getModule(moduleId)
-    if (!module) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Module not found' 
-      })
-    }
-
-    const steps = await DatabaseService.getSteps(moduleId)
-    
-    // Generate contextual response using the enhanced AI service with Shared Learning System
-    const aiResponse = await aiService.generateContextualResponse(
-      question,
-      {
-        currentStep: null,
-        allSteps: steps,
-        videoTime: 0,
-        moduleId,
-        userId: userId || undefined
-      }
-    )
-
-    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
-
-    // Log activity with basic information
-    await DatabaseService.createActivityLog({
-      userId: userId || undefined,
-      action: 'AI_ASK',
-      targetId: moduleId,
-      metadata: {
-        questionLength: question.length,
-        answerLength: aiResponse.length
-      }
-    })
-
-    res.json({ 
-      success: true, 
-      answer: aiResponse,
-      reused: false,
-      similarity: null,
-      questionId: null
-    })
-  } catch (error) {
-    console.error('❌ AI ask error:', error)
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to generate AI response' 
-    })
-  }
-})
 
 // Get Shared AI Learning System statistics
 router.get('/learning-stats', async (req, res) => {

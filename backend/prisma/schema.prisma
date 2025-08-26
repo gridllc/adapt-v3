@@ -147,7 +147,7 @@ model StepVector {
   moduleId  String   @index
   index     Int
   text      String
-  embedding Vector(1536) // OpenAI embedding dimension
+  embedding Float[] // OpenAI embedding dimension
   start     Float?
   end       Float?
   createdAt DateTime @default(now())
@@ -162,7 +162,7 @@ model TranscriptVector {
   text      String
   start     Float?
   end       Float?
-  embedding Vector(1536)
+  embedding Float[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -173,7 +173,7 @@ model FaqVector {
   id        String   @id @default(uuid())
   moduleId  String   @index
   text      String
-  embedding Vector(1536)
+  embedding Float[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

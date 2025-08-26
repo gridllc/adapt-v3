@@ -382,23 +382,41 @@ export const TrainingPage: React.FC = () => {
   }
 
   const generateAIResponse = async (userMessage: string, currentStep: any, allSteps: Step[]) => {
-    // Use the enhanced contextual AI service
+    // Use the new three-tier AI pipeline
     try {
-      const data = await api(API_ENDPOINTS.AI_CONTEXTUAL_RESPONSE, {
+      const data = await api(API_ENDPOINTS.AI_ASK, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userMessage,
-          currentStep,
-          allSteps,
-          videoTime,
-          moduleId
+          moduleId,
+          question: userMessage,
+          currentTime: videoTime,
+          currentStepIndex: currentStepIndex,
+          totalSteps: allSteps.length,
+          visibleSteps: allSteps.map((step, index) => ({
+            id: step.id,
+            text: step.title || step.description || '',
+            start: step.start,
+            end: step.end,
+            aliases: step.aliases || []
+          }))
         }),
       })
 
-      return data.response || 'I apologize, but I\'m having trouble processing your request right now.'
+      // Handle both new and legacy response formats
+      const answer = data.response || data.answer || 'I apologize, but I\'m having trouble processing your request right now.'
+      
+      // Log the source for debugging
+      if (data.source) {
+        console.log(`🤖 AI Response Source: ${data.source}`);
+        if (data.cites && data.cites.length > 0) {
+          console.log(`📚 Citations: ${data.cites.join(', ')}`);
+        }
+      }
+      
+      return answer;
     } catch (error) {
       console.error('AI response generation error:', error)
       return generateFallbackResponse(userMessage, currentStep, allSteps)

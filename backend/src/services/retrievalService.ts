@@ -63,8 +63,7 @@ export class RetrievalService {
         select: { id: true, text: true, startTime: true, endTime: true, order: true },
       });
 
-      // For now, use simple keyword matching since we don't have pgvector set up yet
-      // In production, you'd use: prisma.$queryRaw with pgvector cosine similarity
+      // Use keyword matching for now since we don't have pgvector set up yet
       const scoredSteps = steps.map(step => {
         const score = this.simpleKeywordScore(step.text, questionEmbedding.length);
         return {
