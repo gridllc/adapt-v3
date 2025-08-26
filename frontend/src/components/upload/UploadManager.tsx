@@ -150,26 +150,32 @@ export const UploadManager: React.FC = () => {
             throw new Error(`Upload completion failed: ${completeResponse.status} - ${errorText}`)
           }
 
-          const completeResult = await completeResponse.json()
-          console.log('Upload completed:', completeResult)
+                     const completeResult = await completeResponse.json()
+           console.log('Upload completed:', completeResult)
 
-          // Generate playback URL for video player
-          try {
-            const playbackResponse = await fetch('/api/presigned-upload/playback-url', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ key })
-            })
-            
-            if (playbackResponse.ok) {
-              const { playbackUrl } = await playbackResponse.json()
-              console.log('Generated playback URL:', playbackUrl)
-              // Store this URL for the video player
-              setVideoUrl(playbackUrl)
-            }
-          } catch (error) {
-            console.warn('Failed to generate playback URL:', error)
-          }
+           // Use the playback URL from the complete response
+           if (completeResult.playbackUrl) {
+             console.log('Got playback URL from complete response:', completeResult.playbackUrl)
+             setVideoUrl(completeResult.playbackUrl)
+           } else {
+             console.warn('No playback URL in complete response, trying fallback...')
+             // Fallback: generate playback URL separately
+             try {
+               const playbackResponse = await fetch('/api/presigned-upload/playback-url', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ key })
+               })
+               
+               if (playbackResponse.ok) {
+                 const { playbackUrl } = await playbackResponse.json()
+                 console.log('Generated playback URL via fallback:', playbackUrl)
+                 setVideoUrl(playbackUrl)
+               }
+             } catch (error) {
+               console.warn('Failed to generate playback URL via fallback:', error)
+             }
+           }
 
           // 🎯 SET REAL MODULE ID HERE - before AI processing starts
           setJustUploadedModuleId(moduleId)

@@ -4,6 +4,9 @@ import { storageService } from '../services/storageService.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { enqueueProcessModule, processModuleDirectly, isEnabled } from '../services/qstashQueue.js'
 import { v4 as uuidv4 } from 'uuid'
+import { HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { s3, BUCKET } from '../services/presignedUploadService.js'
 
 // Single processing function - either enqueue or run inline
 async function queueOrInline(moduleId: string) {
@@ -48,14 +51,52 @@ export const uploadController = {
 
       console.log('[UPLOAD] complete', { moduleId, key, filename, contentType, size })
 
-      // Mark module as uploaded
-      await ModuleService.updateModuleStatus(moduleId, 'UPLOADED', 0, 'Upload completed')
-      
-      // Start the AI pipeline
-      console.log('[PIPELINE] start', { moduleId })
+      try {
+        // 1) Verify object actually exists at this exact key
+        await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }))
+        console.log('✅ S3 object verified at key:', key)
+      } catch (err: any) {
+        console.error('❌ S3 object not found at key:', key, err)
+        return res.status(500).json({
+          ok: false,
+          error: 'Failed to complete upload',
+          details: err?.Code === 'NotFound' || err?.name === 'NotFound' ? 'Object not found' : err?.message,
+        })
+      }
+
+      // 2) Update module with the exact S3 key and metadata
+      await ModuleService.updateModule(moduleId, {
+        s3Key: key,
+        originalFilename: filename || null,
+        contentType: contentType || null,
+        size: size || null,
+        status: 'UPLOADED'
+      })
+      console.log('✅ Module updated with S3 key:', key)
+
+      // 3) Generate playback URL for immediate use
+      let playbackUrl = ''
+      try {
+        playbackUrl = await getSignedUrl(
+          s3,
+          new GetObjectCommand({ Bucket: BUCKET, Key: key }),
+          { expiresIn: 60 * 30 } // 30 minutes
+        )
+        console.log('✅ Generated playback URL')
+      } catch (urlError) {
+        console.warn('⚠️ Failed to generate playback URL:', urlError)
+      }
+
+      // 4) Start the AI pipeline WITH THE SAME KEY
+      console.log('[PIPELINE] start', { moduleId, key })
       await queueOrInline(moduleId)
 
-      return res.json({ ok: true, moduleId })
+      return res.json({ 
+        ok: true, 
+        moduleId, 
+        playbackUrl,
+        message: 'Upload completed and AI processing started'
+      })
     } catch (error) {
       console.error('❌ Complete upload failed:', error)
       res.status(500).json({ 

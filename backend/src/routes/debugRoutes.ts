@@ -25,7 +25,15 @@ router.get('/module/:id', async (req, res) => {
     log('db.ok', { s3Key: moduleRec.videoUrl, status: moduleRec.status })
 
     // 2) S3 HEAD
-    const key = moduleRec.videoUrl || `videos/${id}.mp4`
+    const key = moduleRec.s3Key || moduleRec.videoUrl
+    if (!key) {
+      return res.status(400).json({ 
+        ok: false, 
+        traceId, 
+        step: 's3', 
+        error: 'Module missing s3Key - cannot determine S3 location' 
+      })
+    }
     const head = await storageService.headObject(key) // should throw if missing
     log('s3.head.ok', { contentLength: head.ContentLength, contentType: head.ContentType })
 

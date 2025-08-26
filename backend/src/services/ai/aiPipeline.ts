@@ -40,6 +40,11 @@ async function generateStepsFromVideoInternal(moduleId: string, opts?: { force?:
     throw new Error(`Module ${moduleId} missing s3Key/stepsKey`)
   }
 
+  // 🔥 SAFETY CHECK - ensure we have a valid S3 key
+  if (!mod.module.s3Key.includes('/')) {
+    throw new Error(`Invalid S3 key: "${mod.module.s3Key}"`)
+  }
+
   // If already ready and not forcing, bail
   if (!opts?.force && mod.module.status === "READY") return { ok: true, skipped: true }
 
