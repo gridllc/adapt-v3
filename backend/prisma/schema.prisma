@@ -142,6 +142,44 @@ model QuestionVector {
   @@map("question_vectors")
 }
 
+model StepVector {
+  id        String   @id @default(uuid())
+  moduleId  String   @index
+  index     Int
+  text      String
+  embedding Vector(1536) // OpenAI embedding dimension
+  start     Float?
+  end       Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([moduleId])
+}
+
+model TranscriptVector {
+  id        String   @id @default(uuid())
+  moduleId  String   @index
+  text      String
+  start     Float?
+  end       Float?
+  embedding Vector(1536)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([moduleId])
+}
+
+model FaqVector {
+  id        String   @id @default(uuid())
+  moduleId  String   @index
+  text      String
+  embedding Vector(1536)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([moduleId])
+}
+
 enum ModuleStatus {
   UPLOADED
   PROCESSING

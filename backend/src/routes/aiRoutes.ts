@@ -10,15 +10,7 @@ import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
 import multer from 'multer'
 import { prisma } from '../config/database.js'
-import { 
-  parseOrdinalQuery, 
-  parseStepCountQuery, 
-  parseCurrentStepQuery, 
-  parseNavigationQuery,
-  parseTimingQuery 
-} from '../utils/qaParsers.js'
-import { FallbackService } from '../services/fallbackService.js'
-import { isPlaceholderResponse } from '../utils/placeholder.js'
+import { answerQuestion } from '../controllers/aiController.js'
 import { metrics } from '../utils/metrics.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -47,208 +39,90 @@ const upload = multer({
 const router = express.Router()
 
 /**
- * Enhanced contextual AI response endpoint - STRUCTURED FALLBACK SYSTEM
+ * Enhanced AI ask endpoint - THREE-TIER PIPELINE
  */
-router.post('/contextual-response', async (req: any, res: any) => {
+router.post('/ask', async (req: any, res: any) => {
   try {
-    const { userMessage, currentStep, steps, allSteps, videoTime, moduleId } = req.body || {};
-    
-    if (!userMessage) {
-      return res.status(400).json({ success: false, error: 'User message is required' });
-    }
-
-    if (!moduleId) {
-      return res.status(400).json({ success: false, error: "moduleId required" });
-    }
-
     // Track metrics
     metrics.incRequest();
-
-    console.log(`🤖 Contextual AI request for module ${moduleId}`);
-    console.log(`📝 User message: "${userMessage}"`);
-    console.log(`🎬 Current step: ${currentStep?.title || 'None'}`);
-
-    // 1) RULE-BASED SHORT-CIRCUIT (fast path for common queries)
-    const ordinal = parseOrdinalQuery(userMessage);
-    if (ordinal) {
-      const fallback = await FallbackService.handleOrdinalQuery(moduleId, ordinal);
-      if (fallback) {
-        metrics.incFallback(fallback.source);
-        return res.status(200).json({
-          success: true,
-          response: fallback.answer,
-          answer: fallback.answer,
-          source: fallback.source,
-          meta: fallback.meta
-        });
-      }
-    }
-
-    // Check other common patterns
-    if (parseStepCountQuery(userMessage)) {
-      const fallback = await FallbackService.handleStepCountQuery(moduleId);
-      if (fallback) {
-        metrics.incFallback(fallback.source);
-        return res.status(200).json({
-          success: true,
-          response: fallback.answer,
-          answer: fallback.answer,
-          source: fallback.source,
-          meta: fallback.meta
-        });
-      }
-    }
-
-    if (parseCurrentStepQuery(userMessage)) {
-      const fallback = await FallbackService.handleCurrentStepQuery(moduleId, currentStep);
-      if (fallback) {
-        metrics.incFallback(fallback.source);
-        return res.status(200).json({
-          success: true,
-          response: fallback.answer,
-          answer: fallback.answer,
-          source: fallback.source,
-          meta: fallback.meta
-        });
-      }
-    }
-
-    const navigation = parseNavigationQuery(userMessage);
-    if (navigation) {
-      const fallback = await FallbackService.handleNavigationQuery(moduleId, navigation, currentStep);
-      if (fallback) {
-        metrics.incFallback(fallback.source);
-        return res.status(200).json({
-          success: true,
-          response: fallback.answer,
-          answer: fallback.answer,
-          source: fallback.source,
-          meta: fallback.meta
-        });
-      }
-    }
-
-    if (parseTimingQuery(userMessage)) {
-      const fallback = await FallbackService.handleTimingQuery(moduleId, currentStep);
-      if (fallback) {
-        metrics.incFallback(fallback.source);
-        return res.status(200).json({
-          success: true,
-          response: fallback.answer,
-          answer: fallback.answer,
-          source: fallback.source,
-          meta: fallback.meta
-        });
-      }
-    }
-
-    // 2) AI ATTEMPT (with structured error handling)
-    let aiText = "";
-    let aiSuccess = false;
     
-    try {
-      const userId = await UserService.getUserIdFromRequest(req);
-      aiText = await aiService.generateContextualResponse(userMessage, {
-        currentStep, 
-        allSteps: steps || allSteps || [], 
-        videoTime, 
-        moduleId, 
-        userId: userId || undefined,
-      });
-      
-      // Check if AI response is valid (not placeholder)
-      if (aiText && !isPlaceholderResponse(aiText)) {
-        aiSuccess = true;
-        metrics.incSuccessfulAI();
-      } else {
-        // AI returned placeholder text - treat as failure
-        metrics.incFailure('PLACEHOLDER_TEXT');
-        console.warn('⚠️ AI returned placeholder text, using fallback');
-      }
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      console.warn('⚠️ AI service failed, using fallback:', errorMsg);
-      
-      // Categorize the error
-      if (errorMsg.includes('rate limit')) {
-        metrics.incFailure('RATE_LIMIT');
-      } else if (errorMsg.includes('timeout')) {
-        metrics.incFailure('TIMEOUT');
-      } else {
-        metrics.incFailure('LLM_UNAVAILABLE');
-      }
+    // Transform request to match controller signature
+    const { moduleId, question, currentTime, currentStepIndex, totalSteps, visibleSteps } = req.body || {};
+    
+    if (!moduleId || !question) {
+      return res.status(400).json({ success: false, error: 'moduleId and question required' });
     }
 
-    // 3) FALLBACK LADDER (if AI failed or returned placeholder)
-    if (!aiSuccess) {
-      // Try keyword matching fallback
-      const keywordFallback = await FallbackService.handleKeywordFallback(moduleId, userMessage);
-      if (keywordFallback) {
-        metrics.incFallback(keywordFallback.source);
-        return res.status(200).json({
-          success: true,
-          response: keywordFallback.answer,
-          answer: keywordFallback.answer,
-          source: keywordFallback.source,
-          meta: keywordFallback.meta,
-          fallback: { reason: 'AI_FAILURE_OR_PLACEHOLDER' }
-        });
-      }
+    console.log(`🤖 AI ask request for module ${moduleId}`);
+    console.log(`📝 Question: "${question}"`);
+    console.log(`🎬 Context: time=${currentTime}s, step=${currentStepIndex}, total=${totalSteps}`);
 
-      // Final fallback - helpful suggestions
-      const suggestions = FallbackService.getHelpfulSuggestions();
-      metrics.incFallback(suggestions.source);
+    // Call the new controller
+    const result = await answerQuestion(req, res);
+    
+    // If controller already sent response, return
+    if (res.headersSent) {
+      return;
+    }
+
+    // Transform response to match expected format
+    if (result.ok) {
       return res.status(200).json({
         success: true,
-        response: suggestions.answer,
-        answer: suggestions.answer,
-        source: suggestions.source,
-        meta: suggestions.meta,
-        fallback: { reason: 'AI_FAILURE_OR_PLACEHOLDER' }
+        response: result.answer,
+        answer: result.answer,
+        source: result.source,
+        meta: result.meta || {},
+        cites: result.cites || []
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: result.error || 'Unknown error'
       });
     }
-
-    // 4) SUCCESS PATH (AI worked)
-    console.log(`✅ AI response generated: ${aiText.substring(0, 100)}...`);
-
-    // Log activity
-    try {
-      const userId = await UserService.getUserIdFromRequest(req);
-      await DatabaseService.createActivityLog({
-        userId: userId || undefined,
-        action: 'AI_QUESTION',
-        targetId: moduleId,
-        metadata: {
-          questionLength: userMessage.length,
-          answerLength: aiText.length,
-          videoTime,
-          stepId: currentStep?.id
-        }
-      });
-    } catch (logErr) {
-      console.warn('⚠️ Failed to log activity:', logErr);
-    }
-
-    return res.status(200).json({ 
-      success: true, 
-      response: aiText.trim(),
-      answer: aiText.trim(),
-      source: 'AI',
-      meta: { model: 'ai-service' }
-    });
 
   } catch (err: any) {
-    console.error('❌ Failed to generate AI response:', err);
+    console.error('❌ AI ask error:', err);
     metrics.incFailure('UNEXPECTED_ERROR');
     
-    // Graceful fallback even on unexpected errors
-    return res.status(200).json({
-      success: true,
-      response: "I can help with steps. Try 'What's the 3rd step?' or 'How many steps?'",
-      source: 'FALLBACK_EMPTY',
-      fallback: { reason: 'UNEXPECTED_ERROR' }
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error'
     });
   }
+});
+
+/**
+ * Legacy contextual-response endpoint (redirects to new /ask)
+ */
+router.post('/contextual-response', async (req: any, res: any) => {
+  // Transform legacy request format to new format
+  const { userMessage, currentStep, steps, allSteps, videoTime, moduleId } = req.body || {};
+  
+  if (!userMessage || !moduleId) {
+    return res.status(400).json({ success: false, error: 'userMessage and moduleId required' });
+  }
+
+  // Transform to new format
+  const transformedBody = {
+    moduleId,
+    question: userMessage,
+    currentTime: videoTime,
+    currentStepIndex: currentStep?.stepNumber ? currentStep.stepNumber - 1 : undefined,
+    totalSteps: (steps || allSteps || []).length,
+    visibleSteps: (steps || allSteps || []).map((s: any, i: number) => ({
+      id: s.id || `step-${i}`,
+      text: s.title || s.text || s.description || '',
+      start: s.start || s.startTime,
+      end: s.end || s.endTime,
+      aliases: s.aliases || []
+    }))
+  };
+
+  // Replace request body and call new endpoint
+  req.body = transformedBody;
+  return router._router.stack.find((layer: any) => layer.route?.path === '/ask')?.handle(req, res);
 });
 
 /**
