@@ -53,6 +53,20 @@ export const UploadManager: React.FC = () => {
         const uploadId = addUpload(file)
         console.log('Added to queue:', uploadId)
 
+        // Normalize Content-Type for Android compatibility
+        const normalizeContentType = (file: File): string => {
+          const type = file.type.toLowerCase()
+          if (type.includes('mp4')) return 'video/mp4'
+          if (type.includes('webm')) return 'video/webm'
+          if (type.includes('avi')) return 'video/x-msvideo'
+          if (type.includes('mov') || type.includes('quicktime')) return 'video/quicktime'
+          // Fallback to generic video type
+          return 'video/mp4'
+        }
+
+        const contentType = normalizeContentType(file)
+        console.log(`📹 Uploading video: ${file.name} (${contentType})`)
+
         // 🎯 SHOW SPINNER IMMEDIATELY HERE - Don't wait for backend
         setShowProcessing(true)
         // Don't set justUploadedModuleId yet - wait for real moduleId from backend
@@ -92,8 +106,7 @@ export const UploadManager: React.FC = () => {
             method: 'PUT',
             body: file,
             headers: {
-              'Content-Type': file.type || 'video/mp4',  // Ensure fallback for Android compatibility
-              'x-amz-acl': 'private',  // Set proper ACL
+              'Content-Type': contentType,  // Use normalized Content-Type for Android compatibility
             },
           })
 
