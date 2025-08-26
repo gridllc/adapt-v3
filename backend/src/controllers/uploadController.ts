@@ -30,6 +30,42 @@ async function queueOrInline(moduleId: string) {
 }
 
 export const uploadController = {
+  /**
+   * Complete upload after S3 presigned upload
+   * This is the missing piece that starts the AI pipeline
+   */
+  async completeUpload(req: Request, res: Response) {
+    try {
+      const { moduleId, key, filename, contentType, size } = req.body
+      
+      if (!moduleId || !key) {
+        console.log('❌ Complete upload missing required fields:', { moduleId: !!moduleId, key: !!key })
+        return res.status(400).json({ 
+          ok: false, 
+          error: 'moduleId and key required' 
+        })
+      }
+
+      console.log('📝 [UPLOAD] complete', { moduleId, key, filename, contentType, size })
+
+      // Mark module as uploaded
+      await ModuleService.updateModuleStatus(moduleId, 'UPLOADED', 0, 'Upload completed')
+      
+      // Start the AI pipeline
+      console.log('🚀 [PIPELINE] start', { moduleId })
+      await queueOrInline(moduleId)
+
+      return res.json({ ok: true, moduleId })
+    } catch (error) {
+      console.error('❌ Complete upload failed:', error)
+      res.status(500).json({ 
+        ok: false, 
+        error: 'Failed to complete upload',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      })
+    }
+  },
+
   async uploadVideo(req: Request, res: Response) {
     try {
       console.log('=== UPLOAD CONTROLLER HIT ===')

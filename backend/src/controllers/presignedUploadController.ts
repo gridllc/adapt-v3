@@ -71,6 +71,19 @@ export const presignedUploadController = {
         userId 
       })
 
+      // Create Module record first
+      const module = await DatabaseService.createModule({
+        id: crypto.randomUUID(),
+        title: filename.replace(/\.[^.]+$/, ''),
+        filename: filename,
+        videoUrl: '', // Will be set after upload
+        status: 'UPLOADING',
+        userId: userId || null
+      })
+
+      const moduleId = module.id
+      log.info('[UPLOAD] presign', { moduleId, userId })
+
       const result = await presignedUploadService.generatePresignedUrl(
         filename, 
         contentType
@@ -79,11 +92,13 @@ export const presignedUploadController = {
       log.info('Presigned URL generated successfully', { 
         filename, 
         key: result.key,
+        moduleId,
         userId 
       })
       
       res.json({
         ...result,
+        moduleId, // Include moduleId in response
         expiresIn: 3600, // 1 hour
         maxFileSize: 500 * 1024 * 1024 // 500MB limit
       })
