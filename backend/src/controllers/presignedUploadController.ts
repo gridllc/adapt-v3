@@ -82,12 +82,13 @@ export const presignedUploadController = {
       })
 
       const moduleId = module.id
-      log.info('[UPLOAD] presign', { moduleId, userId })
 
       const result = await presignedUploadService.generatePresignedUrl(
         filename, 
         contentType
       )
+      
+      log.info('[UPLOAD] presign', { moduleId, key: result.key })
       
       log.info('Presigned URL generated successfully', { 
         filename, 

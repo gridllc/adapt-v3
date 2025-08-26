@@ -41,145 +41,146 @@ const router = express.Router()
 /**
  * Enhanced AI ask endpoint - THREE-TIER PIPELINE
  */
-router.post('/ask', async (req: any, res: any) => {
+router.post('/ask', answerQuestion);
+
+function ruleBasedReply(userMessage: string, steps: any[], currentStep?: any) {
+  const msg = String(userMessage || "").toLowerCase().trim();
+
+  // ordinals & numeric queries: "what's the 2nd step" / "step 2"
+  const ord: Record<string, number> = {
+    first:1, second:2, third:3, fourth:4, fifth:5,
+    sixth:6, seventh:7, eighth:8, ninth:9, tenth:10,
+  };
+  const wordKey = Object.keys(ord).find(w => msg.includes(`${w} step`) || msg.includes(`the ${w} step`));
+  const numMatch = msg.match(/\bstep\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s*step\b/);
+  const n = wordKey ? ord[wordKey] : (numMatch ? parseInt(numMatch[1] || numMatch[2], 10) : undefined);
+  if (n && n >= 1 && n <= steps.length) {
+    const s = steps[n - 1];
+    return `**Step ${n}**: ${s.text || `Step ${n}`}`;
+  }
+
+  if (/how many steps|total steps/.test(msg)) {
+    return `There are **${steps.length}** steps in this training.`;
+  }
+
+  if (currentStep && /(current step|this step|what step am i on)/.test(msg)) {
+    return `You're on **Step ${currentStep.stepNumber}**: ${currentStep.text || `Step ${currentStep.stepNumber}`}`;
+  }
+
+  if (/next step|previous step/.test(msg) && currentStep) {
+    const total = steps.length;
+    if (msg.includes("next") && currentStep.stepNumber < total) {
+      return `Next is **Step ${currentStep.stepNumber + 1}**: "${steps[currentStep.stepNumber].text || `Step ${currentStep.stepNumber + 1}`}".`;
+    }
+    if (msg.includes("previous") && currentStep.stepNumber > 1) {
+      return `Previous was **Step ${currentStep.stepNumber - 1}**: "${steps[currentStep.stepNumber - 2].text || `Step ${currentStep.stepNumber - 1}`}".`;
+    }
+  }
+
+  return `Ask "How many steps?", "What's the 2nd step?", or "What step am I on?".`;
+}
+
+router.post("/contextual-response", async (req: any, res: any) => {
   try {
-    // Track metrics
-    metrics.incRequest();
-    
-    // Transform request to match controller signature
-    const { moduleId, question, currentTime, currentStepIndex, totalSteps, visibleSteps } = req.body || {};
-    
-    if (!moduleId || !question) {
-      return res.status(400).json({ success: false, error: 'moduleId and question required' });
+    const { userMessage, currentStep, steps, allSteps, videoTime, moduleId } = req.body || {};
+    if (!moduleId) {
+      return res.status(400).json({ success: false, error: "moduleId required" });
     }
 
-    console.log(`🤖 AI ask request for module ${moduleId}`);
-    console.log(`📝 Question: "${question}"`);
-    console.log(`🎬 Context: time=${currentTime}s, step=${currentStepIndex}, total=${totalSteps}`);
-
-    // Call the new controller
-    await answerQuestion(req, res);
-    
-    // If controller already sent response, return
-    if (res.headersSent) {
-      return;
+    // normalize steps list
+    let list: any[] = Array.isArray(steps) ? steps : (Array.isArray(allSteps) ? allSteps : []);
+    if (!list.length) {
+      // hydrate from DB if needed
+      const dbSteps = await prisma.step.findMany({
+        where: { moduleId },
+        orderBy: { order: "asc" },
+        select: { text: true, startTime: true, endTime: true, order: true },
+      });
+      list = dbSteps.map((s, i) => ({ 
+        text: s.text, 
+        start: s.startTime, 
+        end: s.endTime, 
+        stepNumber: s.order 
+      }));
+    } else {
+      list = list.map((s: any, i: number) => ({ ...s, stepNumber: s.stepNumber ?? i + 1 }));
     }
+
+    // 1) Rule-based short-circuit (fast path for common queries)
+    const ordinal = parseOrdinalQuery(userMessage);
+    if (ordinal && ordinal >= 1 && ordinal <= list.length) {
+      const step = list[ordinal - 1];
+      return res.json({
+        success: true,
+        response: `**Step ${ordinal}**: ${step.text}`,
+        source: 'RULES_STEP_LOOKUP',
+        meta: { start: step.start, end: step.end, stepNumber: ordinal }
+      });
+    }
+
+    // 2) AI attempt with typed results
+    let aiResult: any = null;
+    try {
+      const userId = await (UserService?.getUserIdFromRequest?.(req) ?? undefined);
+      aiResult = await aiService.generateContextualResponse(userMessage, {
+        currentStep, allSteps: list, videoTime, moduleId, userId: userId || undefined,
+      });
+    } catch (e) {
+      // swallow model errors
+    }
+
+    // 3) Circuit breaker on failure - use rule-based fallback
+    if (!aiResult?.ok) {
+      const fallbackText = ruleBasedReply(userMessage, list, currentStep);
+      return res.json({
+        success: true,
+        response: fallbackText,
+        source: 'FALLBACK_RULES',
+        fallback: { reason: aiResult?.code || 'UNKNOWN_ERROR', detail: aiResult?.detail }
+      });
+    }
+
+    // 4) Success path - AI returned valid response
+    return res.json({
+      success: true,
+      response: aiResult.text,
+      source: 'AI',
+      meta: { model: aiResult.model, provider: aiResult.meta?.provider }
+    });
 
   } catch (err: any) {
-    console.error('❌ AI ask error:', err);
-    metrics.incFailure('UNEXPECTED_ERROR');
-    
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error'
+    // still return 200 with a helpful answer so FE never throws
+    return res.status(200).json({
+      success: true,
+      response: "I can help with steps. Try \"What's the 2nd step?\" or \"How many steps?\"",
+      source: 'FALLBACK_ERROR'
     });
   }
 });
 
-/**
- * Legacy contextual-response endpoint (redirects to new /ask)
- */
-router.post('/contextual-response', async (req: any, res: any) => {
-  // Transform legacy request format to new format
-  const { userMessage, currentStep, steps, allSteps, videoTime, moduleId } = req.body || {};
+// Helper function to parse ordinal queries
+function parseOrdinalQuery(message: string): number | null {
+  const msg = message.toLowerCase().trim();
   
-  if (!userMessage || !moduleId) {
-    return res.status(400).json({ success: false, error: 'userMessage and moduleId required' });
-  }
-
-  // Transform to new format
-  const transformedBody = {
-    moduleId,
-    question: userMessage,
-    currentTime: videoTime,
-    currentStepIndex: currentStep?.stepNumber ? currentStep.stepNumber - 1 : undefined,
-    totalSteps: (steps || allSteps || []).length,
-    visibleSteps: (steps || allSteps || []).map((s: any, i: number) => ({
-      id: s.id || `step-${i}`,
-      text: s.title || s.text || s.description || '',
-      start: s.start || s.startTime,
-      end: s.end || s.endTime,
-      aliases: s.aliases || []
-    }))
+  // ordinals & numeric queries: "what's the 2nd step" / "step 2"
+  const ord: Record<string, number> = {
+    first:1, second:2, third:3, fourth:4, fifth:5,
+    sixth:6, seventh:7, eighth:8, ninth:9, tenth:10,
   };
+  
+  const wordKey = Object.keys(ord).find(w => 
+    msg.includes(`${w} step`) || msg.includes(`the ${w} step`)
+  );
+  
+  const numMatch = msg.match(/\bstep\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s*step\b/);
+  
+  if (wordKey) return ord[wordKey];
+  if (numMatch) return parseInt(numMatch[1] || numMatch[2], 10);
+  
+  return null;
+}
 
-  // Replace request body and call new endpoint
-  req.body = transformedBody;
-  // Redirect to the ask endpoint instead of trying to access internal router
-  return res.redirect(307, '/api/ai/ask');
-});
-
-/**
- * Simple AI ask endpoint for the frontend useModuleAsk hook
- */
-router.post('/ask', async (req: any, res: any) => {
-  try {
-    const { moduleId, question } = req.body
-
-    if (!moduleId || !question) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Module ID and question are required' 
-      })
-    }
-
-    console.log(`🤖 AI ask request for module ${moduleId}`)
-    console.log(`📝 Question: "${question}"`)
-
-    // Get user ID from request
-    const userId = await UserService.getUserIdFromRequest(req)
-
-    // Get module and steps for context
-    const module = await DatabaseService.getModule(moduleId)
-    if (!module) {
-      return res.status(404).json({ 
-        success: false, 
-        error: 'Module not found' 
-      })
-    }
-
-    const steps = await DatabaseService.getSteps(moduleId)
-    
-    // Generate contextual response using the enhanced AI service with Shared Learning System
-    const aiResponse = await aiService.generateContextualResponse(
-      question,
-      {
-        currentStep: null,
-        allSteps: steps,
-        videoTime: 0,
-        moduleId,
-        userId: userId || undefined
-      }
-    )
-
-    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
-
-    // Log activity with basic information
-    await DatabaseService.createActivityLog({
-      userId: userId || undefined,
-      action: 'AI_ASK',
-      targetId: moduleId,
-      metadata: {
-        questionLength: question.length,
-        answerLength: aiResponse.length
-      }
-    })
-
-    res.json({ 
-      success: true, 
-      answer: aiResponse,
-      reused: false,
-      similarity: null,
-      questionId: null
-    })
-  } catch (error) {
-    console.error('❌ AI ask error:', error)
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to generate AI response' 
-    })
-  }
-})
+// Removed duplicate /ask endpoint - using the enhanced one above
 
 // Get Shared AI Learning System statistics
 router.get('/learning-stats', async (req, res) => {

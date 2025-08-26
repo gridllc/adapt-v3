@@ -1,7 +1,6 @@
-import { Retrieved } from './retrievalService.js';
+import type { Retrieved } from './retrievalService.js'
 
 export class PromptService {
-  
   /**
    * Build RAG prompt with guardrails
    */
@@ -9,75 +8,29 @@ export class PromptService {
     question: string, 
     context: Retrieved[], 
     stepCount: number,
-    currentStepIndex?: number
-  ): { system: string; user: string } {
+    currentStepIndex?: number,
+    currentTime?: number
+  ) {
+    const contextLines = context.map((c, i) => `[${i + 1}|${c.kind}] ${c.text}`)
     
-    // Format context snippets
-    const contextLines = context.map((c, i) => {
-      const meta = c.meta;
-      let metaStr = '';
-      
-      if (c.kind === 'step' && meta.index) {
-        metaStr = ` (Step ${meta.index})`;
-      } else if (meta.start && meta.end) {
-        metaStr = ` (${Math.round(meta.start)}s-${Math.round(meta.end)}s)`;
-      }
-      
-      return `[${i + 1}|${c.kind.toUpperCase()}]${metaStr} ${c.text}`;
-    });
-
-    // Build system prompt with guardrails
-    const system = `You are an AI trainer for a specific how-to module.
+    const systemPrompt = `You are an AI trainer for a specific how-to module.
 
 IMPORTANT RULES:
 - ONLY use the provided context. Do NOT invent steps or information.
-- If unsure, say which step numbers are most relevant and suggest seeking.
+- If unsure, say which step numbers are most relevant and suggest seeking clarification.
 - Prefer citing "Step X" when applicable.
 - Keep answers brief (2-5 sentences).
-- Focus on practical, actionable guidance.
-- If the question is unclear, ask for clarification or suggest related steps.`;
+- If the context doesn't contain the answer, say so clearly.`
 
-    // Build user prompt with context
-    const user = `Question: ${question}
-
-Total steps: ${stepCount}${currentStepIndex != null ? `\nCurrent step: ${currentStepIndex + 1}` : ''}
+    const userPrompt = `Question: ${question}
+Total steps: ${stepCount}${currentStepIndex !== undefined ? `\nCurrent step: ${currentStepIndex + 1}` : ''}${currentTime !== undefined ? `\nVideo time: ${Math.round(currentTime)}s` : ''}
 
 Context snippets:
 ${contextLines.join('\n')}
 
-Answer briefly using the training steps when relevant. If a specific step is applicable, start with "Step X: ..."`;
+Answer briefly using only the provided context. If a specific step is relevant, start with "Step X: ...".`
 
-    return { system, user };
-  }
-
-  /**
-   * Build fallback prompt for when RAG context is weak
-   */
-  static buildFallbackPrompt(
-    question: string, 
-    steps: any[], 
-    currentStepIndex?: number
-  ): { system: string; user: string } {
-    
-    const system = `You are an AI trainer for a how-to module. The user's question is unclear or doesn't match the available steps well.
-
-IMPORTANT RULES:
-- Be helpful but honest about limitations.
-- Suggest specific step numbers they can ask about.
-- Provide general guidance if possible.
-- Keep answers brief and encouraging.`;
-
-    const user = `Question: ${question}
-
-Available steps: ${steps.length} total${currentStepIndex != null ? `\nUser is currently on step: ${currentStepIndex + 1}` : ''}
-
-The question doesn't clearly match any specific step. Please:
-1. Acknowledge the limitation
-2. Suggest asking about a specific step number (e.g., "What is step 3?")
-3. Provide any general guidance you can
-4. Keep it encouraging and helpful`;
-
-    return { system, user };
+    return { system: systemPrompt, user: userPrompt }
   }
 
   /**
@@ -88,28 +41,37 @@ The question doesn't clearly match any specific step. Please:
     context: Retrieved[],
     steps: any[],
     currentStepIndex?: number,
-    videoTime?: number
-  ): string {
+    currentTime?: number
+  ) {
+    const { system, user } = this.buildRagPrompt(question, context, steps.length, currentStepIndex, currentTime)
     
-    const contextInfo = context.length > 0 
-      ? `\n\nRelevant context:\n${context.map((c, i) => `${i + 1}. ${c.source}: ${c.text}`).join('\n')}`
-      : '';
+    // Add step list for additional context
+    const stepList = steps.map((s, i) => `${i + 1}. ${s.title || s.description || `Step ${i + 1}`}`).join('\n')
     
-    const stepInfo = steps.length > 0
-      ? `\n\nAvailable steps:\n${steps.map((s, i) => `${i + 1}. ${s.text}`).join('\n')}`
-      : '';
-    
-    const timeInfo = videoTime != null ? `\n\nCurrent video time: ${Math.round(videoTime)}s` : '';
-    const currentInfo = currentStepIndex != null ? `\n\nUser is currently on step: ${currentStepIndex + 1}` : '';
-    
-    return `You are an AI trainer for a specific how-to module. Answer the user's question using the provided context and steps.
+    return {
+      system,
+      user: `${user}
 
-Question: ${question}${contextInfo}${stepInfo}${timeInfo}${currentInfo}
+Available steps:
+${stepList}`
+    }
+  }
 
-Instructions:
-- Use the context and steps to provide accurate, helpful answers
-- Cite specific step numbers when relevant
-- Keep answers concise and practical
-- If the question is unclear, suggest asking about specific steps`;
+  /**
+   * Build fallback prompt when RAG context is weak
+   */
+  static buildFallbackPrompt(question: string, steps: any[], currentStepIndex?: number) {
+    const stepList = steps.map((s, i) => `${i + 1}. ${s.title || s.description || `Step ${i + 1}`}`).join('\n')
+    
+    return {
+      system: `You are an AI trainer. Answer based on the available steps only. If you can't answer from the steps, suggest asking about a specific step number.`,
+      user: `Question: ${question}
+Current step: ${currentStepIndex !== undefined ? currentStepIndex + 1 : 'unknown'}
+
+Available steps:
+${stepList}
+
+Answer briefly using only the step information above.`
+    }
   }
 }

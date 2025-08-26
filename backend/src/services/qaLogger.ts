@@ -1,97 +1,35 @@
-import { DatabaseService } from './prismaService.js'
-import { generateEmbedding } from '../utils/vectorUtils.js'
+import { prisma } from '../config/database.js'
+import { embed } from './embeddings.js'
 
-/**
- * Enhanced Q&A Logger for Shared AI Learning System
- * Logs every AI interaction with vector embeddings for semantic search
- */
-export async function logTutorInteraction({
-  question,
-  answer,
-  moduleId,
-  stepId,
-  userId,
-  videoTime,
-  reused = false,
-  similarity = null
-}: {
-  question: string
-  answer: string
-  moduleId?: string
-  stepId?: string
-  userId?: string
-  videoTime?: number
-  reused?: boolean
-  similarity?: number | null
-}) {
+export async function logQA(params: { moduleId: string; question: string; answer: string; stepId?: string; videoTime?: number; isFAQ?: boolean }) {
   try {
-    console.log(`📝 Logging AI interaction: ${reused ? '♻️ Reused' : '🆕 New'} answer`)
+    const [embedding] = await Promise.all([embed(params.question)])
     
-    // Generate embedding for semantic search
-    const embedding = await generateEmbedding(question)
-    
-    // Save to database
-    const savedQuestion = await DatabaseService.createQuestion({
-      moduleId: moduleId || 'global', // Use 'global' for cross-module learning
-      stepId,
-      question,
-      answer,
-      videoTime,
-      userId
+    // Create the question first
+    const question = await prisma.question.create({
+      data: {
+        moduleId: params.moduleId,
+        question: params.question,
+        answer: params.answer,
+        stepId: params.stepId,
+        videoTime: params.videoTime,
+        isFAQ: params.isFAQ ?? false,
+      },
     })
 
-    // Save embedding for vector search
-    await DatabaseService.createQuestionVector({
-      questionId: savedQuestion.id,
-      embedding
-    })
-
-    // Log activity for monitoring
-    await DatabaseService.createActivityLog({
-      userId,
-      action: 'AI_INTERACTION',
-      targetId: savedQuestion.id,
-      metadata: {
-        moduleId,
-        stepId,
-        questionLength: question.length,
-        answerLength: answer.length,
-        reused,
-        similarity,
-        videoTime
+    // Then create the vector embedding
+    await prisma.questionVector.create({
+      data: {
+        questionId: question.id,
+        embedding: embedding,
+        modelName: 'text-embedding-3-small'
       }
     })
 
-    console.log(`✅ AI interaction logged with ID: ${savedQuestion.id}`)
-    return savedQuestion
+    console.log(`✅ [QA Logger] Stored Q&A with embedding for module: ${params.moduleId}`)
+    return question
   } catch (error) {
-    console.error('❌ Failed to log AI interaction:', error)
+    console.error('❌ [QA Logger] Failed to store Q&A:', error)
     throw error
-  }
-}
-
-/**
- * Log feedback on reused answers for quality improvement
- */
-export async function logAnswerFeedback({
-  questionId,
-  feedback,
-  userId
-}: {
-  questionId: string
-  feedback: 'helpful' | 'not_helpful' | 'neutral'
-  userId?: string
-}) {
-  try {
-    await DatabaseService.createActivityLog({
-      userId,
-      action: 'ANSWER_FEEDBACK',
-      targetId: questionId,
-      metadata: { feedback }
-    })
-    
-    console.log(`✅ Answer feedback logged: ${feedback}`)
-  } catch (error) {
-    console.error('❌ Failed to log answer feedback:', error)
   }
 } 

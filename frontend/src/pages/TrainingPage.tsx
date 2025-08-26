@@ -382,23 +382,43 @@ export const TrainingPage: React.FC = () => {
   }
 
   const generateAIResponse = async (userMessage: string, currentStep: any, allSteps: Step[]) => {
-    // Use the enhanced contextual AI service
     try {
-      const data = await api(API_ENDPOINTS.AI_CONTEXTUAL_RESPONSE, {
+      // Send rich context to the new RAG-powered endpoint
+      const payload = {
+        moduleId,
+        question: userMessage,
+        currentTime: videoTime,
+        currentStepIndex: currentStepIndex,
+        totalSteps: allSteps.length,
+        visibleSteps: allSteps.map((s, i) => ({
+          id: s.id,
+          text: s.title || s.description || `Step ${i + 1}`,
+          start: s.start,
+          end: s.end,
+          aliases: s.aliases || []
+        }))
+      }
+
+      const data = await api('/api/qa/ask', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userMessage,
-          currentStep,
-          allSteps,
-          videoTime,
-          moduleId
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       })
 
-      return data.response || 'I apologize, but I\'m having trouble processing your request right now.'
+      if (data?.ok && data?.answer) {
+        return data.answer
+      }
+
+      // Soft fallback to related Qs
+      try {
+        const rel = await api(`/api/qa/related?moduleId=${moduleId}&q=${encodeURIComponent(userMessage)}`)
+        if (rel?.items?.length) return `Closest match: ${rel.items[0].text}`
+      } catch (err) {
+        console.warn('Related questions fallback failed:', err)
+      }
+
+      // Fallback if the new endpoint fails
+      return generateFallbackResponse(userMessage, currentStep, allSteps)
     } catch (error) {
       console.error('AI response generation error:', error)
       return generateFallbackResponse(userMessage, currentStep, allSteps)
@@ -406,65 +426,63 @@ export const TrainingPage: React.FC = () => {
   }
 
   const generateFallbackResponse = (userMessage: string, currentStep: any, allSteps: Step[]) => {
-    // Simple AI response logic based on keywords and context
-    const message = userMessage.toLowerCase()
-    
-    // Current step questions
-    if (currentStep && (message.includes('current step') || message.includes('this step') || message.includes('what step'))) {
-      return `You're currently on **Step ${currentStep.stepNumber}**: "${currentStep.title}". ${currentStep.description}`
+    const msg = userMessage.toLowerCase().trim()
+
+    // 🔢 "what's the 2nd step" / "step 2" / "second step"
+    const ordinals: Record<string, number> = {
+      first:1, second:2, third:3, fourth:4, fifth:5,
+      sixth:6, seventh:7, eighth:8, ninth:9, tenth:10,
     }
-    
-    // Step navigation
-    if (message.includes('next step') || message.includes('previous step')) {
-      const totalSteps = allSteps.length
+    const wordKey = Object.keys(ordinals).find(w =>
+      msg.includes(`${w} step`) || msg.includes(`the ${w} step`)
+    )
+    const numMatch = msg.match(/\bstep\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s*step\b/)
+    const n = wordKey ? ordinals[wordKey] : (numMatch ? parseInt(numMatch[1] || numMatch[2], 10) : undefined)
+    if (n && n >= 1 && n <= allSteps.length) {
+      const s = allSteps[n - 1]
+      return `**Step ${n}**: ${s.title}${s.description ? ` — ${s.description}` : ''}`
+    }
+
+    // Current step
+    if (currentStep && (msg.includes('current step') || msg.includes('this step') || msg.includes('what step am i on'))) {
+      return `You're on **Step ${currentStep.stepNumber}**: ${currentStep.title}${currentStep.description ? ` — ${currentStep.description}` : ''}`
+    }
+
+    // Navigation
+    if (msg.includes('next step') || msg.includes('previous step')) {
+      const total = allSteps.length
       if (currentStep) {
-        if (message.includes('next') && currentStep.stepNumber < totalSteps) {
-          return `The next step is **Step ${currentStep.stepNumber + 1}**: "${allSteps[currentStep.stepNumber].title}". Click the "▶️ Seek" button to jump to it!`
-        } else if (message.includes('previous') && currentStep.stepNumber > 1) {
-          return `The previous step was **Step ${currentStep.stepNumber - 1}**: "${allSteps[currentStep.stepNumber - 2].title}". You can click "▶️ Seek" on any step to navigate.`
+        if (msg.includes('next') && currentStep.stepNumber < total) {
+          return `Next is **Step ${currentStep.stepNumber + 1}**: "${allSteps[currentStep.stepNumber].title}". Click "▶️ Seek" to jump.`
+        }
+        if (msg.includes('previous') && currentStep.stepNumber > 1) {
+          return `Previous was **Step ${currentStep.stepNumber - 1}**: "${allSteps[currentStep.stepNumber - 2].title}".`
         }
       }
-      return "You can click the '▶️ Seek' button on any step to navigate to it, or use the video controls to move around."
+      return `Use "▶️ Seek" on any step to navigate.`
     }
-    
-    // Step count and overview
-    if (message.includes('how many steps') || message.includes('total steps') || message.includes('overview')) {
-      return `This training has **${allSteps.length} steps** total. You can see all steps listed below the video. Each step is clickable and will seek to that part of the video.`
-    }
-    
-    // Editing help
-    if (message.includes('edit') || message.includes('change') || message.includes('modify')) {
-      return `To edit a step, click the "✏️ Edit" button on any step. You can modify the title, description, timing, aliases, and AI teaching notes. Changes auto-save as you type!`
-    }
-    
-    // AI rewrite help
-    if (message.includes('ai rewrite') || message.includes('rewrite') || message.includes('improve')) {
-      return `Use the "✨ Rewrite" button in the editor to improve your step title. It will make it clearer, fix grammar, and add helpful details when needed - all while keeping it human and easy to understand!`
-    }
-    
-    // Timing questions
-    if (message.includes('time') || message.includes('duration') || message.includes('how long')) {
-      if (currentStep) {
-        const minutes = Math.floor(currentStep.timestamp / 60)
-        const seconds = currentStep.timestamp % 60
-        return `Step ${currentStep.stepNumber} starts at ${minutes}:${seconds.toString().padStart(2, '0')} and lasts ${currentStep.duration} seconds.`
-      }
-      return "Each step has specific timing. You can see the timestamp on each step, and click '▶️ Seek' to jump to that exact moment in the video."
-    }
-    
-    // General help
-    if (message.includes('help') || message.includes('how to') || message.includes('what can')) {
-      return `I can help you with:
-• **Navigation**: Ask about current, next, or previous steps
-• **Editing**: Learn how to modify steps and use AI rewrite
-• **Overview**: Get information about the training structure
-• **Timing**: Find out when steps occur in the video
 
-Just ask me anything about the training!`
+    // Count
+    if (msg.includes('how many steps') || msg.includes('total steps')) {
+      return `There are **${allSteps.length}** steps in this training.`
     }
-    
-    // Default response
-    return `I understand you're asking about "${userMessage}". I can help with step navigation, editing, timing, and general questions about this training. What would you like to know?`
+
+    // Editing help
+    if (msg.includes('edit') || msg.includes('change') || msg.includes('modify')) {
+      return `Click "✏️ Edit" on any step to change title, description, timing, aliases, or notes.`
+    }
+
+    // Timing
+    if (msg.includes('time') || msg.includes('duration') || msg.includes('how long')) {
+      if (currentStep) {
+        const dur = Math.max(0, Math.round((currentStep.end || 0) - (currentStep.start || 0)))
+        return `Step ${currentStep.stepNumber} lasts ~${dur}s. Use "▶️ Seek" to jump to it.`
+      }
+      return `Each step shows its start time; use "▶️ Seek" to jump.`
+    }
+
+    // Default
+    return `Ask things like "What's the 2nd step?", "How many steps?", or "What step am I on?".`
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -46,13 +46,13 @@ export const uploadController = {
         })
       }
 
-      console.log('📝 [UPLOAD] complete', { moduleId, key, filename, contentType, size })
+      console.log('[UPLOAD] complete', { moduleId, key, filename, contentType, size })
 
       // Mark module as uploaded
       await ModuleService.updateModuleStatus(moduleId, 'UPLOADED', 0, 'Upload completed')
       
       // Start the AI pipeline
-      console.log('🚀 [PIPELINE] start', { moduleId })
+      console.log('[PIPELINE] start', { moduleId })
       await queueOrInline(moduleId)
 
       return res.json({ ok: true, moduleId })
