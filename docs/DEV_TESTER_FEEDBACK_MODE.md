@@ -90,7 +90,7 @@ import AWS from 'aws-sdk'
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.S3_REGION || 'us-east-1'
+  region: process.env.AWS_REGION || 'us-east-1'
 })
 
 export { s3 }
@@ -98,13 +98,13 @@ export { s3 }
 // Health check function
 export async function checkS3Health(): Promise<boolean> {
   try {
-    if (!process.env.S3_BUCKET_NAME) {
+    if (!process.env.AWS_BUCKET_NAME) {
       console.log('[TEST] S3 not configured - skipping health check')
       return false
     }
     
     await s3.listObjectsV2({
-      Bucket: process.env.S3_BUCKET_NAME,
+      Bucket: process.env.AWS_BUCKET_NAME,
       MaxKeys: 1
     }).promise()
     

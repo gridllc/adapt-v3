@@ -9,7 +9,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 8000
+        value: 10000
       - key: DATABASE_URL
         sync: false
       - key: UPSTASH_REDIS_REST_URL
@@ -42,9 +42,9 @@ services:
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
-      - key: S3_REGION
+      - key: AWS_REGION
         sync: false
-      - key: S3_BUCKET_NAME
+      - key: AWS_BUCKET_NAME
         sync: false
       - key: CLERK_SECRET_KEY
         sync: false

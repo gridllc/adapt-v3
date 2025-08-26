@@ -53,37 +53,101 @@ export const UploadManager: React.FC = () => {
         const uploadId = addUpload(file)
         console.log('Added to queue:', uploadId)
 
-        // Start upload - USE DIRECT URL (bypasses proxy)
+        // Start upload - USE PRESIGNED UPLOAD FLOW
         try {
-          console.log('Starting upload...')
+          console.log('Starting presigned upload...')
           
           // Start the upload status
           startUpload(uploadId)
           
-          const response = await uploadWithProgress({
-            file,
-            url: API_ENDPOINTS.UPLOAD, // Use configured API endpoint
-            onProgress: (progress) => {
-              console.log(`Upload progress: ${progress}%`)
-              updateProgress(uploadId, progress)
+          // Step 1: Get presigned URL from backend
+          updateProgress(uploadId, 10)
+          const presignedResponse = await fetch('/api/upload/presigned-url', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              filename: file.name,
+              contentType: file.type,
+            }),
+          })
+
+          if (!presignedResponse.ok) {
+            const errorText = await presignedResponse.text()
+            throw new Error(`Failed to get presigned URL: ${presignedResponse.status} - ${errorText}`)
+          }
+
+          const { presignedUrl, key } = await presignedResponse.json()
+          console.log('Got presigned URL:', presignedUrl)
+          console.log('S3 key:', key)
+
+          // Step 2: Upload directly to S3 using presigned URL
+          updateProgress(uploadId, 30)
+          const s3Response = await fetch(presignedUrl, {
+            method: 'PUT',
+            body: file,
+            headers: {
+              'Content-Type': file.type,
             },
           })
 
-          console.log('Upload response status:', response.status)
-
-          if (response.ok) {
-            const result = await response.json()
-            console.log('Upload success:', result)
-            markSuccess(uploadId, result.moduleId)
-            
-            // Show processing panel and start monitoring
-            setJustUploadedModuleId(result.moduleId)
-            setShowProcessing(true)
-          } else {
-            const errorText = await response.text()
-            console.error('Upload failed:', response.status, errorText)
-            throw new Error(`Upload failed: ${response.status}`)
+          if (!s3Response.ok) {
+            const errorText = await s3Response.text()
+            throw new Error(`S3 upload failed: ${s3Response.status} - ${errorText}`)
           }
+
+          console.log('S3 upload successful')
+
+          // Step 3: Confirm upload with backend
+          updateProgress(uploadId, 60)
+          const confirmResponse = await fetch('/api/upload/confirm', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              key: key,
+            }),
+          })
+
+          if (!confirmResponse.ok) {
+            const errorText = await confirmResponse.text()
+            throw new Error(`Upload confirmation failed: ${confirmResponse.status} - ${errorText}`)
+          }
+
+          const confirmResult = await confirmResponse.json()
+          console.log('Upload confirmed:', confirmResult)
+
+          // Step 4: Process video with AI
+          updateProgress(uploadId, 80)
+          const processResponse = await fetch('/api/upload/process', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              videoUrl: confirmResult.fileUrl,
+              moduleId: confirmResult.moduleId, // Use the moduleId from confirm
+            }),
+          })
+
+          if (!processResponse.ok) {
+            const errorText = await processResponse.text()
+            throw new Error(`AI processing failed: ${processResponse.status} - ${errorText}`)
+          }
+
+          const processResult = await processResponse.json()
+          console.log('AI processing started:', processResult)
+
+          // Mark upload as successful
+          updateProgress(uploadId, 100)
+          markSuccess(uploadId, processResult.moduleId)
+          
+          // Show processing panel and start monitoring
+          setJustUploadedModuleId(processResult.moduleId)
+          setShowProcessing(true)
+
         } catch (error) {
           console.error('Upload error:', error)
           markError(uploadId, error as Error)
@@ -152,9 +216,9 @@ export const UploadManager: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-sm text-yellow-800">
-          <strong>Debug Info:</strong> Upload will go to {API_ENDPOINTS.UPLOAD}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-800">
+          <strong>Modern Upload Flow:</strong> Files are uploaded directly to S3 using presigned URLs for better performance and reliability.
         </p>
       </div>
 
@@ -202,12 +266,12 @@ export const UploadManager: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
                 <span className="text-sm font-medium text-blue-800">
-                  {hasActiveUploads ? 'Uploading...' : 'Preparing upload...'}
+                  {hasActiveUploads ? 'Uploading to S3...' : 'Preparing upload...'}
                 </span>
               </div>
               <p className="text-xs text-blue-600 mt-1">
                 {hasActiveUploads 
-                  ? 'Your video is being uploaded to our servers'
+                  ? 'Your video is being uploaded directly to S3'
                   : 'Getting ready to upload your video'
                 }
               </p>

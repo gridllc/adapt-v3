@@ -34,14 +34,14 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // S3 Client configuration
 const s3Client = new S3Client({
-  region: process.env.S3_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'us-east-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
   }
 })
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME!
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME!
 
 /**
  * Upload a file to S3
@@ -60,7 +60,7 @@ export async function uploadToS3(buffer: Buffer, filename: string): Promise<stri
 
     await s3Client.send(command)
     
-    const s3Url = `https://${BUCKET_NAME}.s3.${process.env.S3_REGION || 'us-east-1'}.amazonaws.com/${filename}`
+    const s3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${filename}`
     console.log(`[TEST] ✅ S3 upload successful: ${s3Url}`)
     
     return s3Url
@@ -118,14 +118,14 @@ export async function getPresignedUrl(filename: string, expiresIn: number = 3600
  * Check if S3 is properly configured
  */
 export function isS3Configured(): boolean {
-  return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.S3_BUCKET_NAME)
+  return !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_BUCKET_NAME)
 }
 
 /**
  * Get the public S3 URL for a file
  */
 export function getPublicS3Url(filename: string): string {
-  return `https://${BUCKET_NAME}.s3.${process.env.S3_REGION || 'us-east-1'}.amazonaws.com/${filename}`
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${filename}`
 }
 ```
 
@@ -375,8 +375,8 @@ const url = await getSignedS3Url(filename)
 ```bash
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
-S3_BUCKET_NAME=your-bucket-name
-S3_REGION=us-east-1
+AWS_BUCKET_NAME=your-bucket-name
+AWS_REGION=us-east-1
 ```
 
 ### **Optional (for local development)**

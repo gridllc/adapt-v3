@@ -8,7 +8,7 @@ export const stepSaver = {
     const Body = Buffer.from(JSON.stringify(payload, null, 2), 'utf8')
     await s3.send(new PutObjectCommand({
       Bucket: bucket,
-      Key: bucket,
+      Key: stepsKey,
       Body,
       ContentType: 'application/json',
     }))

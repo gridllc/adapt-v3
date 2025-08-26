@@ -15,7 +15,7 @@ interface PresignedUrlRequest {
 interface ProcessVideoRequest {
   videoUrl: string
   userId?: string
-  moduleId?: string
+  moduleId: string
 }
 
 interface ConfirmUploadRequest {
@@ -112,6 +112,11 @@ export const presignedUploadController = {
         return res.status(400).json({ error: 'videoUrl is required' })
       }
 
+      if (!moduleId) {
+        log.warn('Video processing request missing moduleId', { userId })
+        return res.status(400).json({ error: 'moduleId is required' })
+      }
+
       // Validate video URL format
       if (!videoUrl.startsWith('http') && !videoUrl.startsWith('https')) {
         log.warn('Invalid video URL format', { videoUrl, userId })
@@ -124,47 +129,27 @@ export const presignedUploadController = {
         moduleId 
       })
 
-      // Process with AI
-      await aiService.processVideo(videoUrl)
+      // Use the proper AI pipeline
+      const { startProcessing } = await import('../services/ai/aiPipeline.js')
+      await startProcessing(moduleId)
 
-      log.info('AI processing completed', { 
-        userId 
-      })
-
-      // Generate module ID if not provided
-      const finalModuleId = moduleId || crypto.randomUUID()
-
-      // Save module to database
-      const savedModule = await DatabaseService.createModule({
-        id: finalModuleId,
-        title: 'Video Module',
-        filename: 'video.mp4',
-        videoUrl: videoUrl,
-        userId: userId
-      })
-
-      // Since processVideo now handles everything internally, we don't need to save steps here
-      log.info('Video processing completed successfully', { 
-        moduleId: savedModule.id, 
+      log.info('AI processing started successfully', { 
+        moduleId,
         userId 
       })
 
       res.json({
         success: true,
-        moduleId: savedModule.id,
+        moduleId: moduleId,
         videoUrl,
-        title: 'Video Module',
-        description: 'AI processing completed',
-        transcript: '',
-        steps: [],
-        totalDuration: 0,
-        savedStepsCount: 0
+        message: 'AI processing started successfully'
       })
     } catch (error) {
       log.error('Video processing failed', { 
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
         videoUrl: req.body?.videoUrl,
+        moduleId: req.body?.moduleId,
         userId: req.body?.userId 
       })
       res.status(500).json({ 
@@ -191,8 +176,28 @@ export const presignedUploadController = {
       const result = await presignedUploadService.confirmUpload(key)
       
       if (result.success) {
-        log.info('Upload confirmed successfully', { key, userId })
-        res.json(result)
+        // Generate a module ID for this upload
+        const moduleId = crypto.randomUUID()
+        
+        // Create module in database
+        const savedModule = await DatabaseService.createModule({
+          id: moduleId,
+          title: (key.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Video Module'),
+          filename: (key.split('/').pop() || 'video.mp4'),
+          videoUrl: result.fileUrl,
+          s3Key: key,
+          stepsKey: `training/${moduleId}.json`,
+          status: 'UPLOADED' as const,
+          userId: userId || null
+        })
+
+        log.info('Upload confirmed and module created', { key, moduleId, userId })
+        
+        res.json({
+          ...result,
+          moduleId: savedModule.id,
+          success: true
+        })
       } else {
         log.warn('Upload confirmation failed', { key, error: result.error, userId })
         res.status(404).json(result)

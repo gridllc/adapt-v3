@@ -10,6 +10,7 @@ import fs from 'fs'
 import { moduleRoutes } from './routes/moduleRoutes.js'
 
 import { uploadRoutes } from './routes/uploadRoutes.js'
+import { presignedUploadRoutes } from './routes/presignedUploadRoutes.js'
 import { aiRoutes } from './routes/aiRoutes.js'
 import { stepsRoutes } from './routes/stepsRoutes.js'
 import videoRoutes from './routes/videoRoutes.js'
@@ -205,6 +206,7 @@ const configureMiddleware = () => {
 const configureRoutes = () => {
   // Upload Routes (public - no authentication required)
   app.use('/api/upload', uploadRoutes) // Basic file upload endpoint
+  app.use('/api/upload', presignedUploadRoutes) // Presigned upload endpoints
   
   // Public Routes (no authentication required)
   app.use('/api', healthRoutes)  // Mounts /api/health
@@ -234,7 +236,7 @@ app.use('/api/voice', voiceRoutes)
 
       console.log(`📥 QStash webhook received for moduleId=${moduleId}`)
       // Use the new pipeline directly
-      const { startProcessing } = await import('./services/ai/pipeline.js')
+      const { startProcessing } = await import('./services/ai/aiPipeline.js')
       await startProcessing(moduleId)
       res.status(200).json({ success: true })
     } catch (err) {
@@ -262,7 +264,7 @@ app.use('/api/voice', voiceRoutes)
     
     try {
       // Import the pipeline function dynamically to avoid circular imports
-      const { startProcessing } = await import('./services/ai/pipeline.js')
+      const { startProcessing } = await import('./services/ai/aiPipeline.js')
       await startProcessing(moduleId)
       console.log('🧵 Worker done', { moduleId })
       res.json({ ok: true })
