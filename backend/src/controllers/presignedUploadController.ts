@@ -166,24 +166,32 @@ export const presignedUploadController = {
     try {
       const { key, userId }: ConfirmUploadRequest = req.body
       
+      console.log('🚀 [confirmUpload] Starting upload confirmation...')
+      console.log('📝 [confirmUpload] Request body:', req.body)
+      
       if (!key) {
         log.warn('Confirm upload request missing key', { userId })
         return res.status(400).json({ error: 'key is required' })
       }
 
       log.info('Confirming upload', { key, userId })
+      console.log('🔑 [confirmUpload] Processing key:', key)
 
       const result = await presignedUploadService.confirmUpload(key)
       
       if (result.success) {
+        console.log('✅ [confirmUpload] S3 confirmation successful, creating module...')
+        
         // Generate a module ID for this upload
         const moduleId = crypto.randomUUID()
+        console.log('🆔 [confirmUpload] Generated module ID:', moduleId)
         
         // Create module in database
         if (!result.fileUrl) {
           throw new Error('File URL not found in upload confirmation result')
         }
         
+        console.log('💾 [confirmUpload] Creating module in database...')
         const savedModule = await DatabaseService.createModule({
           id: moduleId,
           title: (key.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Video Module'),
@@ -197,15 +205,20 @@ export const presignedUploadController = {
 
         // Start AI processing immediately after module creation
         try {
-          console.log(`🚀 Starting AI processing for module: ${moduleId}`)
+          console.log(`🚀 [confirmUpload] Starting AI processing for module: ${moduleId}`)
           const { startProcessing } = await import('../services/ai/aiPipeline.js')
+          console.log(`📦 [confirmUpload] AI pipeline imported, calling startProcessing...`)
           await startProcessing(moduleId)
-          console.log(`✅ AI processing started for module: ${moduleId}`)
+          console.log(`✅ [confirmUpload] AI processing started successfully for module: ${moduleId}`)
         } catch (processingError) {
-          console.error(`❌ Failed to start AI processing for module: ${moduleId}:`, processingError)
+          console.error(`❌ [confirmUpload] Failed to start AI processing for module: ${moduleId}:`, processingError)
+          console.error(`❌ [confirmUpload] Processing error details:`, processingError)
           // Don't fail the upload, just log the error
         }
 
+        console.log(`🎉 [confirmUpload] Upload confirmed and module created successfully!`)
+        console.log(`📊 [confirmUpload] Final response data:`, { moduleId: savedModule.id, success: true })
+        
         log.info('Upload confirmed and module created', { key, moduleId, userId })
         
         res.json({
