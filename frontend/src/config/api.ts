@@ -67,6 +67,15 @@ function buildHeaders(options?: RequestInit, token?: string): HeadersInit {
 
 export async function authenticatedApi(endpoint: string, options?: RequestInit) {
   const url = apiUrl(endpoint)
+  
+  // Add detailed logging
+  console.log('🔍 [authenticatedApi] Making request:', {
+    endpoint,
+    fullUrl: url,
+    method: options?.method || 'GET',
+    baseURL: API_BASE_URL,
+    isDevelopment
+  })
 
   // Get Clerk token
   let token: string | null = null
@@ -79,19 +88,56 @@ export async function authenticatedApi(endpoint: string, options?: RequestInit) 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 10000)
 
-  const res = await fetch(url, {
-    ...options,
-    signal: controller.signal,
-    headers: buildHeaders(options, token || undefined),
-    // credentials: 'omit', // no cookies needed with Bearer
-  })
-  clearTimeout(timeoutId)
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: buildHeaders(options, token || undefined),
+    })
+    clearTimeout(timeoutId)
+    
+    console.log('✅ [authenticatedApi] Response received:', {
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      headers: Object.fromEntries(res.headers.entries())
+    })
 
-  const ct = res.headers.get('content-type') || ''
-  const text = await res.text()
-  if (!res.ok) throw new Error(`API Error ${res.status}: ${text.slice(0, 120)}`)
-  if (!ct.includes('application/json')) throw new Error(`Unexpected response (not JSON): ${text.slice(0, 120)}`)
-  return JSON.parse(text)
+    const ct = res.headers.get('content-type') || ''
+    const text = await res.text()
+    
+    if (!res.ok) {
+      console.error('❌ [authenticatedApi] Request failed:', {
+        url,
+        status: res.status,
+        statusText: res.statusText,
+        responseText: text.slice(0, 200)
+      })
+      throw new Error(`API Error ${res.status}: ${text.slice(0, 120)}`)
+    }
+    
+    if (!ct.includes('application/json')) {
+      console.error('❌ [authenticatedApi] Non-JSON response:', {
+        url,
+        contentType: ct,
+        responseText: text.slice(0, 200)
+      })
+      throw new Error(`Unexpected response (not JSON): ${text.slice(0, 200)}`)
+    }
+    
+    const data = JSON.parse(text)
+    console.log('✅ [authenticatedApi] Request successful:', { url, data })
+    return data
+    
+  } catch (error) {
+    clearTimeout(timeoutId)
+    console.error('❌ [authenticatedApi] Request error:', {
+      url,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    throw error
+  }
 }
 
 export async function api(endpoint: string, options?: RequestInit) {

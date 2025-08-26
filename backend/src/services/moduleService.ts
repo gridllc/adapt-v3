@@ -8,6 +8,9 @@ export class ModuleService {
    */
   static async getAllModules(): Promise<{ success: boolean; modules?: any[]; error?: string }> {
     try {
+      console.log('🔍 [ModuleService] Fetching all modules...')
+      
+      // Simplified query to prevent hanging
       const modules = await prisma.module.findMany({
         select: {
           id: true,
@@ -17,31 +20,21 @@ export class ModuleService {
           progress: true,
           createdAt: true,
           updatedAt: true,
-          userId: true,
-          user: {
-            select: {
-              email: true,
-              clerkId: true
-            }
-          },
-          _count: {
-            select: {
-              steps: true,
-              feedbacks: true
-            }
-          }
+          userId: true
         },
         orderBy: {
           createdAt: 'desc'
         }
       })
 
+      console.log(`✅ [ModuleService] Found ${modules.length} modules`)
+
       return {
         success: true,
         modules: modules.map((module: any) => ({
           ...module,
-          stepCount: module._count.steps,
-          feedbackCount: module._count.feedbacks
+          stepCount: 0, // Simplified for now
+          feedbackCount: 0 // Simplified for now
         }))
       }
     } catch (error) {
