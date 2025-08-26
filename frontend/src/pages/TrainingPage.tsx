@@ -87,6 +87,14 @@ export const TrainingPage: React.FC = () => {
     play: () => videoRef.current?.play(),
   });
 
+  // Force video reload when URL changes (fixes Android video loading issues)
+  useEffect(() => {
+    if (url && videoRef.current) {
+      console.log('🔄 Reloading video for new URL:', url)
+      videoRef.current.load()
+    }
+  }, [url])
+
   // Video event handlers for smart sync
   const handleVideoTimeUpdate = () => {
     if (videoRef.current) {
