@@ -1,7 +1,7 @@
 // backend/src/services/storageService.ts
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, ModuleStatus } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
 import { uploadToS3, getPresignedUrl } from './s3Uploader.js'
 
@@ -267,7 +267,7 @@ export const storageService = {
             videoUrl: moduleData.videoUrl,
             s3Key: (moduleData as any).s3Key || '',
             stepsKey: (moduleData as any).stepsKey || `training/${moduleData.id || uuidv4()}.json`,
-            status: (moduleData.status as any) || 'UPLOADED',
+            status: (moduleData.status as ModuleStatus) || 'UPLOADED',
             progress: moduleData.progress || 0,
             userId: userId || null, // Link to user if authenticated
           } as any,

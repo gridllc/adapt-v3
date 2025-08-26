@@ -77,7 +77,7 @@ export const presignedUploadController = {
         title: filename.replace(/\.[^.]+$/, ''),
         filename: filename,
         videoUrl: '', // Will be set after upload
-        status: 'UPLOADING',
+        status: 'UPLOADED',
         userId: userId || null
       })
 

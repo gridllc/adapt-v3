@@ -1,5 +1,5 @@
 import { prisma } from '../config/database.js'
-import { Prisma } from '@prisma/client'
+import { Prisma, ModuleStatus } from '@prisma/client'
 
 export class ModuleService {
   /**
@@ -216,7 +216,7 @@ export class ModuleService {
    */
   static async updateModuleStatus(
     moduleId: string, 
-    status: string, 
+    status: ModuleStatus, 
     progress: number, 
     message?: string
   ): Promise<{ success: boolean; error?: string }> {
@@ -239,7 +239,7 @@ export class ModuleService {
       await prisma.module.update({
         where: { id: moduleId },
         data: { 
-          status: status as any, 
+          status, 
           progress, 
           lastError: null,
           updatedAt: new Date()
@@ -283,7 +283,7 @@ export class ModuleService {
         // Mark as FAILED if no steps (orphaned is not a valid enum value)
         await prisma.module.update({
           where: { id: moduleId },
-          data: { status: 'FAILED' as any, progress: 0 }
+          data: { status: 'FAILED', progress: 0 }
         })
 
         console.log(`⚠️ Module ${moduleId} marked as orphaned (no steps)`)
@@ -306,7 +306,7 @@ export class ModuleService {
       const res = await prisma.module.updateMany({
         where: {
           id,
-          status: { in: ['UPLOADED', 'READY', 'FAILED'] as any[] }, // allowed starting points
+          status: { in: ['UPLOADED', 'READY', 'FAILED'] }, // allowed starting points
         },
         data: { 
           status: 'PROCESSING' as any, 

@@ -51,7 +51,7 @@ export class DatabaseService {
     title: string
     filename: string
     videoUrl: string
-    status?: string
+    status?: ModuleStatus
     progress?: number
     userId?: string | null
     s3Key?: string
@@ -64,7 +64,7 @@ export class DatabaseService {
           title: data.title,
           filename: data.filename,
           videoUrl: data.videoUrl,
-          status: (data.status as any) || 'UPLOADED',
+          status: data.status || 'UPLOADED',
           progress: data.progress || 0,
           userId: data.userId || null,
           s3Key: data.s3Key || null,
@@ -121,11 +121,11 @@ export class DatabaseService {
     })
   }
 
-  static async updateModuleStatus(id: string, status: string, progress: number, message?: string) {
+  static async updateModuleStatus(id: string, status: ModuleStatus, progress: number, message?: string) {
     // Update module status directly (no more moduleStatus table)
     return await prisma.module.update({
       where: { id },
-      data: { status: status as any, progress }
+      data: { status, progress }
     })
   }
 
