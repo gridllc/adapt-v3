@@ -180,6 +180,10 @@ export const presignedUploadController = {
         const moduleId = crypto.randomUUID()
         
         // Create module in database
+        if (!result.fileUrl) {
+          throw new Error('File URL not found in upload confirmation result')
+        }
+        
         const savedModule = await DatabaseService.createModule({
           id: moduleId,
           title: (key.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Video Module'),
