@@ -191,7 +191,7 @@ export const UploadManager: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Processing Panel */}
-      {showProcessing && justUploadedModuleId && (
+      {showProcessing && (
         <div className="mt-4 mb-6 rounded-xl border p-4 bg-white/70">
           <div className="flex items-center gap-3">
             <div className="animate-spin h-5 w-5 rounded-full border-2 border-gray-300 border-t-transparent" />
@@ -202,19 +202,27 @@ export const UploadManager: React.FC = () => {
 
           {status !== "FAILED" && (
             <div className="mt-3">
-              <div className="text-sm text-gray-500 mb-1">
-                Module ID: {justUploadedModuleId}
-              </div>
-              <div className="h-2 w-full bg-gray-200 rounded">
-                <div
-                  className="h-2 bg-indigo-500 rounded transition-all"
-                  style={{ width: `${progress ?? 0}%` }}
-                />
-              </div>
-              <div className="text-xs text-gray-500 mt-1">{Math.round(progress ?? 0)}%</div>
-              <div className="text-xs text-gray-500 mt-2">
-                You'll be taken to the training automatically when it's ready.
-              </div>
+              {justUploadedModuleId ? (
+                <>
+                  <div className="text-sm text-gray-500 mb-1">
+                    Module ID: {justUploadedModuleId}
+                  </div>
+                  <div className="h-2 w-full bg-gray-200 rounded">
+                    <div
+                      className="h-2 bg-indigo-500 rounded transition-all"
+                      style={{ width: `${progress ?? 0}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">{Math.round(progress ?? 0)}%</div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    You'll be taken to the training automatically when it's ready.
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-gray-500">
+                  Uploading video and starting AI processing...
+                </div>
+              )}
             </div>
           )}
 
