@@ -10,6 +10,16 @@ import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
 import multer from 'multer'
 import { prisma } from '../config/database.js'
+import { 
+  parseOrdinalQuery, 
+  parseStepCountQuery, 
+  parseCurrentStepQuery, 
+  parseNavigationQuery,
+  parseTimingQuery 
+} from '../utils/qaParsers.js'
+import { FallbackService } from '../services/fallbackService.js'
+import { isPlaceholderResponse } from '../utils/placeholder.js'
+import { metrics } from '../utils/metrics.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -37,46 +47,9 @@ const upload = multer({
 const router = express.Router()
 
 /**
- * Enhanced contextual AI response endpoint - UNBREAKABLE
+ * Enhanced contextual AI response endpoint - STRUCTURED FALLBACK SYSTEM
  */
 router.post('/contextual-response', async (req: any, res: any) => {
-  function ruleBasedReply(userMessage: string, steps: any[], currentStep?: any) {
-    const msg = String(userMessage || "").toLowerCase().trim();
-
-    // ordinals & numeric queries: "what's the 3rd step" / "step 3"
-    const ord: Record<string, number> = {
-      first:1, second:2, third:3, fourth:4, fifth:5,
-      sixth:6, seventh:7, eighth:8, ninth:9, tenth:10,
-    };
-    const wordKey = Object.keys(ord).find(w => msg.includes(`${w} step`) || msg.includes(`the ${w} step`));
-    const numMatch = msg.match(/\bstep\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s*step\b/);
-    const n = wordKey ? ord[wordKey] : (numMatch ? parseInt(numMatch[1] || numMatch[2], 10) : undefined);
-    if (n && n >= 1 && n <= steps.length) {
-      const s = steps[n - 1];
-      return `**Step ${n}**: ${s.title}${s.description ? ` — ${s.description}` : ""}`;
-    }
-
-    if (/how many steps|total steps/.test(msg)) {
-      return `There are **${steps.length}** steps in this training.`;
-    }
-
-    if (currentStep && /(current step|this step|what step am i on)/.test(msg)) {
-      return `You're on **Step ${currentStep.stepNumber}**: ${currentStep.title}${currentStep.description ? ` — ${currentStep.description}` : ""}`;
-    }
-
-    if (/next step|previous step/.test(msg) && currentStep) {
-      const total = steps.length;
-      if (msg.includes("next") && currentStep.stepNumber < total) {
-        return `Next is **Step ${currentStep.stepNumber + 1}**: "${steps[currentStep.stepNumber].title}".`;
-      }
-      if (msg.includes("previous") && currentStep.stepNumber > 1) {
-        return `Previous was **Step ${currentStep.stepNumber - 1}**: "${steps[currentStep.stepNumber - 2].title}".`;
-      }
-    }
-
-    return `Ask "How many steps?", "What's the 3rd step?", or "What step am I on?".`;
-  }
-
   try {
     const { userMessage, currentStep, steps, allSteps, videoTime, moduleId } = req.body || {};
     
@@ -88,59 +61,157 @@ router.post('/contextual-response', async (req: any, res: any) => {
       return res.status(400).json({ success: false, error: "moduleId required" });
     }
 
-    // normalize steps list
-    let list: any[] = Array.isArray(steps) ? steps : (Array.isArray(allSteps) ? allSteps : []);
-    if (!list.length) {
-      // hydrate from DB if needed
-      try {
-        const dbSteps = await prisma.step.findMany({
-          where: { moduleId },
-          orderBy: { order: "asc" },
-          select: { text: true, startTime: true, endTime: true },
-        });
-        list = dbSteps.map((s: any, i: number) => ({ 
-          title: s.text, 
-          description: '', 
-          start: s.startTime, 
-          end: s.endTime, 
-          stepNumber: i + 1 
-        }));
-      } catch (dbErr) {
-        console.warn('⚠️ Failed to fetch steps from DB, using empty list:', dbErr);
-        list = [];
-      }
-    } else {
-      list = list.map((s: any, i: number) => ({ ...s, stepNumber: s.stepNumber ?? i + 1 }));
-    }
+    // Track metrics
+    metrics.incRequest();
 
     console.log(`🤖 Contextual AI request for module ${moduleId}`);
     console.log(`📝 User message: "${userMessage}"`);
-    console.log(`🎬 Current step: ${currentStep?.title || 'None'} | steps: ${list.length}`);
+    console.log(`🎬 Current step: ${currentStep?.title || 'None'}`);
 
-    // try the model (safe to fail)
+    // 1) RULE-BASED SHORT-CIRCUIT (fast path for common queries)
+    const ordinal = parseOrdinalQuery(userMessage);
+    if (ordinal) {
+      const fallback = await FallbackService.handleOrdinalQuery(moduleId, ordinal);
+      if (fallback) {
+        metrics.incFallback(fallback.source);
+        return res.status(200).json({
+          success: true,
+          response: fallback.answer,
+          answer: fallback.answer,
+          source: fallback.source,
+          meta: fallback.meta
+        });
+      }
+    }
+
+    // Check other common patterns
+    if (parseStepCountQuery(userMessage)) {
+      const fallback = await FallbackService.handleStepCountQuery(moduleId);
+      if (fallback) {
+        metrics.incFallback(fallback.source);
+        return res.status(200).json({
+          success: true,
+          response: fallback.answer,
+          answer: fallback.answer,
+          source: fallback.source,
+          meta: fallback.meta
+        });
+      }
+    }
+
+    if (parseCurrentStepQuery(userMessage)) {
+      const fallback = await FallbackService.handleCurrentStepQuery(moduleId, currentStep);
+      if (fallback) {
+        metrics.incFallback(fallback.source);
+        return res.status(200).json({
+          success: true,
+          response: fallback.answer,
+          answer: fallback.answer,
+          source: fallback.source,
+          meta: fallback.meta
+        });
+      }
+    }
+
+    const navigation = parseNavigationQuery(userMessage);
+    if (navigation) {
+      const fallback = await FallbackService.handleNavigationQuery(moduleId, navigation, currentStep);
+      if (fallback) {
+        metrics.incFallback(fallback.source);
+        return res.status(200).json({
+          success: true,
+          response: fallback.answer,
+          answer: fallback.answer,
+          source: fallback.source,
+          meta: fallback.meta
+        });
+      }
+    }
+
+    if (parseTimingQuery(userMessage)) {
+      const fallback = await FallbackService.handleTimingQuery(moduleId, currentStep);
+      if (fallback) {
+        metrics.incFallback(fallback.source);
+        return res.status(200).json({
+          success: true,
+          response: fallback.answer,
+          answer: fallback.answer,
+          source: fallback.source,
+          meta: fallback.meta
+        });
+      }
+    }
+
+    // 2) AI ATTEMPT (with structured error handling)
     let aiText = "";
+    let aiSuccess = false;
+    
     try {
       const userId = await UserService.getUserIdFromRequest(req);
       aiText = await aiService.generateContextualResponse(userMessage, {
         currentStep, 
-        allSteps: list, 
+        allSteps: steps || allSteps || [], 
         videoTime, 
         moduleId, 
         userId: userId || undefined,
       });
+      
+      // Check if AI response is valid (not placeholder)
+      if (aiText && !isPlaceholderResponse(aiText)) {
+        aiSuccess = true;
+        metrics.incSuccessfulAI();
+      } else {
+        // AI returned placeholder text - treat as failure
+        metrics.incFailure('PLACEHOLDER_TEXT');
+        console.warn('⚠️ AI returned placeholder text, using fallback');
+      }
     } catch (e) {
-      console.warn('⚠️ AI service failed, using rule-based fallback:', e instanceof Error ? e.message : e);
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.warn('⚠️ AI service failed, using fallback:', errorMsg);
+      
+      // Categorize the error
+      if (errorMsg.includes('rate limit')) {
+        metrics.incFailure('RATE_LIMIT');
+      } else if (errorMsg.includes('timeout')) {
+        metrics.incFailure('TIMEOUT');
+      } else {
+        metrics.incFailure('LLM_UNAVAILABLE');
+      }
     }
 
-    // detect placeholder from your logs and ignore it
-    const looksPlaceholder = aiText && 
-      aiText.toLowerCase().includes("enhanced ai contextual response service is not currently available");
+    // 3) FALLBACK LADDER (if AI failed or returned placeholder)
+    if (!aiSuccess) {
+      // Try keyword matching fallback
+      const keywordFallback = await FallbackService.handleKeywordFallback(moduleId, userMessage);
+      if (keywordFallback) {
+        metrics.incFallback(keywordFallback.source);
+        return res.status(200).json({
+          success: true,
+          response: keywordFallback.answer,
+          answer: keywordFallback.answer,
+          source: keywordFallback.source,
+          meta: keywordFallback.meta,
+          fallback: { reason: 'AI_FAILURE_OR_PLACEHOLDER' }
+        });
+      }
 
-    const finalText = (aiText && !looksPlaceholder ? aiText.trim() : ruleBasedReply(userMessage, list, currentStep));
+      // Final fallback - helpful suggestions
+      const suggestions = FallbackService.getHelpfulSuggestions();
+      metrics.incFallback(suggestions.source);
+      return res.status(200).json({
+        success: true,
+        response: suggestions.answer,
+        answer: suggestions.answer,
+        source: suggestions.source,
+        meta: suggestions.meta,
+        fallback: { reason: 'AI_FAILURE_OR_PLACEHOLDER' }
+      });
+    }
 
-    console.log(`✅ Final response: ${finalText.substring(0, 100)}...`);
+    // 4) SUCCESS PATH (AI worked)
+    console.log(`✅ AI response generated: ${aiText.substring(0, 100)}...`);
 
-    // Log activity with basic information
+    // Log activity
     try {
       const userId = await UserService.getUserIdFromRequest(req);
       await DatabaseService.createActivityLog({
@@ -149,7 +220,7 @@ router.post('/contextual-response', async (req: any, res: any) => {
         targetId: moduleId,
         metadata: {
           questionLength: userMessage.length,
-          answerLength: finalText.length,
+          answerLength: aiText.length,
           videoTime,
           stepId: currentStep?.id
         }
@@ -160,16 +231,22 @@ router.post('/contextual-response', async (req: any, res: any) => {
 
     return res.status(200).json({ 
       success: true, 
-      response: finalText,  // <- unified shape
-      answer: finalText     // keep both for backward compatibility
+      response: aiText.trim(),
+      answer: aiText.trim(),
+      source: 'AI',
+      meta: { model: 'ai-service' }
     });
 
   } catch (err: any) {
     console.error('❌ Failed to generate AI response:', err);
-    // still return 200 with a helpful answer so FE never throws
+    metrics.incFailure('UNEXPECTED_ERROR');
+    
+    // Graceful fallback even on unexpected errors
     return res.status(200).json({
       success: true,
       response: "I can help with steps. Try 'What's the 3rd step?' or 'How many steps?'",
+      source: 'FALLBACK_EMPTY',
+      fallback: { reason: 'UNEXPECTED_ERROR' }
     });
   }
 });
@@ -262,6 +339,26 @@ router.get('/learning-stats', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get learning statistics'
+    })
+  }
+})
+
+// Get AI metrics and fallback statistics
+router.get('/metrics', async (req, res) => {
+  try {
+    console.log('📊 Fetching AI metrics and fallback statistics')
+    
+    const stats = metrics.getStats()
+    
+    res.json({
+      success: true,
+      metrics: stats
+    })
+  } catch (error) {
+    console.error('❌ Failed to get metrics:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get metrics'
     })
   }
 })
