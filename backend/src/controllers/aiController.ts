@@ -37,14 +37,14 @@ export async function answerQuestion(req: Request, res: Response) {
         const dbSteps = await prisma.step.findMany({
           where: { moduleId },
           orderBy: { order: 'asc' },
-          select: { id: true, text: true, startTime: true, endTime: true },
+          select: { id: true, text: true, startTime: true, endTime: true, aliases: true },
         });
         steps = dbSteps.map((s, i) => ({
           id: s.id,
           text: s.text,
           start: s.startTime,
           end: s.endTime,
-          aliases: [], // aliases field doesn't exist in schema yet
+          aliases: s.aliases || [],
           order: i + 1
         }));
       } catch (error) {
