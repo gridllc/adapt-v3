@@ -25,7 +25,7 @@ const paramSchema = z.object({
 /**
  * NEW: sign playback URL by moduleId (uses the exact s3Key saved on the module)
  */
-router.get("/by-module/:moduleId", async (req: Request, res: Response) => {
+router.get("/by-module/:moduleId", async (req, res) => {
   try {
     const { moduleId } = req.params;
 
@@ -33,30 +33,28 @@ router.get("/by-module/:moduleId", async (req: Request, res: Response) => {
       where: { id: moduleId },
       select: { s3Key: true, videoUrl: true },
     });
-
     if (!module) return res.status(404).json({ success: false, error: "Module not found" });
 
-    // Prefer s3Key; fall back to parsing from videoUrl if needed
+    // Prefer s3Key; fallback to parsing from videoUrl
     let key = module.s3Key;
     if (!key && module.videoUrl) {
-      const idx = module.videoUrl.indexOf(".amazonaws.com/");
-      if (idx !== -1) key = module.videoUrl.slice(idx + ".amazonaws.com/".length);
+      const marker = ".amazonaws.com/";
+      const i = module.videoUrl.indexOf(marker);
+      if (i !== -1) key = module.videoUrl.slice(i + marker.length);
     }
     if (!key) return res.status(404).json({ success: false, error: "No S3 key on module" });
 
-    // Sign with an explicit content type (Android is picky)
     const cmd = new GetObjectCommand({
       Bucket: process.env.AWS_BUCKET_NAME!,
       Key: key,
-      ResponseContentType: "video/mp4", // Use default since videoContentType doesn't exist
+      ResponseContentType: "video/mp4",
       ResponseCacheControl: "public, max-age=60",
     });
-
-    const url = await getSignedUrl(s3Client, cmd, { expiresIn: 60 * 10 });
-    return res.json({ success: true, url });
+    const url = await getSignedUrl(s3Client, cmd, { expiresIn: 600 });
+    res.json({ success: true, url });
   } catch (err: any) {
-    console.error("sign by-module error:", err);
-    return res.status(500).json({ success: false, error: err.message || "internal error" });
+    console.error("by-module sign error:", err);
+    res.status(500).json({ success: false, error: err.message || "internal error" });
   }
 });
 
