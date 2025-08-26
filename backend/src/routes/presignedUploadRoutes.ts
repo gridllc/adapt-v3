@@ -8,9 +8,6 @@ const router = express.Router()
 router.use(optionalAuth)
 
 router.post('/presigned-url', presignedUploadController.getPresignedUrl)
-router.post('/process', presignedUploadController.processVideo)
-router.post('/confirm', presignedUploadController.confirmUpload)
-router.get('/status/:key', presignedUploadController.getUploadStatus)
-router.get('/health', presignedUploadController.healthCheck)
+router.post('/playback-url', presignedUploadController.getPlaybackUrl)
 
 export { router as presignedUploadRoutes }

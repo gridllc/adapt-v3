@@ -12,6 +12,7 @@ export const UploadManager: React.FC = () => {
   
   const [showProcessing, setShowProcessing] = useState(false)
   const [justUploadedModuleId, setJustUploadedModuleId] = useState<string | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
   
   const navigate = useNavigate()
   const { status, progress, error } = useModuleProcessing(justUploadedModuleId || undefined)
@@ -106,9 +107,10 @@ export const UploadManager: React.FC = () => {
           const s3Response = await fetch(uploadUrl, {
             method: 'PUT',
             body: file,
-            headers: {
-              'Content-Type': contentType,  // Use normalized Content-Type for Android compatibility
+            headers: { 
+              'Content-Type': file.type || 'video/mp4' // MUST match the presigned ContentType exactly
             },
+            // DO NOT send any other headers (no x-amz-acl unless signed for it)
           })
 
           if (!s3Response.ok) {
@@ -141,6 +143,24 @@ export const UploadManager: React.FC = () => {
 
           const completeResult = await completeResponse.json()
           console.log('Upload completed:', completeResult)
+
+          // Generate playback URL for video player
+          try {
+            const playbackResponse = await fetch('/api/presigned-upload/playback-url', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key })
+            })
+            
+            if (playbackResponse.ok) {
+              const { playbackUrl } = await playbackResponse.json()
+              console.log('Generated playback URL:', playbackUrl)
+              // Store this URL for the video player
+              setVideoUrl(playbackUrl)
+            }
+          } catch (error) {
+            console.warn('Failed to generate playback URL:', error)
+          }
 
           // 🎯 SET REAL MODULE ID HERE - before AI processing starts
           setJustUploadedModuleId(moduleId)
