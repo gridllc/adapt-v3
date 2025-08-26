@@ -239,7 +239,7 @@ export class ModuleService {
       await prisma.module.update({
         where: { id: moduleId },
         data: { 
-          status, 
+          status: status as any, 
           progress, 
           lastError: null,
           updatedAt: new Date()
@@ -283,7 +283,7 @@ export class ModuleService {
         // Mark as FAILED if no steps (orphaned is not a valid enum value)
         await prisma.module.update({
           where: { id: moduleId },
-          data: { status: 'FAILED', progress: 0 }
+          data: { status: 'FAILED' as any, progress: 0 }
         })
 
         console.log(`⚠️ Module ${moduleId} marked as orphaned (no steps)`)
@@ -306,10 +306,10 @@ export class ModuleService {
       const res = await prisma.module.updateMany({
         where: {
           id,
-          status: { in: ['UPLOADED', 'READY', 'FAILED'] }, // allowed starting points
+          status: { in: ['UPLOADED', 'READY', 'FAILED'] as any[] }, // allowed starting points
         },
         data: { 
-          status: 'PROCESSING', 
+          status: 'PROCESSING' as any, 
           progress: 0, 
           lastError: null, 
           updatedAt: new Date() 

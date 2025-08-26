@@ -6,13 +6,6 @@ const prisma = new PrismaClient({
     db: {
       url: process.env.DATABASE_URL
     }
-  },
-  // Add query timeout to prevent hanging
-  __internal: {
-    engine: {
-      queryEngineTimeout: 10000, // 10 second timeout
-      binaryEngineTimeout: 10000
-    }
   }
 })
 

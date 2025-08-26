@@ -53,7 +53,7 @@ export class DatabaseService {
     videoUrl: string
     status?: string
     progress?: number
-    userId?: string
+    userId?: string | null
     s3Key?: string
     stepsKey?: string
   }) {

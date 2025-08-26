@@ -26,7 +26,7 @@ export async function generateStepsFromVideo(moduleId: string, opts?: { force?: 
     return result
   } catch (error) {
     console.error(`❌ [AIPipeline] Module ${moduleId} processing failed with timeout/error:`, error)
-    await ModuleService.markFailed(moduleId, String(error?.message ?? error))
+    await ModuleService.markFailed(moduleId, String(error instanceof Error ? error.message : error))
     throw error
   }
 }
