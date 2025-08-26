@@ -219,11 +219,7 @@ export const UploadManager: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-800">
-          <strong>Modern Upload Flow:</strong> Files are uploaded directly to S3 using presigned URLs for better performance and reliability.
-        </p>
-      </div>
+
 
       {/* Drop Zone */}
       <div

@@ -9,6 +9,7 @@
 export interface Step {
   id: string
   text: string
+  title?: string  // Add title field for frontend compatibility
   startTime: number
   endTime: number
   aliases?: string[]

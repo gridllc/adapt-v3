@@ -137,7 +137,8 @@ function normalizeSteps(
 
     return {
       id: s.id || `step-${i + 1}`,
-      text: s.text || s.title || s.description || 'Step description',
+      title: s.text || s.title || s.description || 'Step description', // Map text to title
+      text: s.text || s.title || s.description || 'Step description', // Keep text for backward compatibility
       aliases: s.aliases || [],
       notes: s.notes || '',
       // canonical fields:
