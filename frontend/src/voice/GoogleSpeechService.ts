@@ -8,6 +8,8 @@ import { SpeechService, PartialListener } from "./SpeechService";
 export class GoogleSpeechService implements SpeechService {
   private onResultCb?: PartialListener<string>;
   private onErrorCb?: PartialListener<string>;
+  private onPartialCb?: PartialListener<string>;
+  private continuous = true;
 
   isSttAvailable() { return true; }  // we'll support push-to-talk upload
   isTtsAvailable() { return true; }
@@ -22,7 +24,10 @@ export class GoogleSpeechService implements SpeechService {
   async stopListening() { /* noop for now */ }
 
   onResult(cb: PartialListener<string>) { this.onResultCb = cb; }
+  onPartial(cb: PartialListener<string>) { this.onPartialCb = cb; }
   onError(cb: PartialListener<string>) { this.onErrorCb = cb; }
+  
+  setContinuous(v: boolean) { this.continuous = v; }
 
   async speak(text: string) {
     // Placeholder: POST {text} to /api/voice/tts → returns audio URL/arrayBuffer
