@@ -62,7 +62,7 @@ export const UploadManager: React.FC = () => {
           
           // Step 1: Get presigned URL from backend
           updateProgress(uploadId, 10)
-          const presignedResponse = await fetch('/api/upload/presigned-url', {
+          const presignedResponse = await fetch('/api/presigned-upload/presigned-url', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -101,7 +101,7 @@ export const UploadManager: React.FC = () => {
 
           // Step 3: Confirm upload with backend
           updateProgress(uploadId, 60)
-          const confirmResponse = await fetch('/api/upload/confirm', {
+          const confirmResponse = await fetch('/api/presigned-upload/confirm', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -121,7 +121,7 @@ export const UploadManager: React.FC = () => {
 
           // Step 4: Process video with AI
           updateProgress(uploadId, 80)
-          const processResponse = await fetch('/api/upload/process', {
+          const processResponse = await fetch('/api/presigned-upload/process', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

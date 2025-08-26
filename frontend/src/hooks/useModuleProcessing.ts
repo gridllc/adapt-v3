@@ -17,8 +17,10 @@ export function useModuleProcessing(moduleId?: string) {
       try {
         // Reuse the same steps endpoint your Training page uses.
         // It returns READY with steps, or a PROCESSING/FAILED sentinel in JSON/logs.
+        console.log(`🔍 Checking module status for: ${moduleId}`);
         const res = await fetch(`/api/steps/${moduleId}`);
         const data = await res.json();
+        console.log(`📊 Module status response:`, data);
 
         if (cancelled) return;
 

@@ -188,8 +188,19 @@ export const presignedUploadController = {
           s3Key: key,
           stepsKey: `training/${moduleId}.json`,
           status: 'UPLOADED' as const,
-          userId: userId || null
+          userId: userId || undefined
         })
+
+        // Start AI processing immediately after module creation
+        try {
+          console.log(`🚀 Starting AI processing for module: ${moduleId}`)
+          const { startProcessing } = await import('../services/ai/aiPipeline.js')
+          await startProcessing(moduleId)
+          console.log(`✅ AI processing started for module: ${moduleId}`)
+        } catch (processingError) {
+          console.error(`❌ Failed to start AI processing for module: ${moduleId}:`, processingError)
+          // Don't fail the upload, just log the error
+        }
 
         log.info('Upload confirmed and module created', { key, moduleId, userId })
         

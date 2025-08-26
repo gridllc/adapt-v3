@@ -222,7 +222,7 @@ const configureMiddleware = () => {
 const configureRoutes = () => {
   // Upload Routes (public - no authentication required)
   app.use('/api/upload', uploadRoutes) // Basic file upload endpoint
-  app.use('/api/upload', presignedUploadRoutes) // Presigned upload endpoints
+  app.use('/api/presigned-upload', presignedUploadRoutes) // Presigned upload endpoints
   
   // Public Routes (no authentication required)
   app.use('/api', healthRoutes)  // Mounts /api/health

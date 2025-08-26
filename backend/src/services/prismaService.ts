@@ -54,6 +54,8 @@ export class DatabaseService {
     status?: string
     progress?: number
     userId?: string
+    s3Key?: string
+    stepsKey?: string
   }) {
     try {
       const module = await prisma.module.create({
@@ -65,6 +67,8 @@ export class DatabaseService {
           status: (data.status as any) || 'UPLOADED',
           progress: data.progress || 0,
           userId: data.userId || null,
+          s3Key: data.s3Key || null,
+          stepsKey: data.stepsKey || null,
         }
       })
       return module
