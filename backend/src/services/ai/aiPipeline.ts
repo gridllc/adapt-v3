@@ -13,6 +13,25 @@ export async function startProcessing(moduleId: string, opts?: { force?: boolean
 }
 
 export async function generateStepsFromVideo(moduleId: string, opts?: { force?: boolean }) {
+  // Add timeout wrapper to prevent hanging
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Processing timeout after 2 minutes')), 2 * 60 * 1000)
+  })
+
+  try {
+    const result = await Promise.race([
+      generateStepsFromVideoInternal(moduleId, opts),
+      timeoutPromise
+    ])
+    return result
+  } catch (error) {
+    console.error(`❌ [AIPipeline] Module ${moduleId} processing failed with timeout/error:`, error)
+    await ModuleService.markFailed(moduleId, String(error?.message ?? error))
+    throw error
+  }
+}
+
+async function generateStepsFromVideoInternal(moduleId: string, opts?: { force?: boolean }) {
   const mod = await ModuleService.getModuleById(moduleId)
   if (!mod.success || !mod.module) throw new Error(`Module ${moduleId} not found`)
 

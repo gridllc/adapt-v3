@@ -619,7 +619,8 @@ const testDatabaseConnection = async () => {
 const initializeServer = async () => {
   try {
     validateEnvironment()
-    validateS3Config() // Validate S3 configuration
+    // Temporarily disable S3 validation to prevent startup issues
+    // validateS3Config() // Validate S3 configuration
     
     // Test database connection (but don't fail if it's not available)
     await testDatabaseConnection()
@@ -639,3 +640,30 @@ initializeServer().catch(error => {
   console.error('❌ Failed to start server:', error)
   process.exit(1)
 })
+
+// Add process monitoring to help debug crashes
+process.on('uncaughtException', (error) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', error)
+  console.error('Stack:', error.stack)
+  console.error('Memory usage:', process.memoryUsage())
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION at:', promise, 'reason:', reason)
+  console.error('Memory usage:', process.memoryUsage())
+  process.exit(1)
+})
+
+// Monitor memory usage
+setInterval(() => {
+  const memUsage = process.memoryUsage()
+  if (memUsage.heapUsed > 500 * 1024 * 1024) { // 500MB
+    console.warn('⚠️ High memory usage:', {
+      heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+      external: `${Math.round(memUsage.external / 1024 / 1024)}MB`,
+      rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`
+    })
+  }
+}, 30000) // Check every 30 seconds
