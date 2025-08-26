@@ -86,10 +86,10 @@ export const UploadManager: React.FC = () => {
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              filename: file.name,
-              contentType: file.type,
-            }),
+                         body: JSON.stringify({
+               filename: file.name,
+               contentType: contentType, // Use the normalized contentType
+             }),
           })
 
           if (!presignedResponse.ok) {
@@ -97,14 +97,23 @@ export const UploadManager: React.FC = () => {
             throw new Error(`Failed to get presigned URL: ${presignedResponse.status} - ${errorText}`)
           }
 
-          const { uploadUrl, key, moduleId } = await presignedResponse.json()
-          console.log('Got presigned URL:', uploadUrl)
-          console.log('S3 key:', key)
-          console.log('Module ID:', moduleId)
+                                const { url, key, moduleId } = await presignedResponse.json()
+           console.log('Got presigned URL:', url)
+           console.log('S3 key:', key)
+           console.log('Module ID:', moduleId)
 
-          // Step 2: Upload directly to S3 using presigned URL
-          updateProgress(uploadId, 30)
-          const s3Response = await fetch(uploadUrl, {
+           // 🔥 SAFETY CHECKS - ensure we have a valid S3 URL
+           if (!url?.startsWith('http')) {
+             throw new Error('Missing or invalid presigned URL from server')
+           }
+           if (!key || !moduleId) {
+             throw new Error('Missing key or moduleId from server')
+           }
+           console.log('✅ Safety checks passed, proceeding with S3 upload')
+
+           // Step 2: Upload directly to S3 using presigned URL
+           updateProgress(uploadId, 30)
+           const s3Response = await fetch(url, {
             method: 'PUT',
             body: file,
             headers: { 

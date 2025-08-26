@@ -73,7 +73,7 @@ export const presignedUploadController = {
       
       res.json({
         success: true,
-        presignedUrl: result.url,
+        url: result.url, // Changed from presignedUrl to url
         key: result.key,
         moduleId: module.id,
         expiresIn: 600, // 10 minutes
