@@ -200,6 +200,22 @@ const configureMiddleware = () => {
 
   // Request logging middleware with traceId
   app.use(requestLogger)
+
+  // Add request timeout to prevent hanging requests
+  app.use((req, res, next) => {
+    const timeout = setTimeout(() => {
+      console.error(`⏰ Request timeout after 30 seconds: ${req.method} ${req.path}`)
+      if (!res.headersSent) {
+        res.status(508).json({ error: 'Request timeout - server overloaded' })
+      }
+    }, 30000) // 30 second timeout
+
+    res.on('finish', () => {
+      clearTimeout(timeout)
+    })
+
+    next()
+  })
 }
 
 // Route configuration

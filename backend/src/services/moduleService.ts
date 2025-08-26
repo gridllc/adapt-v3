@@ -1,5 +1,4 @@
 import { prisma } from '../config/database.js'
-import { DatabaseService } from './prismaService.js'
 import { Prisma } from '@prisma/client'
 
 export class ModuleService {
@@ -243,8 +242,16 @@ export class ModuleService {
         }
       }
 
-      // Update module status
-      await DatabaseService.updateModuleStatus(moduleId, status, progress, message)
+      // Update module status directly with Prisma
+      await prisma.module.update({
+        where: { id: moduleId },
+        data: { 
+          status, 
+          progress, 
+          lastError: null,
+          updatedAt: new Date()
+        }
+      })
 
       // If status is READY, check if it has steps
       if (status === 'READY') {

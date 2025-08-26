@@ -5,30 +5,17 @@ import { isS3Configured, validateS3Config } from '../services/s3Uploader.js'
 const router = express.Router()
 
 // Dedicated health check endpoint for Docker healthcheck and monitoring
-router.get('/health', async (_req, res) => {
-  try {
-    console.log('[TEST] 🔍 Running simplified health check...')
-    
-    // Basic health check - just return status
-    const response = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      version: process.env.npm_package_version || '1.0.0'
-    }
-
-    console.log(`[TEST] ✅ Health check completed`)
-    return res.status(200).json(response)
-
-  } catch (error: any) {
-    console.error('[TEST] ❌ Health check failed:', error.message)
-    return res.status(500).json({
-      status: 'error',
-      timestamp: new Date().toISOString(),
-      error: 'Health check failed',
-      details: error.message
-    })
+router.get('/health', (_req, res) => {
+  // Ultra-simple health check - no async operations
+  const response = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '1.0.0'
   }
+
+  console.log(`[TEST] ✅ Health check completed`)
+  return res.status(200).json(response)
 })
 
 // CORS configuration endpoint for debugging
