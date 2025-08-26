@@ -14,10 +14,7 @@ const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
 
 export const presignedUploadService = {
   async generatePresignedUrl(filename: string, contentType: string) {
-    // Generate a module ID for this upload
-    const moduleId = uuidv4()
-    // Use training/${moduleId}/${originalFilename} format for S3 key
-    const key = `training/${moduleId}/${filename}`
+    const key = `videos/${uuidv4()}-${filename}`
     
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
@@ -32,8 +29,6 @@ export const presignedUploadService = {
     return {
       presignedUrl,
       key,
-      moduleId,
-      originalFilename: filename,
       fileUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
     }
   },

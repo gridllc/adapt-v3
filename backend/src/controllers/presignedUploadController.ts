@@ -182,17 +182,19 @@ export const presignedUploadController = {
       if (result.success) {
         console.log('✅ [confirmUpload] S3 confirmation successful, creating module...')
         
-        // Extract moduleId and original filename from the S3 key
-        // Key format: training/${moduleId}/${originalFilename}
-        const keyParts = key.split('/')
-        const moduleId = keyParts[1] // training/[moduleId]/filename
-        const originalFilename = keyParts[2] // training/moduleId/[filename]
+        // Generate a module ID for this upload
+        const moduleId = crypto.randomUUID()
+        console.log('🆔 [confirmUpload] Generated module ID:', moduleId)
         
-        if (!moduleId || !originalFilename) {
-          throw new Error('Invalid S3 key format - expected training/moduleId/filename')
-        }
+        // Extract original filename from S3 key (remove UUID prefix)
+        // Key format: videos/${uuidv4()}-${filename}
+        const fullFilename = key.split('/').pop() || 'video.mp4'
+        // UUID format: 8-4-4-4-12 characters (e.g., 59b85c77-98f1-478b-a34d-e64c41b0cf83)
+        // Find the position after the UUID by looking for the pattern: 8-4-4-4-12 followed by a hyphen
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i
+        const match = fullFilename.match(uuidPattern)
+        const originalFilename = match ? fullFilename.substring(match[0].length) : fullFilename
         
-        console.log('🆔 [confirmUpload] Extracted module ID:', moduleId)
         console.log('📁 [confirmUpload] Original filename:', originalFilename)
         
         // Create module in database

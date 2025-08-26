@@ -408,16 +408,14 @@ export class ModuleService {
       })
       
       // Create new steps with proper data mapping
-      // Map AI-generated text to the text field, not aliases
+      // Note: Prisma Step model doesn't have aliases/notes fields, so we'll store
+      // the AI-generated ID in the description or create a metadata field later
       const stepData = steps.map((step, index) => ({
         moduleId: moduleId,
         order: index + 1,
-        // Use AI-generated text as the primary content, fallback to title/description
-        text: step.text || step.title || step.description || 'Step description',
+        text: step.text || step.title || step.description || '',
         startTime: step.startTime || step.timestamp || 0,
         endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),
-        // Store aliases and notes in metadata for future use if needed
-        // Note: Current Prisma schema doesn't have aliases/notes fields
         // TODO: Consider extending the Prisma schema for aiGeneratedId, aliases, notes, metadata
       }))
       
