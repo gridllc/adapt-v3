@@ -2,9 +2,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-/// Add this once in your schema header
-type Vector @db.Vector
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
