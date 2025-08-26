@@ -182,9 +182,18 @@ export const presignedUploadController = {
       if (result.success) {
         console.log('✅ [confirmUpload] S3 confirmation successful, creating module...')
         
-        // Generate a module ID for this upload
-        const moduleId = crypto.randomUUID()
-        console.log('🆔 [confirmUpload] Generated module ID:', moduleId)
+        // Extract moduleId and original filename from the S3 key
+        // Key format: training/${moduleId}/${originalFilename}
+        const keyParts = key.split('/')
+        const moduleId = keyParts[1] // training/[moduleId]/filename
+        const originalFilename = keyParts[2] // training/moduleId/[filename]
+        
+        if (!moduleId || !originalFilename) {
+          throw new Error('Invalid S3 key format - expected training/moduleId/filename')
+        }
+        
+        console.log('🆔 [confirmUpload] Extracted module ID:', moduleId)
+        console.log('📁 [confirmUpload] Original filename:', originalFilename)
         
         // Create module in database
         if (!result.fileUrl) {
@@ -194,8 +203,8 @@ export const presignedUploadController = {
         console.log('💾 [confirmUpload] Creating module in database...')
         const savedModule = await DatabaseService.createModule({
           id: moduleId,
-          title: (key.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Video Module'),
-          filename: (key.split('/').pop() || 'video.mp4'),
+          title: originalFilename.replace(/\.[^/.]+$/, ''), // Remove file extension for title
+          filename: originalFilename, // Store original filename only (no UUID prefix)
           videoUrl: result.fileUrl,
           s3Key: key,
           stepsKey: `training/${moduleId}.json`,

@@ -117,7 +117,7 @@ export const uploadController = {
       
       // Generate canonical S3 key first
       const moduleId = uuidv4() // Generate UUID here for consistent key
-      const s3Key = `videos/${moduleId}.mp4`
+      const s3Key = `training/${moduleId}/${file.originalname}`
       const stepsKey = `training/${moduleId}.json`
       
       console.log('🔑 Generated canonical keys:', { s3Key, stepsKey })
@@ -130,7 +130,7 @@ export const uploadController = {
       const moduleData = {
         id: moduleId, // Use the pre-generated ID
         title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
-        filename: file.originalname,
+        filename: file.originalname, // Store original filename only (no UUID prefix)
         videoUrl: videoUrl, // Keep original URL for compatibility
         s3Key: s3Key, // Store canonical S3 key
         stepsKey: stepsKey, // Store canonical steps key

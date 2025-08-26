@@ -362,8 +362,8 @@ export const InlineStepEditor: React.FC<InlineStepEditorProps> = ({
           value={editedStep.notes || ''}
           onChange={(e) => handleChange('notes', e.target.value)}
           rows={2}
-          className="w-full p-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          placeholder="Explain this for kids, or skip if TV is already on"
+          className="w-full p-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 italic"
+          placeholder="Any additional notes to help AI learn this step…"
         />
         <p className="text-xs text-gray-500 mt-1">Help the AI understand how to teach this step</p>
       </div>
