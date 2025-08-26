@@ -462,8 +462,6 @@ export async function getSignedS3Url(filename: string): Promise<string> {
       const command = new GetObjectCommand({ 
         Bucket: bucketName, 
         Key: key,
-        ResponseContentType: 'video/mp4',  // Ensure proper MIME type for Android compatibility
-        ResponseCacheControl: 'public, max-age=60',  // Help with caching
       })
       const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }) // 1 hour
 

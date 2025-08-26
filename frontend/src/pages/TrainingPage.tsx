@@ -34,8 +34,7 @@ export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
   const [searchParams] = useSearchParams()
   const isProcessing = searchParams.get('processing') === 'true'
-  const filename = moduleId ? `${moduleId}.mp4` : undefined
-  const { url, loading, error } = useSignedVideoUrl(filename)
+  const { url, loading, error } = useSignedVideoUrl(moduleId || undefined)
   
   // Use module status hook for processing state - ensure moduleId is always defined
   const { status, loading: statusLoading, error: statusError, stuckAtZero, timeoutReached } = useModuleStatus(moduleId || '', isProcessing)
@@ -86,14 +85,6 @@ export const TrainingPage: React.FC = () => {
     pause: () => videoRef.current?.pause(),
     play: () => videoRef.current?.play(),
   });
-
-  // Force video reload when URL changes (fixes Android video loading issues)
-  useEffect(() => {
-    if (url && videoRef.current) {
-      console.log('🔄 Reloading video for new URL:', url)
-      videoRef.current.load()
-    }
-  }, [url])
 
   // Video event handlers for smart sync
   const handleVideoTimeUpdate = () => {

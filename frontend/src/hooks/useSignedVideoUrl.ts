@@ -1,68 +1,34 @@
 // src/hooks/useSignedVideoUrl.ts
-import { useState, useEffect } from 'react'
-import { api, API_ENDPOINTS } from '../config/api'
+import { useEffect, useState } from "react";
 
-interface UseSignedVideoUrlResult {
-  url: string | null
-  loading: boolean
-  error: string | null
-}
-
-export function useSignedVideoUrl(filename?: string): UseSignedVideoUrlResult {
-  const [url, setUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function useSignedVideoUrl(moduleId?: string) {
+  const [url, setUrl] = useState<string>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
-    if (!filename) {
-      setUrl(null)
-      setError(null)
-      setLoading(false)
-      return
-    }
+    if (!moduleId) return;
+    let cancelled = false;
 
-    let isMounted = true
-    
-    const fetchVideoUrl = async () => {
+    (async () => {
+      setLoading(true);
+      setError(undefined);
       try {
-        setLoading(true)
-        setError(null)
-        
-        console.log('🔗 Fetching video URL for:', filename)
-        
-        const data = await api(API_ENDPOINTS.VIDEO_URL(filename))
-        
-        if (!isMounted) return
-        
-        console.log('📦 Video URL response data:', data)
-        
-        if (data?.url) {
-          // Always use the absolute URL from the backend
-          const videoUrl = data.url
-          console.log('🎥 Final video URL:', videoUrl)
-          setUrl(videoUrl)
-        } else {
-          setUrl(null)
-          setError('No URL returned from server')
+        const r = await fetch(`/api/video-url/by-module/${moduleId}`);
+        const j = await r.json();
+        if (!cancelled) {
+          if (j.success && j.url) setUrl(j.url);
+          else setError(j.error || "failed to get signed url");
         }
-      } catch (err) {
-        if (!isMounted) return
-        console.error('❌ Video URL error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to get video URL')
-        setUrl(null)
+      } catch (e: any) {
+        if (!cancelled) setError(e.message || "network error");
       } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false);
       }
-    }
+    })();
 
-    fetchVideoUrl()
+    return () => { cancelled = true; };
+  }, [moduleId]);
 
-    return () => {
-      isMounted = false
-    }
-  }, [filename])
-
-  return { url, loading, error }
+  return { url, loading, error };
 }
