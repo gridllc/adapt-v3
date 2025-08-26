@@ -9,6 +9,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
 import multer from 'multer'
+import { prisma } from '../config/database.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -36,93 +37,124 @@ const upload = multer({
 const router = express.Router()
 
 /**
- * Enhanced contextual AI response endpoint
+ * Enhanced contextual AI response endpoint - UNBREAKABLE
  */
 router.post('/contextual-response', async (req: any, res: any) => {
-  const fallback = (userMessage: string, steps: any[], currentStep?: any) => {
-    const msg = String(userMessage || '').toLowerCase().trim()
-    const ord: any = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9, tenth:10 }
-    const w = Object.keys(ord).find(k => msg.includes(`${k} step`) || msg.includes(`the ${k} step`))
-    const m = msg.match(/\bstep\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s*step\b/)
-    const n = w ? ord[w] : (m ? parseInt(m[1] || m[2], 10) : undefined)
+  function ruleBasedReply(userMessage: string, steps: any[], currentStep?: any) {
+    const msg = String(userMessage || "").toLowerCase().trim();
+
+    // ordinals & numeric queries: "what's the 2nd step" / "step 2"
+    const ord: Record<string, number> = {
+      first:1, second:2, third:3, fourth:4, fifth:5,
+      sixth:6, seventh:7, eighth:8, ninth:9, tenth:10,
+    };
+    const wordKey = Object.keys(ord).find(w => msg.includes(`${w} step`) || msg.includes(`the ${w} step`));
+    const numMatch = msg.match(/\bstep\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s*step\b/);
+    const n = wordKey ? ord[wordKey] : (numMatch ? parseInt(numMatch[1] || numMatch[2], 10) : undefined);
     if (n && n >= 1 && n <= steps.length) {
-      const s = steps[n - 1]
-      return `**Step ${n}**: ${s.title}${s.description ? ` — ${s.description}` : ''}`
+      const s = steps[n - 1];
+      return `**Step ${n}**: ${s.title}${s.description ? ` — ${s.description}` : ""}`;
     }
-    if (/(how many steps|total steps)/.test(msg)) {
-      return `There are **${steps.length}** steps in this training.`
+
+    if (/how many steps|total steps/.test(msg)) {
+      return `There are **${steps.length}** steps in this training.`;
     }
+
     if (currentStep && /(current step|this step|what step am i on)/.test(msg)) {
-      return `You're on **Step ${currentStep.stepNumber}**: ${currentStep.title}${currentStep.description ? ` — ${currentStep.description}` : ''}`
+      return `You're on **Step ${currentStep.stepNumber}**: ${currentStep.title}${currentStep.description ? ` — ${currentStep.description}` : ""}`;
     }
+
     if (/next step|previous step/.test(msg) && currentStep) {
-      const total = steps.length
-      if (msg.includes('next') && currentStep.stepNumber < total) {
-        return `Next is **Step ${currentStep.stepNumber + 1}**: "${steps[currentStep.stepNumber].title}".`
+      const total = steps.length;
+      if (msg.includes("next") && currentStep.stepNumber < total) {
+        return `Next is **Step ${currentStep.stepNumber + 1}**: "${steps[currentStep.stepNumber].title}".`;
       }
-      if (msg.includes('previous') && currentStep.stepNumber > 1) {
-        return `Previous was **Step ${currentStep.stepNumber - 1}**: "${steps[currentStep.stepNumber - 2].title}".`
+      if (msg.includes("previous") && currentStep.stepNumber > 1) {
+        return `Previous was **Step ${currentStep.stepNumber - 1}**: "${steps[currentStep.stepNumber - 2].title}".`;
       }
     }
-    return `Ask "How many steps?", "What's the 2nd step?", or "What step am I on?".`
+
+    return `Ask "How many steps?", "What's the 2nd step?", or "What step am I on?".`;
   }
 
   try {
-    const { userMessage, currentStep, allSteps, steps, videoTime, moduleId } = req.body
-
+    const { userMessage, currentStep, steps, allSteps, videoTime, moduleId } = req.body || {};
+    
     if (!userMessage) {
-      return res.status(400).json({ success: false, error: 'User message is required' })
+      return res.status(400).json({ success: false, error: 'User message is required' });
     }
 
-    // Normalize steps (accept `steps` or `allSteps`) and compact them
-    const source = Array.isArray(steps) ? steps : (Array.isArray(allSteps) ? allSteps : [])
-    const list = source.map((s: any, i: number) => ({
-      stepNumber: s.stepNumber ?? i + 1,
-      title: s.title,
-      description: s.description,
-      start: s.start,
-      end: s.end,
-    }))
+    if (!moduleId) {
+      return res.status(400).json({ success: false, error: "moduleId required" });
+    }
 
-    console.log(`🤖 Contextual AI request for module ${moduleId}`)
-    console.log(`📝 User message: "${userMessage}"`)
-    console.log(`🎬 Current step: ${currentStep?.title || 'None'} | steps: ${list.length}`)
-
-    // Try the model first (if configured)
-    const userId = await UserService.getUserIdFromRequest(req)
-    try {
-      const aiResponse = await aiService.generateContextualResponse(userMessage, {
-        currentStep,
-        allSteps: list,          // keep existing service signature
-        videoTime,
-        moduleId,
-        userId: userId || undefined,
-      })
-      if (aiResponse && aiResponse.trim()) {
-        return res.json({ 
-          success: true, 
-          response: aiResponse,
-          answer: aiResponse,  // keep both for backward compatibility
-          reused: false,
-          similarity: null,
-          questionId: null
-        })
+    // normalize steps list
+    let list: any[] = Array.isArray(steps) ? steps : (Array.isArray(allSteps) ? allSteps : []);
+    if (!list.length) {
+      // hydrate from DB if needed
+      try {
+        const dbSteps = await prisma.step.findMany({
+          where: { moduleId },
+          orderBy: { order: "asc" },
+          select: { text: true, startTime: true, endTime: true },
+        });
+        list = dbSteps.map((s: any, i: number) => ({ 
+          title: s.text, 
+          description: '', 
+          start: s.startTime, 
+          end: s.endTime, 
+          stepNumber: i + 1 
+        }));
+      } catch (dbErr) {
+        console.warn('⚠️ Failed to fetch steps from DB, using empty list:', dbErr);
+        list = [];
       }
-    } catch (innerErr) {
-      console.warn('⚠️ AI service failed, using fallback:', innerErr instanceof Error ? innerErr.message : innerErr)
+    } else {
+      list = list.map((s: any, i: number) => ({ ...s, stepNumber: s.stepNumber ?? i + 1 }));
     }
 
-    // Graceful fallback (200 OK so frontend never throws)
-    return res.json({ success: true, response: fallback(userMessage, list, currentStep) })
+    console.log(`🤖 Contextual AI request for module ${moduleId}`);
+    console.log(`📝 User message: "${userMessage}"`);
+    console.log(`🎬 Current step: ${currentStep?.title || 'None'} | steps: ${list.length}`);
 
-  } catch (error: any) {
-    console.error('❌ Failed to generate AI response:', error)
-    return res.json({
+    // try the model (safe to fail)
+    let aiText = "";
+    try {
+      const userId = await UserService.getUserIdFromRequest(req);
+      aiText = await aiService.generateContextualResponse(userMessage, {
+        currentStep, 
+        allSteps: list, 
+        videoTime, 
+        moduleId, 
+        userId: userId || undefined,
+      });
+    } catch (e) {
+      console.warn('⚠️ AI service failed, using rule-based fallback:', e instanceof Error ? e.message : e);
+    }
+
+    // detect placeholder from your logs and ignore it
+    const looksPlaceholder = aiText && 
+      aiText.toLowerCase().includes("enhanced ai contextual response service is not currently available");
+
+    const finalText = (aiText && !looksPlaceholder ? aiText.trim() : ruleBasedReply(userMessage, list, currentStep));
+
+    console.log(`✅ Final response: ${finalText.substring(0, 100)}...`);
+
+    return res.status(200).json({ 
+      success: true, 
+      response: finalText,  // <- unified shape
+      answer: finalText     // keep both for backward compatibility
+    });
+
+  } catch (err: any) {
+    console.error('❌ Failed to generate AI response:', err);
+    // still return 200 with a helpful answer so FE never throws
+    return res.status(200).json({
       success: true,
-      response: "I'm having trouble with AI right now, but step navigation still works. Try 'How many steps?' or 'What's the 2nd step?'."
-    })
+      response: "I can help with steps. Try 'What's the 2nd step?' or 'How many steps?'",
+    });
   }
-})
+});
 
 /**
  * Simple AI ask endpoint for the frontend useModuleAsk hook
