@@ -24,5 +24,17 @@ export const VideoDebugEvents: React.FC<{ src: string }> = ({ src }) => {
     return () => events.forEach(ev => v.removeEventListener(ev, handler))
   }, [src])
 
-  return <video ref={ref} src={src} controls playsInline style={{ width: '100%' }} />
+  return (
+    <video 
+      ref={ref} 
+      controls 
+      playsInline 
+      preload="metadata"
+      crossOrigin="anonymous"
+      style={{ width: '100%' }}
+    >
+      <source src={src} type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+  )
 }

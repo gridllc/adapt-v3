@@ -159,10 +159,13 @@ export default function SharePage() {
               <video
                 ref={videoRef}
                 controls
+                playsInline  // Better mobile compatibility
+                preload="metadata"  // Load metadata for seeking
+                crossOrigin="anonymous"  // Handle CORS properly
                 className="w-full rounded-t-lg"
                 onTimeUpdate={handleVideoTimeUpdate}
-                src={`/api/video-url/${moduleId}`}
               >
+                <source src={`/api/video-url/${moduleId}`} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
               

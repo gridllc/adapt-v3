@@ -577,14 +577,20 @@ Just ask me anything about the training!`
             </div>
           ) : url ? (
             <video 
+              key={url}  // Force re-render when URL changes
               controls 
-              src={url} 
+              playsInline  // Better mobile compatibility
+              preload="metadata"  // Load metadata for seeking
+              crossOrigin="anonymous"  // Handle CORS properly
               className="w-full rounded-2xl shadow-sm" 
               ref={videoRef} 
               onTimeUpdate={handleVideoTimeUpdate}
               onPlay={handleVideoPlay}
               onPause={handleVideoPause}
-            />
+            >
+              <source src={url} type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
           ) : (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
               <div className="text-center space-y-4">

@@ -55,7 +55,7 @@ export const UploadManager: React.FC = () => {
 
         // 🎯 SHOW SPINNER IMMEDIATELY HERE - Don't wait for backend
         setShowProcessing(true)
-        setJustUploadedModuleId(uploadId) // temporary until backend confirms
+        // Don't set justUploadedModuleId yet - wait for real moduleId from backend
 
         // Start upload - USE PRESIGNED UPLOAD FLOW
         try {
@@ -92,7 +92,8 @@ export const UploadManager: React.FC = () => {
             method: 'PUT',
             body: file,
             headers: {
-              'Content-Type': file.type,
+              'Content-Type': file.type || 'video/mp4',  // Ensure fallback for Android compatibility
+              'x-amz-acl': 'private',  // Set proper ACL
             },
           })
 
@@ -123,6 +124,9 @@ export const UploadManager: React.FC = () => {
           const confirmResult = await confirmResponse.json()
           console.log('Upload confirmed:', confirmResult)
 
+          // 🎯 SET REAL MODULE ID HERE - before AI processing starts
+          setJustUploadedModuleId(confirmResult.moduleId)
+
           // Step 4: Process video with AI
           updateProgress(uploadId, 80)
           const processResponse = await fetch('/api/presigned-upload/process', {
@@ -148,8 +152,7 @@ export const UploadManager: React.FC = () => {
           updateProgress(uploadId, 100)
           markSuccess(uploadId, processResult.moduleId)
           
-          // 🎯 UPDATE WITH REAL MODULE ID WHEN BACKEND CONFIRMS
-          setJustUploadedModuleId(processResult.moduleId)
+          // 🎯 MODULE ID ALREADY SET ABOVE - no need to set again
 
         } catch (error) {
           console.error('Upload error:', error)
