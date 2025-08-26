@@ -58,28 +58,11 @@ router.post('/ask', async (req: any, res: any) => {
     console.log(`🎬 Context: time=${currentTime}s, step=${currentStepIndex}, total=${totalSteps}`);
 
     // Call the new controller
-    const result = await answerQuestion(req, res);
+    await answerQuestion(req, res);
     
     // If controller already sent response, return
     if (res.headersSent) {
       return;
-    }
-
-    // Transform response to match expected format
-    if (result.ok) {
-      return res.status(200).json({
-        success: true,
-        response: result.answer,
-        answer: result.answer,
-        source: result.source,
-        meta: result.meta || {},
-        cites: result.cites || []
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: result.error || 'Unknown error'
-      });
     }
 
   } catch (err: any) {
@@ -122,7 +105,8 @@ router.post('/contextual-response', async (req: any, res: any) => {
 
   // Replace request body and call new endpoint
   req.body = transformedBody;
-  return router._router.stack.find((layer: any) => layer.route?.path === '/ask')?.handle(req, res);
+  // Redirect to the ask endpoint instead of trying to access internal router
+  return res.redirect(307, '/api/ai/ask');
 });
 
 /**

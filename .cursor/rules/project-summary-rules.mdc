@@ -1,0 +1,191 @@
+Role: You are a senior engineer working on Adapt V3 (React + Express). Your job is to make small, surgical changes that stabilize the product. Do not over-engineer, add new abstractions, or refactor unrelated code.
+
+Project Basics
+
+Frontend: React 18 + TypeScript + Vite, Tailwind, Zustand, Clerk, React Router.
+
+Backend: Express + TypeScript, Prisma + PostgreSQL, AWS S3 (direct-to-S3 uploads via presigned URLs), optional QStash, Upstash Redis (caching).
+
+AI: Gemini (primary, sometimes disabled) and OpenAI (fallback). Transcription, steps generation, and RAG chat over steps/transcript/past Q&A.
+
+Hosting: Vercel (frontend), Render (backend).
+
+Core Flow (non-negotiable):
+Upload → Transcribe → Generate Steps → Embeddings → Ready → Train
+Upload is direct to S3: presign → PUT → complete. No chunking.
+
+Critical Invariants (do not break)
+
+Upload pipeline:
+
+/api/presigned-upload/presigned-url must return { uploadUrl, key, moduleId } and create/ensure a Module row.
+
+Client performs PUT to S3.
+
+Client calls /api/upload/complete with { moduleId, key, filename, contentType, size }.
+
+Server starts AI pipeline (aiPipeline.process(moduleId) or QStash enqueue).
+
+Frontend navigates to /training/:moduleId?processing=true and polls status.
+
+Module ID is source of truth across upload, steps, and training.
+
+Steps source of truth: a single JSON per module (S3 training/{moduleId}.json) mirrored in DB if present. Don’t introduce alternative stores.
+
+No endpoint renames and no silent contract changes. Maintain backward compatibility.
+
+Environment shape (Vercel/Render) and CORS must remain exactly as configured; don’t broaden origins.
+
+Change Policy
+
+Scope creep is forbidden. Only touch files required for the task at hand.
+
+Minimal diff. Prefer ≤100 LOC changed per task. No drive-by refactors.
+
+Major changes require approval from Patrick (schema, new tables, moving files, renaming endpoints, adding queues/workers, auth model changes, or any change impacting uploads/AI pipeline). Propose first; do not implement.
+
+No new dependencies unless explicitly required and approved.
+
+Implementation Rules
+
+Prefer server-side guardrails over frontend hacks:
+
+Use typed AI error codes (LLM_UNAVAILABLE, TIMEOUT, RATE_LIMIT, etc.).
+
+Keep placeholder detection narrow (only known sentinel phrases).
+
+Circuit-breaker: if AI fails, fall back to step lookup / prior Q&A / helpful nudge.
+
+RAG (learning) basics only: reuse existing tables (Questions, Steps, Transcript segments if present). If vectors are missing, add a single vector column per table with explicit migration (no surprises).
+
+Logging: add clear, low-noise console.info for presign, complete, and pipeline start. Avoid chatty logs elsewhere.
+
+Testing: after each change, manually verify:
+(1) Presign returns { uploadUrl, key, moduleId }
+(2) S3 PUT 200
+(3) /api/upload/complete 200 and logs pipeline start
+(4) Training page shows video + steps and AI answers basics
+
+Feature flags: if a new behavior is experimental, guard behind a simple env flag, default off.
+
+What Not To Do
+
+No chunked uploads.
+
+No sweeping rewrites of routing, stores, or services.
+
+No generic “framework” layers.
+
+No speculative abstractions.
+
+No renaming files or folders without approval.
+
+No auto-migrations that run without a reviewed SQL diff.
+
+Communication Format for Any Proposed Major Change
+
+Before changing anything major, post a short plan with:
+
+Goal: one sentence
+
+Files touched: list
+
+Data shape / API diffs: bullets
+
+Rollback: exactly how to revert
+
+Risk: one line
+Wait for approval.
+
+🎯 Current Goals (do these in order)
+Goal A — Clean up AI learning (RAG)
+
+Make “random, process-specific” questions answerable without overhauling the app.
+
+A1. Server: add a tiny RAG step (minimal code)
+
+If available, use existing Questions table (and optional TranscriptVector) for semantic recall.
+
+Pipeline for POST /api/qa/ask:
+
+Deterministic intent (count, ordinal, current/next).
+
+Retrieve top-k from prior Q&A and/or transcript segments.
+
+Ask LLM with strict prompt.
+
+If AI fails/placeholder → fallback to best step or closest QA.
+
+Optionally log the Q&A (question + answer) for future recall.
+
+Do not touch upload controllers or pipeline.
+
+A2. Frontend: TrainingPage chat
+
+Call /api/qa/ask (not the old contextual endpoint).
+
+On failure, call /api/qa/related.
+
+Keep the local “tiny fallback” for absolute last resort.
+
+A3. Guardrails
+
+Keep sentinel placeholder detection minimal (known message only).
+
+Use typed error codes and never display apology text to the user.
+
+Goal B — Voice: start immediately to train
+
+On TrainingPage load (if VITE_ENABLE_VOICE==='true' and permissions granted), initialize the voice coach and start listening when the user taps a single “allow mic” control (autostart after permission where allowed).
+
+Prioritize Web Speech API; keep Google Cloud STT path disabled behind a flag until stable.
+
+Voice commands limited to: “what step am I on?”, “next step”, “previous step”, “how many steps?”, and “read the step”. No extra intent complexity right now.
+
+✅ Step-By-Step Tasks for Cursor (small diffs only)
+
+Verify upload flow still intact (no code changes):
+
+Confirm logs show [UPLOAD] presign, PUT 200, [UPLOAD] complete, [PIPELINE] start.
+
+Implement /api/qa/ask minimal RAG (server):
+
+Add retrieval helper that queries prior Q&A (and transcript segments if present).
+
+Keep the prompt strict (use only provided context).
+
+Return { ok:true, source:'RAG+AI'|'RULES_*'|'FALLBACK_*', answer }.
+
+Swap TrainingPage chat to /api/qa/ask (client):
+
+Replace the existing contextual endpoint call.
+
+On error, hit /api/qa/related; else show tiny default fallback.
+
+Voice start:
+
+Ensure a single “Start Voice” button immediately asks for permission then starts listening; if permission already granted, start on mount.
+
+Wire to existing useVoiceCoach and limit to the core commands above.
+
+Add 3 log lines (server):
+
+[UPLOAD] presign (moduleId, key), [UPLOAD] complete (moduleId, key), [PIPELINE] start (moduleId).
+
+No schema changes unless strictly needed.
+
+If vectors are missing, propose a single SQL migration diff for review first.
+
+🧪 Definition of Done
+
+Upload works end-to-end (manual smoke test).
+
+Training page shows video + steps.
+
+Chat answers deterministic queries and at least some random process questions using RAG.
+
+If AI is down, user still gets a helpful step/answer (no apology strings).
+
+Voice starts with one tap (or immediately if previously allowed) and handles the 4–5 core commands.
+
+No broad refactors, no endpoint renames, no unexpected migrations, and diffs remain small.
