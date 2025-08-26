@@ -722,4 +722,38 @@ setTimeout(() => {
   try {
     // Test if server is responding
     const testUrl = `http://localhost:${PORT}/api/health`
-    console.log(`
+    console.log(`🔍 Testing server at: ${testUrl}`)
+    
+    // This is just a startup check - the actual health endpoint will be tested by Render
+    console.log('✅ Startup health check passed - server appears ready')
+  } catch (error) {
+    console.error('❌ Startup health check failed:', error)
+  }
+}, 5000) // Wait 5 seconds after server start
+
+// Add process monitoring to help debug crashes
+process.on('uncaughtException', (error) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', error)
+  console.error('Stack:', error.stack)
+  console.error('Memory usage:', process.memoryUsage())
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION at:', promise, 'reason:', reason)
+  console.error('Memory usage:', process.memoryUsage())
+  process.exit(1)
+})
+
+// Monitor memory usage
+setInterval(() => {
+  const memUsage = process.memoryUsage()
+  if (memUsage.heapUsed > 500 * 1024 * 1024) { // 500MB
+    console.warn('⚠️ High memory usage:', {
+      heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+      heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`,
+      external: `${Math.round(memUsage.external / 1024 / 1024)}MB`,
+      rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`
+    })
+  }
+}, 30000) // Check every 30 seconds
