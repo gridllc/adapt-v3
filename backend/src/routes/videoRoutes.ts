@@ -31,7 +31,7 @@ router.get("/by-module/:moduleId", async (req: Request, res: Response) => {
 
     const module = await prisma.module.findUnique({
       where: { id: moduleId },
-      select: { s3Key: true, videoContentType: true, videoUrl: true },
+      select: { s3Key: true, videoUrl: true },
     });
 
     if (!module) return res.status(404).json({ success: false, error: "Module not found" });
@@ -48,7 +48,7 @@ router.get("/by-module/:moduleId", async (req: Request, res: Response) => {
     const cmd = new GetObjectCommand({
       Bucket: process.env.AWS_BUCKET_NAME!,
       Key: key,
-      ResponseContentType: module.videoContentType || "video/mp4",
+      ResponseContentType: "video/mp4", // Use default since videoContentType doesn't exist
       ResponseCacheControl: "public, max-age=60",
     });
 
