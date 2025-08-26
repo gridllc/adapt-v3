@@ -39,61 +39,87 @@ const router = express.Router()
  * Enhanced contextual AI response endpoint
  */
 router.post('/contextual-response', async (req: any, res: any) => {
+  const fallback = (userMessage: string, steps: any[], currentStep?: any) => {
+    const msg = String(userMessage || '').toLowerCase().trim()
+    const ord: any = { first:1, second:2, third:3, fourth:4, fifth:5, sixth:6, seventh:7, eighth:8, ninth:9, tenth:10 }
+    const w = Object.keys(ord).find(k => msg.includes(`${k} step`) || msg.includes(`the ${k} step`))
+    const m = msg.match(/\bstep\s*(\d+)\b|\b(\d+)(?:st|nd|rd|th)?\s*step\b/)
+    const n = w ? ord[w] : (m ? parseInt(m[1] || m[2], 10) : undefined)
+    if (n && n >= 1 && n <= steps.length) {
+      const s = steps[n - 1]
+      return `**Step ${n}**: ${s.title}${s.description ? ` — ${s.description}` : ''}`
+    }
+    if (/(how many steps|total steps)/.test(msg)) {
+      return `There are **${steps.length}** steps in this training.`
+    }
+    if (currentStep && /(current step|this step|what step am i on)/.test(msg)) {
+      return `You're on **Step ${currentStep.stepNumber}**: ${currentStep.title}${currentStep.description ? ` — ${currentStep.description}` : ''}`
+    }
+    if (/next step|previous step/.test(msg) && currentStep) {
+      const total = steps.length
+      if (msg.includes('next') && currentStep.stepNumber < total) {
+        return `Next is **Step ${currentStep.stepNumber + 1}**: "${steps[currentStep.stepNumber].title}".`
+      }
+      if (msg.includes('previous') && currentStep.stepNumber > 1) {
+        return `Previous was **Step ${currentStep.stepNumber - 1}**: "${steps[currentStep.stepNumber - 2].title}".`
+      }
+    }
+    return `Ask "How many steps?", "What's the 2nd step?", or "What step am I on?".`
+  }
+
   try {
-    const { userMessage, currentStep, allSteps, videoTime, moduleId } = req.body
+    const { userMessage, currentStep, allSteps, steps, videoTime, moduleId } = req.body
 
     if (!userMessage) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'User message is required' 
-      })
+      return res.status(400).json({ success: false, error: 'User message is required' })
     }
+
+    // Normalize steps (accept `steps` or `allSteps`) and compact them
+    const source = Array.isArray(steps) ? steps : (Array.isArray(allSteps) ? allSteps : [])
+    const list = source.map((s: any, i: number) => ({
+      stepNumber: s.stepNumber ?? i + 1,
+      title: s.title,
+      description: s.description,
+      start: s.start,
+      end: s.end,
+    }))
 
     console.log(`🤖 Contextual AI request for module ${moduleId}`)
     console.log(`📝 User message: "${userMessage}"`)
-    console.log(`🎬 Current step: ${currentStep?.title || 'None'}`)
-    console.log(`⏰ Video time: ${videoTime}s`)
+    console.log(`🎬 Current step: ${currentStep?.title || 'None'} | steps: ${list.length}`)
 
-    // Generate contextual response using the enhanced AI service with Shared Learning System
+    // Try the model first (if configured)
     const userId = await UserService.getUserIdFromRequest(req)
-    const aiResponse = await aiService.generateContextualResponse(
-      userMessage,
-      {
+    try {
+      const aiResponse = await aiService.generateContextualResponse(userMessage, {
         currentStep,
-        allSteps,
+        allSteps: list,          // keep existing service signature
         videoTime,
         moduleId,
-        userId: userId || undefined
+        userId: userId || undefined,
+      })
+      if (aiResponse && aiResponse.trim()) {
+        return res.json({ 
+          success: true, 
+          response: aiResponse,
+          answer: aiResponse,  // keep both for backward compatibility
+          reused: false,
+          similarity: null,
+          questionId: null
+        })
       }
-    )
+    } catch (innerErr) {
+      console.warn('⚠️ AI service failed, using fallback:', innerErr instanceof Error ? innerErr.message : innerErr)
+    }
 
-    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
+    // Graceful fallback (200 OK so frontend never throws)
+    return res.json({ success: true, response: fallback(userMessage, list, currentStep) })
 
-    // Log activity with basic information
-    await DatabaseService.createActivityLog({
-      userId: userId || undefined,
-      action: 'AI_QUESTION',
-      targetId: moduleId,
-      metadata: {
-        questionLength: userMessage.length,
-        answerLength: aiResponse.length,
-        videoTime,
-        stepId: currentStep?.id
-      }
-    })
-
-    res.json({ 
-      success: true, 
-      answer: aiResponse,
-      reused: false,
-      similarity: null,
-      questionId: null
-    })
-  } catch (error) {
-    console.error('❌ Contextual AI response error:', error)
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to generate AI response' 
+  } catch (error: any) {
+    console.error('❌ Failed to generate AI response:', error)
+    return res.json({
+      success: true,
+      response: "I'm having trouble with AI right now, but step navigation still works. Try 'How many steps?' or 'What's the 2nd step?'."
     })
   }
 })
