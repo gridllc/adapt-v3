@@ -63,6 +63,10 @@ export const TrainingPage: React.FC = () => {
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
 
+  // 🎯 FETCH MODULE DATA FOR TITLE
+  const [moduleData, setModuleData] = useState<any>(null)
+  const [moduleDataLoading, setModuleDataLoading] = useState(false)
+
 
   // Video seeking function
   const seekToTime = (timeInSeconds: number) => {
@@ -181,6 +185,28 @@ export const TrainingPage: React.FC = () => {
       setSteps(steps)
     }
   }
+
+  // 🎯 FETCH MODULE DATA FOR TITLE
+  useEffect(() => {
+    if (!moduleId) return
+    
+    const fetchModuleData = async () => {
+      setModuleDataLoading(true)
+      try {
+        const response = await fetch(`/api/modules/${moduleId}`)
+        const data = await response.json()
+        if (data.success) {
+          setModuleData(data.module)
+        }
+      } catch (error) {
+        console.error('Failed to fetch module data:', error)
+      } finally {
+        setModuleDataLoading(false)
+      }
+    }
+    
+    fetchModuleData()
+  }, [moduleId])
 
   // Handle seek parameter from URL
   useEffect(() => {
@@ -510,8 +536,22 @@ Just ask me anything about the training!`
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Training: {moduleId}</h1>
+              <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link 
+              to="/upload" 
+              className="text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              ← Back to Upload
+            </Link>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Training: {moduleDataLoading ? (
+                <span className="text-gray-500">Loading...</span>
+              ) : (
+                moduleData?.title || moduleId
+              )}
+            </h1>
+          </div>
 
       </div>
 

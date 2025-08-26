@@ -53,6 +53,10 @@ export const UploadManager: React.FC = () => {
         const uploadId = addUpload(file)
         console.log('Added to queue:', uploadId)
 
+        // 🎯 SHOW SPINNER IMMEDIATELY HERE - Don't wait for backend
+        setShowProcessing(true)
+        setJustUploadedModuleId(uploadId) // temporary until backend confirms
+
         // Start upload - USE PRESIGNED UPLOAD FLOW
         try {
           console.log('Starting presigned upload...')
@@ -144,9 +148,8 @@ export const UploadManager: React.FC = () => {
           updateProgress(uploadId, 100)
           markSuccess(uploadId, processResult.moduleId)
           
-          // Show processing panel and start monitoring
+          // 🎯 UPDATE WITH REAL MODULE ID WHEN BACKEND CONFIRMS
           setJustUploadedModuleId(processResult.moduleId)
-          setShowProcessing(true)
 
         } catch (error) {
           console.error('Upload error:', error)
