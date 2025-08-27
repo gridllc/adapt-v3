@@ -19,6 +19,6 @@ export async function enqueuePipeline(moduleId: string, s3Key: string) {
       "Upstash-Callback": `${BASE}/api/qstash/success`,
       "Upstash-Failure-Callback": `${BASE}/api/qstash/failure`,
     },
-    delay: "2s", // tiny buffer to avoid hot path spikes
+    delay: 2000, // 2 second buffer to avoid hot path spikes
   });
 }
