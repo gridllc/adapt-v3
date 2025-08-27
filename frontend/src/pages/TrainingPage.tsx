@@ -229,7 +229,7 @@ export const TrainingPage: React.FC = () => {
   // Handle seek parameter from URL
   useEffect(() => {
     const seekTime = searchParams.get('seek')
-    if (seekTime && videoRef.current && url) {
+    if (seekTime && videoRef.current && videoUrl) {
       const timeInSeconds = parseFloat(seekTime)
       if (!isNaN(timeInSeconds)) {
         // Wait for video to be ready, then seek
@@ -245,7 +245,7 @@ export const TrainingPage: React.FC = () => {
         }
       }
     }
-  }, [url, searchParams])
+  }, [videoUrl, searchParams])
 
   // Fetch steps when video URL is ready AND module is ready
   useEffect(() => {
@@ -511,9 +511,8 @@ Just ask me anything about the training!`
 
   console.log('🎬 TrainingPage render state:', {
     moduleId,
-    url,
-    loading,
-    error,
+    videoUrl,
+    status,
     steps: steps.length,
     stepsLoading,
     stepsError
@@ -576,26 +575,26 @@ Just ask me anything about the training!`
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
         <div className="lg:col-span-2">
-          {loading ? (
+          {!videoUrl ? (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
               <div className="text-center space-y-4">
                 <div className="w-12 h-12 mx-auto animate-spin text-2xl">⏳</div>
                 <p className="text-lg">Loading video...</p>
               </div>
             </div>
-          ) : error ? (
+          ) : false ? (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-red-400">
               <div className="text-center space-y-4">
                 <div className="w-12 h-12 mx-auto text-2xl">⚠️</div>
                 <div>
                   <p className="text-lg font-semibold">Video Error</p>
-                  <p className="text-sm">{error}</p>
+                  <p className="text-sm">Failed to load video</p>
                 </div>
               </div>
             </div>
-          ) : url ? (
+          ) : videoUrl ? (
             <video 
-              key={url}  // Force re-render when URL changes
+              key={videoUrl}  // Force re-render when URL changes
               controls 
               playsInline  // Better mobile compatibility
               preload="metadata"  // Load metadata for seeking
@@ -750,7 +749,7 @@ Just ask me anything about the training!`
                 {/* Debug info for developers */}
                 {process.env.NODE_ENV === 'development' && (
                   <div className="text-xs text-gray-400 mt-2">
-                    Debug: moduleId={moduleId}, url={url ? 'loaded' : 'not loaded'}, steps={steps.length}, hasTriedOnce={hasTriedOnce.toString()}
+                    Debug: moduleId={moduleId}, videoUrl={videoUrl ? 'loaded' : 'not loaded'}, steps={steps.length}, hasTriedOnce={hasTriedOnce.toString()}
                   </div>
                 )}
                 
