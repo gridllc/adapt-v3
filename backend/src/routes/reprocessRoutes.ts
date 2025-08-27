@@ -94,8 +94,8 @@ router.get('/health/pipeline', async (req: Request, res: Response) => {
         status: 'ok',
         bucket: process.env.AWS_BUCKET_NAME ? 'configured' : 'missing'
       }
-    } catch (e) {
-      results.checks.s3 = { status: 'error', error: e?.message || String(e) }
+    } catch (e: unknown) {
+      results.checks.s3 = { status: 'error', error: e instanceof Error ? e.message : String(e) }
     }
 
     // Check FFmpeg availability
@@ -106,10 +106,10 @@ router.get('/health/pipeline', async (req: Request, res: Response) => {
         status: 'ok',
         version: ffmpegVersion.split('\n')[0]
       }
-    } catch (e) {
+    } catch (e: unknown) {
       results.checks.ffmpeg = {
         status: 'error',
-        error: e?.message || String(e) || 'FFmpeg not available'
+        error: e instanceof Error ? e.message : String(e) || 'FFmpeg not available'
       }
     }
 
@@ -120,8 +120,8 @@ router.get('/health/pipeline', async (req: Request, res: Response) => {
       // Simple models list call to test API access
       await openai.models.list()
       results.checks.openai = { status: 'ok' }
-    } catch (e) {
-      results.checks.openai = { status: 'error', error: e?.message || String(e) }
+    } catch (e: unknown) {
+      results.checks.openai = { status: 'error', error: e instanceof Error ? e.message : String(e) }
     }
 
     // Overall status

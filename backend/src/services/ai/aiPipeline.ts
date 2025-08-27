@@ -13,7 +13,7 @@ import { env } from '../../config/env.js'
  */
 export async function process(ctx: { moduleId: string; s3Key: string; title?: string; rid?: string }) {
   const { moduleId, s3Key, title } = ctx
-  const rid = ctx.rid || 'no-rid'
+  const rid: string = ctx.rid || 'no-rid'
   logger.info('[AIPipeline] start', { moduleId, rid })
 
   const mod = await prisma.module.findUnique({ where: { id: moduleId } })
@@ -95,23 +95,23 @@ async function generateStepsFromVideoInternal(moduleId: string, opts?: { force?:
 
   try {
     // 1) Download MP4 from S3 to temp
-    console.info('[AIPipeline] S3 HeadObject start', { moduleId, rid, s3Key: mod.module.s3Key })
+    console.info('[AIPipeline] S3 HeadObject start', { moduleId: moduleId, rid: rid, s3Key: mod.module.s3Key })
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 20, "Downloading video...")
     const { videoDownloader } = await import('./videoDownloader.js')
     const localMp4 = await videoDownloader.fromS3(mod.module.s3Key)
-    console.info('[AIPipeline] S3 download complete', { moduleId, rid, localPath: localMp4 })
+    console.info('[AIPipeline] S3 download complete', { moduleId: moduleId, rid: rid, localPath: localMp4 })
 
     // 2) Extract WAV with ffmpeg
-    console.info('[AIPipeline] Audio extraction start', { moduleId, rid, videoPath: localMp4 })
+    console.info('[AIPipeline] Audio extraction start', { moduleId: moduleId, rid: rid, videoPath: localMp4 })
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 35, "Converting video to audio...")
     const wavPath = await audioProcessor.extract(localMp4)
-    console.info('[AIPipeline] Audio extraction complete', { moduleId, rid, wavPath })
+    console.info('[AIPipeline] Audio extraction complete', { moduleId: moduleId, rid: rid, wavPath: wavPath })
 
     // 3) Transcribe via OpenAI API
-    console.info('[AIPipeline] Transcription start', { moduleId, rid, wavPath })
+    console.info('[AIPipeline] Transcription start', { moduleId: moduleId, rid: rid, wavPath: wavPath })
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 55, "Transcribing audio...")
     const transcript = await transcribeAudio(wavPath, moduleId)
-    console.info('[AIPipeline] Transcription complete', { moduleId, rid, chars: transcript.text.length })
+    console.info('[AIPipeline] Transcription complete', { moduleId: moduleId, rid: rid, chars: transcript.text.length })
 
     // 4) Get video duration for proper step timing
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 70, "Getting video duration...")
@@ -119,7 +119,7 @@ async function generateStepsFromVideoInternal(moduleId: string, opts?: { force?:
     console.log(`📹 [AIPipeline] Video duration: ${durationSec}s`)
 
     // 5) Turn transcript into steps with actual video duration
-    console.info('[AIPipeline] Step generation start', { moduleId, rid, transcriptChars: transcript.text.length })
+    console.info('[AIPipeline] Step generation start', { moduleId: moduleId, rid: rid, transcriptChars: transcript.text.length })
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 75, "Generating steps...")
     const steps = await generateVideoSteps(
       transcript.text,
@@ -127,10 +127,10 @@ async function generateStepsFromVideoInternal(moduleId: string, opts?: { force?:
       { duration: durationSec }, // Pass actual video duration
       moduleId
     )
-    console.info('[AIPipeline] Step generation complete', { moduleId, rid, stepCount: steps.steps.length })
+    console.info('[AIPipeline] Step generation complete', { moduleId: moduleId, rid: rid, stepCount: steps.steps.length })
 
     // 6) Save steps JSON to S3 + mark READY
-    console.info('[AIPipeline] S3 save start', { moduleId, rid, s3Key: mod.module.stepsKey })
+    console.info('[AIPipeline] S3 save start', { moduleId: moduleId, rid: rid, s3Key: mod.module.stepsKey })
     await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 85, "Saving steps...")
 
     await stepSaver.saveStepsToS3({
@@ -146,9 +146,9 @@ async function generateStepsFromVideoInternal(moduleId: string, opts?: { force?:
     })
 
     // DB upserts happen in stepSaver and markReady
-    console.info('[AIPipeline] DB upserts start', { moduleId, rid })
+    console.info('[AIPipeline] DB upserts start', { moduleId: moduleId, rid: rid })
     await ModuleService.markReady(moduleId)
-    console.info('[AIPipeline] DB upserts complete', { moduleId, rid })
+    console.info('[AIPipeline] DB upserts complete', { moduleId: moduleId, rid: rid })
     console.log(`✅ [AIPipeline] Module ${moduleId} processing complete`)
     return { ok: true, moduleId }
   } catch (err: any) {
