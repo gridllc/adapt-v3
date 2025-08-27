@@ -6,6 +6,7 @@ import { stepSaver } from './stepSaver.js'
 import { generateVideoSteps } from './stepGenerator.js'
 import { prisma } from '../../config/database.js'
 import { log as logger } from '../../utils/logger.js'
+import { env } from '../../config/env.js'
 
 /**
  * Context-aware process function for uploadController
@@ -17,7 +18,7 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
   const mod = await prisma.module.findUnique({ where: { id: moduleId } })
   if (!mod) {
     const moduleTitle = title || 'Untitled'
-    const bucketName = process.env.AWS_BUCKET_NAME || 'default-bucket'
+    const bucketName = env.AWS_BUCKET_NAME
 
     await prisma.module.upsert({
       where: { id: moduleId },
