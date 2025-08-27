@@ -2,7 +2,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import slugify from "slugify";
 
-const s3 = new S3Client({ 
+export const s3 = new S3Client({ 
   region: process.env.AWS_REGION!,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
@@ -10,7 +10,7 @@ const s3 = new S3Client({
   }
 });
 
-const BUCKET = process.env.AWS_BUCKET_NAME!;
+export const BUCKET = process.env.AWS_BUCKET_NAME!;
 
 /**
  * Generate safe S3 key with user isolation

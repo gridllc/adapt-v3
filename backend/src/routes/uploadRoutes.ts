@@ -1,5 +1,4 @@
 import express from 'express'
-import multer from 'multer'
 import { ModuleService } from '../services/moduleService.js'
 import { uploadController } from '../controllers/uploadController.js'
 import { aiService } from '../services/aiService.js'
@@ -7,51 +6,11 @@ import { optionalAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// Configure multer for memory storage
-const upload = multer({ 
-  storage: multer.memoryStorage(), 
-  limits: { 
-    fileSize: 200 * 1024 * 1024, // 200MB 
-  },
-  fileFilter: (req, file, cb) => {
-    console.log('Multer file filter:', file.mimetype)
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true)
-    } else {
-      cb(new Error('Only video files are allowed'), false)
-    }
-  },
-})
-
-// Upload endpoint - with optional authentication
-router.post('/', optionalAuth, (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.log('Upload route hit')
-  next()
-}, upload.single('file'), (err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Handle multer errors
-  if (err && err.code && typeof err.code === 'string') {
-    console.error('❌ Multer error:', err)
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ 
-        error: 'File too large',
-        message: 'File size exceeds 200MB limit',
-        code: 'FILE_TOO_LARGE'
-      })
-    }
-    return res.status(400).json({ 
-      error: 'File upload error',
-      message: err.message,
-      code: err.code
-    })
-  } else if (err) {
-    console.error('❌ Upload middleware error:', err)
-    return res.status(500).json({ 
-      error: 'Upload failed',
-      message: err.message || 'Unknown upload error'
-    })
-  }
-  next()
-}, uploadController.uploadVideo)
+// Upload endpoint removed - we now use presigned uploads instead
+// The old multipart upload route has been replaced with:
+// 1. POST /api/presigned-upload/presigned-url - get S3 presigned URL
+// 2. PUT to S3 directly using the presigned URL  
+// 3. POST /api/upload/complete - complete upload and start AI pipeline
 
 // Complete upload endpoint - for presigned uploads
 router.post('/complete', optionalAuth, uploadController.completeUpload)
