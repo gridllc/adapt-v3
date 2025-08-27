@@ -104,7 +104,7 @@ export const uploadController = {
         update: {
           s3Key: key,
           status: 'PROCESSING',
-          progress: 0,
+          progress: 1,
           updatedAt: new Date(),
           title,
         },
@@ -112,7 +112,7 @@ export const uploadController = {
           id: moduleId,
           s3Key: key,
           status: 'PROCESSING',
-          progress: 0,
+          progress: 1,
           title,
           filename: filename || title + '.mp4',
           videoUrl: `https://${Bucket}.s3.amazonaws.com/${key}`,
