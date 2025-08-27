@@ -78,35 +78,23 @@ router.get('/:moduleId', async (req, res) => {
       // not found is fine; fall through
     }
 
-    // 3) Still nothing → create safe fallback so UI is never empty
-    //    Use module duration if you stored it; otherwise default to 60s
+    // 3) Transient fallback (DO NOT persist). Just return something so UI renders,
+    // and let the client continue polling for real steps written by the pipeline.
     const module = await prisma.module.findUnique({ where: { id: moduleId } })
     const durationSec = Number((module as any)?.durationSec || 60)
-    const steps = makeBasicSteps(durationSec)
+    const chunk = Math.max(5, Math.floor(durationSec / 3))
+    const steps = [
+      { id: 's1', start: 0,          end: chunk,        title: 'Intro',       description: 'Overview of the task.' },
+      { id: 's2', start: chunk,      end: chunk * 2,    title: 'Main Steps',  description: 'Follow the core steps.' },
+      { id: 's3', start: chunk * 2,  end: durationSec,  title: 'Finish',      description: 'Wrap up and verify.' },
+    ]
 
-    // persist minimal JSON so future loads don't loop
-    await writeS3Json(s3Key, {
+    // NOTE: no write to S3 here, no DB seed here.
+    return res.status(200).json({
+      success: true,
       steps,
-      meta: { durationSec, source: 'fallback' },
-      transcript: '',
+      meta: { durationSec, source: 'fallback-transient' },
     })
-
-    // (optional) seed DB in background
-    prisma.$transaction(
-      steps.map((s, i) =>
-        prisma.step.create({
-          data: {
-            moduleId,
-            order: i,
-            startTime: s.start,
-            endTime: s.end,
-            text: `${s.title}: ${s.description}`,
-          },
-        })
-      )
-    ).catch(err => console.warn('[steps seed→DB] skipped:', err?.message))
-
-    return ok(res, { steps, meta: { durationSec, source: 'fallback' } })
   } catch (err: any) {
     console.error('[GET /steps/:moduleId] ERROR', err?.message)
     return fail(res, 500, 'Could not load steps')

@@ -103,6 +103,7 @@ export const uploadController = {
         where: { id: moduleId },
         update: {
           s3Key: key,
+          stepsKey: `training/${moduleId}.json`,
           status: 'PROCESSING',
           progress: 1,
           updatedAt: new Date(),
@@ -111,6 +112,7 @@ export const uploadController = {
         create: {
           id: moduleId,
           s3Key: key,
+          stepsKey: `training/${moduleId}.json`,
           status: 'PROCESSING',
           progress: 1,
           title,
@@ -121,10 +123,11 @@ export const uploadController = {
 
       // 3) Kick off AI processing (don't block request)
       try {
-        // fire-and-forget; wrap in try/catch
-        // await aiPipeline.process({ moduleId, key, filename: filename ?? key.split('/').pop() })
-      } catch (bgErr: any) {
-        console.error('[AIPipeline enqueue error]', { rid, message: bgErr?.message, name: bgErr?.name })
+        // IMPORTANT: enqueue the pipeline (don't let errors crash the response)
+        await aiPipeline.process({ moduleId, s3Key: key, title })
+        console.info('[AIPipeline] started', { moduleId })
+      } catch (e: any) {
+        console.error('[AIPipeline] failed to start', e?.message)
       }
 
       console.info('[UploadComplete] OK', {
