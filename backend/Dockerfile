@@ -28,10 +28,21 @@ ENV NODE_ENV=production
 # Optional: enable verbose logging for debugging build issues
 ENV NPM_CONFIG_LOGLEVEL=verbose
 
+# Add debugging info for Render builds
+RUN echo "=== Build Environment ===" && \
+    echo "NODE_ENV: $NODE_ENV" && \
+    echo "DATABASE_URL: $(if [ -n "$DATABASE_URL" ]; then echo 'SET'; else echo 'NOT SET'; fi)" && \
+    echo "AWS_BUCKET_NAME: $(if [ -n "$AWS_BUCKET_NAME" ]; then echo 'SET'; else echo 'NOT SET'; fi)" && \
+    echo "CLERK_SECRET_KEY: $(if [ -n "$CLERK_SECRET_KEY" ]; then echo 'SET'; else echo 'NOT SET'; fi)" && \
+    echo "========================"
+
 # Ensure clean builds with explicit steps
 # Note: prisma generate already ran during npm ci (postinstall), but running again ensures consistency
-RUN npx prisma generate
-RUN npm run build
+RUN npx prisma generate || echo "⚠️ Prisma generate failed, but continuing..."
+
+# Build with better error handling
+RUN echo "🏗️ Building TypeScript..." && \
+    npm run build || (echo "❌ Build failed with details:" && exit 1)
 
 # Optional: temp folders only if needed
 RUN mkdir -p uploads processed temp

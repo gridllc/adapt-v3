@@ -1,6 +1,14 @@
 #!/bin/sh
 
 echo "🚀 Starting Adapt v3 Backend..."
+echo "=== Environment Check ==="
+echo "NODE_ENV: $NODE_ENV"
+echo "PORT: $PORT"
+echo "DATABASE_URL: $(if [ -n "$DATABASE_URL" ]; then echo 'SET'; else echo 'NOT SET'; fi)"
+echo "AWS_BUCKET_NAME: $(if [ -n "$AWS_BUCKET_NAME" ]; then echo 'SET'; else echo 'NOT SET'; fi)"
+echo "CLERK_SECRET_KEY: $(if [ -n "$CLERK_SECRET_KEY" ]; then echo 'SET'; else echo 'NOT SET'; fi)"
+echo "PWD: $(pwd)"
+echo "========================"
 
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then

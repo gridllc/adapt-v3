@@ -37,6 +37,46 @@ router.post('/:moduleId', async (req: Request, res: Response) => {
   }
 })
 
+// Build diagnostics endpoint (for debugging Render issues)
+router.get('/health/build', async (req: Request, res: Response) => {
+  const results: any = {
+    timestamp: new Date().toISOString(),
+    build: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      uptime: process.uptime(),
+      memory: process.memoryUsage()
+    },
+    environment: {
+      NODE_ENV: process.env.NODE_ENV,
+      DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
+      AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME ? 'SET' : 'NOT SET',
+      AWS_REGION: process.env.AWS_REGION || 'NOT SET',
+      CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY ? 'SET' : 'NOT SET',
+      PORT: process.env.PORT || 'NOT SET'
+    },
+    paths: {
+      cwd: process.cwd(),
+      nodeModules: require.resolve('express') ? 'EXISTS' : 'MISSING'
+    }
+  }
+
+  try {
+    // Test basic file system access
+    const fs = await import('fs/promises')
+    const packageJson = await fs.readFile('./package.json', 'utf8')
+    results.package = JSON.parse(packageJson).version || 'UNKNOWN'
+
+    results.status = 'ok'
+    res.json(results)
+  } catch (err: any) {
+    results.status = 'error'
+    results.error = err?.message
+    res.status(500).json(results)
+  }
+})
+
 // Health probe endpoint (quick win)
 router.get('/health/pipeline', async (req: Request, res: Response) => {
   const results: any = {

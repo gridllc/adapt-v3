@@ -290,6 +290,26 @@ app.use('/api/voice', voiceRoutes)
     }
   })
 
+  // Simple diagnostic endpoint (works even if everything else fails)
+  app.get('/diagnostic', (req, res) => {
+    res.json({
+      status: 'diagnostic-ok',
+      timestamp: new Date().toISOString(),
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        DATABASE_URL: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
+        AWS_BUCKET_NAME: process.env.AWS_BUCKET_NAME ? 'SET' : 'NOT SET',
+        CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY ? 'SET' : 'NOT SET',
+        PORT: process.env.PORT || 'NOT SET'
+      },
+      build: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        uptime: Math.round(process.uptime())
+      }
+    })
+  })
+
   // Root endpoint - API status
   app.get('/', (req, res) => {
     res.json({
@@ -299,11 +319,14 @@ app.use('/api/voice', voiceRoutes)
       description: 'This is the backend API server. The frontend is hosted separately.',
       endpoints: {
         health: '/api/health',
+        'health/build': '/api/reprocess/health/build',
+        'health/pipeline': '/api/reprocess/health/pipeline',
         uploads: '/api/upload',
         upload: '/api/upload',
         modules: '/api/modules',
         ai: '/api/ai',
-        steps: '/api/steps/:moduleId',  // ✅ ADD THIS
+        steps: '/api/steps/:moduleId',
+        reprocess: '/api/reprocess/:moduleId',
         status: '/api/status/:moduleId'
       },
       frontend: 'https://adapt-v3.vercel.app',
