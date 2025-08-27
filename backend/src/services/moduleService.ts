@@ -1,6 +1,22 @@
 import { prisma } from '../config/database.js'
 import { Prisma } from '@prisma/client'
 
+// P2025 fallback function
+export async function updateModule(id: string, data: any) {
+  try {
+    return await prisma.module.update({ where: { id }, data })
+  } catch (e: any) {
+    if (e.code === 'P2025') {
+      return await prisma.module.upsert({
+        where: { id },
+        update: data,
+        create: { id, title: data.title || 'Untitled', status: data.status || 'processing', progress: 0, ...data },
+      })
+    }
+    throw e
+  }
+}
+
 export class ModuleService {
   /**
    * Get all modules with their basic info for dashboard

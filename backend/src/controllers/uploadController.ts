@@ -6,6 +6,23 @@ import { enqueueProcessModule, processModuleDirectly, isEnabled } from '../servi
 import { DatabaseService } from '../services/prismaService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
 import { v4 as uuidv4 } from 'uuid'
+import path from 'node:path'
+import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { prisma } from '../config/database.js'
+import { log as logger } from '../utils/logger.js'
+import * as aiPipeline from '../services/ai/aiPipeline.js'
+
+// S3 client for HEAD operations
+const s3 = new S3Client({
+  region: process.env.AWS_REGION || 'us-west-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
+})
+
+// Helper to strip extension for a decent default title
+const baseTitle = (key: string) => path.basename(key).replace(/\.[^/.]+$/, '')
 
 // Single processing function - either enqueue or run inline
 async function queueOrInline(moduleId: string) {
@@ -32,94 +49,83 @@ async function queueOrInline(moduleId: string) {
 }
 
 export const uploadController = {
-  async uploadComplete(req: Request, res: Response) {
-    try {
-      const { moduleId, key, filename, contentType, size } = req.body
-      
-      console.log(`[UPLOAD] complete (moduleId: ${moduleId}, key: ${key})`)
-      
-      if (!moduleId || !key) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'moduleId and key are required' 
-        })
-      }
+  async uploadComplete(req: any, res: any) {
+    const { moduleId, key } = req.body ?? {}
 
-      // Verify object exists in S3 (prevents bogus completes)
-      const verification = await presignedUploadService.confirmUpload(key)
-      if (!verification.success) {
-        return res.status(404).json({ 
-          success: false, 
-          error: 'S3 object not found' 
-        })
-      }
-
-      // Create/update module on complete (avoid orphans)
-      let savedModule
-      try {
-        const title = key.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Untitled'
-        const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${key}`
-        
-        // Try to update existing module first, create if not exists
-        try {
-          await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Upload completed, starting AI processing...')
-          console.log(`✅ Module updated to PROCESSING: ${moduleId}`)
-        } catch (updateError) {
-          // Module doesn't exist, create it
-          await DatabaseService.createModule({
-            id: moduleId,
-            title: title,
-            filename: key.split('/').pop() || 'video.mp4',
-            videoUrl: fileUrl,
-            s3Key: key,
-            stepsKey: `training/${moduleId}.json`,
-            status: 'PROCESSING' as const,
-            userId: (req as any).userId || undefined
-          })
-          console.log(`✅ Module created: ${moduleId}`)
-        }
-
-        // VERIFY MODULE EXISTS before proceeding
-        const { prisma } = await import('../config/database.js')
-        savedModule = await prisma.module.findUnique({ where: { id: moduleId } })
-        if (!savedModule) {
-          console.error(`❌ [UPLOAD] Module verification failed - not found after upsert: ${moduleId}`)
-          return res.status(500).json({ 
-            success: false, 
-            error: 'Module not persisted after creation' 
-          })
-        }
-        console.log(`✅ [UPLOAD] Module verified in database: ${moduleId}`)
-      } catch (moduleError) {
-        console.error(`❌ Failed to create/update module: ${moduleId}:`, moduleError)
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Failed to create module record' 
-        })
-      }
-
-      // Start AI processing
-      try {
-        console.log(`[PIPELINE] start (moduleId: ${moduleId})`)
-        await queueOrInline(moduleId)
-      } catch (processingError) {
-        console.error(`❌ Failed to start AI processing for module: ${moduleId}:`, processingError)
-        // Don't fail the upload, just log the error
-      }
-
-      res.json({ 
-        success: true, 
-        moduleId,
-        message: 'Upload completed and processing started' 
-      })
-      
-    } catch (error) {
-      console.error('Upload completion error:', error)
-      res.status(500).json({ 
-        success: false, 
-        error: 'Upload completion failed' 
-      })
+    if (!moduleId || !key) {
+      return res.status(400).json({ success: false, error: 'moduleId and key required' })
     }
+
+    logger.info('[UPLOAD] complete', { moduleId, key })
+
+    // 1) Verify the object actually exists in S3 (prevents bogus completes)
+    try {
+      await s3.send(
+        new HeadObjectCommand({
+          Bucket: process.env.AWS_BUCKET_NAME!,
+          Key: key,
+        }),
+      )
+    } catch (_e) {
+      logger.warn('[UPLOAD] complete: S3 object not found for key', { key, moduleId })
+      return res.status(404).json({ success: false, error: 'S3 object not found' })
+    }
+
+    // 2) Upsert the Module row so it DEFINITELY exists before pipeline
+    const title = baseTitle(key)
+    let saved
+    try {
+      saved = await prisma.module.upsert({
+        where: { id: moduleId },
+        update: {
+          s3Key: key,
+          status: 'PROCESSING',
+          progress: 0,
+          updatedAt: new Date(),
+          title, // keep title in sync with filename on re-uploads
+        },
+        create: {
+          id: moduleId,
+          s3Key: key,
+          status: 'PROCESSING',
+          progress: 0,
+          title,
+          filename: title + '.mp4',
+          videoUrl: `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${key}`,
+        },
+      })
+    } catch (e: any) {
+      logger.error('[UPLOAD] complete: upsert failed', { moduleId, key, error: e?.message })
+      return res.status(500).json({ success: false, error: 'DB upsert failed' })
+    }
+
+    // 3) Double-check persistence (belt-and-suspenders against race/connection issues)
+    try {
+      const check = await prisma.module.findUnique({ where: { id: moduleId } })
+      if (!check) {
+        logger.error('[UPLOAD] upsert verification failed - module missing after upsert', { moduleId })
+        return res.status(500).json({ success: false, error: 'Module not persisted' })
+      }
+    } catch (e: any) {
+      logger.error('[UPLOAD] verification query failed', { moduleId, error: e?.message })
+      return res.status(500).json({ success: false, error: 'Verification failed' })
+    }
+
+    // 4) Kick off AI processing (don't block request)
+    try {
+      // Pass context so pipeline doesn't need to refetch immediately
+      queueMicrotask(() =>
+        startProcessing(moduleId).catch((err: any) => {
+          logger.error('[AIPipeline] process error (background)', { moduleId, error: err?.message })
+        }),
+      )
+    } catch (e: any) {
+      // Even if the background launch fails, the upload is complete; return 200 to the client
+      logger.error('[UPLOAD] failed to start pipeline', { moduleId, error: e?.message })
+    }
+
+    // 5) Success response
+    return res.json({ success: true, moduleId })
   },
 
   async uploadVideo(req: Request, res: Response) {

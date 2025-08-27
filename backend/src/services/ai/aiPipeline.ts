@@ -4,15 +4,36 @@ import { audioProcessor } from './audioProcessor.js'
 import { transcribeAudio } from './transcriber.js'
 import { stepSaver } from './stepSaver.js'
 import { generateVideoSteps } from './stepGenerator.js'
+import { prisma } from '../../config/database.js'
+import { log as logger } from '../../utils/logger.js'
+
+/**
+ * Context-aware process function for uploadController
+ */
+export async function process(ctx: { moduleId: string; s3Key: string; title?: string }) {
+  const { moduleId, s3Key, title } = ctx
+  logger.info('[AIPipeline] start', { moduleId })
+
+  const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+  if (!mod) {
+    await prisma.module.upsert({
+      where: { id: moduleId },
+      update: {},
+      create: { id: moduleId, s3Key, title: title || 'Untitled', status: 'processing', progress: 0 },
+    })
+  }
+
+  return generateStepsFromVideo(moduleId, s3Key)
+}
 
 /**
  * Unified entry point (matches qstashQueue import).
  */
 export async function startProcessing(moduleId: string, opts?: { force?: boolean }) {
-  return generateStepsFromVideo(moduleId, opts)
+  return generateStepsFromVideo(moduleId, undefined, opts)
 }
 
-export async function generateStepsFromVideo(moduleId: string, opts?: { force?: boolean }) {
+export async function generateStepsFromVideo(moduleId: string, s3Key?: string, opts?: { force?: boolean }) {
   // Add timeout wrapper to prevent hanging
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => reject(new Error('Processing timeout after 2 minutes')), 2 * 60 * 1000)

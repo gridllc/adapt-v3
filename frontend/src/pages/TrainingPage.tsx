@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { useModuleVideoUrl } from '../hooks/useModuleVideoUrl'
-import { useModuleStatus } from '../hooks/useModuleStatus'
 import { api, API_ENDPOINTS } from '../config/api'
 import { AddStepForm } from '../components/AddStepForm'
 import { StepEditor } from '../components/StepEditor'
@@ -34,10 +32,31 @@ export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
   const [searchParams] = useSearchParams()
   const isProcessing = searchParams.get('processing') === 'true'
-  const { url, loading, error } = useModuleVideoUrl(moduleId)
-  
-  // Use module status hook for processing state - ensure moduleId is always defined
-  const { status, loading: statusLoading, error: statusError, stuckAtZero, timeoutReached } = useModuleStatus(moduleId || '', isProcessing)
+  // Video URL by module ID
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!moduleId) return
+    fetch(`/api/video-url/module/${moduleId}`)
+      .then(r => r.json())
+      .then(d => setVideoUrl(d.url))
+      .catch(e => console.error('Video URL fetch failed', e))
+  }, [moduleId])
+
+  // Module status polling
+  const [status, setStatus] = useState<any>(null)
+  useEffect(() => {
+    if (!moduleId) return
+    const interval = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/modules/${moduleId}`)
+        const data = await r.json()
+        setStatus(data.module)
+      } catch (e) {
+        console.error('Status fetch failed', e)
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [moduleId])
   
   const videoRef = useRef<HTMLVideoElement>(null)
   const chatHistoryRef = useRef<HTMLDivElement>(null)
@@ -501,13 +520,13 @@ Just ask me anything about the training!`
   })
 
   // Show processing screen if module is still being processed
-  if (isProcessing && (statusLoading || (status && status.status === 'processing'))) {
+  if (isProcessing && (!status || status.status === 'processing')) {
     return (
       <ProcessingScreen 
         progress={status?.progress || 0} 
         message={status?.message}
-        stuckAtZero={stuckAtZero}
-        timeoutReached={timeoutReached}
+        stuckAtZero={false}
+        timeoutReached={false}
       />
     )
   }
@@ -587,7 +606,7 @@ Just ask me anything about the training!`
               onPlay={handleVideoPlay}
               onPause={handleVideoPause}
             >
-              <source src={url} type="video/mp4" />
+              <source src={videoUrl} type="video/mp4" />
               Your browser does not support the video tag.
             </video>
           ) : (
