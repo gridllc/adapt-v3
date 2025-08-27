@@ -1,18 +1,13 @@
 import { ModuleService } from '../moduleService.js'
-import { storageService } from '../storageService.js'
+import * as storageService from '../storageService.js'
 import { audioProcessor } from './audioProcessor.js'
 import { transcribeAudio } from './transcriber.js'
-import { stepSaver } from './stepSaver.js'
+import * as stepSaver from './stepSaver.js'
 import { generateVideoSteps } from './stepGenerator.js'
 import { prisma } from '../../config/database.js'
 import { log as logger } from '../../utils/logger.js'
 import { env } from '../../config/env.js'
-import { Redis } from '@upstash/redis'
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-})
+import { promises as fs } from 'fs'
 
 // Pipeline phases for tracking
 type Phase =
@@ -41,26 +36,15 @@ async function step(moduleId: string, phase: Phase, pct: number, fn: () => Promi
   return out
 }
 
-// Main robust pipeline with Redis locking
+// Main robust pipeline (QStash handles deduplication)
 export async function runPipeline(moduleId: string, s3Key: string) {
-  const lockKey = `lock:pipeline:${moduleId}`
-  const lock = crypto.randomUUID()
-
-  // 0) Acquire 15-min lock to prevent duplicate runs
-  const ok = await redis.set(lockKey, lock, { nx: true, ex: 15 * 60 })
-  if (!ok) {
-    const ttl = await redis.ttl(lockKey)
-    console.warn('[AIPipeline] duplicate run blocked', { moduleId, ttl })
-    await setStatus(moduleId, 'PROCESSING', 1, 'ALREADY_RUNNING')
-    return
-  }
+  console.info('[AIPipeline] ENTER', { moduleId, s3Key })
 
   try {
     await setStatus(moduleId, 'PROCESSING', 1, 'START')
 
     // 1) Verify S3 object exists
     await step(moduleId, 'VERIFY_S3', 5, async () => {
-      const { storageService } = await import('../storageService.js')
       const exists = await storageService.checkFileExists(s3Key)
       if (!exists) throw new Error('S3 object not found')
     })
@@ -70,8 +54,7 @@ export async function runPipeline(moduleId: string, s3Key: string) {
       const localMp4 = await storageService.downloadFromS3(s3Key, '/tmp')
       const wavPath = await audioProcessor.extract(localMp4)
       // Clean up temp MP4 file
-      const fs = await import('fs')
-      fs.unlinkSync(localMp4)
+      await fs.unlink(localMp4).catch(() => {})
       return wavPath
     })
 
@@ -121,9 +104,6 @@ export async function runPipeline(moduleId: string, s3Key: string) {
     console.error('[AIPipeline] FAILED', { moduleId, message: m, stack: err?.stack })
     await setStatus(moduleId, 'FAILED', 0, m.slice(0, 240))
     throw err
-  } finally {
-    // Always release lock
-    await redis.del(lockKey).catch(() => {})
   }
 }
 

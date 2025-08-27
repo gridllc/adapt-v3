@@ -31,6 +31,8 @@ import healthRoutes from './routes/healthRoutes.js'
 import { storageRoutes } from './routes/storageRoutes.js'
 import voiceRoutes from './routes/voiceRoutes.js'
 import healthDebugRoutes from './routes/healthDebugRoutes.js'
+import qstashPipelineRoutes from './routes/qstashPipeline.js'
+import pipelineDebugRoutes from './routes/pipelineDebug.js'
 
 // Import QStash queue to ensure it's initialized
 import './services/qstashQueue.js'
@@ -52,6 +54,9 @@ const NODE_ENV = env?.NODE_ENV || 'development'
 app.use(express.json({ limit: '5mb' }))
 app.use(express.urlencoded({ extended: true, limit: '5mb' }))
 app.set('trust proxy', 1)
+
+// Raw body parser for QStash signature verification (before JSON parser)
+app.use("/api/qstash", express.raw({ type: "*/*", limit: "25mb" }));
 
 // Environment validation
 const validateEnvironment = () => {
@@ -231,6 +236,8 @@ const configureRoutes = () => {
   // Public Routes (no authentication required)
   app.use('/api', healthRoutes)  // Mounts /api/health
   app.use('/api', healthDebugRoutes) // Mounts /api/health/full and /api/health/crash
+  app.use('/api/qstash', qstashPipelineRoutes) // QStash webhook handlers
+  app.use('/api', pipelineDebugRoutes) // Debug routes for testing pipeline
   app.use('/api/ai', aiRoutes)
   app.use('/api/video-url', videoRoutes)
   app.use('/api/feedback', feedbackRoutes)
@@ -372,6 +379,7 @@ app.use('/api/voice', voiceRoutes)
         '🚨 DEPLOYMENT STATUS': '/deployment-status',
         '🔍 FULL HEALTH CHECK': '/api/health/full',
         '💥 CRASH TEST': '/api/health/crash',
+        '🔧 DEBUG PIPELINE RUN': 'POST /api/pipeline/run',
         health: '/api/health',
         'diagnostic': '/diagnostic',
         'health/build': '/api/reprocess/health/build',
@@ -388,6 +396,7 @@ app.use('/api/voice', voiceRoutes)
         '✅ Upload a video to test the "Transcribe Now" feature',
         '✅ If issues: Check /api/health/full for detailed diagnostics',
         '✅ Test error handling: Visit /api/health/crash',
+        '✅ Debug pipeline: POST /api/pipeline/run with moduleId',
         '✅ Check /diagnostic endpoint for environment status',
         '✅ Use /api/reprocess/health/pipeline to verify AI components'
       ],

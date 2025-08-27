@@ -3,6 +3,7 @@ import { ModuleService } from '../services/moduleService.js'
 import { storageService } from '../services/storageService.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { enqueueProcessModule, processModuleDirectly, isEnabled } from '../services/qstashQueue.js'
+import { enqueuePipeline } from '../services/jobs/pipelineQueue.js'
 import { DatabaseService } from '../services/prismaService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
 import { v4 as uuidv4 } from 'uuid'
@@ -123,9 +124,13 @@ export const uploadController = {
 
       // 3) Kick off AI processing (don't block request)
       try {
-        // IMPORTANT: use the robust pipeline with Redis locking (don't let errors crash the response)
-        await aiPipeline.runPipeline(moduleId, key)
-        console.info('[AIPipeline] started', { moduleId })
+        if (process.env.QSTASH_ENABLED === "true") {
+          await enqueuePipeline(moduleId, key) // queue job (prod/staging)
+          console.info('[AIPipeline] enqueued to QStash', { moduleId })
+        } else {
+          setImmediate(() => aiPipeline.runPipeline(moduleId, key).catch(console.error)) // inline (dev/debug)
+          console.info('[AIPipeline] started inline', { moduleId })
+        }
       } catch (e: any) {
         console.error('[AIPipeline] failed to start', e?.message)
         // Don't crash the upload response - the pipeline will handle its own status updates

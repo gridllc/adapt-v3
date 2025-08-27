@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { requireAuth } from '../middleware/auth.js'
 import { stepsController } from '../controllers/stepsController.js'
+import { enqueuePipeline } from '../services/jobs/pipelineQueue.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -124,17 +125,23 @@ router.post('/generate/:moduleId', async (req, res) => {
       return res.status(202).json({ status: 'PROCESSING' }) // no second run
     }
     
-    const { runPipeline } = await import('../services/ai/aiPipeline.js')
     const module = mod.module
 
-    // Use the robust pipeline with Redis locking
-    setImmediate(async () => {
-      try {
-        await runPipeline(moduleId, module.s3Key)
-      } catch (e: any) {
-        console.error('manual gen fail', e)
-      }
-    })
+    // Use QStash toggle - queue for prod, inline for dev
+    if (process.env.QSTASH_ENABLED === "true") {
+      await enqueuePipeline(moduleId, module.s3Key) // queue job (prod/staging)
+      console.info('[AIPipeline] enqueued to QStash', { moduleId })
+    } else {
+      const { runPipeline } = await import('../services/ai/aiPipeline.js')
+      setImmediate(async () => {
+        try {
+          await runPipeline(moduleId, module.s3Key)
+        } catch (e: any) {
+          console.error('manual gen fail', e)
+        }
+      })
+      console.info('[AIPipeline] started inline', { moduleId })
+    }
     res.json({ ok: true, moduleId })
   } catch (error) {
     console.error('Error in generate steps:', error)

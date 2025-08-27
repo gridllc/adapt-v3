@@ -10,29 +10,31 @@ import { promisify } from 'node:util'
 
 const exec = promisify(execFile)
 
-// Use ffmpeg-static for better Render compatibility
-let ffmpegPath: string
-try {
-  ffmpegPath = require('ffmpeg-static')
-  console.log('[AudioProcessor] Using ffmpeg-static:', ffmpegPath)
-} catch (e) {
-  ffmpegPath = 'ffmpeg' // fallback to system ffmpeg
-  console.log('[AudioProcessor] ffmpeg-static not available, using system ffmpeg')
-}
+// ESM-safe import for ffmpeg-static
+import ffmpegStatic from 'ffmpeg-static'
+const ffmpegPath = ffmpegStatic || 'ffmpeg' // fallback if local dev has system ffmpeg
+console.log('[AudioProcessor] ffmpeg:', ffmpegPath)
 
 console.log('[AudioProcessor] ESM ready:', __filename)
 
 export const audioProcessor = {
   async extract(videoPath: string): Promise<string> {
     const wavPath = videoPath.replace(/\.mp4$/i, '.wav')
-    const args = ['-i', videoPath, '-vn', '-acodec', 'pcm_s16le', '-ar', '44100', '-ac', '2', wavPath]
+    const args = [
+      '-nostdin', '-y',              // no TTY; overwrite if exists
+      '-i', videoPath,
+      '-vn',
+      '-acodec', 'pcm_s16le',
+      '-ar', '44100',
+      '-ac', '2',
+      wavPath,
+    ]
     try {
-      console.log(`[AudioProcessor] Extracting audio: ${videoPath} -> ${wavPath}`)
-      await exec(ffmpegPath, args, { windowsHide: true })
-      console.log(`[AudioProcessor] Audio extraction complete: ${wavPath}`)
+      console.log(`[AudioProcessor] ${videoPath} → ${wavPath}`)
+      await exec(ffmpegPath as string, args, { windowsHide: true })
       return wavPath
     } catch (e: any) {
-      console.error(`[AudioProcessor] FFmpeg extraction failed:`, e)
+      console.error('[AudioProcessor] FFmpeg extraction failed', e?.message || e)
       throw new Error(`FFmpeg extraction failed: ${e?.stderr || e?.message || e}`)
     }
   },
