@@ -13,8 +13,8 @@ import { env } from '../../config/env.js'
  */
 export async function process(ctx: { moduleId: string; s3Key: string; title?: string; rid?: string }) {
   const { moduleId, s3Key, title } = ctx
-  const rid: string = ctx.rid || 'no-rid'
-  logger.info('[AIPipeline] start', { moduleId, rid })
+  const rid: string = ctx.rid ?? 'no-rid'
+  logger.info('[AIPipeline] start', { moduleId: moduleId, rid: rid })
 
   const mod = await prisma.module.findUnique({ where: { id: moduleId } })
   if (!mod) {
