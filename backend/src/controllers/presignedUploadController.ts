@@ -70,13 +70,16 @@ export const presignedUploadController = {
         moduleId
       )
       
-      log.info('Presigned URL generated successfully', { 
-        filename, 
+      log.info('Presigned URL generated successfully', {
+        filename,
         key: result.key,
         moduleId,
-        userId 
+        userId
       })
-      
+
+      // Required log line for upload tracking
+      console.info('[UPLOAD] presign', { moduleId, key: result.key })
+
       res.json({
         success: true,
         uploadUrl: result.uploadUrl,

@@ -7,7 +7,7 @@ import { DatabaseService } from '../services/prismaService.js'
 import { presignedUploadService } from '../services/presignedUploadService.js'
 import { v4 as uuidv4 } from 'uuid'
 import path from 'node:path'
-import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { HeadObjectCommand, CopyObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { prisma } from '../config/database.js'
 import { log as logger } from '../utils/logger.js'
 import * as aiPipeline from '../services/ai/aiPipeline.js'
@@ -48,84 +48,129 @@ async function queueOrInline(moduleId: string) {
   }
 }
 
+// Minimal helpers that keep the existing response contract
+const ok = (res: Response, extra: any = {}) => res.status(200).json({ success: true, ...extra })
+const fail = (res: Response, status: number, msg: string, extra: any = {}) =>
+  res.status(status).json({ success: false, error: msg, ...extra })
+
 export const uploadController = {
   async uploadComplete(req: any, res: any) {
-    const { moduleId, key } = req.body ?? {}
+    const { moduleId, key, filename, contentType, size, etag } = req.body ?? {}
 
+    // ---- Guard rails (no contract change) -------------------------------------
     if (!moduleId || !key) {
-      return res.status(400).json({ success: false, error: 'moduleId and key required' })
+      return fail(res, 400, 'Missing required fields: moduleId, key')
+    }
+    if (!process.env.AWS_BUCKET_NAME || !process.env.AWS_REGION) {
+      return fail(res, 500, 'Server not configured for S3 (AWS_BUCKET_NAME/AWS_REGION)')
     }
 
-    logger.info('[UPLOAD] complete', { moduleId, key })
+    const Bucket = process.env.AWS_BUCKET_NAME!
+    const Key = String(key)
 
-    // 1) Verify the object actually exists in S3 (prevents bogus completes)
-    try {
-      await s3.send(
-        new HeadObjectCommand({
-          Bucket: process.env.AWS_BUCKET_NAME!,
-          Key: key,
-        }),
-      )
-    } catch (_e) {
-      logger.warn('[UPLOAD] complete: S3 object not found for key', { key, moduleId })
-      return res.status(404).json({ success: false, error: 'S3 object not found' })
-    }
+    // ---- Observability: 3 high-signal lines requested -------------------
+    console.info('[UPLOAD] complete', { moduleId, key: Key, filename, size, etag, contentType })
 
-    // 2) Upsert the Module row so it DEFINITELY exists before pipeline
-    const title = baseTitle(key)
-    let saved
     try {
-      saved = await prisma.module.upsert({
-        where: { id: moduleId },
-        update: {
-          s3Key: key,
-          status: 'PROCESSING',
-          progress: 0,
-          updatedAt: new Date(),
-          title, // keep title in sync with filename on re-uploads
-        },
-        create: {
-          id: moduleId,
-          s3Key: key,
-          status: 'PROCESSING',
-          progress: 0,
-          title,
-          filename: title + '.mp4',
-          videoUrl: `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${key}`,
-        },
-      })
-    } catch (e: any) {
-      logger.error('[UPLOAD] complete: upsert failed', { moduleId, key, error: e?.message })
-      return res.status(500).json({ success: false, error: 'DB upsert failed' })
-    }
+      // 1) Verify object is really in S3 and check ContentType
+      const head = await s3.send(new HeadObjectCommand({ Bucket, Key }))
+      const s3Type = head.ContentType || null
+      const finalType = contentType || s3Type || 'video/mp4'
 
-    // 3) Double-check persistence (belt-and-suspenders against race/connection issues)
-    try {
-      const check = await prisma.module.findUnique({ where: { id: moduleId } })
-      if (!check) {
-        logger.error('[UPLOAD] upsert verification failed - module missing after upsert', { moduleId })
-        return res.status(500).json({ success: false, error: 'Module not persisted' })
+      // Android fix: ensure correct ContentType for playback
+      if (s3Type !== finalType) {
+        await s3.send(
+          new CopyObjectCommand({
+            Bucket,
+            Key,
+            CopySource: `/${Bucket}/${encodeURIComponent(Key)}`,
+            MetadataDirective: 'REPLACE',
+            ContentType: finalType,
+            Metadata: head.Metadata,
+            ACL: 'private',
+          })
+        )
+        console.info('[UploadComplete] ContentType normalized', { from: s3Type, to: finalType })
       }
-    } catch (e: any) {
-      logger.error('[UPLOAD] verification query failed', { moduleId, error: e?.message })
-      return res.status(500).json({ success: false, error: 'Verification failed' })
-    }
 
-    // 4) Kick off AI processing (don't block request)
-    try {
-      // Pass context so pipeline doesn't need to refetch immediately
-      queueMicrotask(() =>
-        startProcessing(moduleId).catch((err: any) => {
-          logger.error('[AIPipeline] process error (background)', { moduleId, error: err?.message })
-        }),
-      )
-    } catch (e: any) {
-      // Even if the background launch fails, the upload is complete; return 200 to the client
-      logger.error('[UPLOAD] failed to start pipeline', { moduleId, error: e?.message })
-    }
+      // Validate ContentType is video for Android playback
+      if (!finalType.startsWith('video/')) {
+        return fail(res, 400, 'Invalid content type - must be video file')
+      }
 
-    // 5) Success response
-    return res.json({ success: true, moduleId })
+      // 2) Ensure Module exists – improved error handling
+      const title = filename || baseTitle(key)
+      try {
+        await prisma.module.upsert({
+          where: { id: moduleId },
+          update: {
+            s3Key: key,
+            status: 'PROCESSING',
+            progress: 0,
+            updatedAt: new Date(),
+            title,
+          },
+          create: {
+            id: moduleId,
+            s3Key: key,
+            status: 'PROCESSING',
+            progress: 0,
+            title,
+            filename: filename || title + '.mp4',
+            videoUrl: `https://${Bucket}.s3.amazonaws.com/${key}`,
+          },
+        })
+      } catch (e: any) {
+        logger.error('[UPLOAD] complete: upsert failed', {
+          moduleId,
+          key: Key,
+          error: e?.message,
+          code: e?.code
+        })
+        return fail(res, 500, 'Database error during module creation/update')
+      }
+
+      // 3) Kick off AI processing (don't block request)
+      try {
+        // Pass context so pipeline doesn't need to refetch immediately
+        queueMicrotask(() =>
+          startProcessing(moduleId).catch((err: any) => {
+            logger.error('[PIPELINE] start error (background)', { moduleId, error: err?.message })
+          })
+        )
+        console.info('[PIPELINE] start', { moduleId })
+      } catch (e: any) {
+        // Even if the background launch fails, the upload is complete; return 200 to the client
+        logger.error('[UPLOAD] failed to start pipeline', { moduleId, error: e?.message })
+      }
+
+      console.info('[UPLOAD] complete OK', {
+        moduleId,
+        key: Key,
+        size: head.ContentLength ?? size ?? null,
+        type: finalType,
+      })
+      return ok(res, { moduleId })
+    } catch (err: any) {
+      const metaCode = err?.$metadata?.httpStatusCode
+      console.error('[UPLOAD] complete ERROR', {
+        moduleId,
+        key: Key,
+        name: err?.name,
+        message: err?.message,
+        code: metaCode || err?.code,
+        bucket: Bucket,
+      })
+
+      if (err?.name === 'NotFound' || metaCode === 404) {
+        return fail(res, 404, 'S3 object not found (check key/prefix and region)')
+      }
+      if (err?.name === 'AccessDenied' || metaCode === 403) {
+        return fail(res, 403, 'S3 access denied (bucket policy/CORS/credentials)')
+      }
+      // Prisma/database issues often surface here; we still keep the contract
+      return fail(res, 500, 'Upload complete failed – see server logs for details')
+    }
   },
 
   async uploadVideo(req: Request, res: Response) {
