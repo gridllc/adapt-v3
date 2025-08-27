@@ -10,6 +10,16 @@ import { promisify } from 'node:util'
 
 const exec = promisify(execFile)
 
+// Use ffmpeg-static for better Render compatibility
+let ffmpegPath: string
+try {
+  ffmpegPath = require('ffmpeg-static')
+  console.log('[AudioProcessor] Using ffmpeg-static:', ffmpegPath)
+} catch (e) {
+  ffmpegPath = 'ffmpeg' // fallback to system ffmpeg
+  console.log('[AudioProcessor] ffmpeg-static not available, using system ffmpeg')
+}
+
 console.log('[AudioProcessor] ESM ready:', __filename)
 
 export const audioProcessor = {
@@ -17,9 +27,12 @@ export const audioProcessor = {
     const wavPath = videoPath.replace(/\.mp4$/i, '.wav')
     const args = ['-i', videoPath, '-vn', '-acodec', 'pcm_s16le', '-ar', '44100', '-ac', '2', wavPath]
     try {
-      await exec('ffmpeg', args, { windowsHide: true })
+      console.log(`[AudioProcessor] Extracting audio: ${videoPath} -> ${wavPath}`)
+      await exec(ffmpegPath, args, { windowsHide: true })
+      console.log(`[AudioProcessor] Audio extraction complete: ${wavPath}`)
       return wavPath
     } catch (e: any) {
+      console.error(`[AudioProcessor] FFmpeg extraction failed:`, e)
       throw new Error(`FFmpeg extraction failed: ${e?.stderr || e?.message || e}`)
     }
   },

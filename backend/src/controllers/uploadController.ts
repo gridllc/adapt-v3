@@ -123,11 +123,12 @@ export const uploadController = {
 
       // 3) Kick off AI processing (don't block request)
       try {
-        // IMPORTANT: enqueue the pipeline (don't let errors crash the response)
-        await aiPipeline.process({ moduleId, s3Key: key, title, rid })
+        // IMPORTANT: use the robust pipeline with Redis locking (don't let errors crash the response)
+        await aiPipeline.runPipeline(moduleId, key)
         console.info('[AIPipeline] started', { moduleId })
       } catch (e: any) {
         console.error('[AIPipeline] failed to start', e?.message)
+        // Don't crash the upload response - the pipeline will handle its own status updates
       }
 
       console.info('[UploadComplete] OK', {

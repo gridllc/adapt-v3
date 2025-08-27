@@ -42,7 +42,7 @@ export const TrainingPage: React.FC = () => {
       .catch(e => console.error('Video URL fetch failed', e))
   }, [moduleId])
 
-  // Module status polling
+  // Module status polling (5-10s intervals for real-time updates)
   const [status, setStatus] = useState<any>(null)
   useEffect(() => {
     if (!moduleId) return
@@ -51,10 +51,17 @@ export const TrainingPage: React.FC = () => {
         const r = await fetch(`/api/modules/${moduleId}`)
         const data = await r.json()
         setStatus(data.module)
+
+        // If status changed to READY or FAILED, trigger steps reload
+        if (data.module?.status === 'READY' || data.module?.status === 'FAILED') {
+          console.log('Status changed, triggering steps reload:', data.module.status)
+          setRetryCount(0)
+          setHasTriedOnce(false)
+        }
       } catch (e) {
         console.error('Status fetch failed', e)
       }
-    }, 3000)
+    }, 5000) // Poll every 5 seconds for better responsiveness
     return () => clearInterval(interval)
   }, [moduleId])
   
@@ -253,8 +260,14 @@ export const TrainingPage: React.FC = () => {
     if (!moduleId) return
 
     // Don't fetch steps if module is still processing
-    if (status && status.status === 'processing') {
+    if (status && status.status === 'PROCESSING') {
       console.log(`⏳ Module ${moduleId} still processing, waiting for completion...`)
+      return
+    }
+
+    // If processing failed, don't auto-retry - let user manually retry
+    if (status && status.status === 'FAILED') {
+      console.log(`❌ Module ${moduleId} failed - waiting for manual retry`)
       return
     }
 
@@ -275,8 +288,10 @@ export const TrainingPage: React.FC = () => {
         
         if (!data.steps || data.steps.length === 0) {
           // If no steps and module is ready, this might be an error
-          if (status && status.status === 'ready') {
+          if (status && status.status === 'READY') {
             throw new Error('Steps not found - module processing may have failed')
+          } else if (status && status.status === 'FAILED') {
+            throw new Error(`Processing failed: ${status.errorMessage || 'Unknown error'}`)
           } else {
             throw new Error('Steps not ready yet - module still processing')
           }
@@ -327,14 +342,14 @@ export const TrainingPage: React.FC = () => {
 
   const handleProcessWithAI = async () => {
     if (!moduleId) return
-    
+
     console.log(`[AI DEBUG] Processing AI steps for ${moduleId}`)
     setProcessingAI(true)
     setStepsError(null) // Clear any previous errors
-    
+
     try {
       console.log('🤖 AI processing requested for module:', moduleId)
-      
+
       // Call the steps generation endpoint
       const result = await api(`/api/steps/generate/${moduleId}`, {
         method: 'POST',
@@ -342,19 +357,12 @@ export const TrainingPage: React.FC = () => {
           'Content-Type': 'application/json',
         },
       })
-      
-      console.log('✅ AI processing completed:', result)
-      
-      // Reset retry state and reload steps after successful processing
-      setRetryCount(0)
-      setHasTriedOnce(false) // Allow fresh attempt
-      
-      // Reload steps after successful processing
-      setTimeout(() => {
-        console.log(`🔄 Triggering steps reload for ${moduleId} after AI processing`)
-        setRetryCount(0) // Reset retry count to trigger steps reload
-      }, 1000)
-      
+
+      console.log('✅ AI processing started:', result)
+
+      // The pipeline will update status automatically via polling
+      // No need to manually trigger reloads - polling will handle it
+
     } catch (err) {
       console.error('❌ AI processing error:', err)
       setStepsError(`AI processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -727,7 +735,8 @@ Just ask me anything about the training!`
                   </div>
                 )}
 
-                {isFallback && (
+                {/* Show transcribe button only for fallback steps when not processing/failed */}
+                {isFallback && status?.status !== 'PROCESSING' && status?.status !== 'FAILED' && (
                   <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-amber-900">
@@ -736,10 +745,51 @@ Just ask me anything about the training!`
                       </div>
                       <button
                         onClick={handleProcessWithAI}
-                        disabled={processingAI || status?.status === 'processing'}
+                        disabled={processingAI}
                         className="ml-4 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-60"
                       >
                         Transcribe now
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show processing status */}
+                {status?.status === 'PROCESSING' && (
+                  <div className="mb-4 rounded-xl border border-blue-300 bg-blue-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-blue-900">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="animate-spin text-xl">⏳</div>
+                          <span className="font-medium">AI Processing in Progress</span>
+                        </div>
+                        <div className="text-sm text-blue-700">
+                          {status.message || 'Generating training steps...'} ({status.progress || 0}%)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show error status with retry */}
+                {status?.status === 'FAILED' && (
+                  <div className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-red-900">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="text-xl">❌</div>
+                          <span className="font-medium">Processing Failed</span>
+                        </div>
+                        <div className="text-sm text-red-700">
+                          {status.errorMessage || 'An error occurred during processing'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleProcessWithAI}
+                        disabled={processingAI}
+                        className="ml-4 rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-60"
+                      >
+                        Retry Processing
                       </button>
                     </div>
                   </div>

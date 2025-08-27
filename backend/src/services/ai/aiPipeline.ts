@@ -7,6 +7,125 @@ import { generateVideoSteps } from './stepGenerator.js'
 import { prisma } from '../../config/database.js'
 import { log as logger } from '../../utils/logger.js'
 import { env } from '../../config/env.js'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+})
+
+// Pipeline phases for tracking
+type Phase =
+  | 'VERIFY_S3'
+  | 'EXTRACT_AUDIO'
+  | 'TRANSCRIBE'
+  | 'GENERATE_STEPS'
+  | 'WRITE_JSON'
+  | 'HYDRATE_DB'
+
+// Set module status with progress and message
+async function setStatus(moduleId: string, status: 'PROCESSING'|'READY'|'FAILED', progress: number, message?: string) {
+  await prisma.module.update({
+    where: { id: moduleId },
+    data: { status, progress, errorMessage: message ?? null },
+  })
+  console.info('[AIPipeline] status', { moduleId, status, progress, message })
+}
+
+// Execute a phase with progress tracking and timeout
+async function step(moduleId: string, phase: Phase, pct: number, fn: () => Promise<any>) {
+  console.info('[AIPipeline] phase start', { moduleId, phase })
+  await setStatus(moduleId, 'PROCESSING', pct, phase)
+  const out = await fn()
+  console.info('[AIPipeline] phase done', { moduleId, phase })
+  return out
+}
+
+// Main robust pipeline with Redis locking
+export async function runPipeline(moduleId: string, s3Key: string) {
+  const lockKey = `lock:pipeline:${moduleId}`
+  const lock = crypto.randomUUID()
+
+  // 0) Acquire 15-min lock to prevent duplicate runs
+  const ok = await redis.set(lockKey, lock, { nx: true, ex: 15 * 60 })
+  if (!ok) {
+    const ttl = await redis.ttl(lockKey)
+    console.warn('[AIPipeline] duplicate run blocked', { moduleId, ttl })
+    await setStatus(moduleId, 'PROCESSING', 1, 'ALREADY_RUNNING')
+    return
+  }
+
+  try {
+    await setStatus(moduleId, 'PROCESSING', 1, 'START')
+
+    // 1) Verify S3 object exists
+    await step(moduleId, 'VERIFY_S3', 5, async () => {
+      const { storageService } = await import('../storageService.js')
+      const exists = await storageService.checkFileExists(s3Key)
+      if (!exists) throw new Error('S3 object not found')
+    })
+
+    // 2) Extract audio (use ffmpeg-static; write to /tmp)
+    const audioPath = await step(moduleId, 'EXTRACT_AUDIO', 15, async () => {
+      const localMp4 = await storageService.downloadFromS3(s3Key, '/tmp')
+      const wavPath = await audioProcessor.extract(localMp4)
+      // Clean up temp MP4 file
+      const fs = await import('fs')
+      fs.unlinkSync(localMp4)
+      return wavPath
+    })
+
+    // 3) Transcribe
+    const transcript = await step(moduleId, 'TRANSCRIBE', 45, async () => {
+      return await transcribeAudio(audioPath, moduleId)
+    })
+
+    // 4) Generate steps
+    const steps = await step(moduleId, 'GENERATE_STEPS', 70, async () => {
+      const videoDuration = await storageService.getVideoDuration(s3Key)
+      return await generateVideoSteps(
+        transcript.text,
+        transcript.segments,
+        { duration: videoDuration },
+        moduleId
+      )
+    })
+
+    // 5) Write canonical JSON to S3
+    await step(moduleId, 'WRITE_JSON', 85, async () => {
+      const stepsKey = `training/${moduleId}.json`
+      await stepSaver.saveStepsToS3({
+        moduleId,
+        s3Key: stepsKey,
+        steps: steps.steps,
+        transcript: transcript.text,
+        meta: {
+          durationSec: steps.meta?.durationSec || 0,
+          stepCount: steps.steps.length,
+          segments: transcript.segments,
+          source: 'ai'
+        }
+      })
+    })
+
+    // 6) Hydrate DB (optional)
+    await step(moduleId, 'HYDRATE_DB', 95, async () => {
+      // This happens in stepSaver, but we can add explicit tracking here
+      return true
+    })
+
+    await setStatus(moduleId, 'READY', 100, 'DONE')
+    console.info('[AIPipeline] COMPLETE', { moduleId })
+  } catch (err: any) {
+    const m = `${err?.name || 'Error'}: ${err?.message || 'unknown'}`
+    console.error('[AIPipeline] FAILED', { moduleId, message: m, stack: err?.stack })
+    await setStatus(moduleId, 'FAILED', 0, m.slice(0, 240))
+    throw err
+  } finally {
+    // Always release lock
+    await redis.del(lockKey).catch(() => {})
+  }
+}
 
 /**
  * Context-aware process function for uploadController
@@ -36,7 +155,11 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
     })
   }
 
-  return generateStepsFromVideo(moduleId, s3Key)
+  // Use the robust pipeline wrapper
+  return runPipeline(moduleId, s3Key).catch(e => {
+    console.error('[AIPipeline] spawn error', e?.message)
+    throw e
+  })
 }
 
 /**

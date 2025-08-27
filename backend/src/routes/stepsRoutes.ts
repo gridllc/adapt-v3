@@ -124,8 +124,17 @@ router.post('/generate/:moduleId', async (req, res) => {
       return res.status(202).json({ status: 'PROCESSING' }) // no second run
     }
     
-    const { startProcessing } = await import('../services/ai/aiPipeline.js')
-    setImmediate(() => startProcessing(moduleId).catch((e: any) => console.error('manual gen fail', e)))
+    const { runPipeline } = await import('../services/ai/aiPipeline.js')
+    const module = mod.module
+
+    // Use the robust pipeline with Redis locking
+    setImmediate(async () => {
+      try {
+        await runPipeline(moduleId, module.s3Key)
+      } catch (e: any) {
+        console.error('manual gen fail', e)
+      }
+    })
     res.json({ ok: true, moduleId })
   } catch (error) {
     console.error('Error in generate steps:', error)
