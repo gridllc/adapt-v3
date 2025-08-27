@@ -33,16 +33,31 @@ export function useModuleStatus(moduleId: string, enabled = true) {
       try {
         console.log(`🔍 Checking status for module: ${moduleId}`)
         
-        // Get module status from the status endpoint
-        const data = await api(`/api/status/${moduleId}`)
-        console.log(`📊 Module status from status endpoint:`, data)
+        // Get module from the modules endpoint (fixes 404 errors)
+        const response = await api(`/api/modules/${moduleId}`)
+        console.log(`📊 Module response:`, response)
         
-        setStatus(data)
+        if (!response.success || !response.module) {
+          throw new Error(response.error || 'Module not found')
+        }
+        
+        const module = response.module
+        const statusData: ModuleStatus = {
+          status: module.status || 'processing',
+          progress: module.progress || 0,
+          message: module.message,
+          steps: module.steps,
+          title: module.title,
+          description: module.description,
+          error: module.error
+        }
+        
+        setStatus(statusData)
         setLoading(false)
         setError(null)
 
         // Track progress for stuck detection
-        const currentProgress = data.progress || 0
+        const currentProgress = statusData.progress || 0
         if (currentProgress === 0 && lastProgress === 0) {
           if (!stuckStartTime) {
             setStuckStartTime(Date.now())
@@ -60,8 +75,8 @@ export function useModuleStatus(moduleId: string, enabled = true) {
         setLastProgress(currentProgress)
 
         // Stop polling when ready, complete, or failed
-        if (data.status === 'ready' || data.status === 'failed' || data.status === 'complete' || data.status === 'error') {
-          console.log(`✅ Module ${moduleId} processing complete: ${data.status}`)
+        if (statusData.status === 'ready' || statusData.status === 'failed' || statusData.status === 'complete' || statusData.status === 'error') {
+          console.log(`✅ Module ${moduleId} processing complete: ${statusData.status}`)
           clearInterval(interval)
           if (stuckTimeout) clearTimeout(stuckTimeout)
           if (timeoutTimer) clearTimeout(timeoutTimer)

@@ -55,6 +55,7 @@ export const uploadController = {
       }
 
       // Create/update module on complete (avoid orphans)
+      let savedModule
       try {
         const title = key.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Untitled'
         const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${key}`
@@ -77,6 +78,18 @@ export const uploadController = {
           })
           console.log(`✅ Module created: ${moduleId}`)
         }
+
+        // VERIFY MODULE EXISTS before proceeding
+        const { prisma } = await import('../config/database.js')
+        savedModule = await prisma.module.findUnique({ where: { id: moduleId } })
+        if (!savedModule) {
+          console.error(`❌ [UPLOAD] Module verification failed - not found after upsert: ${moduleId}`)
+          return res.status(500).json({ 
+            success: false, 
+            error: 'Module not persisted after creation' 
+          })
+        }
+        console.log(`✅ [UPLOAD] Module verified in database: ${moduleId}`)
       } catch (moduleError) {
         console.error(`❌ Failed to create/update module: ${moduleId}:`, moduleError)
         return res.status(500).json({ 

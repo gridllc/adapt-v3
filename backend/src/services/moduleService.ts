@@ -235,16 +235,46 @@ export class ModuleService {
         }
       }
 
-      // Update module status directly with Prisma
-      await prisma.module.update({
-        where: { id: moduleId },
-        data: { 
-          status: status as any, 
-          progress, 
-          lastError: null,
-          updatedAt: new Date()
+      // Update module status with P2025 fallback
+      try {
+        await prisma.module.update({
+          where: { id: moduleId },
+          data: { 
+            status: status as any, 
+            progress, 
+            lastError: null,
+            updatedAt: new Date()
+          }
+        })
+      } catch (updateError: any) {
+        if (updateError.code === 'P2025') {
+          // Module was deleted during processing, create it with fallback
+          console.warn(`⚠️ [ModuleService] Module ${moduleId} missing during update, creating with fallback`)
+          await prisma.module.upsert({
+            where: { id: moduleId },
+            update: { 
+              status: status as any, 
+              progress, 
+              lastError: null,
+              updatedAt: new Date()
+            },
+            create: { 
+              id: moduleId, 
+              status: status as any, 
+              title: 'Recovered Module',
+              progress,
+              filename: 'unknown.mp4',
+              videoUrl: '',
+              s3Key: '',
+              stepsKey: `training/${moduleId}.json`,
+              updatedAt: new Date()
+            }
+          })
+          console.log(`✅ [ModuleService] Module ${moduleId} recovered with fallback data`)
+        } else {
+          throw updateError
         }
-      })
+      }
 
       // If status is READY, check if it has steps
       if (status === 'READY') {

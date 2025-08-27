@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
 import { getSignedS3Url } from '../services/storageService.js'
 import { videoController } from '../controllers/videoController.js'
+import { prisma } from '../config/database.js'
 
 const router = express.Router()
 
@@ -17,7 +18,25 @@ router.options('/:filename', (req: Request, res: Response) => {
   res.status(200).end()
 })
 
-// Get signed URL for video (API endpoint)
+// Get signed URL for video by module ID (NEW - fixes the 404 errors)
+router.get('/module/:moduleId', async (req: Request, res: Response) => {
+  try {
+    const { moduleId } = req.params
+    const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+    
+    if (!mod || !mod.s3Key) {
+      return res.status(404).json({ error: 'Module or key not found' })
+    }
+    
+    const url = await getSignedS3Url(mod.s3Key) // Use the exact saved key
+    res.json({ url })
+  } catch (error: any) {
+    console.error('Module video URL error:', error)
+    res.status(500).json({ error: 'Video URL generation failed' })
+  }
+})
+
+// Get signed URL for video (API endpoint) - LEGACY
 router.get('/url/:filename', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { filename } = paramSchema.parse(req.params)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
-import { useSignedVideoUrl } from '../hooks/useSignedVideoUrl'
+import { useModuleVideoUrl } from '../hooks/useModuleVideoUrl'
 import { useModuleStatus } from '../hooks/useModuleStatus'
 import { api, API_ENDPOINTS } from '../config/api'
 import { AddStepForm } from '../components/AddStepForm'
@@ -34,8 +34,7 @@ export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
   const [searchParams] = useSearchParams()
   const isProcessing = searchParams.get('processing') === 'true'
-  const filename = moduleId ? `${moduleId}.mp4` : undefined
-  const { url, loading, error } = useSignedVideoUrl(filename)
+  const { url, loading, error } = useModuleVideoUrl(moduleId)
   
   // Use module status hook for processing state - ensure moduleId is always defined
   const { status, loading: statusLoading, error: statusError, stuckAtZero, timeoutReached } = useModuleStatus(moduleId || '', isProcessing)

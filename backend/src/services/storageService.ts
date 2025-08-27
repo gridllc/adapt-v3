@@ -1,11 +1,9 @@
 // backend/src/services/storageService.ts
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { PrismaClient } from '@prisma/client'
 import { v4 as uuidv4 } from 'uuid'
 import { uploadToS3, getPresignedUrl } from './s3Uploader.js'
-
-const prisma = new PrismaClient()
+import { prisma } from '../config/database.js'
 
 // Initialize S3 client only if AWS credentials are available
 let s3Client: S3Client | null = null

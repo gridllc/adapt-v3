@@ -37,7 +37,8 @@ export const API_ENDPOINTS = {
   MODULES: '/api/modules',
   UPLOAD: '/api/upload',
   STEPS: (moduleId: string) => `/api/steps/${moduleId}`,
-  VIDEO_URL: (filename: string) => `/api/video-url/url/${filename}`,
+  VIDEO_URL: (filename: string) => `/api/video-url/url/${filename}`, // LEGACY
+  VIDEO_URL_BY_MODULE: (moduleId: string) => `/api/video-url/module/${moduleId}`, // NEW
   FEEDBACK_STATS: '/api/feedback/stats',
   AI_CONTEXTUAL_RESPONSE: '/api/ai/contextual-response',
   HEALTH: '/api/health',
