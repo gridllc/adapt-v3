@@ -15,7 +15,7 @@ router.post('/pipeline/run', async (req, res) => {
 
   await prisma.module.update({
     where: { id: moduleId },
-    data: { status: 'PROCESSING', progress: 1, errorMessage: null }
+    data: { status: 'PROCESSING', progress: 1, lastError: null }
   })
 
   setImmediate(() => runPipeline(moduleId, mod.s3Key!).catch(console.error))

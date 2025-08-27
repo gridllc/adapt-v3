@@ -781,7 +781,7 @@ Just ask me anything about the training!`
                           <span className="font-medium">Processing Failed</span>
                         </div>
                         <div className="text-sm text-red-700">
-                          {status.errorMessage || 'An error occurred during processing'}
+                          {status.lastError || 'An error occurred during processing'}
                         </div>
                       </div>
                       <button

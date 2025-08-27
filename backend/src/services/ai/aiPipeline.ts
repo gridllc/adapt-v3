@@ -22,7 +22,7 @@ type Phase =
 async function setStatus(moduleId: string, status: 'PROCESSING'|'READY'|'FAILED', progress: number, message?: string) {
   await prisma.module.update({
     where: { id: moduleId },
-    data: { status, progress, errorMessage: message ?? null },
+    data: { status, progress, lastError: message ?? null },
   })
   console.info('[AIPipeline] status', { moduleId, status, progress, message })
 }
@@ -39,19 +39,25 @@ async function step(moduleId: string, phase: Phase, pct: number, fn: () => Promi
 // Main robust pipeline (QStash handles deduplication)
 export async function runPipeline(moduleId: string, s3Key: string) {
   console.info('[AIPipeline] ENTER', { moduleId, s3Key })
+  const rid: string = 'pipeline-' + moduleId
 
   try {
     await setStatus(moduleId, 'PROCESSING', 1, 'START')
 
     // 1) Verify S3 object exists
     await step(moduleId, 'VERIFY_S3', 5, async () => {
-      const exists = await storageService.checkFileExists(s3Key)
-      if (!exists) throw new Error('S3 object not found')
+      await storageService.headObject(s3Key)
     })
 
     // 2) Extract audio (use ffmpeg-static; write to /tmp)
     const audioPath = await step(moduleId, 'EXTRACT_AUDIO', 15, async () => {
-      const localMp4 = await storageService.downloadFromS3(s3Key, '/tmp')
+      // Download MP4 from S3 to temp directory
+      const signedUrl = await storageService.generateSignedUrl(s3Key, 3600)
+      const response = await fetch(signedUrl)
+      const buffer = await response.arrayBuffer()
+      const localMp4 = `/tmp/${moduleId}.mp4`
+      await fs.writeFile(localMp4, Buffer.from(buffer))
+
       const wavPath = await audioProcessor.extract(localMp4)
       // Clean up temp MP4 file
       await fs.unlink(localMp4).catch(() => {})
@@ -65,11 +71,13 @@ export async function runPipeline(moduleId: string, s3Key: string) {
 
     // 4) Generate steps
     const steps = await step(moduleId, 'GENERATE_STEPS', 70, async () => {
-      const videoDuration = await storageService.getVideoDuration(s3Key)
+      // Use transcript duration as fallback since we don't have getVideoDuration
+      const durationSec = transcript.segments?.length ?
+        transcript.segments[transcript.segments.length - 1].end : 60
       return await generateVideoSteps(
         transcript.text,
         transcript.segments,
-        { duration: videoDuration },
+        { duration: durationSec },
         moduleId
       )
     })
@@ -143,120 +151,23 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
 }
 
 /**
- * Unified entry point (matches qstashQueue import).
+ * Legacy entry points for backward compatibility
+ * These will be removed once all callers are updated to use runPipeline directly
  */
 export async function startProcessing(moduleId: string, opts?: { force?: boolean }) {
-  return generateStepsFromVideo(moduleId, undefined, opts)
+  console.warn('[AIPipeline] startProcessing is deprecated, use runPipeline directly')
+  // Get module to find s3Key
+  const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+  if (!mod?.s3Key) throw new Error(`Module ${moduleId} not found or missing s3Key`)
+  return runPipeline(moduleId, mod.s3Key)
 }
 
 export async function generateStepsFromVideo(moduleId: string, s3Key?: string, opts?: { force?: boolean }) {
-  // Add timeout wrapper to prevent hanging
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Processing timeout after 2 minutes')), 2 * 60 * 1000)
-  })
-
-  try {
-    const result = await Promise.race([
-      generateStepsFromVideoInternal(moduleId, opts),
-      timeoutPromise
-    ])
-    return result
-  } catch (error) {
-    console.error(`❌ [AIPipeline] Module ${moduleId} processing failed with timeout/error:`, error)
-    await ModuleService.markFailed(moduleId, String(error instanceof Error ? error.message : error))
-    throw error
+  console.warn('[AIPipeline] generateStepsFromVideo is deprecated, use runPipeline directly')
+  if (!s3Key) {
+    const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!mod?.s3Key) throw new Error(`Module ${moduleId} not found or missing s3Key`)
+    s3Key = mod.s3Key
   }
-}
-
-async function generateStepsFromVideoInternal(moduleId: string, opts?: { force?: boolean }) {
-  const mod = await ModuleService.getModuleById(moduleId)
-  if (!mod.success || !mod.module) throw new Error(`Module ${moduleId} not found`)
-
-  // Ensure keys exist
-  if (!mod.module.s3Key || !mod.module.stepsKey) {
-    throw new Error(`Module ${moduleId} missing s3Key/stepsKey`)
-  }
-
-  // If already ready and not forcing, bail
-  if (!opts?.force && mod.module.status === "READY") return { ok: true, skipped: true }
-
-  // If already processing and not forcing, skip (don't throw)
-  if (!opts?.force && mod.module.status === "PROCESSING") {
-    console.log(`⏳ [AIPipeline] Module ${moduleId} already PROCESSING; skipping duplicate trigger.`)
-    return { ok: true, skipped: true, reason: 'Already processing' }
-  }
-
-  // Try to acquire processing lock (atomic status flip)
-  console.log(`🔒 [AIPipeline] Attempting to acquire processing lock for module: ${moduleId}`)
-  const gotLock = await ModuleService.tryLockForProcessing(moduleId)
-  if (!gotLock) {
-    console.log(`🔒 [AIPipeline] Processing lock not acquired for module: ${moduleId} - another worker is processing`)
-    return { ok: true, skipped: true, reason: 'Already being processed' }
-  }
-
-  console.log(`🔒 [AIPipeline] Processing lock acquired for module: ${moduleId} - starting work`)
-
-  try {
-    // 1) Download MP4 from S3 to temp
-    console.info('[AIPipeline] S3 HeadObject start', { moduleId: moduleId, rid: rid, s3Key: mod.module.s3Key })
-    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 20, "Downloading video...")
-    const { videoDownloader } = await import('./videoDownloader.js')
-    const localMp4 = await videoDownloader.fromS3(mod.module.s3Key)
-    console.info('[AIPipeline] S3 download complete', { moduleId: moduleId, rid: rid, localPath: localMp4 })
-
-    // 2) Extract WAV with ffmpeg
-    console.info('[AIPipeline] Audio extraction start', { moduleId: moduleId, rid: rid, videoPath: localMp4 })
-    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 35, "Converting video to audio...")
-    const wavPath = await audioProcessor.extract(localMp4)
-    console.info('[AIPipeline] Audio extraction complete', { moduleId: moduleId, rid: rid, wavPath: wavPath })
-
-    // 3) Transcribe via OpenAI API
-    console.info('[AIPipeline] Transcription start', { moduleId: moduleId, rid: rid, wavPath: wavPath })
-    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 55, "Transcribing audio...")
-    const transcript = await transcribeAudio(wavPath, moduleId)
-    console.info('[AIPipeline] Transcription complete', { moduleId: moduleId, rid: rid, chars: transcript.text.length })
-
-    // 4) Get video duration for proper step timing
-    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 70, "Getting video duration...")
-    const durationSec = await videoDownloader.getVideoDurationSeconds(localMp4)
-    console.log(`📹 [AIPipeline] Video duration: ${durationSec}s`)
-
-    // 5) Turn transcript into steps with actual video duration
-    console.info('[AIPipeline] Step generation start', { moduleId: moduleId, rid: rid, transcriptChars: transcript.text.length })
-    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 75, "Generating steps...")
-    const steps = await generateVideoSteps(
-      transcript.text,
-      transcript.segments,
-      { duration: durationSec }, // Pass actual video duration
-      moduleId
-    )
-    console.info('[AIPipeline] Step generation complete', { moduleId: moduleId, rid: rid, stepCount: steps.steps.length })
-
-    // 6) Save steps JSON to S3 + mark READY
-    console.info('[AIPipeline] S3 save start', { moduleId: moduleId, rid: rid, s3Key: mod.module.stepsKey })
-    await ModuleService.updateModuleStatus(moduleId, "PROCESSING", 85, "Saving steps...")
-
-    await stepSaver.saveStepsToS3({
-      moduleId: moduleId,
-      s3Key: mod.module.stepsKey,
-      steps: steps.steps,
-      transcript: transcript.text,
-      meta: {
-        durationSec,
-        stepCount: steps.steps.length,
-        segments: transcript.segments
-      }
-    })
-
-    // DB upserts happen in stepSaver and markReady
-    console.info('[AIPipeline] DB upserts start', { moduleId: moduleId, rid: rid })
-    await ModuleService.markReady(moduleId)
-    console.info('[AIPipeline] DB upserts complete', { moduleId: moduleId, rid: rid })
-    console.log(`✅ [AIPipeline] Module ${moduleId} processing complete`)
-    return { ok: true, moduleId }
-  } catch (err: any) {
-    console.error(`❌ [AIPipeline] Module ${moduleId} processing failed:`, err)
-    await ModuleService.markFailed(moduleId, String(err?.message ?? err))
-    throw err
-  }
+  return runPipeline(moduleId, s3Key)
 }

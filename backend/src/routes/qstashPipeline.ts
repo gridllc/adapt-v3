@@ -26,7 +26,7 @@ router.post("/pipeline", async (req, res) => {
 
     await prisma.module.update({
       where: { id: moduleId },
-      data: { status: "PROCESSING", progress: 1, errorMessage: null },
+      data: { status: "PROCESSING", progress: 1, lastError: null },
     });
 
     await runPipeline(moduleId, s3Key); // your robust pipeline (no Redis needed)
