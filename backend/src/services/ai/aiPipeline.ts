@@ -16,10 +16,21 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
 
   const mod = await prisma.module.findUnique({ where: { id: moduleId } })
   if (!mod) {
+    const moduleTitle = title || 'Untitled'
+    const bucketName = process.env.AWS_BUCKET_NAME || 'default-bucket'
+
     await prisma.module.upsert({
       where: { id: moduleId },
       update: {},
-      create: { id: moduleId, s3Key, title: title || 'Untitled', status: 'PROCESSING', progress: 0 },
+      create: {
+        id: moduleId,
+        s3Key,
+        title: moduleTitle,
+        filename: moduleTitle + '.mp4',
+        videoUrl: `https://${bucketName}.s3.amazonaws.com/${s3Key}`,
+        status: 'PROCESSING',
+        progress: 0
+      },
     })
   }
 
