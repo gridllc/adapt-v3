@@ -2,6 +2,7 @@ import express from 'express'
 import { PrismaClient } from '@prisma/client'
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { requireAuth } from '../middleware/auth.js'
+import { stepsController } from '../controllers/stepsController.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -46,7 +47,7 @@ router.get('/:moduleId', async (req, res) => {
     // 1) DB first
     const dbSteps = await prisma.step.findMany({
       where: { moduleId },
-      orderBy: [{ start: 'asc' }],
+      orderBy: [{ order: 'asc' }],
     })
     if (dbSteps.length > 0) {
       return ok(res, { steps: dbSteps })
@@ -63,10 +64,10 @@ router.get('/:moduleId', async (req, res) => {
             prisma.step.create({
               data: {
                 moduleId,
-                start: Math.max(0, Number(s.start) || 0),
-                end: Math.max(0, Number(s.end) || 0),
-                title: String(s.title || `Step ${i + 1}`),
-                description: String(s.description || ''),
+                order: i,
+                startTime: Math.max(0, Number(s.start) || 0),
+                endTime: Math.max(0, Number(s.end) || 0),
+                text: String(s.title || s.description || `Step ${i + 1}`),
               },
             })
           )
@@ -96,10 +97,10 @@ router.get('/:moduleId', async (req, res) => {
         prisma.step.create({
           data: {
             moduleId,
-            start: s.start,
-            end: s.end,
-            title: s.title,
-            description: s.description,
+            order: i,
+            startTime: s.start,
+            endTime: s.end,
+            text: `${s.title}: ${s.description}`,
           },
         })
       )
