@@ -1,6 +1,6 @@
 import React from 'react'
 import { useAuth, SignInButton } from '@clerk/clerk-react'
-import { UploadManager } from '../components/upload/UploadManager'
+import UploadManager from '../components/upload/UploadManager'
 
 export const UploadPage: React.FC = () => {
   const { isSignedIn, isLoaded } = useAuth()

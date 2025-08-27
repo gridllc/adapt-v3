@@ -1,270 +1,217 @@
-import React, { useCallback, useState, useEffect } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDropzone } from 'react-dropzone'
-import { UploadItem } from './UploadItem'
-import { useUploadStore } from '@stores/uploadStore'
-import { validateFile } from '@utils/uploadUtils'
-import { API_ENDPOINTS } from '../../config/api'
-import { useModuleProcessing } from '../../hooks/useModuleProcessing'
 
-export const UploadManager: React.FC = () => {
-  const { uploads, addUpload, updateProgress, markSuccess, markError, startUpload } = useUploadStore()
-  
-  const [showProcessing, setShowProcessing] = useState(false)
-  const [justUploadedModuleId, setJustUploadedModuleId] = useState<string | null>(null)
-  
-  const navigate = useNavigate()
-  const { status, progress, error } = useModuleProcessing(justUploadedModuleId || undefined)
-  
-  // Auto-redirect when ready
-  useEffect(() => {
-    if (!showProcessing || !justUploadedModuleId) return
-    if (status === "READY") {
-      navigate(`/training/${justUploadedModuleId}`)
-    }
-  }, [status, showProcessing, justUploadedModuleId, navigate])
-  
-  // Optional toast or console when failed
-  useEffect(() => {
-    if (status === "FAILED" && error) {
-      console.error("Processing failed:", error)
-    }
-  }, [status, error])
+// Fallback for older browsers that don't support crypto.randomUUID()
+const genId = () =>
+  (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 
-  // Check if any uploads are in progress
-  const hasActiveUploads = Object.values(uploads).some(upload => upload.status === 'uploading')
-  const hasQueuedUploads = Object.values(uploads).some(upload => upload.status === 'queued')
-  const isUploading = hasActiveUploads || hasQueuedUploads
+type UploadItem = {
+  id: string
+  name: string
+  size: number
+  progress: number
+  status: 'idle' | 'uploading' | 'processing' | 'done' | 'error' | 'canceled'
+  error?: string
+  moduleId?: string
+}
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    console.log('Files dropped:', acceptedFiles)
-    
-    for (const file of acceptedFiles) {
-      try {
-        console.log('Processing file:', file.name)
-        
-        // Validate file
-        const validation = await validateFile(file)
-        if (!validation.valid) {
-          throw new Error(validation.error)
-        }
-
-        // Add to upload queue
-        const uploadId = addUpload(file)
-        console.log('Added to queue:', uploadId)
-
-        // Normalize Content-Type for Android compatibility
-        const normalizeContentType = (file: File): string => {
-          const type = file.type.toLowerCase()
-          if (type.includes('mp4')) return 'video/mp4'
-          if (type.includes('webm')) return 'video/webm'
-          if (type.includes('avi')) return 'video/x-msvideo'
-          if (type.includes('mov') || type.includes('quicktime')) return 'video/quicktime'
-          // Fallback to generic video type
-          return 'video/mp4'
-        }
-
-        const contentType = normalizeContentType(file)
-        console.log(`📹 Uploading video: ${file.name} (${contentType})`)
-
-        // 🎯 SHOW SPINNER IMMEDIATELY HERE - Don't wait for backend
-        setShowProcessing(true)
-        // Don't set justUploadedModuleId yet - wait for real moduleId from backend
-
-        // Start upload - USE PRESIGNED UPLOAD FLOW
-        try {
-          console.log('Starting presigned upload...')
-          
-          // Start the upload status
-          startUpload(uploadId)
-          
-          // 1) ask backend to presign
-          console.log('[UPLOAD] presign (filename, contentType)')
-          updateProgress(uploadId, 10)
-          const presignRes = await fetch('/api/presigned-upload/presigned-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              filename: file.name,
-              contentType: file.type,
-            }),
-          })
-
-          if (!presignRes.ok) {
-            const errorText = await presignRes.text()
-            throw new Error(`Failed to get presigned URL: ${presignRes.status} - ${errorText}`)
-          }
-
-          const { uploadUrl: presignedUrl, key, moduleId } = await presignRes.json()
-          console.log(`[UPLOAD] presign (moduleId: ${moduleId}, key: ${key})`)
-          
-          // 🎯 SET MODULE ID HERE - we get it from the presign response
-          setJustUploadedModuleId(moduleId)
-
-          // 2) PUT file to S3
-          updateProgress(uploadId, 50)
-          const putRes = await fetch(presignedUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': file.type },
-            body: file,
-          })
-          if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`)
-
-          console.log('S3 PUT 200 - Upload successful')
-
-          // 3) tell backend to process
-          updateProgress(uploadId, 80)
-          await fetch('/api/upload/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ moduleId, key }),
-          })
-
-          console.log(`[UPLOAD] complete (moduleId: ${moduleId}, key: ${key})`)
-
-          // Mark upload as successful
-          updateProgress(uploadId, 100)
-          markSuccess(uploadId, moduleId)
-
-        } catch (error) {
-          console.error('Upload error:', error)
-          markError(uploadId, error as Error)
-        }
-      } catch (error) {
-        console.error('File processing error:', error)
-      }
-    }
-  }, [addUpload, updateProgress, markSuccess, markError, startUpload])
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'video/mp4': ['.mp4'],
-      'video/webm': ['.webm'],
-      'video/avi': ['.avi'],
-      'video/quicktime': ['.mov'],
-    },
-    maxSize: 200 * 1024 * 1024, // 200MB
+const api = (path: string, init?: RequestInit) =>
+  fetch(path, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    ...init,
   })
 
+const human = (bytes: number) => {
+  const units = ['B', 'KB', 'MB', 'GB']
+  let i = 0
+  let n = bytes
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++ }
+  return `${n.toFixed(1)} ${units[i]}`
+}
+
+const UploadManager: React.FC = () => {
+  const [uploads, setUploads] = useState<UploadItem[]>([])
+  const aborters = useRef<Record<string, AbortController>>({})
+  const navigate = useNavigate()
+
+  const update = (id: string, patch: Partial<UploadItem>) =>
+    setUploads(prev => prev.map(u => (u.id === id ? { ...u, ...patch } : u)))
+
+  const addUpload = (file: File) => {
+    const id = genId()
+    const item: UploadItem = {
+      id,
+      name: file.name,
+      size: file.size,
+      progress: 0,
+      status: 'idle',
+    }
+    setUploads(prev => [item, ...prev])
+    return id
+  }
+
+  const putToS3 = async (url: string, file: File, id: string) => {
+    const controller = new AbortController()
+    aborters.current[id] = controller
+
+    // Heuristic progress (fetch PUT lacks real progress)
+    const started = Date.now()
+    const progTimer = setInterval(() => {
+      update(id, prev => {
+        const u = (prev as any) as UploadItem
+        if (!u || u.status !== 'uploading') return {}
+        const sec = Math.max(0.5, (Date.now() - started) / 1000)
+        const kbps = Math.round(file.size / 1024 / sec)
+        const estPct = Math.min(99, Math.round((sec * kbps * 1024 * 100) / file.size))
+        return { progress: estPct }
+      } as any)
+    }, 500)
+
+    try {
+      const res = await fetch(url, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        signal: controller.signal,
+      })
+      clearInterval(progTimer)
+      if (!res.ok) throw new Error(`S3 PUT failed: ${res.status} ${res.statusText}`)
+      update(id, { progress: 100 })
+    } catch (e: any) {
+      clearInterval(progTimer)
+      if (controller.signal.aborted) throw new Error('canceled')
+      throw e
+    } finally {
+      delete aborters.current[id]
+    }
+  }
+
+  const handleFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('video/')) {
+        const id = addUpload(file)
+        update(id, { status: 'error', error: 'Only video files are allowed' })
+        continue
+      }
+
+      const id = addUpload(file)
+      try {
+        update(id, { status: 'uploading', progress: 5 })
+
+        // 1) presign
+        const presignRes = await api('/api/presigned-upload/presigned-url', {
+          method: 'POST',
+          body: JSON.stringify({ filename: file.name, contentType: file.type || 'video/mp4' }),
+        })
+        if (!presignRes.ok) throw new Error(`presign failed: ${presignRes.status}`)
+        const { uploadUrl: presignedUrl, key, moduleId } = await presignRes.json()
+        if (!presignedUrl || !key || !moduleId) throw new Error('presign missing fields')
+
+        // 2) PUT file to S3
+        await putToS3(presignedUrl, file, id)
+
+        // 3) notify backend
+        update(id, { status: 'processing' })
+        const complete = await api('/api/upload/complete', {
+          method: 'POST',
+          body: JSON.stringify({ moduleId, key }),
+        })
+        if (!complete.ok) throw new Error(`complete failed: ${complete.status}`)
+        update(id, { status: 'done', moduleId })
+
+        // Jump to the training page (processing=true so UI shows the processing screen)
+        navigate(`/training/${moduleId}?processing=true`)
+        break // one-at-a-time UX
+      } catch (err: any) {
+        const msg = err?.message || 'Upload failed'
+        update(id, { status: msg === 'canceled' ? 'canceled' : 'error', error: msg })
+      }
+    }
+  }, [navigate])
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files)
+    e.target.value = ''
+  }
+
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    handleFiles(e.dataTransfer.files)
+  }
+
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault()
+
+  const cancel = (id: string) => {
+    aborters.current[id]?.abort()
+  }
+
   return (
-    <div className="space-y-4">
-      {/* Processing Panel */}
-      {showProcessing && (
-        <div className="mt-4 mb-6 rounded-xl border p-4 bg-white/70">
-          <div className="flex items-center gap-3">
-            <div className="animate-spin h-5 w-5 rounded-full border-2 border-gray-300 border-t-transparent" />
-            <div className="font-medium">
-              {status === "FAILED" ? "Processing failed" : "Processing your video…"}
-            </div>
-          </div>
-
-          {status !== "FAILED" && (
-            <div className="mt-3">
-              {justUploadedModuleId ? (
-                <>
-                  <div className="text-sm text-gray-500 mb-1">
-                    Module ID: {justUploadedModuleId}
-                  </div>
-                  <div className="h-2 w-full bg-gray-200 rounded">
-                    <div
-                      className="h-2 bg-indigo-500 rounded transition-all"
-                      style={{ width: `${progress ?? 0}%` }}
-                    />
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">{Math.round(progress ?? 0)}%</div>
-                  <div className="text-xs text-gray-500 mt-2">
-                    You'll be taken to the training automatically when it's ready.
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-gray-500">
-                  Uploading video and starting AI processing...
-                </div>
-              )}
-            </div>
-          )}
-
-          {status === "FAILED" && (
-            <div className="mt-3 flex gap-8 items-center">
-              <div className="text-sm text-red-600">{error || "Processing failed."}</div>
-              <button
-                className="px-3 py-1 rounded bg-indigo-600 text-white"
-                onClick={() => {
-                  // Let users jump straight to Training (where they can click "Re-run AI Step Detection")
-                  navigate(`/training/${justUploadedModuleId}`)
-                }}
-              >
-                Open Training
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-
-
-      {/* Drop Zone */}
+    <div className="space-y-6">
       <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          isUploading 
-            ? 'border-gray-300 bg-gray-50 cursor-not-allowed opacity-50'
-            : isDragActive
-            ? 'border-blue-500 bg-blue-50 cursor-pointer'
-            : 'border-gray-300 hover:border-gray-400 cursor-pointer'
-        }`}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        className="border-2 border-dashed rounded-2xl p-10 text-center bg-gray-50 hover:bg-gray-100"
       >
-        <input {...getInputProps()} disabled={isUploading} />
-        <div className="space-y-2">
-          <div className="text-2xl">
-            {isUploading ? '⏳' : '📹'}
-          </div>
-          <p className="text-lg font-medium text-gray-900">
-            {isUploading 
-              ? 'Upload in progress...' 
-              : isDragActive 
-              ? 'Drop the video here' 
-              : 'Drag & drop video here'
-            }
-          </p>
-          <p className="text-sm text-gray-500">
-            {isUploading 
-              ? 'Please wait for current uploads to complete'
-              : 'or click to select a file (MP4, WebM, AVI, MOV, max 200MB)'
-            }
-          </p>
-        </div>
+        <p className="text-lg font-medium">Drag & drop a video here</p>
+        <p className="text-sm text-gray-500 mb-4">MP4 recommended • Max a few hundred MB</p>
+        <label className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700">
+          Select video
+          <input type="file" accept="video/*" onChange={onInputChange} hidden />
+        </label>
       </div>
 
-      {/* Upload Queue */}
-      {Object.keys(uploads).length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-lg font-medium text-gray-900">Upload Queue</h3>
-          
-          {/* Upload Status Summary */}
-          {isUploading && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin"></div>
-                <span className="text-sm font-medium text-blue-800">
-                  {hasActiveUploads ? 'Uploading to S3...' : 'Preparing upload...'}
-                </span>
+      {uploads.length > 0 && (
+        <div className="space-y-3">
+          {uploads.map(u => (
+            <div key={u.id} className="border rounded-xl p-4 bg-white shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">{u.name}</div>
+                  <div className="text-xs text-gray-500">{human(u.size)}</div>
+                </div>
+                <div className="text-sm">
+                  {u.status === 'uploading' && <span className="text-blue-600">Uploading… {u.progress}%</span>}
+                  {u.status === 'processing' && <span className="text-purple-600">Processing…</span>}
+                  {u.status === 'done' && <span className="text-green-600">Done</span>}
+                  {u.status === 'error' && <span className="text-red-600">Error</span>}
+                  {u.status === 'canceled' && <span className="text-gray-500">Canceled</span>}
+                </div>
               </div>
-              <p className="text-xs text-blue-600 mt-1">
-                {hasActiveUploads 
-                  ? 'Your video is being uploaded directly to S3'
-                  : 'Getting ready to upload your video'
-                }
-              </p>
+
+              <div className="mt-3 w-full h-2 bg-gray-200 rounded">
+                <div
+                  className="h-2 bg-blue-600 rounded transition-all"
+                  style={{ width: `${u.progress}%` }}
+                />
+              </div>
+
+              {(u.status === 'uploading' || u.status === 'processing') && (
+                <div className="mt-3 flex gap-2">
+                  {u.status === 'uploading' && (
+                    <button
+                      onClick={() => cancel(u.id)}
+                      className="px-3 py-1 text-sm rounded bg-gray-100 hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {u.error && <div className="mt-2 text-sm text-red-600">{u.error}</div>}
             </div>
-          )}
-          
-          {Object.entries(uploads).map(([id, upload]) => (
-            <UploadItem key={id} id={id} upload={upload} />
           ))}
         </div>
       )}
     </div>
   )
 }
+
+// Support both default and named imports for compatibility
+export default UploadManager
+export { UploadManager }
