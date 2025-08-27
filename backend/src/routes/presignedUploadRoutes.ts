@@ -8,9 +8,7 @@ const router = express.Router()
 router.use(optionalAuth)
 
 router.post('/presigned-url', presignedUploadController.getPresignedUrl)
-router.post('/process', presignedUploadController.processVideo)
-router.post('/confirm', presignedUploadController.confirmUpload)
-router.post('/complete', presignedUploadController.uploadComplete) // Use the new method
+// Removed: confirm, process endpoints (dead code - frontend uses /upload/complete now)
 router.get('/status/:key', presignedUploadController.getUploadStatus)
 router.get('/health', presignedUploadController.healthCheck)
 

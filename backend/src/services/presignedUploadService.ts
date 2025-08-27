@@ -2,6 +2,11 @@ import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { randomUUID } from 'crypto'
 
+// Safe filename helper
+const safeFilename = (filename: string): string => {
+  return filename.replace(/[^\w.\-()+@ ]/g, '').slice(0, 180)
+}
+
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-west-1',
   credentials: {
@@ -14,10 +19,10 @@ const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
 
 export const presignedUploadService = {
   async generatePresignedUrl(filename: string, contentType: string, moduleId: string) {
-    // Single source of truth for key shape - matches the expected training/ structure
-    const key = `training/${moduleId}/${randomUUID()}-${filename}`
+    // Use consistent videos/ structure with safe filename
+    const key = `videos/${moduleId}/${safeFilename(filename)}`
     
-    console.log(`[UPLOAD] presign (moduleId: ${moduleId}, key: ${key})`)
+    console.log(`[UPLOAD] presign (moduleId: ${moduleId}, key: ${key})`, { filename, contentType })
     
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,

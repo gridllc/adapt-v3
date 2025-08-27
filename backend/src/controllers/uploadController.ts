@@ -3,6 +3,8 @@ import { ModuleService } from '../services/moduleService.js'
 import { storageService } from '../services/storageService.js'
 import { startProcessing } from '../services/ai/aiPipeline.js'
 import { enqueueProcessModule, processModuleDirectly, isEnabled } from '../services/qstashQueue.js'
+import { DatabaseService } from '../services/prismaService.js'
+import { presignedUploadService } from '../services/presignedUploadService.js'
 import { v4 as uuidv4 } from 'uuid'
 
 // Single processing function - either enqueue or run inline
@@ -38,19 +40,49 @@ export const uploadController = {
       
       if (!moduleId || !key) {
         return res.status(400).json({ 
-          ok: false, 
+          success: false, 
           error: 'moduleId and key are required' 
         })
       }
 
-      // Update module status to UPLOADED before starting AI processing
+      // Verify object exists in S3 (prevents bogus completes)
+      const verification = await presignedUploadService.confirmUpload(key)
+      if (!verification.success) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'S3 object not found' 
+        })
+      }
+
+      // Create/update module on complete (avoid orphans)
       try {
-        const { ModuleService } = await import('../services/moduleService.js')
-        await ModuleService.updateModuleStatus(moduleId, 'UPLOADED', 0, 'Upload completed, starting AI processing...')
-        console.log(`✅ Module status updated to UPLOADED for: ${moduleId}`)
-      } catch (statusError) {
-        console.error(`❌ Failed to update module status for: ${moduleId}:`, statusError)
-        // Continue anyway - the AI processing can still start
+        const title = key.split('/').pop()?.replace(/\.[^/.]+$/, '') || 'Untitled'
+        const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${key}`
+        
+        // Try to update existing module first, create if not exists
+        try {
+          await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Upload completed, starting AI processing...')
+          console.log(`✅ Module updated to PROCESSING: ${moduleId}`)
+        } catch (updateError) {
+          // Module doesn't exist, create it
+          await DatabaseService.createModule({
+            id: moduleId,
+            title: title,
+            filename: key.split('/').pop() || 'video.mp4',
+            videoUrl: fileUrl,
+            s3Key: key,
+            stepsKey: `training/${moduleId}.json`,
+            status: 'PROCESSING' as const,
+            userId: (req as any).userId || undefined
+          })
+          console.log(`✅ Module created: ${moduleId}`)
+        }
+      } catch (moduleError) {
+        console.error(`❌ Failed to create/update module: ${moduleId}:`, moduleError)
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to create module record' 
+        })
       }
 
       // Start AI processing
@@ -63,14 +95,15 @@ export const uploadController = {
       }
 
       res.json({ 
-        ok: true, 
+        success: true, 
+        moduleId,
         message: 'Upload completed and processing started' 
       })
       
     } catch (error) {
       console.error('Upload completion error:', error)
       res.status(500).json({ 
-        ok: false, 
+        success: false, 
         error: 'Upload completion failed' 
       })
     }

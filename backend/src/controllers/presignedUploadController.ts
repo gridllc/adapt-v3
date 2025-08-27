@@ -12,17 +12,6 @@ interface PresignedUrlRequest {
   userId?: string
 }
 
-interface ProcessVideoRequest {
-  videoUrl: string
-  userId?: string
-  moduleId: string
-}
-
-interface ConfirmUploadRequest {
-  key: string
-  userId?: string
-}
-
 export const presignedUploadController = {
   /**
    * Generate a presigned URL for direct S3 upload
@@ -81,36 +70,6 @@ export const presignedUploadController = {
         moduleId
       )
       
-      // Create the module record immediately - this ensures it exists for the complete step
-      try {
-        const originalFilename = filename.replace(/\.[^/.]+$/, '') // Remove file extension for title
-        const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${result.key}`
-        
-        await DatabaseService.createModule({
-          id: moduleId,
-          title: originalFilename,
-          filename: filename,
-          videoUrl: fileUrl,
-          s3Key: result.key,
-          stepsKey: `training/${moduleId}.json`,
-          status: 'UPLOADING' as const,
-          userId: userId || undefined
-        })
-        
-        log.info('Module created for presigned upload', { 
-          moduleId,
-          filename,
-          userId 
-        })
-      } catch (dbError) {
-        log.error('Failed to create module for presigned upload', { 
-          error: dbError instanceof Error ? dbError.message : 'Unknown error',
-          moduleId,
-          userId 
-        })
-        // Continue anyway - the upload can still work and the module can be created later
-      }
-      
       log.info('Presigned URL generated successfully', { 
         filename, 
         key: result.key,
@@ -119,7 +78,7 @@ export const presignedUploadController = {
       })
       
       res.json({
-        ok: true,
+        success: true,
         uploadUrl: result.uploadUrl,
         key: result.key,
         moduleId: result.moduleId,
@@ -139,215 +98,10 @@ export const presignedUploadController = {
     }
   },
 
-  /**
-   * Process uploaded video with AI analysis
-   */
-  async processVideo(req: Request, res: Response) {
-    try {
-      const { videoUrl, userId, moduleId }: ProcessVideoRequest = req.body
-      
-      if (!videoUrl) {
-        log.warn('Video processing request missing videoUrl', { userId })
-        return res.status(400).json({ error: 'videoUrl is required' })
-      }
-
-      if (!moduleId) {
-        log.warn('Video processing request missing moduleId', { userId })
-        return res.status(400).json({ error: 'moduleId is required' })
-      }
-
-      // Validate video URL format
-      if (!videoUrl.startsWith('http') && !videoUrl.startsWith('https')) {
-        log.warn('Invalid video URL format', { videoUrl, userId })
-        return res.status(400).json({ error: 'Invalid video URL format' })
-      }
-
-      log.info('Starting video processing', { 
-        videoUrl, 
-        userId, 
-        moduleId 
-      })
-
-      // Use the proper AI pipeline
-      const { startProcessing } = await import('../services/ai/aiPipeline.js')
-      await startProcessing(moduleId)
-
-      log.info('AI processing started successfully', { 
-        moduleId,
-        userId 
-      })
-
-      res.json({
-        success: true,
-        moduleId: moduleId,
-        videoUrl,
-        message: 'AI processing started successfully'
-      })
-    } catch (error) {
-      log.error('Video processing failed', { 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        videoUrl: req.body?.videoUrl,
-        moduleId: req.body?.moduleId,
-        userId: req.body?.userId 
-      })
-      res.status(500).json({ 
-        error: 'Video processing failed',
-        details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : undefined
-      })
-    }
-  },
-
-  /**
-   * Confirm that a file was successfully uploaded to S3
-   */
-  async confirmUpload(req: Request, res: Response) {
-    try {
-      const { key, userId }: ConfirmUploadRequest = req.body
-      
-      console.log('🚀 [confirmUpload] Starting upload confirmation...')
-      console.log('📝 [confirmUpload] Request body:', req.body)
-      
-      if (!key) {
-        log.warn('Confirm upload request missing key', { userId })
-        return res.status(400).json({ error: 'key is required' })
-      }
-
-      log.info('Confirming upload', { key, userId })
-      console.log('🔑 [confirmUpload] Processing key:', key)
-
-      const result = await presignedUploadService.confirmUpload(key)
-      
-      if (result.success) {
-        console.log('✅ [confirmUpload] S3 confirmation successful, creating module...')
-        
-        // Extract moduleId from the new key format: training/${moduleId}/${uuid}-${filename}
-        const keyParts = key.split('/')
-        if (keyParts.length < 3 || keyParts[0] !== 'training') {
-          throw new Error(`Invalid key format: expected 'training/moduleId/uuid-filename', got '${key}'`)
-        }
-        
-        const moduleId = keyParts[1] // training/moduleId/uuid-filename
-        console.log('🆔 [confirmUpload] Extracted module ID from key:', moduleId)
-        
-        // Extract original filename from S3 key (remove UUID prefix)
-        // Key format: training/${moduleId}/${uuid}-${filename}
-        const fullFilename = keyParts[2] || 'video.mp4'
-        // UUID format: 8-4-4-4-12 characters followed by a hyphen
-        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i
-        const match = fullFilename.match(uuidPattern)
-        const originalFilename = match ? fullFilename.substring(match[0].length) : fullFilename
-        
-        console.log('📁 [confirmUpload] Original filename:', originalFilename)
-        
-        // Create module in database
-        if (!result.fileUrl) {
-          throw new Error('File URL not found in upload confirmation result')
-        }
-        
-        console.log('💾 [confirmUpload] Creating module in database...')
-        const savedModule = await DatabaseService.createModule({
-          id: moduleId,
-          title: originalFilename.replace(/\.[^/.]+$/, ''), // Remove file extension for title
-          filename: originalFilename, // Store original filename only (no UUID prefix)
-          videoUrl: result.fileUrl,
-          s3Key: key,
-          stepsKey: `training/${moduleId}.json`,
-          status: 'UPLOADED' as const,
-          userId: userId || undefined
-        })
-
-        // Start AI processing immediately after module creation
-        try {
-          console.log(`🚀 [confirmUpload] Starting AI processing for module: ${moduleId}`)
-          const { startProcessing } = await import('../services/ai/aiPipeline.js')
-          console.log(`📦 [confirmUpload] AI pipeline imported, calling startProcessing...`)
-          await startProcessing(moduleId)
-          console.log(`✅ [confirmUpload] AI processing started successfully for module: ${moduleId}`)
-          console.log(`[PIPELINE] start (moduleId: ${moduleId})`)
-        } catch (processingError) {
-          console.error(`❌ [confirmUpload] Failed to start AI processing for module: ${moduleId}:`, processingError)
-          console.error(`❌ [confirmUpload] Processing error details:`, processingError)
-          // Don't fail the upload, just log the error
-        }
-
-        console.log(`🎉 [confirmUpload] Upload confirmed and module created successfully!`)
-        console.log(`📊 [confirmUpload] Final response data:`, { moduleId: savedModule.id, success: true })
-        
-        log.info('Upload confirmed and module created', { key, moduleId, userId })
-        
-        res.json({
-          ...result,
-          moduleId: savedModule.id,
-          success: true
-        })
-      } else {
-        log.warn('Upload confirmation failed', { key, error: result.error, userId })
-        res.status(404).json(result)
-      }
-    } catch (error) {
-      log.error('Upload confirmation error', { 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        key: req.body?.key,
-        userId: req.body?.userId 
-      })
-      res.status(500).json({ 
-        error: 'Upload confirmation failed',
-        details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : undefined
-      })
-    }
-  },
-
-  /**
-   * Handle upload completion (simplified version for frontend)
-   */
-  async uploadComplete(req: Request, res: Response) {
-    try {
-      const { moduleId, key, filename, contentType, size } = req.body
-      
-      console.log(`[UPLOAD] complete (moduleId: ${moduleId}, key: ${key})`)
-      
-      if (!moduleId || !key) {
-        return res.status(400).json({ 
-          ok: false, 
-          error: 'moduleId and key are required' 
-        })
-      }
-
-      // Verify the file exists in S3
-      const result = await presignedUploadService.confirmUpload(key)
-      
-      if (!result.success) {
-        return res.status(404).json({ 
-          ok: false, 
-          error: 'File not found in S3' 
-        })
-      }
-
-      // Start AI processing
-      try {
-        console.log(`[PIPELINE] start (moduleId: ${moduleId})`)
-        const { startProcessing } = await import('../services/ai/aiPipeline.js')
-        await startProcessing(moduleId)
-      } catch (processingError) {
-        console.error(`❌ Failed to start AI processing for module: ${moduleId}:`, processingError)
-        // Don't fail the upload, just log the error
-      }
-
-      res.json({ 
-        ok: true, 
-        message: 'Upload completed and processing started' 
-      })
-      
-    } catch (error) {
-      console.error('Upload completion error:', error)
-      res.status(500).json({ 
-        ok: false, 
-        error: 'Upload completion failed' 
-      })
-    }
-  },
+  // Removed: processVideo, confirmUpload, uploadComplete methods
+  // These are dead code - the frontend now uses:
+  // 1. /api/presigned-upload/presigned-url (this controller)
+  // 2. /api/upload/complete (uploadController)
 
   /**
    * Get upload status and metadata

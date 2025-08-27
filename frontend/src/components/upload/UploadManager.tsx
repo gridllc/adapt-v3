@@ -60,14 +60,13 @@ const UploadManager: React.FC = () => {
     // Heuristic progress (fetch PUT lacks real progress)
     const started = Date.now()
     const progTimer = setInterval(() => {
-      update(id, prev => {
-        const u = (prev as any) as UploadItem
-        if (!u || u.status !== 'uploading') return {}
+      setUploads(prev => prev.map(u => {
+        if (u.id !== id || u.status !== 'uploading') return u
         const sec = Math.max(0.5, (Date.now() - started) / 1000)
         const kbps = Math.round(file.size / 1024 / sec)
         const estPct = Math.min(99, Math.round((sec * kbps * 1024 * 100) / file.size))
-        return { progress: estPct }
-      } as any)
+        return { ...u, progress: estPct }
+      }))
     }, 500)
 
     try {
