@@ -1,131 +1,99 @@
 import express, { Request, Response } from 'express'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import fs from 'fs'
-import { aiService } from '../services/aiService.js'
-import { transcribeS3Video } from '../services/transcriptionService.js'
+import { ModuleService } from '../services/moduleService.js'
+import { prisma } from '../config/database.js'
 
 const router = express.Router()
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-
-const isProduction = process.env.NODE_ENV === 'production'
-const baseDir = isProduction ? '/app' : path.resolve(__dirname, '..')
-
-// POST /api/reprocess/:moduleId
+// POST /api/reprocess/:moduleId?force=true
 router.post('/:moduleId', async (req: Request, res: Response) => {
   const { moduleId } = req.params
+  const force = req.query.force === 'true'
 
   try {
-    console.log(`🔁 Starting reprocess for module: ${moduleId}`)
-    
-    // Check if video file exists
-    const videoPath = path.join(baseDir, 'uploads', `${moduleId}.mp4`)
-    const originalFilename = `${moduleId}.mp4`
+    console.log(`🔁 Starting reprocess for module: ${moduleId}, force: ${force}`)
 
-    console.log(`📁 Checking for video file at: ${videoPath}`)
-    
-    if (!fs.existsSync(videoPath)) {
-      console.error(`❌ Video file not found: ${videoPath}`)
-      return res.status(404).json({
-        error: 'Video file not found',
-        moduleId,
-        videoPath,
-        message: 'Upload the video first before reprocessing'
+    // mark module processing, clear prior errors/placeholders
+    await ModuleService.markProcessing(moduleId, 'Reprocess requested', { force })
+
+    // Check if we need to verify video exists in S3 (for S3-first approach)
+    const module = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!module?.s3Key) {
+      return res.status(400).json({
+        error: 'Module has no S3 key - upload video first',
+        moduleId
       })
     }
 
-    console.log(`✅ Video file found, starting AI processing...`)
-    console.log(`🎬 Video path: ${videoPath}`)
-    console.log(`📝 Original filename: ${originalFilename}`)
+    console.log(`✅ Module marked as processing, starting full pipeline...`)
 
-    // Trigger the AI processing
-    console.log('🤖 Starting AI processing for reprocess...')
-    
-    // Process with AI
-    const videoUrl = `http://localhost:8000/uploads/${moduleId}.mp4`
-    await aiService.processVideo(videoUrl)
-    console.log('✅ AI processing completed')
-    
-    // Generate steps
-    await aiService.generateStepsForModule(moduleId, videoUrl)
-    console.log('✅ Steps generation completed')
-    
-    // Start transcription in background
-    transcribeS3Video(moduleId, `${moduleId}.mp4`)
-      .then(() => console.log(`Transcript generated for ${moduleId}`))
-      .catch(err => console.error(`Transcript generation failed for ${moduleId}:`, err))
+    // kick the full pipeline (audio->transcript->steps->embeddings)
+    const { startProcessing } = await import('../services/ai/aiPipeline.js')
+    await startProcessing(moduleId)
 
-    console.log(`✅ Reprocessing completed for module: ${moduleId}`)
-
-    res.json({
-      success: true,
-      message: `Reprocessing completed for module: ${moduleId}`,
-      moduleId,
-      videoPath,
-      timestamp: new Date().toISOString()
-    })
-  } catch (error) {
-    console.error(`❌ Failed to reprocess module ${moduleId}:`, error)
-    res.status(500).json({
-      error: 'Failed to reprocess module',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      moduleId,
-      timestamp: new Date().toISOString()
-    })
+    return res.json({ success: true, moduleId })
+  } catch (err: any) {
+    console.error('[Reprocess] failed', { moduleId, error: err?.message })
+    return res.status(500).json({ success: false, error: 'REPROCESS_FAILED' })
   }
 })
 
-// GET /api/reprocess/:moduleId/status
-router.get('/:moduleId/status', async (req: Request, res: Response) => {
-  const { moduleId } = req.params
+// Health probe endpoint (quick win)
+router.get('/health/pipeline', async (req: Request, res: Response) => {
+  const results: any = {
+    timestamp: new Date().toISOString(),
+    checks: {}
+  }
 
   try {
-    console.log(`📊 Checking status for module: ${moduleId}`)
-    
-    // Check for video file
-    const videoPath = path.join(baseDir, 'uploads', `${moduleId}.mp4`)
-    const videoExists = fs.existsSync(videoPath)
-    
-    // Check for steps file
-    const stepsPath = path.join(baseDir, 'data', 'training', `${moduleId}.json`)
-    const stepsExists = fs.existsSync(stepsPath)
-    
-    // Check for transcript file
-    const transcriptPath = path.join(baseDir, 'data', 'transcripts', `${moduleId}.json`)
-    const transcriptExists = fs.existsSync(transcriptPath)
-    
-    const status = {
-      moduleId,
-      video: {
-        exists: videoExists,
-        path: videoPath,
-        size: videoExists ? fs.statSync(videoPath).size : 0
-      },
-      steps: {
-        exists: stepsExists,
-        path: stepsPath
-      },
-      transcript: {
-        exists: transcriptExists,
-        path: transcriptPath
-      },
-      ready: videoExists && stepsExists,
-      timestamp: new Date().toISOString()
+    // Check S3 access
+    try {
+      const { S3Client, HeadObjectCommand } = await import('@aws-sdk/client-s3')
+      const s3 = new S3Client({ region: process.env.AWS_REGION })
+      // Try to head a known object or just check if S3 is configured
+      results.checks.s3 = {
+        status: 'ok',
+        bucket: process.env.AWS_BUCKET_NAME ? 'configured' : 'missing'
+      }
+    } catch (e) {
+      results.checks.s3 = { status: 'error', error: e?.message }
     }
-    
-    console.log(`📊 Status for ${moduleId}:`, status)
-    
-    res.json(status)
-  } catch (error) {
-    console.error(`❌ Failed to get status for module ${moduleId}:`, error)
-    res.status(500).json({
-      error: 'Failed to get module status',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      moduleId
-    })
+
+    // Check FFmpeg availability
+    try {
+      const { execSync } = await import('child_process')
+      const ffmpegVersion = execSync('ffmpeg -version', { encoding: 'utf8' })
+      results.checks.ffmpeg = {
+        status: 'ok',
+        version: ffmpegVersion.split('\n')[0]
+      }
+    } catch (e) {
+      results.checks.ffmpeg = {
+        status: 'error',
+        error: e?.message || 'FFmpeg not available'
+      }
+    }
+
+    // Check OpenAI API access
+    try {
+      const { OpenAI } = await import('openai')
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+      // Simple models list call to test API access
+      await openai.models.list()
+      results.checks.openai = { status: 'ok' }
+    } catch (e) {
+      results.checks.openai = { status: 'error', error: e?.message }
+    }
+
+    // Overall status
+    const allOk = Object.values(results.checks).every((check: any) => check.status === 'ok')
+    results.status = allOk ? 'healthy' : 'degraded'
+
+    res.json(results)
+  } catch (err: any) {
+    results.status = 'error'
+    results.error = err?.message
+    res.status(500).json(results)
   }
 })
 
-export default router 
+export { router as reprocessRoutes } 

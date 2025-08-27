@@ -156,7 +156,9 @@ router.get('/:id', async (req, res) => {
         ...module,
         stepCount: module._count.steps,
         feedbackCount: module._count.feedbacks,
-        questionCount: module._count.questions
+        questionCount: module._count.questions,
+        // Include lastError for frontend error display
+        lastError: module.lastError
       }
     })
   } catch (error) {

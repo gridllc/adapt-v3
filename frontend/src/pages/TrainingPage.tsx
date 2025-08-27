@@ -67,6 +67,7 @@ export const TrainingPage: React.FC = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   const [hasTriedOnce, setHasTriedOnce] = useState(false)
+  const [isFallback, setIsFallback] = useState(false)
   const maxRetries = 5
 
   const [chatMessage, setChatMessage] = useState('')
@@ -290,14 +291,18 @@ export const TrainingPage: React.FC = () => {
         if (data.meta) {
           console.log(`📊 Meta data loaded:`, data.meta)
         }
-        
+
+        // Check if these are fallback steps
+        const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
+        setIsFallback(isFallbackResponse)
+
         // Enhance steps with transcript and duration info
         const enhancedSteps = data.steps.map((step: any, index: number) => ({
           ...step,
           originalText: data.transcript || '', // Add transcript to each step
           duration: data.meta?.durationSec ? Math.round(data.meta.durationSec / data.steps.length) : 15 // Calculate step duration
         }))
-        
+
         setSteps(enhancedSteps)
         setRetryCount(0)
         setHasTriedOnce(true)
@@ -721,7 +726,25 @@ Just ask me anything about the training!`
                     </div>
                   </div>
                 )}
-                
+
+                {isFallback && (
+                  <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-amber-900">
+                        ⚠️ You’re viewing placeholder steps. Run the AI pipeline to transcribe the video
+                        and generate real steps.
+                      </div>
+                      <button
+                        onClick={handleProcessWithAI}
+                        disabled={processingAI || status?.status === 'processing'}
+                        className="ml-4 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        Transcribe now
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {steps.map((step, index) => (
                   <StepEditor
                     key={step.id || index}

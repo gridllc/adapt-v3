@@ -41,8 +41,9 @@ function makeBasicSteps(durationSec = 60) {
 // Get steps for a specific module (public)
 router.get('/:moduleId', async (req, res) => {
   const { moduleId } = req.params
+  const rid = (req as any).rid || 'no-rid'
   try {
-    console.info('📖 Getting steps for', moduleId)
+    console.info('[STEPS] Getting steps for', { moduleId, rid })
 
     // 1) DB first
     const dbSteps = await prisma.step.findMany({
