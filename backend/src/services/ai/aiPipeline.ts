@@ -12,7 +12,8 @@ import { env } from '../../config/env.js'
  * Context-aware process function for uploadController
  */
 export async function process(ctx: { moduleId: string; s3Key: string; title?: string; rid?: string }) {
-  const { moduleId, s3Key, title, rid = 'no-rid' } = ctx
+  const { moduleId, s3Key, title } = ctx
+  const rid = ctx.rid || 'no-rid'
   logger.info('[AIPipeline] start', { moduleId, rid })
 
   const mod = await prisma.module.findUnique({ where: { id: moduleId } })

@@ -13,7 +13,7 @@ router.post('/:moduleId', async (req: Request, res: Response) => {
     console.log(`🔁 Starting reprocess for module: ${moduleId}, force: ${force}`)
 
     // mark module processing, clear prior errors/placeholders
-    await ModuleService.markProcessing(moduleId, 'Reprocess requested', { force })
+    await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Reprocess requested')
 
     // Check if we need to verify video exists in S3 (for S3-first approach)
     const module = await prisma.module.findUnique({ where: { id: moduleId } })
@@ -55,7 +55,7 @@ router.get('/health/pipeline', async (req: Request, res: Response) => {
         bucket: process.env.AWS_BUCKET_NAME ? 'configured' : 'missing'
       }
     } catch (e) {
-      results.checks.s3 = { status: 'error', error: e?.message }
+      results.checks.s3 = { status: 'error', error: e?.message || String(e) }
     }
 
     // Check FFmpeg availability
@@ -69,7 +69,7 @@ router.get('/health/pipeline', async (req: Request, res: Response) => {
     } catch (e) {
       results.checks.ffmpeg = {
         status: 'error',
-        error: e?.message || 'FFmpeg not available'
+        error: e?.message || String(e) || 'FFmpeg not available'
       }
     }
 
@@ -81,7 +81,7 @@ router.get('/health/pipeline', async (req: Request, res: Response) => {
       await openai.models.list()
       results.checks.openai = { status: 'ok' }
     } catch (e) {
-      results.checks.openai = { status: 'error', error: e?.message }
+      results.checks.openai = { status: 'error', error: e?.message || String(e) }
     }
 
     // Overall status
