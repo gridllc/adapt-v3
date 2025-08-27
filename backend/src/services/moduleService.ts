@@ -10,7 +10,7 @@ export async function updateModule(id: string, data: any) {
       return await prisma.module.upsert({
         where: { id },
         update: data,
-        create: { id, title: data.title || 'Untitled', status: data.status || 'processing', progress: 0, ...data },
+        create: { id, title: data.title || 'Untitled', status: data.status || 'PROCESSING', progress: 0, ...data },
       })
     }
     throw e

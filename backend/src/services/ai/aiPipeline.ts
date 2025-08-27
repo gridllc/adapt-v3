@@ -19,7 +19,7 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
     await prisma.module.upsert({
       where: { id: moduleId },
       update: {},
-      create: { id: moduleId, s3Key, title: title || 'Untitled', status: 'processing', progress: 0 },
+      create: { id: moduleId, s3Key, title: title || 'Untitled', status: 'PROCESSING', progress: 0 },
     })
   }
 
