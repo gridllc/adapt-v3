@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDropzone } from 'react-dropzone'
 import { UploadItem } from './UploadItem'
 import { useUploadStore } from '@stores/uploadStore'
-import { validateFile } from '@utils/uploadUtils'
+import { uploadWithProgress, validateFile } from '@utils/uploadUtils'
 import { API_ENDPOINTS } from '../../config/api'
 import { useModuleProcessing } from '../../hooks/useModuleProcessing'
 
@@ -78,53 +78,94 @@ export const UploadManager: React.FC = () => {
           // Start the upload status
           startUpload(uploadId)
           
-          // 1) ask backend to presign
-          console.log('[UPLOAD] presign (filename, contentType)')
+          // Step 1: Get presigned URL from backend
           updateProgress(uploadId, 10)
-          const presignRes = await fetch('/api/presigned-upload/presigned-url', {
+          const presignedResponse = await fetch('/api/presigned-upload/presigned-url', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
               filename: file.name,
               contentType: file.type,
             }),
           })
 
-          if (!presignRes.ok) {
-            const errorText = await presignRes.text()
-            throw new Error(`Failed to get presigned URL: ${presignRes.status} - ${errorText}`)
+          if (!presignedResponse.ok) {
+            const errorText = await presignedResponse.text()
+            throw new Error(`Failed to get presigned URL: ${presignedResponse.status} - ${errorText}`)
           }
 
-          const { uploadUrl: presignedUrl, key, moduleId } = await presignRes.json()
-          console.log(`[UPLOAD] presign (moduleId: ${moduleId}, key: ${key})`)
-          
-          // 🎯 SET MODULE ID HERE - we get it from the presign response
-          setJustUploadedModuleId(moduleId)
+          const { presignedUrl, key } = await presignedResponse.json()
+          console.log('Got presigned URL:', presignedUrl)
+          console.log('S3 key:', key)
 
-          // 2) PUT file to S3
-          updateProgress(uploadId, 50)
-          const putRes = await fetch(presignedUrl, {
+          // Step 2: Upload directly to S3 using presigned URL
+          updateProgress(uploadId, 30)
+          const s3Response = await fetch(presignedUrl, {
             method: 'PUT',
-            headers: { 'Content-Type': file.type },
             body: file,
+            headers: {
+              'Content-Type': contentType,  // Use normalized Content-Type for Android compatibility
+            },
           })
-          if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`)
 
-          console.log('S3 PUT 200 - Upload successful')
+          if (!s3Response.ok) {
+            const errorText = await s3Response.text()
+            throw new Error(`S3 upload failed: ${s3Response.status} - ${errorText}`)
+          }
 
-          // 3) tell backend to process
-          updateProgress(uploadId, 80)
-          await fetch('/api/upload/complete', {
+          console.log('S3 upload successful')
+
+          // Step 3: Confirm upload with backend
+          updateProgress(uploadId, 60)
+          const confirmResponse = await fetch('/api/presigned-upload/confirm', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ moduleId, key }),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              key: key,
+            }),
           })
 
-          console.log(`[UPLOAD] complete (moduleId: ${moduleId}, key: ${key})`)
+          if (!confirmResponse.ok) {
+            const errorText = await confirmResponse.text()
+            throw new Error(`Upload confirmation failed: ${confirmResponse.status} - ${errorText}`)
+          }
+
+          const confirmResult = await confirmResponse.json()
+          console.log('Upload confirmed:', confirmResult)
+
+          // 🎯 SET REAL MODULE ID HERE - before AI processing starts
+          setJustUploadedModuleId(confirmResult.moduleId)
+
+          // Step 4: Process video with AI
+          updateProgress(uploadId, 80)
+          const processResponse = await fetch('/api/presigned-upload/process', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              videoUrl: confirmResult.fileUrl,
+              moduleId: confirmResult.moduleId, // Use the moduleId from confirm
+            }),
+          })
+
+          if (!processResponse.ok) {
+            const errorText = await processResponse.text()
+            throw new Error(`AI processing failed: ${processResponse.status} - ${errorText}`)
+          }
+
+          const processResult = await processResponse.json()
+          console.log('AI processing started:', processResult)
 
           // Mark upload as successful
           updateProgress(uploadId, 100)
-          markSuccess(uploadId, moduleId)
+          markSuccess(uploadId, processResult.moduleId)
+          
+          // 🎯 MODULE ID ALREADY SET ABOVE - no need to set again
 
         } catch (error) {
           console.error('Upload error:', error)

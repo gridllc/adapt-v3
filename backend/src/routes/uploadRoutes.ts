@@ -53,6 +53,9 @@ router.post('/', optionalAuth, (req: express.Request, res: express.Response, nex
   next()
 }, uploadController.uploadVideo)
 
+// Upload completion endpoint for presigned uploads
+router.post('/complete', optionalAuth, uploadController.uploadComplete)
+
 // TEST ENDPOINT: Manually trigger AI processing for debugging
 router.post('/manual-process', optionalAuth, async (req, res) => {
   try {

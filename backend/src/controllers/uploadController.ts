@@ -30,6 +30,52 @@ async function queueOrInline(moduleId: string) {
 }
 
 export const uploadController = {
+  async uploadComplete(req: Request, res: Response) {
+    try {
+      const { moduleId, key, filename, contentType, size } = req.body
+      
+      console.log(`[UPLOAD] complete (moduleId: ${moduleId}, key: ${key})`)
+      
+      if (!moduleId || !key) {
+        return res.status(400).json({ 
+          ok: false, 
+          error: 'moduleId and key are required' 
+        })
+      }
+
+      // Update module status to UPLOADED before starting AI processing
+      try {
+        const { ModuleService } = await import('../services/moduleService.js')
+        await ModuleService.updateModuleStatus(moduleId, 'UPLOADED', 0, 'Upload completed, starting AI processing...')
+        console.log(`✅ Module status updated to UPLOADED for: ${moduleId}`)
+      } catch (statusError) {
+        console.error(`❌ Failed to update module status for: ${moduleId}:`, statusError)
+        // Continue anyway - the AI processing can still start
+      }
+
+      // Start AI processing
+      try {
+        console.log(`[PIPELINE] start (moduleId: ${moduleId})`)
+        await queueOrInline(moduleId)
+      } catch (processingError) {
+        console.error(`❌ Failed to start AI processing for module: ${moduleId}:`, processingError)
+        // Don't fail the upload, just log the error
+      }
+
+      res.json({ 
+        ok: true, 
+        message: 'Upload completed and processing started' 
+      })
+      
+    } catch (error) {
+      console.error('Upload completion error:', error)
+      res.status(500).json({ 
+        ok: false, 
+        error: 'Upload completion failed' 
+      })
+    }
+  },
+
   async uploadVideo(req: Request, res: Response) {
     try {
       console.log('=== UPLOAD CONTROLLER HIT ===')

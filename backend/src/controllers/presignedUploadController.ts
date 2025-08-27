@@ -65,26 +65,65 @@ export const presignedUploadController = {
         })
       }
 
+      // Generate moduleId first - this ensures consistency across the upload flow
+      const moduleId = crypto.randomUUID()
+      
       log.info('Generating presigned URL', { 
         filename, 
         contentType, 
+        moduleId,
         userId 
       })
 
       const result = await presignedUploadService.generatePresignedUrl(
         filename, 
-        contentType
+        contentType,
+        moduleId
       )
+      
+      // Create the module record immediately - this ensures it exists for the complete step
+      try {
+        const originalFilename = filename.replace(/\.[^/.]+$/, '') // Remove file extension for title
+        const fileUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${result.key}`
+        
+        await DatabaseService.createModule({
+          id: moduleId,
+          title: originalFilename,
+          filename: filename,
+          videoUrl: fileUrl,
+          s3Key: result.key,
+          stepsKey: `training/${moduleId}.json`,
+          status: 'UPLOADING' as const,
+          userId: userId || undefined
+        })
+        
+        log.info('Module created for presigned upload', { 
+          moduleId,
+          filename,
+          userId 
+        })
+      } catch (dbError) {
+        log.error('Failed to create module for presigned upload', { 
+          error: dbError instanceof Error ? dbError.message : 'Unknown error',
+          moduleId,
+          userId 
+        })
+        // Continue anyway - the upload can still work and the module can be created later
+      }
       
       log.info('Presigned URL generated successfully', { 
         filename, 
         key: result.key,
+        moduleId,
         userId 
       })
       
       res.json({
-        ...result,
-        expiresIn: 3600, // 1 hour
+        ok: true,
+        uploadUrl: result.uploadUrl,
+        key: result.key,
+        moduleId: result.moduleId,
+        expiresIn: 300, // 5 minutes
         maxFileSize: 500 * 1024 * 1024 // 500MB limit
       })
     } catch (error) {
@@ -182,15 +221,19 @@ export const presignedUploadController = {
       if (result.success) {
         console.log('✅ [confirmUpload] S3 confirmation successful, creating module...')
         
-        // Generate a module ID for this upload
-        const moduleId = crypto.randomUUID()
-        console.log('🆔 [confirmUpload] Generated module ID:', moduleId)
+        // Extract moduleId from the new key format: training/${moduleId}/${uuid}-${filename}
+        const keyParts = key.split('/')
+        if (keyParts.length < 3 || keyParts[0] !== 'training') {
+          throw new Error(`Invalid key format: expected 'training/moduleId/uuid-filename', got '${key}'`)
+        }
+        
+        const moduleId = keyParts[1] // training/moduleId/uuid-filename
+        console.log('🆔 [confirmUpload] Extracted module ID from key:', moduleId)
         
         // Extract original filename from S3 key (remove UUID prefix)
-        // Key format: videos/${uuidv4()}-${filename}
-        const fullFilename = key.split('/').pop() || 'video.mp4'
-        // UUID format: 8-4-4-4-12 characters (e.g., 59b85c77-98f1-478b-a34d-e64c41b0cf83)
-        // Find the position after the UUID by looking for the pattern: 8-4-4-4-12 followed by a hyphen
+        // Key format: training/${moduleId}/${uuid}-${filename}
+        const fullFilename = keyParts[2] || 'video.mp4'
+        // UUID format: 8-4-4-4-12 characters followed by a hyphen
         const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i
         const match = fullFilename.match(uuidPattern)
         const originalFilename = match ? fullFilename.substring(match[0].length) : fullFilename
@@ -221,6 +264,7 @@ export const presignedUploadController = {
           console.log(`📦 [confirmUpload] AI pipeline imported, calling startProcessing...`)
           await startProcessing(moduleId)
           console.log(`✅ [confirmUpload] AI processing started successfully for module: ${moduleId}`)
+          console.log(`[PIPELINE] start (moduleId: ${moduleId})`)
         } catch (processingError) {
           console.error(`❌ [confirmUpload] Failed to start AI processing for module: ${moduleId}:`, processingError)
           console.error(`❌ [confirmUpload] Processing error details:`, processingError)
@@ -244,12 +288,63 @@ export const presignedUploadController = {
     } catch (error) {
       log.error('Upload confirmation error', { 
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         key: req.body?.key,
         userId: req.body?.userId 
       })
       res.status(500).json({ 
-        error: 'Failed to confirm upload',
+        error: 'Upload confirmation failed',
         details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : 'Unknown error' : undefined
+      })
+    }
+  },
+
+  /**
+   * Handle upload completion (simplified version for frontend)
+   */
+  async uploadComplete(req: Request, res: Response) {
+    try {
+      const { moduleId, key, filename, contentType, size } = req.body
+      
+      console.log(`[UPLOAD] complete (moduleId: ${moduleId}, key: ${key})`)
+      
+      if (!moduleId || !key) {
+        return res.status(400).json({ 
+          ok: false, 
+          error: 'moduleId and key are required' 
+        })
+      }
+
+      // Verify the file exists in S3
+      const result = await presignedUploadService.confirmUpload(key)
+      
+      if (!result.success) {
+        return res.status(404).json({ 
+          ok: false, 
+          error: 'File not found in S3' 
+        })
+      }
+
+      // Start AI processing
+      try {
+        console.log(`[PIPELINE] start (moduleId: ${moduleId})`)
+        const { startProcessing } = await import('../services/ai/aiPipeline.js')
+        await startProcessing(moduleId)
+      } catch (processingError) {
+        console.error(`❌ Failed to start AI processing for module: ${moduleId}:`, processingError)
+        // Don't fail the upload, just log the error
+      }
+
+      res.json({ 
+        ok: true, 
+        message: 'Upload completed and processing started' 
+      })
+      
+    } catch (error) {
+      console.error('Upload completion error:', error)
+      res.status(500).json({ 
+        ok: false, 
+        error: 'Upload completion failed' 
       })
     }
   },

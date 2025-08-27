@@ -10,6 +10,7 @@ router.use(optionalAuth)
 router.post('/presigned-url', presignedUploadController.getPresignedUrl)
 router.post('/process', presignedUploadController.processVideo)
 router.post('/confirm', presignedUploadController.confirmUpload)
+router.post('/complete', presignedUploadController.uploadComplete) // Use the new method
 router.get('/status/:key', presignedUploadController.getUploadStatus)
 router.get('/health', presignedUploadController.healthCheck)
 

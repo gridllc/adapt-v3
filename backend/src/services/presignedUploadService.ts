@@ -1,9 +1,9 @@
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { v4 as uuidv4 } from 'uuid'
+import { randomUUID } from 'crypto'
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION || 'us-west-1',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
@@ -13,23 +13,26 @@ const s3Client = new S3Client({
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME || 'adapt-videos'
 
 export const presignedUploadService = {
-  async generatePresignedUrl(filename: string, contentType: string) {
-    const key = `videos/${uuidv4()}-${filename}`
+  async generatePresignedUrl(filename: string, contentType: string, moduleId: string) {
+    // Single source of truth for key shape - matches the expected training/ structure
+    const key = `training/${moduleId}/${randomUUID()}-${filename}`
+    
+    console.log(`[UPLOAD] presign (moduleId: ${moduleId}, key: ${key})`)
     
     const command = new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
-      ContentType: contentType,
+      ContentType: contentType, // Critical: must match the PUT request ContentType
     })
 
     const presignedUrl = await getSignedUrl(s3Client, command, { 
-      expiresIn: 3600 
+      expiresIn: 60 * 5 // 5 minutes - shorter for security
     })
 
     return {
-      presignedUrl,
+      uploadUrl: presignedUrl, // Return as uploadUrl for consistency
       key,
-      fileUrl: `https://${BUCKET_NAME}.s3.amazonaws.com/${key}`
+      moduleId
     }
   },
 
