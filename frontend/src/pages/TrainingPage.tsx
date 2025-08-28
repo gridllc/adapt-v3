@@ -85,7 +85,6 @@ export const TrainingPage: React.FC = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   const [hasTriedOnce, setHasTriedOnce] = useState(false)
-  const [isFallback, setIsFallback] = useState(false)
   const maxRetries = 5
 
   const [chatMessage, setChatMessage] = useState('')
@@ -103,6 +102,7 @@ export const TrainingPage: React.FC = () => {
   // 🎯 FETCH MODULE DATA FOR TITLE
   const [moduleData, setModuleData] = useState<any>(null)
   const [moduleDataLoading, setModuleDataLoading] = useState(false)
+  const [isRealData, setIsRealData] = useState<boolean>(false)
 
 
   // Video seeking function
@@ -226,22 +226,51 @@ export const TrainingPage: React.FC = () => {
   // 🎯 FETCH MODULE DATA FOR TITLE
   useEffect(() => {
     if (!moduleId) return
-    
+
     const fetchModuleData = async () => {
       setModuleDataLoading(true)
       try {
         const response = await fetch(`/api/modules/${moduleId}`)
         const data = await response.json()
-        if (data.success) {
+        if (data.success && data.module) {
           setModuleData(data.module)
+
+          // Detect if we have real processed data
+          const hasRealSteps = data.module.steps &&
+            Array.isArray(data.module.steps) &&
+            data.module.steps.length > 0 &&
+            data.module.steps.some((step: any) =>
+              step.title &&
+              !step.title.includes('ERROR') &&
+              !step.title.includes('Failed') &&
+              !step.title.includes('Database Not Configured') &&
+              step.start !== undefined
+            )
+
+          const isCompleted = data.module.status === 'READY' || data.module.status === 'COMPLETED'
+          const hasValidDuration = data.module.totalDuration && data.module.totalDuration > 0
+
+          setIsRealData(hasRealSteps && isCompleted && hasValidDuration)
+
+          console.log('🔍 Module data analysis:', {
+            hasSteps: !!data.module.steps,
+            stepsCount: data.module.steps?.length || 0,
+            hasRealSteps,
+            status: data.module.status,
+            isCompleted,
+            duration: data.module.totalDuration,
+            hasValidDuration,
+            isRealData: hasRealSteps && isCompleted && hasValidDuration
+          })
         }
       } catch (error) {
         console.error('Failed to fetch module data:', error)
+        setIsRealData(false)
       } finally {
         setModuleDataLoading(false)
       }
     }
-    
+
     fetchModuleData()
   }, [moduleId])
 
@@ -321,9 +350,7 @@ export const TrainingPage: React.FC = () => {
         // Set meta data
         setStepsMeta(data.meta)
 
-        // Check if these are fallback steps
-        const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
-        setIsFallback(isFallbackResponse)
+        // Real data detection is now handled in the module data fetch
 
         // Normalize step data structure to match UI expectations
         const normalizedSteps = (data.steps || []).map((step: any, index: number) => ({
@@ -755,8 +782,8 @@ Just ask me anything about the training!`
                   </div>
                 )}
 
-                {/* Show improved transcribe button for fallback steps */}
-                {isFallback && status?.status !== 'PROCESSING' && status?.status !== 'FAILED' && (
+                {/* Show enhancement banner only when we don't have real processed data */}
+                {!isRealData && status?.status !== 'PROCESSING' && status?.status !== 'FAILED' && (
                   <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
                     <div className="flex items-center justify-between">
                       <div className="text-blue-900">
