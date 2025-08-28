@@ -44,6 +44,8 @@ export const TrainingPage: React.FC = () => {
 
   // Module status polling (5-10s intervals for real-time updates)
   const [status, setStatus] = useState<any>(null)
+  const prevStatusRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (!moduleId) return
     const interval = setInterval(async () => {
@@ -52,11 +54,19 @@ export const TrainingPage: React.FC = () => {
         const data = await r.json()
         setStatus(data.module)
 
-        // If status changed to READY or FAILED, trigger steps reload
-        if (data.module?.status === 'READY' || data.module?.status === 'FAILED') {
-          console.log('Status changed, triggering steps reload:', data.module.status)
-          setRetryCount(0)
-          setHasTriedOnce(false)
+        // Only trigger reload on actual status change
+        const newStatus = data.module?.status ?? null
+        if (newStatus !== prevStatusRef.current) {
+          prevStatusRef.current = newStatus
+
+          if (newStatus === 'READY' || newStatus === 'FAILED') {
+            console.log('Status changed, triggering steps reload:', newStatus)
+            // Small debounce to let S3 consistency settle
+            setTimeout(() => {
+              setRetryCount(0)
+              setHasTriedOnce(false)
+            }, 750)
+          }
         }
       } catch (e) {
         console.error('Status fetch failed', e)
@@ -69,6 +79,7 @@ export const TrainingPage: React.FC = () => {
   const chatHistoryRef = useRef<HTMLDivElement>(null)
   
   const [steps, setSteps] = useState<Step[]>([])
+  const [stepsMeta, setStepsMeta] = useState<any>(null)
   const [stepsLoading, setStepsLoading] = useState(false)
   const [stepsError, setStepsError] = useState<string | null>(null)
   const [currentStepIndex, setCurrentStepIndex] = useState<number | null>(null)
@@ -307,18 +318,27 @@ export const TrainingPage: React.FC = () => {
           console.log(`📊 Meta data loaded:`, data.meta)
         }
 
+        // Set meta data
+        setStepsMeta(data.meta)
+
         // Check if these are fallback steps
         const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
         setIsFallback(isFallbackResponse)
 
-        // Enhance steps with transcript and duration info
-        const enhancedSteps = data.steps.map((step: any, index: number) => ({
-          ...step,
+        // Normalize step data structure to match UI expectations
+        const normalizedSteps = (data.steps || []).map((step: any, index: number) => ({
+          id: step.id ?? `s-${index + 1}`,
+          title: step.title ??
+                 step.heading ??
+                 (typeof step.text === 'string' ? step.text.split('\n')[0].slice(0, 80) : `Step ${index + 1}`),
+          description: step.description ?? step.text ?? '',
+          start: step.start ?? step.startTime ?? index * 10,
+          end: step.end ?? step.endTime ?? (index + 1) * 10,
           originalText: data.transcript || '', // Add transcript to each step
           duration: data.meta?.durationSec ? Math.round(data.meta.durationSec / data.steps.length) : 15 // Calculate step duration
         }))
 
-        setSteps(enhancedSteps)
+        setSteps(normalizedSteps)
         setRetryCount(0)
         setHasTriedOnce(true)
       } catch (err: any) {

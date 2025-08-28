@@ -74,6 +74,7 @@ router.get('/:moduleId', async (req, res) => {
             })
           )
         ).catch(err => console.warn('[steps hydrate→DB] skipped:', err?.message))
+        res.set('Cache-Control', 'no-store')
         return ok(res, { steps: data.steps, transcript: data.transcript ?? '', meta: data.meta ?? {} })
       }
     } catch (_) {
@@ -92,6 +93,7 @@ router.get('/:moduleId', async (req, res) => {
     ]
 
     // NOTE: no write to S3 here, no DB seed here.
+    res.set('Cache-Control', 'no-store')
     return res.status(200).json({
       success: true,
       steps,
