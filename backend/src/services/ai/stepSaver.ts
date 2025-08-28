@@ -1,4 +1,5 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import { normalizeSteps, RawStep } from './stepProcessor.js'
 
 const s3 = new S3Client({ region: process.env.AWS_REGION! })
 const bucket = process.env.AWS_BUCKET_NAME!
@@ -28,12 +29,24 @@ export const stepSaver = {
     transcript: string;
     meta?: Record<string, any>;
   }) {
+    // Build raw steps from AI and attach times from segments when missing
+    const transcriptSegments = meta.segments || [];
+    const rawSteps: RawStep[] = steps.map((s, i) => ({
+      title: s.title,
+      description: s.description,
+      start: s.start ?? transcriptSegments[i]?.start, // use Whisper/AssemblyAI segment time
+      end:   s.end   ?? transcriptSegments[i]?.end,
+    }));
+
+    // Normalize & clamp to video length
+    const finalSteps = normalizeSteps(rawSteps, meta.durationSec || 60);
+
     const body = JSON.stringify({
       version: 3,
       moduleId,
       createdAt: new Date().toISOString(),
       transcript,                        // Ensure transcript is always present
-      steps,
+      steps: finalSteps,
       meta
     });
 
@@ -43,7 +56,7 @@ export const stepSaver = {
       Body: Buffer.from(body, 'utf8'),
       ContentType: 'application/json',
     }));
-    
-    console.log('✅ Steps + transcript saved to S3:', s3Key, `(${steps.length} steps, ${transcript.length} chars)`)
+
+    console.log('✅ Steps + transcript saved to S3:', s3Key, `(${finalSteps.length} steps, ${transcript.length} chars)`)
   },
 }

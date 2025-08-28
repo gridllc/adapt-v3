@@ -345,44 +345,26 @@ export const TrainingPage: React.FC = () => {
         const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
         setIsFallback(isFallbackResponse)
 
-        // ✅ Use backend-provided durations when available, otherwise calculate from timestamps
-        const normalizedSteps = (data.steps || []).map((raw: any, idx: number, arr: any[]) => {
-          // Priority 1: Use backend-provided duration if available
-          let duration = null;
-          let start = Number(raw.start ?? raw.timestamp ?? 0);
-          let end = null;
-
-          if (raw.duration != null) {
-            // Backend provided a specific duration for this step
-            duration = Number(raw.duration);
-            end = start + duration;
-          } else {
-            // Fallback: calculate from timestamps or infer from next step
-            const inferredEnd =
-              raw.end != null
-                ? Number(raw.end)
-                : idx < arr.length - 1
-                  ? Number(arr[idx + 1].start ?? arr[idx + 1].timestamp ?? start)
-                  : Number(data.meta?.durationSec ?? start);
-
-            end = Math.max(inferredEnd, start);
-            duration = end > start ? end - start : null;
-          }
+        // ✅ Use real timestamps (supports start/end or startTime/endTime from API)
+        const enhancedSteps = data.steps.map((raw: any, idx: number, arr: any[]) => {
+          const start = Number(raw.start ?? raw.startTime ?? 0);
+          const end =
+            raw.end != null || raw.endTime != null
+              ? Number(raw.end ?? raw.endTime)
+              : idx < arr.length - 1
+                ? Number(arr[idx + 1].start ?? arr[idx + 1].startTime ?? start)
+                : Number(data.meta?.durationSec ?? start);
 
           return {
-            id: raw.id ?? `s-${idx + 1}`,
-            title: raw.title ??
-                   raw.heading ??
-                   (typeof raw.text === 'string' ? raw.text.split('\n')[0].slice(0, 80) : `Step ${idx + 1}`),
-            description: raw.description ?? raw.text ?? '',
+            ...raw,
             start,
             end,
             originalText: data.transcript || '',
-            duration, // seconds; uses backend duration when available
+            duration: end > start ? end - start : null,
           };
         });
 
-        setSteps(normalizedSteps)
+        setSteps(enhancedSteps)
         setRetryCount(0)
         setHasTriedOnce(true)
       } catch (err: any) {

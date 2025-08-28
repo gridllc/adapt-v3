@@ -51,47 +51,63 @@ router.get('/:moduleId', async (req, res) => {
     const dbSteps = await prisma.step.findMany({
       where: { moduleId },
       orderBy: [{ order: 'asc' }],
-    })
+    });
     if (dbSteps.length > 0) {
-      return ok(res, { steps: dbSteps })
+      const steps = dbSteps.map((s: any, i: number) => ({
+        id: s.id,
+        start: Number(s.startTime ?? 0),
+        end: Number(s.endTime ?? 0),
+        title: String(s.text ?? s.title ?? `Step ${i + 1}`),
+        description: String(s.description ?? ''),
+      }));
+      return ok(res, { steps });
     }
 
-    // 2) Try S3 JSON (source of truth)
-    const s3Key = `training/${moduleId}.json`
+    // 2) S3 JSON (source of truth)
+    const s3Key = `training/${moduleId}.json`;
     try {
-      const data = await readS3Json(s3Key)
-      if (Array.isArray(data?.steps) && data.steps.length > 0) {
-        // Guard against uniform spacing placeholders
-        const durationSec = Number((module as any)?.durationSec || data.meta?.durationSec || 60)
-        if (looksUniform(data.steps, durationSec)) {
-          console.warn(`[STEPS] ${moduleId}: Detected uniform spacing, forcing re-processing`)
-          return res.status(202).json({
-            success: true,
-            message: 'Steps still normalizing',
-            steps: [],
-            meta: { ...data.meta, source: 'uniform-placeholder' }
-          })
-        }
+      const data = await readS3Json(s3Key);
 
-        // (optional) hydrate DB in background
-        prisma.$transaction(
-          data.steps.map((s: any, i: number) =>
-            prisma.step.create({
-              data: {
-                moduleId,
-                order: i,
-                startTime: Math.max(0, Number(s.start) || 0),
-                endTime: Math.max(0, Number(s.end) || 0),
-                text: String(s.title || s.description || `Step ${i + 1}`),
-              },
-            })
-          )
-        ).catch(err => console.warn('[steps hydrate→DB] skipped:', err?.message))
-        res.set('Cache-Control', 'no-store')
-        return ok(res, { steps: data.steps, transcript: data.transcript ?? '', meta: data.meta ?? {} })
+      const stepsFromS3 = (data?.steps ?? []).map((s: any, i: number) => ({
+        id: s.id ?? `s${i + 1}`,
+        start: Number(s.start ?? s.startTime ?? 0),
+        end: Number(s.end ?? s.endTime ?? 0),
+        title: String(s.title ?? s.text ?? `Step ${i + 1}`),
+        description: String(s.description ?? ''),
+      }));
+
+      const durationSec = Number(data?.meta?.durationSec ?? 60);
+
+      if (looksUniform(stepsFromS3, durationSec)) {
+        console.warn(`[STEPS] ${moduleId}: uniform placeholders -> 202`);
+        return res.status(202).json({
+          success: true,
+          message: 'Steps still normalizing',
+          steps: [],
+          meta: { ...data.meta, source: 'uniform-placeholder' }
+        });
       }
+
+      // (optional) hydrate DB in background
+      prisma.$transaction(
+        stepsFromS3.map((s: any, i: number) =>
+          prisma.step.create({
+            data: {
+              moduleId,
+              order: i,
+              startTime: s.start,
+              endTime: s.end,
+              text: s.title,
+              description: s.description,
+            },
+          })
+        )
+      ).catch(err => console.warn('[steps hydrate→DB] skipped:', err?.message));
+
+      res.set('Cache-Control', 'no-store');
+      return ok(res, { steps: stepsFromS3, transcript: data.transcript ?? '', meta: data.meta ?? {} });
     } catch (_) {
-      // not found is fine; fall through
+      // fall through to transient fallback…
     }
 
     // 3) Transient fallback (DO NOT persist). Just return something so UI renders,
