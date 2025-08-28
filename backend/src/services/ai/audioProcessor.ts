@@ -38,6 +38,39 @@ export const audioProcessor = {
       throw new Error(`FFmpeg extraction failed: ${e?.stderr || e?.message || e}`)
     }
   },
+
+  async getVideoDuration(videoPath: string): Promise<number> {
+    try {
+      console.log(`[AudioProcessor] Getting duration for ${videoPath}`)
+
+      // Use ffmpeg to probe the video and get duration
+      const args = [
+        '-i', videoPath,
+        '-f', 'null', // null output format (no output file)
+        '-'
+      ]
+
+      const { stdout, stderr } = await exec(ffmpegPath as string, args, { windowsHide: true })
+
+      // Parse duration from stderr (ffmpeg writes metadata to stderr)
+      const durationMatch = stderr.match(/Duration: (\d{2}):(\d{2}):(\d{2})\.(\d{2})/)
+      if (durationMatch) {
+        const hours = parseInt(durationMatch[1], 10)
+        const minutes = parseInt(durationMatch[2], 10)
+        const seconds = parseInt(durationMatch[3], 10)
+        const centiseconds = parseInt(durationMatch[4], 10)
+
+        const totalSeconds = hours * 3600 + minutes * 60 + seconds + centiseconds / 100
+        console.log(`[AudioProcessor] Duration: ${totalSeconds}s`)
+        return Math.round(totalSeconds)
+      }
+
+      throw new Error('Could not parse duration from ffmpeg output')
+    } catch (e: any) {
+      console.error('[AudioProcessor] Failed to get video duration', e?.message || e)
+      throw new Error(`Failed to get video duration: ${e?.stderr || e?.message || e}`)
+    }
+  },
 }
 
 // Keep the old functions for backward compatibility

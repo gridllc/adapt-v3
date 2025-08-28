@@ -89,6 +89,7 @@ export const TrainingPage: React.FC = () => {
   const [hasTriedOnce, setHasTriedOnce] = useState(false)
   const [isFallback, setIsFallback] = useState(false)
   const [showProcessingSkeleton, setShowProcessingSkeleton] = useState(false)
+  const [isPlaceholder, setIsPlaceholder] = useState(false)
   const maxRetries = 5
 
   const [chatMessage, setChatMessage] = useState('')
@@ -348,6 +349,7 @@ export const TrainingPage: React.FC = () => {
         setStepsMeta(data.meta)
         setShowProcessingSkeleton(false) // Hide processing state
         setIsFallback(false) // No more fake steps
+        setIsPlaceholder(Boolean(data.meta?.isPlaceholder)) // Track if these are placeholder steps
 
         // Load transcript if available
         if (data.transcript) {
@@ -887,6 +889,21 @@ Just ask me anything about the training!`
                         Retry Processing
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* Show yellow banner for placeholder steps */}
+                {isPlaceholder && (
+                  <div className="mb-4 rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-yellow-800">
+                    ⚠️ <strong>You’re viewing placeholder steps.</strong> These are temporary steps created while AI processing is running.
+                    Run the AI pipeline to transcribe the video and generate real, accurate steps.
+                    <button
+                      onClick={handleProcessWithAI}
+                      disabled={processingAI || status?.status === 'processing'}
+                      className="ml-3 inline-flex items-center rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:bg-blue-400"
+                    >
+                      Transcribe now
+                    </button>
                   </div>
                 )}
 

@@ -115,24 +115,40 @@ export async function runPipeline(moduleId: string, s3Key: string) {
 
 // ---- Plug your implementations here ----
 async function transcribeToSegments(s3Key: string): Promise<{ segments: { start: number; end: number; text: string }[]; durationSec: number }> {
-  // Extract audio and transcribe to get segments + real duration
-  // Replace with your AssemblyAI/Whisper call; make sure durationSec is REAL.
+  // Extract audio and transcribe to get segments + real video duration (no guessing!)
 
-  // For now, extract audio like current pipeline
+  console.log(`[Transcription] Getting real duration and segments for ${s3Key}`)
+
+  // Download video to temp file
   const signedUrl = await storageService.generateSignedUrl(s3Key, 3600)
   const response = await fetch(signedUrl)
   const buffer = await response.arrayBuffer()
   const localMp4 = `/tmp/${Date.now()}.mp4`
   await fs.writeFile(localMp4, Buffer.from(buffer))
 
-  const wavPath = await audioProcessor.extract(localMp4)
-  await fs.unlink(localMp4).catch(() => {})
+  try {
+    // CRITICAL: Get REAL video duration from file metadata (not from segments!)
+    const realDurationSec = await audioProcessor.getVideoDuration(localMp4)
+    console.log(`[Transcription] Real video duration: ${realDurationSec}s`)
 
-  const transcript = await transcribeAudio(wavPath, 'temp')
-  return {
-    segments: transcript.segments || [],
-    durationSec: transcript.segments?.length ?
-      transcript.segments[transcript.segments.length - 1].end : 0
+    // Extract audio for transcription
+    const wavPath = await audioProcessor.extract(localMp4)
+    await fs.unlink(localMp4).catch(() => {})
+
+    // Transcribe the audio
+    const transcript = await transcribeAudio(wavPath, 'temp')
+    const segments = transcript.segments || []
+
+    console.log(`[Transcription] Got ${segments.length} segments, real duration: ${realDurationSec}s`)
+
+    return {
+      segments,
+      durationSec: realDurationSec // Always use real video duration, never guess from segments
+    }
+  } catch (error) {
+    await fs.unlink(localMp4).catch(() => {})
+    console.error('[Transcription] Failed to get real duration:', error)
+    throw new Error(`Failed to get video duration: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
