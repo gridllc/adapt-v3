@@ -26,7 +26,7 @@ export default function VoiceTrainer({ moduleId, onQuestionAsked, autoStart = fa
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognition.continuous = true; // Keep listening continuously
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
@@ -63,6 +63,19 @@ export default function VoiceTrainer({ moduleId, onQuestionAsked, autoStart = fa
     recognition.onend = () => {
       setIsListening(false);
       setTranscript('');
+
+      // Auto-restart if we're supposed to be listening (for continuous mode)
+      if (autoStart) {
+        setTimeout(() => {
+          if (recognitionRef.current && !isListening) {
+            try {
+              recognitionRef.current.start();
+            } catch (err) {
+              console.warn('Failed to auto-restart voice recognition:', err);
+            }
+          }
+        }, 1000); // Wait 1 second before restarting
+      }
     };
 
     recognitionRef.current = recognition;
@@ -70,25 +83,32 @@ export default function VoiceTrainer({ moduleId, onQuestionAsked, autoStart = fa
 
   // Auto-start voice recognition when autoStart becomes true
   useEffect(() => {
-    if (autoStart && isSupported && !isListening && recognitionRef.current) {
+    if (autoStart && isSupported && recognitionRef.current) {
       // Small delay to ensure component is fully mounted
       const timer = setTimeout(() => {
-        try {
-          recognitionRef.current.start();
-        } catch (err) {
-          console.warn('Auto-start voice recognition failed:', err);
+        if (!isListening) {
+          try {
+            recognitionRef.current.start();
+          } catch (err) {
+            console.warn('Auto-start voice recognition failed:', err);
+          }
         }
       }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [autoStart, isSupported, isListening]);
+  }, [autoStart, isSupported]); // Removed isListening to prevent conflicts
 
   const handleVoiceCommand = async (command: string) => {
+    if (!command.trim()) return;
+
     try {
       // Process the voice command through the AI assistant
-      await ask(moduleId, command);
-      onQuestionAsked?.(command);
+      await ask(moduleId, command.trim());
+      onQuestionAsked?.(command.trim());
+
+      // Show success feedback
+      setError('');
     } catch (err) {
       console.error('Voice command failed:', err);
       setError('Failed to process voice command');
@@ -157,7 +177,7 @@ export default function VoiceTrainer({ moduleId, onQuestionAsked, autoStart = fa
       )}
 
       <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-        💡 Try saying: "What's the second step?", "Next step", "How many steps?", or "Read the current step"
+        🎤 Voice commands are automatically sent to AI. Try saying: "What's the second step?", "Next step", "How many steps?", or "Read the current step"
       </div>
     </div>
   );

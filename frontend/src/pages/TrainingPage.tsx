@@ -721,8 +721,7 @@ What would you like to know about this training?`
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
-        <div className="lg:col-span-2">
-          {!videoUrl ? (
+        <div className="lg:col-span-2 order-2 lg:order-1">
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
               <div className="text-center space-y-4">
                 <div className="w-12 h-12 mx-auto animate-spin text-2xl">⏳</div>
@@ -928,8 +927,8 @@ What would you like to know about this training?`
           )}
         </div>
 
-        {/* AI Assistant Chat */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col h-[500px]">
+        {/* AI Assistant Chat (Top on mobile) */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col h-[500px] order-1 lg:order-2 lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">🤖 AI Assistant</h3>
             {aiLearningMetrics && aiLearningMetrics.totalInteractions > 0 && (
