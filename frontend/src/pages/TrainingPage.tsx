@@ -91,7 +91,7 @@ export const TrainingPage: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       type: 'assistant',
-      message: "Hi! I'm here to help you with this training. Ask me anything about the current step or the overall process."
+      message: `Hi! I'm your AI training assistant with a growing knowledge base! 🤖\n\nI learn from every conversation and can help you with:\n• Step-by-step guidance\n• Answering questions about the training\n• Remembering what we've discussed\n\nTry asking "What's the second step?" or "Give me a summary!"`
     }
   ])
 
@@ -103,6 +103,7 @@ export const TrainingPage: React.FC = () => {
   const [moduleData, setModuleData] = useState<any>(null)
   const [moduleDataLoading, setModuleDataLoading] = useState(false)
   const [isRealData, setIsRealData] = useState<boolean>(false)
+  const [aiLearningMetrics, setAiLearningMetrics] = useState<any>(null)
 
 
   // Video seeking function
@@ -273,6 +274,40 @@ export const TrainingPage: React.FC = () => {
 
     fetchModuleData()
   }, [moduleId])
+
+  // 🎯 FETCH AI LEARNING METRICS
+  useEffect(() => {
+    const fetchLearningMetrics = async () => {
+      try {
+        const response = await api(API_ENDPOINTS.AI_LEARNING_METRICS)
+        if (response.success) {
+          setAiLearningMetrics(response.metrics)
+
+          // Update welcome message based on learning metrics
+          if (response.metrics.totalInteractions > 0) {
+            const welcomeMessage = `Hi! I'm your AI training assistant with ${response.metrics.knowledgeBaseSize} learned answers! 🤖\n\nI've helped with ${response.metrics.totalInteractions} conversations and have a ${response.metrics.reuseRate}% learning efficiency.\n\nTry asking "What's the second step?" or "Give me a summary!"`
+            setChatHistory([{
+              type: 'assistant',
+              message: welcomeMessage
+            }])
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to fetch AI learning metrics:', error)
+        // Set default metrics if API fails
+        setAiLearningMetrics({
+          totalInteractions: 0,
+          reusedCount: 0,
+          reuseRate: 0,
+          totalQuestions: 0,
+          knowledgeBaseSize: 0,
+          learningEfficiency: 0
+        })
+      }
+    }
+
+    fetchLearningMetrics()
+  }, [])
 
   // Handle seek parameter from URL
   useEffect(() => {
@@ -448,7 +483,24 @@ export const TrainingPage: React.FC = () => {
       
       // Remove typing indicator and add real response
       setChatHistory(prev => prev.filter(msg => !msg.isTyping))
-      setChatHistory(prev => [...prev, { type: 'assistant', message: aiResponse }])
+
+      // Add learning indicator to response if AI reused knowledge
+      let enhancedResponse = aiResponse
+      if (aiResponse.includes('♻️') || aiResponse.includes('📚')) {
+        enhancedResponse += '\n\n*This answer was drawn from my learning database - I\'m getting smarter!* 📈'
+      } else if (aiResponse.length > 50) {
+        enhancedResponse += '\n\n*Thanks for the question! I\'ve learned from this interaction.* 🧠'
+      }
+
+      setChatHistory(prev => [...prev, { type: 'assistant', message: enhancedResponse }])
+
+      // Update learning metrics after successful interaction
+      if (aiLearningMetrics) {
+        setAiLearningMetrics(prev => prev ? {
+          ...prev,
+          totalInteractions: prev.totalInteractions + 1
+        } : null)
+      }
     } catch (error) {
       console.error('AI response error:', error)
       // Remove typing indicator and add error response
@@ -487,7 +539,44 @@ export const TrainingPage: React.FC = () => {
   const generateFallbackResponse = (userMessage: string, currentStep: any, allSteps: Step[]) => {
     // Simple AI response logic based on keywords and context
     const message = userMessage.toLowerCase()
-    
+
+    // Numbered step requests (e.g., "second step", "step 3", "what's step 1")
+    const numberWords = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
+    const numberMap: { [key: string]: number } = {
+      'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
+      'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9, 'tenth': 10
+    }
+
+    // Check for "what's the X step" or "what is step X"
+    for (const [word, number] of Object.entries(numberMap)) {
+      if (message.includes(`${word} step`) || message.includes(`step ${number}`)) {
+        const stepIndex = number - 1
+        if (stepIndex < allSteps.length) {
+          const step = allSteps[stepIndex]
+          const minutes = Math.floor(step.start / 60)
+          const seconds = step.start % 60
+          return `**Step ${number}**: "${step.title}"\n\n${step.description}\n\nStarts at ${minutes}:${seconds.toString().padStart(2, '0')} in the video.`
+        } else {
+          return `Sorry, there are only ${allSteps.length} steps in this training.`
+        }
+      }
+    }
+
+    // Check for digit-based step requests (e.g., "step 2", "tell me about step 3")
+    const digitMatch = message.match(/step\s+(\d+)/i)
+    if (digitMatch) {
+      const stepNumber = parseInt(digitMatch[1])
+      const stepIndex = stepNumber - 1
+      if (stepIndex >= 0 && stepIndex < allSteps.length) {
+        const step = allSteps[stepIndex]
+        const minutes = Math.floor(step.start / 60)
+        const seconds = step.start % 60
+        return `**Step ${stepNumber}**: "${step.title}"\n\n${step.description}\n\nStarts at ${minutes}:${seconds.toString().padStart(2, '0')} in the video.`
+      } else {
+        return `Sorry, there are only ${allSteps.length} steps in this training.`
+      }
+    }
+
     // Current step questions
     if (currentStep && (message.includes('current step') || message.includes('this step') || message.includes('what step'))) {
       return `You're currently on **Step ${currentStep.stepNumber}**: "${currentStep.title}". ${currentStep.description}`
@@ -531,19 +620,53 @@ export const TrainingPage: React.FC = () => {
       return "Each step has specific timing. You can see the timestamp on each step, and click '▶️ Seek' to jump to that exact moment in the video."
     }
     
+    // Summary/overview questions
+    if (message.includes('summary') || message.includes('overview') || message.includes('what is this') || message.includes('what does this')) {
+      const totalDuration = allSteps.length > 0 ? Math.max(...allSteps.map(s => s.end)) : 0
+      const minutes = Math.floor(totalDuration / 60)
+      const seconds = totalDuration % 60
+      return `This training module has **${allSteps.length} steps** and runs for **${minutes}:${seconds.toString().padStart(2, '0')} minutes**.\n\nIt covers: ${allSteps.slice(0, 3).map((s, i) => `${i + 1}. ${s.title}`).join(', ')}${allSteps.length > 3 ? `, and ${allSteps.length - 3} more steps` : ''}.`
+    }
+
+    // Step count questions
+    if (message.includes('how many steps') || message.includes('total steps') || message.includes('number of steps')) {
+      return `This training has **${allSteps.length} steps** total. You can see all steps listed below the video. Each step is clickable and will seek to that part of the video.`
+    }
+
+    // Specific step patterns (e.g., "tell me about step 2", "explain step 3")
+    const specificStepMatch = message.match(/(?:tell me about|explain|describe|what about)\s+step\s+(\d+)/i)
+    if (specificStepMatch) {
+      const stepNumber = parseInt(specificStepMatch[1])
+      const stepIndex = stepNumber - 1
+      if (stepIndex >= 0 && stepIndex < allSteps.length) {
+        const step = allSteps[stepIndex]
+        return `**Step ${stepNumber}: ${step.title}**\n\n${step.description}\n\nThis step appears at ${Math.floor(step.start / 60)}:${(step.start % 60).toString().padStart(2, '0')} in the video.`
+      }
+    }
+
     // General help
     if (message.includes('help') || message.includes('how to') || message.includes('what can')) {
       return `I can help you with:
+• **Specific steps**: Ask "what's the second step?" or "tell me about step 3"
 • **Navigation**: Ask about current, next, or previous steps
-• **Editing**: Learn how to modify steps and use AI rewrite
-• **Overview**: Get information about the training structure
+• **Overview**: Ask for summary or how many steps there are
 • **Timing**: Find out when steps occur in the video
 
-Just ask me anything about the training!`
+Try asking me questions like:
+- "What's the second step?"
+- "How many steps are there?"
+- "What's the current step?"
+- "What's next?"`
     }
-    
-    // Default response
-    return `I understand you're asking about "${userMessage}". I can help with step navigation, editing, timing, and general questions about this training. What would you like to know?`
+
+    // Default response with better guidance
+    return `I can help you learn about this training! Try asking me questions like:
+• "What's the second step?"
+• "How many steps are there?"
+• "What's the current step?"
+• "What's next?"
+
+What would you like to know about this training?`
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -944,17 +1067,47 @@ Just ask me anything about the training!`
 
         {/* AI Assistant Chat */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col h-[500px]">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">🤖 AI Assistant</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">🤖 AI Assistant</h3>
+            {aiLearningMetrics && (
+              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                🧠 Learned from {aiLearningMetrics.totalInteractions} conversations
+              </div>
+            )}
+          </div>
+
+          {/* AI Learning Progress */}
+          {aiLearningMetrics && aiLearningMetrics.totalInteractions > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-900">AI Learning Progress</span>
+                <span className="text-xs text-blue-700">
+                  {aiLearningMetrics.reuseRate}% efficiency
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(aiLearningMetrics.reuseRate, 100)}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-xs text-blue-700 mt-1">
+                <span>{aiLearningMetrics.knowledgeBaseSize} learned answers</span>
+                <span>{aiLearningMetrics.totalModules} training modules</span>
+              </div>
+            </div>
+          )}
           
           {/* Suggested Questions */}
           <div className="mb-4">
             <p className="text-xs text-gray-500 mb-2">Try asking:</p>
             <div className="flex flex-wrap gap-1">
               {[
-                "What step am I on?",
+                "What's the second step?",
                 "How many steps?",
-                "How to edit?",
-                "Next step?"
+                "What's the current step?",
+                "What's next?",
+                "Give me a summary"
               ].map((suggestion, index) => (
                 <button
                   key={index}
@@ -968,23 +1121,42 @@ Just ask me anything about the training!`
           </div>
           
           {/* Chat History */}
-          <div 
-            className="flex-1 space-y-4 overflow-y-auto mb-4 scroll-smooth" 
+          <div
+            className="flex-1 space-y-4 overflow-y-auto mb-4 scroll-smooth"
             ref={chatHistoryRef}
             style={{ scrollBehavior: 'smooth' }}
           >
             {chatHistory.map((chat, index) => (
               <div key={index} className={`flex ${chat.type === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-xs p-3 rounded-lg ${
-                  chat.type === 'user' 
-                    ? 'bg-blue-600 text-white' 
+                  chat.type === 'user'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700'
                 }`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      chat.type === 'user'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {chat.type === 'user' ? '👤 You' : '🤖 AI'}
+                    </span>
+                    {chat.type === 'assistant' && chat.message.includes('learning database') && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-green-100 text-green-700">
+                        📚 Learned
+                      </span>
+                    )}
+                    {chat.type === 'assistant' && chat.message.includes('learned from this interaction') && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                        🧠 Learning
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm">
                     {chat.isTyping ? (
                       <span className="flex items-center gap-1">
                         <span className="animate-pulse">...</span>
-                        <span className="text-xs">AI is typing</span>
+                        <span className="text-xs">AI is thinking</span>
                       </span>
                     ) : (
                       chat.message

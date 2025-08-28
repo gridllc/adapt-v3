@@ -174,9 +174,9 @@ router.post('/ask', async (req: any, res: any) => {
 router.get('/learning-stats', async (req, res) => {
   try {
     console.log('📊 Fetching Shared AI Learning System statistics')
-    
+
     const stats = await getLearningStats()
-    
+
     res.json({
       success: true,
       stats
@@ -186,6 +186,26 @@ router.get('/learning-stats', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to get learning statistics'
+    })
+  }
+})
+
+// Get enhanced AI learning metrics
+router.get('/learning-metrics', async (req, res) => {
+  try {
+    console.log('📈 Fetching enhanced AI learning metrics')
+
+    const metrics = await aiService.getLearningStats()
+
+    res.json({
+      success: true,
+      metrics
+    })
+  } catch (error) {
+    console.error('❌ Failed to get learning metrics:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get learning metrics'
     })
   }
 })

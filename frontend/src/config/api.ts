@@ -43,7 +43,8 @@ export const API_ENDPOINTS = {
   AI_CONTEXTUAL_RESPONSE: '/api/ai/contextual-response',
   HEALTH: '/api/health',
   AI_ASK: '/api/ai/ask',
-  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`
+  TRANSCRIPT: (moduleId: string) => `/api/transcript/${moduleId}`,
+  AI_LEARNING_METRICS: '/api/ai/learning-metrics'
 }
 
 export function apiUrl(endpoint: string): string {
