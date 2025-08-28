@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { InlineStepEditor, StepData } from './InlineStepEditor'
 import { api, API_ENDPOINTS } from '../config/api'
-import { getStart, getEnd, getDuration, toMmSs } from '../utils/timeUtils'
+import { getStart, getEnd, getDuration, toMmSs, fromMmSs } from '../utils/timeUtils'
 
 interface Step {
   id: string
@@ -69,11 +69,18 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         notes: updatedStepData.notes
       }
 
+      // Convert mm:ss strings to seconds before saving
+      const stepToSave = {
+        ...updatedStep,
+        start: typeof updatedStep.start === 'string' ? fromMmSs(updatedStep.start) : updatedStep.start,
+        end: typeof updatedStep.end === 'string' ? fromMmSs(updatedStep.end) : updatedStep.end,
+      };
+
       // Save to backend
       await api(API_ENDPOINTS.STEPS(moduleId), {
         method: 'POST',
-        body: JSON.stringify({ 
-          steps: [updatedStep],
+        body: JSON.stringify({
+          steps: [stepToSave],
           action: 'update',
           stepIndex
         }),

@@ -4,6 +4,7 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3
 import { requireAuth } from '../middleware/auth.js'
 import { stepsController } from '../controllers/stepsController.js'
 import { enqueuePipeline } from '../services/jobs/pipelineQueue.js'
+import { looksUniform } from '../services/ai/stepProcessor.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -60,6 +61,18 @@ router.get('/:moduleId', async (req, res) => {
     try {
       const data = await readS3Json(s3Key)
       if (Array.isArray(data?.steps) && data.steps.length > 0) {
+        // Guard against uniform spacing placeholders
+        const durationSec = Number((module as any)?.durationSec || data.meta?.durationSec || 60)
+        if (looksUniform(data.steps, durationSec)) {
+          console.warn(`[STEPS] ${moduleId}: Detected uniform spacing, forcing re-processing`)
+          return res.status(202).json({
+            success: true,
+            message: 'Steps still normalizing',
+            steps: [],
+            meta: { ...data.meta, source: 'uniform-placeholder' }
+          })
+        }
+
         // (optional) hydrate DB in background
         prisma.$transaction(
           data.steps.map((s: any, i: number) =>

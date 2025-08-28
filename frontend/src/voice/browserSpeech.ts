@@ -18,12 +18,7 @@ export type BrowserSpeech = {
   setContinuous: (continuous: boolean) => void;  // ✅ continuous mode control
 };
 
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: any;
-    SpeechRecognition?: any;
-  }
-}
+
 
 export function createBrowserSpeech(h: BrowserSpeechHandlers): BrowserSpeech {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
