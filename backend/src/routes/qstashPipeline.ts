@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { Receiver } from "@upstash/qstash";
-import { runPipeline } from "../services/ai/aiPipeline";
+import { runPipeline } from "../services/ai/aiPipeline.js";
 import { prisma } from "../config/database";
+import { getBaseUrl } from "../services/jobs/pipelineQueue.js";
 
 const router = Router();
 const receiver = new Receiver({
@@ -9,7 +10,7 @@ const receiver = new Receiver({
   nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY!,
 });
 
-const PUBLIC_PIPELINE_URL = `${process.env.PUBLIC_BASE_URL}/api/qstash/pipeline`;
+const PUBLIC_PIPELINE_URL = `${getBaseUrl()}/api/qstash/pipeline`;
 
 router.post("/pipeline", async (req, res) => {
   try {

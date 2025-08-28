@@ -1,7 +1,16 @@
 import { Client } from "@upstash/qstash";
 
 const client = new Client({ token: process.env.QSTASH_TOKEN! });
-const BASE = process.env.PUBLIC_BASE_URL!; // e.g. https://adapt-v3.onrender.com
+
+// Get the base URL for webhook callbacks - tries multiple sources
+export function getBaseUrl(): string {
+  return process.env.PUBLIC_BASE_URL ||
+         process.env.RENDER_EXTERNAL_URL ||
+         (process.env.RENDER_SERVICE_NAME ? `https://${process.env.RENDER_SERVICE_NAME}.onrender.com` : undefined) ||
+         'https://adapt-v3.onrender.com'; // fallback to your known deployment
+}
+
+const BASE = getBaseUrl();
 
 export async function enqueuePipeline(moduleId: string, s3Key: string) {
   const url = `${BASE}/api/qstash/pipeline`;
