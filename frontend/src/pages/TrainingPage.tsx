@@ -6,7 +6,6 @@ import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
-import { useVoiceCoach } from '../voice/useVoiceCoach'
 
 interface Step {
   id: string
@@ -116,15 +115,7 @@ export const TrainingPage: React.FC = () => {
     }
   }
 
-  // Voice coach hook
-  const voice = useVoiceCoach({
-    steps,
-    currentIndex: currentStepIndex || 0,
-    setCurrentIndex: setCurrentStepIndex,
-    seekTo: seekToTime,
-    pause: () => videoRef.current?.pause(),
-    play: () => videoRef.current?.play(),
-  });
+
 
   // Video event handlers for smart sync
   const handleVideoTimeUpdate = () => {
@@ -814,38 +805,7 @@ What would you like to know about this training?`
                   </button>
 
                   
-                  {/* Voice Controls */}
-                  {import.meta.env.VITE_ENABLE_VOICE === 'true' && (
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        disabled={!voice.sttAvailable}
-                        onClick={voice.listening ? voice.stop : voice.start}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          voice.listening 
-                            ? 'bg-red-600 hover:bg-red-700 text-white' 
-                            : 'bg-purple-600 hover:bg-purple-700 text-white'
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                        title={voice.listening ? 'Stop listening' : 'Start voice commands'}
-                      >
-                        {voice.listening ? '🎤 Stop' : '🎤 Voice Coach'}
-                      </button>
-                      
-                      <button 
-                        onClick={() => voice.speak(`You are on step ${(currentStepIndex || 0) + 1}`)}
-                        disabled={!voice.ttsAvailable}
-                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:cursor-not-allowed"
-                        title="Read current step"
-                      >
-                        🔊 Read Step
-                      </button>
-                      
-                      {voice.lastText && (
-                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                          Last: "{voice.lastText}"
-                        </div>
-                      )}
-                    </div>
-                  )}
+
                 </div>
 
 
