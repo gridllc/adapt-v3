@@ -1,5 +1,8 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { normalizeSteps, RawStep } from './stepProcessor.js'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 const s3 = new S3Client({ region: process.env.AWS_REGION! })
 const bucket = process.env.AWS_BUCKET_NAME!
@@ -16,6 +19,12 @@ export const stepSaver = {
     console.log('✅ Steps saved to S3:', stepsKey)
   },
 
+  async clearOldPlaceholders(moduleId: string) {
+    // Prisma: clear old steps for this module
+    await prisma.step.deleteMany({ where: { moduleId } });
+    console.log(`🧹 Cleared old placeholders for ${moduleId}`);
+  },
+
   async saveStepsToS3({
     moduleId,
     s3Key,
@@ -29,6 +38,9 @@ export const stepSaver = {
     transcript: string;
     meta?: Record<string, any>;
   }) {
+    // Clear any old placeholders first
+    await this.clearOldPlaceholders(moduleId);
+
     // Build raw steps from AI and attach times from segments when missing
     const transcriptSegments = meta.segments || [];
     const rawSteps: RawStep[] = steps.map((s, i) => ({
@@ -38,8 +50,8 @@ export const stepSaver = {
       end:   s.end   ?? transcriptSegments[i]?.end,
     }));
 
-    // Normalize & clamp to video length
-    const finalSteps = normalizeSteps(rawSteps, meta.durationSec || 60);
+    // meta.durationSec MUST be the true video length
+    const finalSteps = normalizeSteps(rawSteps, meta.durationSec);
 
     const body = JSON.stringify({
       version: 3,

@@ -71,9 +71,16 @@ export async function runPipeline(moduleId: string, s3Key: string) {
 
     // 4) Generate steps
     const steps = await step(moduleId, 'GENERATE_STEPS', 70, async () => {
-      // Use transcript duration as fallback since we don't have getVideoDuration
-      const durationSec = transcript.segments?.length ?
-        transcript.segments[transcript.segments.length - 1].end : 60
+      // Get real video duration from module - NO 60-second fallback!
+      const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+      const durationSec = Number(mod?.durationSec ?? 0) ||
+        (transcript.segments?.length ?
+         transcript.segments[transcript.segments.length - 1].end : 0)
+
+      if (durationSec === 0) {
+        throw new Error(`Cannot generate steps: no duration found for module ${moduleId}`)
+      }
+
       return await generateVideoSteps(
         transcript.text,
         transcript.segments,
@@ -85,13 +92,23 @@ export async function runPipeline(moduleId: string, s3Key: string) {
     // 5) Write canonical JSON to S3
     await step(moduleId, 'WRITE_JSON', 85, async () => {
       const stepsKey = `training/${moduleId}.json`
+      // Get the real duration we used for generation
+      const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+      const realDurationSec = Number(mod?.durationSec ?? 0) ||
+        (transcript.segments?.length ?
+         transcript.segments[transcript.segments.length - 1].end : 0)
+
+      if (realDurationSec === 0) {
+        console.error(`[AIPipeline] No duration found for ${moduleId} when saving steps`);
+      }
+
       await stepSaver.saveStepsToS3({
         moduleId,
         s3Key: stepsKey,
         steps: steps.steps,
         transcript: transcript.text,
         meta: {
-          durationSec: steps.meta?.durationSec || 0,
+          durationSec: realDurationSec, // Use real video duration, not AI estimate
           stepCount: steps.steps.length,
           segments: transcript.segments,
           source: 'ai'

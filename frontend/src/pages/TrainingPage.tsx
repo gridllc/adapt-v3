@@ -345,15 +345,21 @@ export const TrainingPage: React.FC = () => {
         const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
         setIsFallback(isFallbackResponse)
 
-        // ✅ Use real timestamps (supports start/end or startTime/endTime from API)
+        const dur = Number(data.meta?.durationSec ?? 0) || undefined;
+
         const enhancedSteps = data.steps.map((raw: any, idx: number, arr: any[]) => {
-          const start = Number(raw.start ?? raw.startTime ?? 0);
-          const end =
+          let start = Number(raw.start ?? raw.startTime ?? 0);
+          let end =
             raw.end != null || raw.endTime != null
               ? Number(raw.end ?? raw.endTime)
               : idx < arr.length - 1
                 ? Number(arr[idx + 1].start ?? arr[idx + 1].startTime ?? start)
-                : Number(data.meta?.durationSec ?? start);
+                : Number(dur ?? start);
+
+          if (dur) {
+            start = Math.max(0, Math.min(dur, start));
+            end   = Math.max(start, Math.min(dur, end));
+          }
 
           return {
             ...raw,

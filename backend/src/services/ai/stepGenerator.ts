@@ -215,7 +215,7 @@ Create a JSON response with this exact structure:
 
 Rules:
 - Create 5-15 logical steps
-- Each step should be 10-60 seconds
+- Each step should be 5-30 seconds (adjust based on video length)
 - Use clear, actionable language
 - Ensure steps cover the entire video
 - Make step text concise but descriptive`
@@ -278,7 +278,7 @@ Create a JSON response with this exact structure:
 
 Rules:
 - Create 5-15 logical steps
-- Each step should be 10-60 seconds
+- Each step should be 5-30 seconds (adjust based on video length)
 - Use clear, actionable language
 - Ensure steps cover the entire video
 - Make step text concise but descriptive

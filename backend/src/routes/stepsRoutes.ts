@@ -30,7 +30,10 @@ async function writeS3Json(key: string, data: any) {
   }))
 }
 
-function makeBasicSteps(durationSec = 60) {
+function makeBasicSteps(durationSec: number) {
+  if (durationSec <= 0) {
+    throw new Error('Cannot create basic steps: invalid duration');
+  }
   // 3 safe placeholders so the UI renders and click-to-seek works
   const chunk = Math.max(5, Math.floor(durationSec / 3))
   return [
@@ -42,33 +45,45 @@ function makeBasicSteps(durationSec = 60) {
 
 // Get steps for a specific module (public)
 router.get('/:moduleId', async (req, res) => {
-  const { moduleId } = req.params
-  const rid = (req as any).rid || 'no-rid'
-  try {
-    console.info('[STEPS] Getting steps for', { moduleId, rid })
+  const { moduleId } = req.params;
 
-    // 1) DB first
-    const dbSteps = await prisma.step.findMany({
+  try {
+    const mod = await prisma.module.findUnique({ where: { id: moduleId } });
+    const durationSec = Number(mod?.durationSec ?? 0) || 0; // 0 = unknown
+
+    // 1) DB
+    const dbRows = await prisma.step.findMany({
       where: { moduleId },
       orderBy: [{ order: 'asc' }],
     });
-    if (dbSteps.length > 0) {
-      const steps = dbSteps.map((s: any, i: number) => ({
+
+    if (dbRows.length > 0) {
+      const steps = dbRows.map((s, i) => ({
         id: s.id,
         start: Number(s.startTime ?? 0),
         end: Number(s.endTime ?? 0),
-        title: String(s.text ?? s.title ?? `Step ${i + 1}`),
-        description: String(s.description ?? ''),
+        title: String(s.text ?? `Step ${i + 1}`),
+        description: String(s.text ?? ''),
       }));
-      return ok(res, { steps });
+
+      if (durationSec > 0 && looksUniform(steps, durationSec)) {
+        return res.status(202).json({
+          success: true,
+          message: 'Steps still normalizing',
+          steps: [],
+          meta: { durationSec, source: 'uniform-db' },
+        });
+      }
+
+      return res.status(200).json({ success: true, steps, meta: { durationSec, source: 'db' } });
     }
 
-    // 2) S3 JSON (source of truth)
+    // 2) S3
     const s3Key = `training/${moduleId}.json`;
     try {
       const data = await readS3Json(s3Key);
 
-      const stepsFromS3 = (data?.steps ?? []).map((s: any, i: number) => ({
+      const s3Steps = (data?.steps ?? []).map((s: any, i: number) => ({
         id: s.id ?? `s${i + 1}`,
         start: Number(s.start ?? s.startTime ?? 0),
         end: Number(s.end ?? s.endTime ?? 0),
@@ -76,63 +91,44 @@ router.get('/:moduleId', async (req, res) => {
         description: String(s.description ?? ''),
       }));
 
-      const durationSec = Number(data?.meta?.durationSec ?? 60);
+      const dur = Number(mod?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
 
-      if (looksUniform(stepsFromS3, durationSec)) {
-        console.warn(`[STEPS] ${moduleId}: uniform placeholders -> 202`);
+      if (dur > 0 && looksUniform(s3Steps, dur)) {
         return res.status(202).json({
           success: true,
           message: 'Steps still normalizing',
           steps: [],
-          meta: { ...data.meta, source: 'uniform-placeholder' }
+          meta: { ...(data?.meta ?? {}), durationSec: dur, source: 'uniform-s3' },
         });
       }
 
-      // (optional) hydrate DB in background
-      prisma.$transaction(
-        stepsFromS3.map((s: any, i: number) =>
-          prisma.step.create({
-            data: {
-              moduleId,
-              order: i,
-              startTime: s.start,
-              endTime: s.end,
-              text: s.title,
-              description: s.description,
-            },
-          })
-        )
-      ).catch(err => console.warn('[steps hydrate→DB] skipped:', err?.message));
-
       res.set('Cache-Control', 'no-store');
-      return ok(res, { steps: stepsFromS3, transcript: data.transcript ?? '', meta: data.meta ?? {} });
-    } catch (_) {
-      // fall through to transient fallback…
+      return res.status(200).json({
+        success: true,
+        steps: s3Steps,
+        transcript: data?.transcript ?? '',
+        meta: { ...(data?.meta ?? {}), durationSec: dur, source: 's3' },
+      });
+    } catch {
+      /* fall through */
     }
 
-    // 3) Transient fallback (DO NOT persist). Just return something so UI renders,
-    // and let the client continue polling for real steps written by the pipeline.
-    const module = await prisma.module.findUnique({ where: { id: moduleId } })
-    const durationSec = Number((module as any)?.durationSec || 60)
-    const chunk = Math.max(5, Math.floor(durationSec / 3))
+    // 3) Fallback ONLY if duration known — else 202 to keep polling
+    if (!durationSec) {
+      return res.status(202).json({ success: true, steps: [], meta: { durationSec: 0, source: 'pending' } });
+    }
+    const chunk = Math.max(5, Math.floor(durationSec / 3));
     const steps = [
-      { id: 's1', start: 0,          end: chunk,        title: 'Intro',       description: 'Overview of the task.' },
-      { id: 's2', start: chunk,      end: chunk * 2,    title: 'Main Steps',  description: 'Follow the core steps.' },
-      { id: 's3', start: chunk * 2,  end: durationSec,  title: 'Finish',      description: 'Wrap up and verify.' },
-    ]
-
-    // NOTE: no write to S3 here, no DB seed here.
-    res.set('Cache-Control', 'no-store')
-    return res.status(200).json({
-      success: true,
-      steps,
-      meta: { durationSec, source: 'fallback-transient' },
-    })
-  } catch (err: any) {
-    console.error('[GET /steps/:moduleId] ERROR', err?.message)
-    return fail(res, 500, 'Could not load steps')
+      { id: 's1', start: 0,       end: chunk,     title: 'Intro',      description: 'Overview of the task.' },
+      { id: 's2', start: chunk,   end: chunk * 2, title: 'Main Steps', description: 'Follow the core steps.' },
+      { id: 's3', start: chunk*2, end: durationSec, title: 'Finish',   description: 'Wrap up and verify.' },
+    ];
+    res.set('Cache-Control', 'no-store');
+    return res.status(200).json({ success: true, steps, meta: { durationSec, source: 'fallback-transient' } });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: 'Could not load steps' });
   }
-})
+});
 
 // Generate steps using AI for a module (simple secret protection) - Frontend expects this route
 // MUST come before /:moduleId to avoid route conflicts

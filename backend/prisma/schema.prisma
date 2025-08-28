@@ -21,23 +21,24 @@ model User {
 }
 
 model Module {
-  id        String         @id @default(cuid())
-  title     String
-  filename  String
-  videoUrl  String
-  progress  Int            @default(0)
-  userId    String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  lastError String?
-  s3Key     String?
-  statuses  ModuleStatus[]
-  stepsKey  String?
-  status    ModuleStatus   @default(UPLOADED)
-  feedbacks Feedback[]
-  user      User?          @relation(fields: [userId], references: [id])
-  questions Question[]
-  steps     Step[]
+  id         String         @id @default(cuid())
+  title      String
+  filename   String
+  videoUrl   String
+  progress   Int            @default(0)
+  userId     String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  lastError  String?
+  s3Key      String?
+  statuses   ModuleStatus[]
+  stepsKey   String?
+  status     ModuleStatus   @default(UPLOADED)
+  feedbacks  Feedback[]
+  user       User?          @relation(fields: [userId], references: [id])
+  questions  Question[]
+  steps      Step[]
+  durationSec Int?          // Video duration in seconds
 
   @@map("modules")
 }
