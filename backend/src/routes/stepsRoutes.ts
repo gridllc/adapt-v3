@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js'
 import { stepsController } from '../controllers/stepsController.js'
 import { enqueuePipeline } from '../services/jobs/pipelineQueue.js'
 import { looksUniform } from '../services/ai/stepProcessor.js'
+import { ModuleService } from '../services/moduleService.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -45,13 +46,13 @@ function makeBasicSteps(durationSec: number) {
   ]
 }
 
-// Get steps for a specific module (public)
+// Get steps for a specific module (public) - NEVER assumes 60s
 router.get('/:moduleId', async (req, res) => {
   const { moduleId } = req.params;
 
   try {
-    const mod = await prisma.module.findUnique({ where: { id: moduleId } });
-    const moduleDur = Number((mod as any)?.durationSec ?? 0) || 0;
+    // CRITICAL: Use ModuleService to get REAL duration, never default to 60s
+    const moduleDur = await ModuleService.ensureDurationSec(moduleId, undefined);
 
     // DB branch
     const dbRows = await prisma.step.findMany({
@@ -67,17 +68,17 @@ router.get('/:moduleId', async (req, res) => {
         title: String(s.text ?? `Step ${i + 1}`),
         description: String(s.text ?? ''),
       }));
-      if (moduleDur > 0 && looksUniform(steps, moduleDur)) {
+      if (moduleDur && moduleDur > 0 && looksUniform(steps, moduleDur)) {
         return res.status(202).json({
           success: true, steps: [],
           meta: { durationSec: moduleDur, source: 'uniform-db' },
           message: 'Steps still normalizing'
         });
       }
-      return res.status(200).json({ success: true, steps, meta: { durationSec: moduleDur, source: 'db' } });
+      return res.status(200).json({ success: true, steps, meta: { durationSec: moduleDur || 0, source: 'db' } });
     }
 
-    // S3 branch
+    // S3 branch - handle both old and new formats
     const s3Key = `training/${moduleId}.json`;
     try {
       const data = await readS3Json(s3Key);
@@ -111,7 +112,7 @@ router.get('/:moduleId', async (req, res) => {
     }
 
     // Fallback: only if we know the duration. If we don't, keep polling.
-    if (!moduleDur) {
+    if (!moduleDur || moduleDur <= 0) {
       return res.status(202).json({ success: true, steps: [], meta: { durationSec: 0, source: 'pending' } });
     }
     const chunk = Math.max(5, Math.floor(moduleDur / 3));

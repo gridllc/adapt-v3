@@ -1,5 +1,9 @@
 import { prisma } from '../config/database.js'
 import { Prisma } from '@prisma/client'
+import { S3Client, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+
+const s3 = new S3Client({ region: process.env.AWS_REGION })
+const BUCKET = process.env.AWS_BUCKET_NAME!
 
 // P2025 fallback function
 export async function updateModule(id: string, data: any) {
@@ -610,11 +614,76 @@ export class ModuleService {
     }
   }
 
+  // CRITICAL: Duration management methods to prevent 60s defaults
+
+  /**
+   * Record duration if we know it (never use 60s defaults)
+   */
+  static async setDurationSec(id: string, durationSec: number) {
+    if (!Number.isFinite(durationSec) || durationSec <= 0) return null
+    return prisma.module.update({
+      where: { id },
+      data: { durationSec: Math.round(durationSec) }
+    })
+  }
+
+  /**
+   * Best-effort: prefer Module.durationSec -> S3 steps meta -> MP4 header
+   * NEVER defaults to 60s - returns null if no real duration found
+   */
+  static async ensureDurationSec(id: string, s3Key?: string): Promise<number | null> {
+    try {
+      const mod = await prisma.module.findUnique({ where: { id } })
+      if (mod?.durationSec && mod.durationSec > 0) return mod.durationSec
+
+      // Try training JSON (if already produced once)
+      if (s3Key) {
+        const jsonKey = `training/${id}.json`
+        try {
+          const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: jsonKey }))
+          const txt = await obj.Body!.transformToString()
+          const data = JSON.parse(txt)
+          const dur = Number(data?.meta?.durationSec)
+          if (Number.isFinite(dur) && dur > 0) {
+            await this.setDurationSec(id, dur)
+            return dur
+          }
+        } catch {
+          /* ignore - file doesn't exist or is malformed */
+        }
+      }
+
+      // Try MP4 header (Content-Length is not duration, but some encoders include x-amz-meta-duration)
+      if (s3Key) {
+        try {
+          const head = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: s3Key }))
+          const meta = head.Metadata || {}
+          const dur =
+            Number(meta['duration']) ||
+            Number(meta['x-amz-meta-duration']) ||
+            Number(meta['durationsec']) ||
+            Number(meta['x-amz-meta-durationsec'])
+          if (Number.isFinite(dur) && dur > 0) {
+            await this.setDurationSec(id, dur)
+            return dur
+          }
+        } catch {
+          /* ignore - file doesn't exist or no metadata */
+        }
+      }
+
+      return null // No duration found - don't default to 60s
+    } catch (error) {
+      console.error(`❌ [ModuleService] Error ensuring duration for ${id}:`, error)
+      return null
+    }
+  }
+
   /**
    * Schema Extension Recommendation:
-   * 
+   *
    * To better support AI-generated steps, consider extending the Prisma Step model:
-   * 
+   *
    * ```prisma
    * model Step {
    *   // ... existing fields ...
@@ -624,7 +693,7 @@ export class ModuleService {
    *   metadata     Json?     // Flexible metadata storage
    * }
    * ```
-   * 
+   *
    * This would allow:
    * - Better traceability between AI generation and database storage
    * - Support for step variations and aliases

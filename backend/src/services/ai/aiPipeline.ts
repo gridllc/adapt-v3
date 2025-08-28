@@ -6,8 +6,12 @@ import { stepSaver } from './stepSaver.js'
 import { generateVideoSteps } from './stepGenerator.js'
 import { prisma } from '../../config/database.js'
 import { log as logger } from '../../utils/logger.js'
-import { env } from '../../config/env.js'
 import { promises as fs } from 'fs'
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { normalizeSteps, RawStep } from './stepProcessor.js'
+
+const s3 = new S3Client({ region: process.env.AWS_REGION! })
+const BUCKET = process.env.AWS_BUCKET_NAME!
 
 // Pipeline phases for tracking
 type Phase =
@@ -36,100 +40,123 @@ async function step(moduleId: string, phase: Phase, pct: number, fn: () => Promi
   return out
 }
 
-// Main robust pipeline (QStash handles deduplication)
+// CRITICAL: Duration-aware pipeline - never defaults to 60s
 export async function runPipeline(moduleId: string, s3Key: string) {
-  console.info('[AIPipeline] ENTER', { moduleId, s3Key })
-  const rid: string = 'pipeline-' + moduleId
+  console.info('[AIPipeline] start', { moduleId, s3Key })
+
+  // lock module
+  await prisma.module.update({ where: { id: moduleId }, data: { status: 'PROCESSING' } })
 
   try {
-    await setStatus(moduleId, 'PROCESSING', 1, 'START')
+    // 1) Transcribe (get segments + real duration from transcriber)
+    const { segments, durationSec: fromTranscriber } = await transcribeToSegments(s3Key)
 
-    // 1) Verify S3 object exists
-    await step(moduleId, 'VERIFY_S3', 5, async () => {
-      await storageService.headObject(s3Key)
-    })
+    // 2) Make sure Module.durationSec is the REAL value (no 60s default)
+    const ensured = await ModuleService.ensureDurationSec(moduleId, s3Key)
+    const durationSec = Math.round(ensured || fromTranscriber || 0)
+    if (!durationSec || durationSec <= 0) {
+      throw new Error('No valid durationSec available')
+    }
+    await ModuleService.setDurationSec(moduleId, durationSec)
 
-    // 2) Extract audio (use ffmpeg-static; write to /tmp)
-    const audioPath = await step(moduleId, 'EXTRACT_AUDIO', 15, async () => {
-      // Download MP4 from S3 to temp directory
-      const signedUrl = await storageService.generateSignedUrl(s3Key, 3600)
-      const response = await fetch(signedUrl)
-      const buffer = await response.arrayBuffer()
-      const localMp4 = `/tmp/${moduleId}.mp4`
-      await fs.writeFile(localMp4, Buffer.from(buffer))
+    // 3) AI steps (titles/descriptions) – may be missing timings
+    const transcriptText = segments.map(s => s.text).join(' ')
+    const aiSteps = await aiGenerateSteps(transcriptText)
 
-      const wavPath = await audioProcessor.extract(localMp4)
-      // Clean up temp MP4 file
-      await fs.unlink(localMp4).catch(() => {})
-      return wavPath
-    })
+    // 4) Build raw steps and normalize/clamp to real duration
+    const raw: RawStep[] = mapAiStepsToSegments(aiSteps, segments)
+    const finalSteps = normalizeSteps(raw, durationSec)
 
-    // 3) Transcribe
-    const transcript = await step(moduleId, 'TRANSCRIBE', 45, async () => {
-      return await transcribeAudio(audioPath, moduleId)
-    })
+    // 5) Persist JSON to S3 (single source of truth). Always write {steps,start/end,meta.durationSec}
+    const payload = {
+      steps: finalSteps,
+      meta: { durationSec, source: 'pipeline' },
+      transcript: transcriptText,
+    }
 
-    // 4) Generate steps
-    const steps = await step(moduleId, 'GENERATE_STEPS', 70, async () => {
-      // Get real video duration from module - NO 60-second fallback!
-      const mod = await prisma.module.findUnique({ where: { id: moduleId } })
-      const durationSec = Number(mod?.durationSec ?? 0) ||
-        (transcript.segments?.length ?
-         transcript.segments[transcript.segments.length - 1].end : 0)
+    await s3.send(new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: `training/${moduleId}.json`,
+      ContentType: 'application/json',
+      ACL: 'private',
+      Body: JSON.stringify(payload),
+    }))
+    console.info('[AIPipeline] wrote training JSON', { moduleId, steps: finalSteps.length, durationSec })
 
-      if (durationSec === 0) {
-        throw new Error(`Cannot generate steps: no duration found for module ${moduleId}`)
-      }
-
-      return await generateVideoSteps(
-        transcript.text,
-        transcript.segments,
-        { duration: durationSec },
-        moduleId
+    // 6) (Optional) hydrate DB mirror
+    await prisma.step.deleteMany({ where: { moduleId } }).catch(() => {})
+    if (finalSteps.length) {
+      await prisma.$transaction(
+        finalSteps.map((s, i) =>
+          prisma.step.create({
+            data: {
+              moduleId,
+              order: i,
+              startTime: Number(s.start) || 0,
+              endTime: Number(s.end) || 0,
+              text: s.title,
+            },
+          })
+        )
       )
-    })
+    }
 
-    // 5) Write canonical JSON to S3
-    await step(moduleId, 'WRITE_JSON', 85, async () => {
-      const stepsKey = `training/${moduleId}.json`
-      // Get the real duration we used for generation
-      const mod = await prisma.module.findUnique({ where: { id: moduleId } })
-      const realDurationSec = Number(mod?.durationSec ?? 0) ||
-        (transcript.segments?.length ?
-         transcript.segments[transcript.segments.length - 1].end : 0)
-
-      if (realDurationSec === 0) {
-        console.error(`[AIPipeline] No duration found for ${moduleId} when saving steps`);
-      }
-
-      await stepSaver.saveStepsToS3({
-        moduleId,
-        s3Key: stepsKey,
-        steps: steps.steps,
-        transcript: transcript.text,
-        meta: {
-          durationSec: realDurationSec, // Use real video duration, not AI estimate
-          stepCount: steps.steps.length,
-          segments: transcript.segments,
-          source: 'ai'
-        }
-      })
-    })
-
-    // 6) Hydrate DB (optional)
-    await step(moduleId, 'HYDRATE_DB', 95, async () => {
-      // This happens in stepSaver, but we can add explicit tracking here
-      return true
-    })
-
-    await setStatus(moduleId, 'READY', 100, 'DONE')
-    console.info('[AIPipeline] COMPLETE', { moduleId })
+    await prisma.module.update({ where: { id: moduleId }, data: { status: 'READY' } })
+    console.info('[AIPipeline] complete', { moduleId })
   } catch (err: any) {
-    const m = `${err?.name || 'Error'}: ${err?.message || 'unknown'}`
-    console.error('[AIPipeline] FAILED', { moduleId, message: m, stack: err?.stack })
-    await setStatus(moduleId, 'FAILED', 0, m.slice(0, 240))
+    console.error('[AIPipeline] FAILED', { moduleId, message: err?.message })
+    await prisma.module.update({
+      where: { id: moduleId },
+      data: { status: 'FAILED', lastError: err?.message?.slice(0, 240) }
+    })
     throw err
   }
+}
+
+// ---- Plug your implementations here ----
+async function transcribeToSegments(s3Key: string): Promise<{ segments: { start: number; end: number; text: string }[]; durationSec: number }> {
+  // Extract audio and transcribe to get segments + real duration
+  // Replace with your AssemblyAI/Whisper call; make sure durationSec is REAL.
+
+  // For now, extract audio like current pipeline
+  const signedUrl = await storageService.generateSignedUrl(s3Key, 3600)
+  const response = await fetch(signedUrl)
+  const buffer = await response.arrayBuffer()
+  const localMp4 = `/tmp/${Date.now()}.mp4`
+  await fs.writeFile(localMp4, Buffer.from(buffer))
+
+  const wavPath = await audioProcessor.extract(localMp4)
+  await fs.unlink(localMp4).catch(() => {})
+
+  const transcript = await transcribeAudio(wavPath, 'temp')
+  return {
+    segments: transcript.segments || [],
+    durationSec: transcript.segments?.length ?
+      transcript.segments[transcript.segments.length - 1].end : 0
+  }
+}
+
+async function aiGenerateSteps(transcript: string): Promise<Array<{ title: string; description?: string; start?: number; end?: number }>> {
+  // Your Gemini/OpenAI generator. It may return steps without timings.
+  const result = await generateVideoSteps(transcript, [], { duration: 0 }, 'temp')
+  return (result.steps || []).map(step => ({
+    title: step.title || step.text || '',
+    description: step.notes,
+    start: step.startTime,
+    end: step.endTime
+  }))
+}
+// ----------------------------------------
+
+function mapAiStepsToSegments(ai: Array<{title:string;description?:string;start?:number;end?:number}>, segs: { start: number; end: number; text: string }[]): RawStep[] {
+  // If AI provided timings, keep them; otherwise align by index to transcript segments.
+  const out: RawStep[] = ai.map((s, i) => ({
+    title: s.title,
+    description: s.description ?? '',
+    start: s.start ?? segs[i]?.start,
+    end:   s.end   ?? segs[i]?.end,
+  }))
+  return out
 }
 
 /**
@@ -143,7 +170,7 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
   const mod = await prisma.module.findUnique({ where: { id: moduleId } })
   if (!mod) {
     const moduleTitle = title || 'Untitled'
-    const bucketName = env.AWS_BUCKET_NAME
+    const bucketName = process.env.AWS_BUCKET_NAME
 
     await prisma.module.upsert({
       where: { id: moduleId },
