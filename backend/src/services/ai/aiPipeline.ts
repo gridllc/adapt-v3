@@ -10,8 +10,37 @@ import { promises as fs } from 'fs'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { normalizeSteps, RawStep } from './stepProcessor.js'
 
-const s3 = new S3Client({ region: process.env.AWS_REGION! })
-const BUCKET = process.env.AWS_BUCKET_NAME!
+// Lazy S3 client initialization to avoid process.env issues during module load
+let s3Client: S3Client | null = null
+let bucketName: string | null = null
+
+function getS3Client() {
+  if (!s3Client) {
+    const region = process.env.AWS_REGION
+    const accessKeyId = process.env.AWS_ACCESS_KEY_ID
+    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+
+    if (!region || !accessKeyId || !secretAccessKey) {
+      throw new Error('AWS S3 credentials not available')
+    }
+
+    s3Client = new S3Client({
+      region,
+      credentials: { accessKeyId, secretAccessKey }
+    })
+  }
+  return s3Client
+}
+
+function getBucketName() {
+  if (!bucketName) {
+    bucketName = process.env.AWS_BUCKET_NAME
+    if (!bucketName) {
+      throw new Error('AWS_BUCKET_NAME not available')
+    }
+  }
+  return bucketName
+}
 
 // Pipeline phases for tracking
 type Phase =
@@ -74,8 +103,8 @@ export async function runPipeline(moduleId: string, s3Key: string) {
       transcript: transcriptText,
     }
 
-    await s3.send(new PutObjectCommand({
-      Bucket: BUCKET,
+    await getS3Client().send(new PutObjectCommand({
+      Bucket: getBucketName(),
       Key: `training/${moduleId}.json`,
       ContentType: 'application/json',
       ACL: 'private',
@@ -191,7 +220,7 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
   const mod = await prisma.module.findUnique({ where: { id: moduleId } })
   if (!mod) {
     const moduleTitle = title || 'Untitled'
-    const bucketName = process.env.AWS_BUCKET_NAME
+    const actualBucketName = getBucketName()
 
     await prisma.module.upsert({
       where: { id: moduleId },
@@ -201,7 +230,7 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
         s3Key,
         title: moduleTitle,
         filename: moduleTitle + '.mp4',
-        videoUrl: `https://${bucketName}.s3.amazonaws.com/${s3Key}`,
+        videoUrl: `https://${actualBucketName}.s3.amazonaws.com/${s3Key}`,
         status: 'PROCESSING',
         progress: 0
       },
