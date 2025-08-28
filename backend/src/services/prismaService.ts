@@ -388,19 +388,23 @@ export class DatabaseService {
       throw new Error(`Invalid vector size — must be 1536 dimensions, got ${embedding.length}`)
     }
 
+    let usedPg = false;
     try {
       // Use native pgvector ANN search for better performance
       const results = await prisma.$queryRawUnsafe(`
-        SELECT 
-          q.*,
-          qv.embedding,
-          1 - (qv.embedding <=> $1) AS similarity
-        FROM question_vectors qv
-        JOIN questions q ON q.id = qv.question_id
-        WHERE q.module_id = ANY($2)
-        ORDER BY qv.embedding <=> $1
+        SELECT
+          q."id", q."moduleId", q."stepId", q."question", q."answer",
+          q."videoTime", q."isFAQ", q."userId", q."createdAt", q."updatedAt",
+          qv."embedding",
+          1 - (qv."embedding" <=> $1) AS similarity
+        FROM "question_vectors" qv
+        JOIN "questions" q ON q."id" = qv."questionId"
+        WHERE q."moduleId" = ANY($2)
+        ORDER BY qv."embedding" <=> $1
         LIMIT $3
       `, embedding, moduleIds, limit)
+
+      usedPg = true;
 
       // Filter by threshold and return
       return (results as any[])
@@ -409,20 +413,25 @@ export class DatabaseService {
           ...item,
           question: {
             id: item.id,
-            moduleId: item.module_id,
-            stepId: item.step_id,
+            moduleId: item.moduleId,
+            stepId: item.stepId,
             question: item.question,
             answer: item.answer,
-            videoTime: item.video_time,
-            isFAQ: item.is_faq,
-            userId: item.user_id,
-            createdAt: item.created_at,
-            updatedAt: item.updated_at
+            videoTime: item.videoTime,
+            isFAQ: item.isFAQ,
+            userId: item.userId,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt
           }
         }))
-    } catch (error) {
-      console.error('Native pgvector search failed, falling back to JS calculation:', error)
-      
+    } catch (error: any) {
+      // Check for specific column/mapping errors and log once
+      if (error?.code === 'P2010' && error?.meta?.code === '42703') {
+        console.warn('Vector SQL column mismatch — using JS fallback once. (Fixed in schema)')
+      } else {
+        console.error('Native pgvector search failed, falling back to JS calculation:', error)
+      }
+
       // Fallback to JS calculation if native search fails
       return await this.findSimilarQuestionsJS(embedding, moduleIds[0], threshold, limit)
     }

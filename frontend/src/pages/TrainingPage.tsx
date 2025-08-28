@@ -7,6 +7,7 @@ import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
 import VoiceTrainer from '../components/voice/VoiceTrainer'
+import { useSignedVideoUrl } from '../hooks/useSignedVideoUrl'
 
 interface Step {
   id: string
@@ -32,15 +33,8 @@ export const TrainingPage: React.FC = () => {
   const { moduleId } = useParams()
   const [searchParams] = useSearchParams()
   const isProcessing = searchParams.get('processing') === 'true'
-  // Video URL by module ID
-  const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  useEffect(() => {
-    if (!moduleId) return
-    fetch(`/api/video-url/module/${moduleId}`)
-      .then(r => r.json())
-      .then(d => setVideoUrl(d.url))
-      .catch(e => console.error('Video URL fetch failed', e))
-  }, [moduleId])
+  // Video URL by module ID with auto-refresh
+  const { url: videoUrl, loading: videoUrlLoading, refreshOnError } = useSignedVideoUrl(moduleId)
 
   // Module status polling (5-10s intervals for real-time updates)
   const [status, setStatus] = useState<any>(null)
@@ -666,7 +660,11 @@ What would you like to know about this training?`
   })
 
   // Show processing screen if module is still being processed
-  if (isProcessing && (!status || status.status === 'processing')) {
+  // Treat either steps or videoUrl as completion
+  const isCompleted = (status?.status === "READY" || status?.status === "COMPLETED") ||
+                      (steps.length > 0 && Boolean(videoUrl));
+
+  if (isProcessing && !isCompleted && (!status || status.status === 'processing')) {
     return (
       <ProcessingScreen 
         progress={status?.progress || 0} 
@@ -722,38 +720,37 @@ What would you like to know about this training?`
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
         <div className="lg:col-span-2 order-2 lg:order-1">
-            <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 mx-auto animate-spin text-2xl">⏳</div>
-                <p className="text-lg">Loading video...</p>
-              </div>
-            </div>
-          ) : false ? (
-            <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-red-400">
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 mx-auto text-2xl">⚠️</div>
-                <div>
-                  <p className="text-lg font-semibold">Video Error</p>
-                  <p className="text-sm">Failed to load video</p>
-                </div>
-              </div>
-            </div>
-          ) : videoUrl ? (
-            <video 
+          {videoUrl ? (
+            <video
               key={videoUrl}  // Force re-render when URL changes
-              controls 
+              controls
               playsInline  // Better mobile compatibility
               preload="metadata"  // Load metadata for seeking
               crossOrigin="anonymous"  // Handle CORS properly
-              className="w-full rounded-2xl shadow-sm" 
-              ref={videoRef} 
+              className="w-full rounded-2xl shadow-sm"
+              ref={videoRef}
               onTimeUpdate={handleVideoTimeUpdate}
               onPlay={handleVideoPlay}
               onPause={handleVideoPause}
+              onError={async (e) => {
+                const mediaErr = (e.currentTarget.error?.code ?? 0);
+                console.warn('[Video] Playback error code:', mediaErr);
+                // 3 = decode, 4 = src not supported; also handle 403 from S3 (network)
+                if (mediaErr === 3 || mediaErr === 4 || mediaErr === 2) {
+                  await refreshOnError(); // refetch a fresh signed URL and re-mount
+                }
+              }}
             >
               <source src={videoUrl} type="video/mp4" />
               Your browser does not support the video tag.
             </video>
+          ) : isProcessing ? (
+            <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
+              <div className="text-center space-y-4">
+                <div className="w-12 h-12 mx-auto animate-spin text-2xl">⏳</div>
+                <p className="text-lg">Processing video...</p>
+              </div>
+            </div>
           ) : (
             <div className="aspect-video bg-black rounded-2xl flex items-center justify-center text-white">
               <div className="text-center space-y-4">
@@ -764,7 +761,7 @@ What would you like to know about this training?`
                 </div>
               </div>
             </div>
-          )
+          )}
 
           {/* Steps Display */}
           <div className="mt-6">

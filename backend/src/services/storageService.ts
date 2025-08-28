@@ -457,8 +457,13 @@ export async function getSignedS3Url(filename: string): Promise<string> {
       const { GetObjectCommand } = await import('@aws-sdk/client-s3')
       const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
 
-      const command = new GetObjectCommand({ Bucket: bucketName, Key: key })
-      const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 }) // 1 hour
+      const command = new GetObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        ResponseContentType: "video/mp4",
+        ResponseContentDisposition: "inline",
+      })
+      const url = await getSignedUrl(s3Client, command, { expiresIn: 900 }) // 15 minutes
 
       console.log('✅ Signed URL generated successfully')
       return url
