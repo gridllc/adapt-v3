@@ -1,4 +1,4 @@
-import { startProcessing } from './ai/aiPipeline.js'
+
 
 // QStash configuration
 const QSTASH_ENABLED = (process.env.QSTASH_ENABLED || '').toLowerCase() === 'true'
@@ -66,5 +66,15 @@ export async function enqueueProcessModule(moduleId: string): Promise<string | n
  */
 export async function processModuleDirectly(moduleId: string): Promise<void> {
   console.log('🔄 Processing module directly:', moduleId)
-  await startProcessing(moduleId)
+
+  // Get module data to find s3Key
+  const { ModuleService } = await import('./moduleService.js')
+  const mod = await ModuleService.getModuleById(moduleId)
+  if (!mod.success || !mod.module?.s3Key) {
+    throw new Error('Module not found or missing s3Key')
+  }
+
+  // Use the new pipeline
+  const { runPipeline } = await import('./ai/aiPipeline.js')
+  await runPipeline(moduleId, mod.module.s3Key)
 }

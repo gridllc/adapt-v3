@@ -1,6 +1,6 @@
 import express from 'express'
-import { startProcessing } from '../services/ai/aiPipeline.js'
 import { ModuleService } from '../services/moduleService.js'
+import { prisma } from '../config/database.js'
 import crypto from 'crypto'
 
 const router = express.Router()
@@ -33,7 +33,15 @@ router.post('/process/:moduleId', async (req, res) => {
   try {
     console.log('🧵 Worker start', { moduleId })
     await ModuleService.updateModuleStatus(moduleId, 'PROCESSING', 0, 'Worker processing started')
-    await startProcessing(moduleId)
+
+    // Get module data to find s3Key
+    const mod = await ModuleService.getModuleById(moduleId)
+    if (!mod.success || !mod.module?.s3Key) {
+      throw new Error('Module not found or missing s3Key')
+    }
+
+    const { runPipeline } = await import('../services/ai/aiPipeline.js')
+    await runPipeline(moduleId, mod.module.s3Key)
     console.log('🧵 Worker done', { moduleId })
     return res.json({ ok: true })
   } catch (err: any) {
@@ -66,10 +74,17 @@ router.post('/process-video', async (req, res) => {
     }
     
     console.log(`🎬 [${moduleId}] Starting video processing via QStash worker`)
-    
+
+    // Get module data to find s3Key
+    const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!mod?.s3Key) {
+      throw new Error('Module not found or missing s3Key')
+    }
+
     // Process the video job using the new pipeline
-    await startProcessing(moduleId)
-    
+    const { runPipeline } = await import('../services/ai/aiPipeline.js')
+    await runPipeline(moduleId, mod.s3Key)
+
     console.log(`✅ [${moduleId}] Video processing completed successfully`)
     
     // Return simple OK response as QStash expects

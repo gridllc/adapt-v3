@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { ModuleService } from '../services/moduleService.js'
 import { storageService } from '../services/storageService.js'
-import { startProcessing } from '../services/ai/aiPipeline.js'
+
 import { enqueueProcessModule, processModuleDirectly, isEnabled } from '../services/qstashQueue.js'
 import { enqueuePipeline } from '../services/jobs/pipelineQueue.js'
 import { DatabaseService } from '../services/prismaService.js'
@@ -28,24 +28,27 @@ const baseTitle = (key: string) => path.basename(key).replace(/\.[^/.]+$/, '')
 // Single processing function - either enqueue or run inline
 async function queueOrInline(moduleId: string) {
   try {
-    // If QStash is enabled, try to enqueue
-    if (isEnabled()) {
-      const jobId = await enqueueProcessModule(moduleId)
-      console.log('📬 Enqueued processing job', { moduleId, jobId })
+    // Get module to find s3Key
+    const { ModuleService } = await import('../services/moduleService.js')
+    const mod = await ModuleService.getModuleById(moduleId)
+    if (!mod.success || !mod.module?.s3Key) {
+      throw new Error('Module not found or missing s3Key')
+    }
+
+    // Use the feature flag to choose processing method
+    if (process.env.QSTASH_ENABLED === "true") {
+      const { enqueuePipeline } = await import('../services/jobs/pipelineQueue.js')
+      await enqueuePipeline(moduleId, mod.module.s3Key)
+      console.log('📬 Enqueued processing job via QStash', { moduleId })
     } else {
       // QStash disabled - run inline processing
       console.log('⚙️ QStash disabled, running inline processing:', moduleId)
-      await startProcessing(moduleId)
+      const { runPipeline } = await import('../services/ai/aiPipeline.js')
+      setImmediate(() => runPipeline(moduleId, mod.module!.s3Key).catch(console.error))
     }
   } catch (e: any) {
-    // Handle QStash disabled gracefully, fall back to inline processing
-    if (e?.message === 'QSTASH_DISABLED') {
-      console.log('📬 QStash disabled, running inline processing:', moduleId)
-      await startProcessing(moduleId)
-    } else {
-      console.error('Processing error:', e)
-      throw e
-    }
+    console.error('Processing error:', e)
+    throw e
   }
 }
 

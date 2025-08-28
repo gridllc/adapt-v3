@@ -26,9 +26,22 @@ router.post('/:moduleId', async (req: Request, res: Response) => {
 
     console.log(`✅ Module marked as processing, starting full pipeline...`)
 
+    // Get module data to find s3Key
+    const mod = await prisma.module.findUnique({ where: { id: moduleId } })
+    if (!mod?.s3Key) {
+      throw new Error('Module not found or missing s3Key')
+    }
+
     // kick the full pipeline (audio->transcript->steps->embeddings)
-    const { startProcessing } = await import('../services/ai/aiPipeline.js')
-    await startProcessing(moduleId)
+    if (process.env.QSTASH_ENABLED === 'true') {
+      const { enqueuePipeline } = await import('../services/jobs/pipelineQueue.js')
+      await enqueuePipeline(moduleId, mod.s3Key!)
+      console.log('📬 Enqueued reprocess job via QStash', { moduleId })
+    } else {
+      const { runPipeline } = await import('../services/ai/aiPipeline.js')
+      setImmediate(() => runPipeline(moduleId, mod.s3Key!).catch(console.error))
+      console.log('⚙️ Running reprocess inline', { moduleId })
+    }
 
     return res.json({ success: true, moduleId })
   } catch (err: any) {

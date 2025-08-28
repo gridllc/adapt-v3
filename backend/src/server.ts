@@ -263,9 +263,16 @@ app.use('/api/voice', voiceRoutes)
       }
 
       console.log(`📥 QStash webhook received for moduleId=${moduleId}`)
+      // Get module data to find s3Key
+      const { ModuleService } = await import('./services/moduleService.js')
+      const mod = await ModuleService.getModuleById(moduleId)
+      if (!mod.success || !mod.module?.s3Key) {
+        throw new Error('Module not found or missing s3Key')
+      }
+
       // Use the new pipeline directly
-      const { startProcessing } = await import('./services/ai/aiPipeline.js')
-      await startProcessing(moduleId)
+      const { runPipeline } = await import('./services/ai/aiPipeline.js')
+      await runPipeline(moduleId, mod.module.s3Key)
       res.status(200).json({ success: true })
     } catch (err) {
       console.error('❌ QStash processing failed:', err)
@@ -291,9 +298,16 @@ app.use('/api/voice', voiceRoutes)
     console.log('🧵 Worker start', { moduleId })
     
     try {
+      // Get module data to find s3Key
+      const { ModuleService } = await import('./services/moduleService.js')
+      const mod = await ModuleService.getModuleById(moduleId)
+      if (!mod.success || !mod.module?.s3Key) {
+        throw new Error('Module not found or missing s3Key')
+      }
+
       // Import the pipeline function dynamically to avoid circular imports
-      const { startProcessing } = await import('./services/ai/aiPipeline.js')
-      await startProcessing(moduleId)
+      const { runPipeline } = await import('./services/ai/aiPipeline.js')
+      await runPipeline(moduleId, mod.module.s3Key)
       console.log('🧵 Worker done', { moduleId })
       res.json({ ok: true })
     } catch (e: any) {

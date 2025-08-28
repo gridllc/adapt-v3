@@ -1,7 +1,8 @@
-import { startProcessing } from './ai/aiPipeline.js'
+
 import { ModuleService } from './moduleService.js'
 import { storageService } from './storageService.js'
 import { DatabaseService } from './prismaService.js'
+import { prisma } from '../config/database.js'
 import { v4 as uuidv4 } from 'uuid'
 import { rewriteStepsWithGPT } from '../utils/transcriptFormatter.js'
 
@@ -35,14 +36,21 @@ export const aiService = {
     
     try {
       // Verify module exists in database before proceeding
-      const module = await ModuleService.getModuleById(moduleId)
-      if (!module.success || !module.module) {
+      const moduleData = await ModuleService.getModuleById(moduleId)
+      if (!moduleData.success || !moduleData.module) {
         throw new Error(`Module ${moduleId} does not exist in database`)
       }
       console.log(`✅ Module verified in database: ${moduleId}`)
-      
+
+      // Get s3Key from module
+      const module = await prisma.module.findUnique({ where: { id: moduleId } })
+      if (!module?.s3Key) {
+        throw new Error(`Module ${moduleId} missing s3Key`)
+      }
+
       // Use the new pipeline
-      await startProcessing(moduleId)
+      const { runPipeline } = await import('./ai/aiPipeline.js')
+      await runPipeline(moduleId, module.s3Key)
     } catch (err) {
       await ModuleService.updateModuleStatus(moduleId, 'FAILED', 0, 'AI processing failed')
       throw new Error(`Step generation failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
