@@ -87,6 +87,9 @@ router.get('/:moduleId', async (req, res) => {
 
       // Reject any uniform placeholder grids (even if duration was inferred)
       if (dur > 0 && looksUniform(steps, dur)) {
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
         return res.status(202).json({
           success: true,
           steps: [],
@@ -95,6 +98,9 @@ router.get('/:moduleId', async (req, res) => {
         });
       }
 
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       return res.status(200).json({
         success: true,
         steps,
@@ -125,7 +131,9 @@ router.get('/:moduleId', async (req, res) => {
         });
       }
 
-      res.set('Cache-Control', 'no-store');
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       return res.status(200).json({
         success: true,
         steps,
@@ -137,6 +145,9 @@ router.get('/:moduleId', async (req, res) => {
     }
 
     // 3) Nothing real yet → tell FE to wait (no placeholders!)
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     return res.status(202).json({
       success: true,
       steps: [],

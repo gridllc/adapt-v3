@@ -319,10 +319,14 @@ export const TrainingPage: React.FC = () => {
       try {
         const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
 
-        // Make the request to check status
+        // Make the request to check status with cache-busting headers
         const response = await fetch(freshUrl, {
+          method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           },
         })
 
@@ -344,6 +348,31 @@ export const TrainingPage: React.FC = () => {
 
         // Success! We have real steps
         console.log(`✅ Successfully loaded ${data.steps.length} real steps for ${moduleId}`)
+
+        // 🔍 DEBUG: Log the actual data being returned to identify source of issues
+        console.log('🔍 API Response Debug:', {
+          hasIsPlaceholder: Boolean(data.meta?.isPlaceholder),
+          source: data.meta?.source,
+          durationSec: data.meta?.durationSec,
+          stepCount: data.steps?.length || 0,
+          firstStep: data.steps?.[0] ? {
+            id: data.steps[0].id,
+            start: data.steps[0].start,
+            end: data.steps[0].end,
+            duration: data.steps[0].end - data.steps[0].start
+          } : null,
+          lastStep: data.steps?.[data.steps.length - 1] ? {
+            id: data.steps[data.steps.length - 1].id,
+            start: data.steps[data.steps.length - 1].start,
+            end: data.steps[data.steps.length - 1].end,
+            duration: data.steps[data.steps.length - 1].end - data.steps[data.steps.length - 1].start
+          } : null,
+          cacheHeaders: {
+            'cache-control': response.headers.get('cache-control'),
+            'pragma': response.headers.get('pragma'),
+            'expires': response.headers.get('expires')
+          }
+        });
 
         // Set meta data
         setStepsMeta(data.meta)
