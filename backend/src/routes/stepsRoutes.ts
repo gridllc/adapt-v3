@@ -16,6 +16,27 @@ const BUCKET = process.env.AWS_BUCKET_NAME!
 const ok = (res: any, extra: any = {}) => res.status(200).json({ success: true, ...extra })
 const fail = (res: any, code = 500, msg = 'Failed') => res.status(code).json({ success: false, error: msg })
 
+// CRITICAL: Clamp steps to real duration before returning (catches any bad timestamps)
+const clampSteps = (raw: any[], dur: number) =>
+  raw.map((s, i) => {
+    let start = Number(s.start ?? s.startTime ?? s.timestamp ?? 0);
+    let end = Number(s.end ?? s.endTime ?? s.nextTimestamp ?? start);
+
+    // Clamp to duration if we know it
+    if (dur > 0) {
+      start = Math.max(0, Math.min(dur, start));
+      end = Math.max(start, Math.min(dur, end));
+    }
+
+    return {
+      id: s.id ?? `s${i + 1}`,
+      start,
+      end,
+      title: String(s.title ?? s.text ?? s.name ?? `Step ${i + 1}`),
+      description: String(s.description ?? s.details ?? ''),
+    };
+  });
+
 
 
 async function readS3Json(key: string) {
@@ -48,13 +69,7 @@ router.get('/:moduleId', async (req, res) => {
     });
 
     if (dbRows.length > 0) {
-      const steps = dbRows.map((s, i) => ({
-        id: s.id,
-        start: Number(s.startTime ?? 0),
-        end: Number(s.endTime ?? 0),
-        title: String(s.text ?? `Step ${i + 1}`),
-        description: String(s.text ?? ''),
-      }));
+      const steps = clampSteps(dbRows, durationSec);
 
       // Reject any uniform placeholder grids that slipped through
       if (durationSec > 0 && looksUniform(steps, durationSec)) {
@@ -77,15 +92,11 @@ router.get('/:moduleId', async (req, res) => {
     const s3Key = `training/${moduleId}.json`;
     try {
       const data = await readS3Json(s3Key);
-      const steps = (data?.steps ?? data?.originalSteps ?? []).map((s: any, i: number) => ({
-        id: s.id ?? `s${i + 1}`,
-        start: Number(s.start ?? s.startTime ?? s.timestamp ?? 0),
-        end: Number(s.end ?? s.endTime ?? s.nextTimestamp ?? 0),
-        title: String(s.title ?? s.text ?? s.name ?? `Step ${i + 1}`),
-        description: String(s.description ?? s.details ?? ''),
-      }));
-
       const dur = Number((mod as any)?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
+
+      // Normalize → clamp → guard (catches any bad timestamps)
+      const stepsRaw = (data?.steps ?? data?.originalSteps ?? []);
+      const steps = clampSteps(stepsRaw, dur);
 
       // Reject uniform grids
       if (dur > 0 && looksUniform(steps, dur)) {

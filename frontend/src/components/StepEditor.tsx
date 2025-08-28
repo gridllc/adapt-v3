@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { InlineStepEditor, StepData } from './InlineStepEditor'
 import { api, API_ENDPOINTS } from '../config/api'
 import { getStart, getEnd, getDuration, toMmSs, fromMmSs } from '../utils/timeUtils'
@@ -31,6 +31,9 @@ interface StepEditorProps {
   canMoveUp?: boolean
   canMoveDown?: boolean
   showRewrite?: boolean
+  // optionally pass duration to clamp (recommended)
+  videoDuration?: number
+  metaDuration?: number
 }
 
 export const StepEditor: React.FC<StepEditorProps> = ({
@@ -46,11 +49,19 @@ export const StepEditor: React.FC<StepEditorProps> = ({
   onSeek,
   canMoveUp = true,
   canMoveDown = true,
-  showRewrite = false
+  showRewrite = false,
+  videoDuration,
+  metaDuration
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showOriginal, setShowOriginal] = useState(false)
+
+  // Calculate duration cap for clamping
+  const durCap = React.useMemo(() => {
+    const d = Number(metaDuration ?? videoDuration ?? 0);
+    return Number.isFinite(d) && d > 0 ? d : undefined;
+  }, [videoDuration, metaDuration])
 
   const handleEdit = () => {
     setIsEditing(true)
@@ -346,6 +357,11 @@ export const StepEditor: React.FC<StepEditorProps> = ({
         
         <div className="text-xs text-gray-400">
           Duration: {toMmSs(getDuration(step))}
+          {durCap && (
+            <span className="ml-2 text-blue-600">
+              (clamped to {toMmSs(durCap)})
+            </span>
+          )}
         </div>
       </div>
     </div>

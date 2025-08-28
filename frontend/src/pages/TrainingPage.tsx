@@ -354,7 +354,7 @@ export const TrainingPage: React.FC = () => {
           console.log(`📝 Transcript loaded: ${data.transcript.length} characters`)
         }
 
-        // Process real steps with clamping
+        // Process real steps with clamping (belt & suspenders approach)
         const dur = Number(data.meta?.durationSec ?? 0) || undefined;
 
         const normalized = (data.steps || []).map((raw: any, idx: number, arr: any[]) => {
@@ -366,7 +366,7 @@ export const TrainingPage: React.FC = () => {
                 ? Number(arr[idx + 1].start ?? arr[idx + 1].startTime ?? start)
                 : Number(dur ?? start);
 
-          // Clamp to duration if we know it
+          // Clamp to duration if we know it (catches any remaining bad timestamps)
           if (dur) {
             start = Math.max(0, Math.min(dur, start));
             end = Math.max(start, Math.min(dur, end));
@@ -933,6 +933,8 @@ Just ask me anything about the training!`
                     canMoveUp={index > 0}
                     canMoveDown={index < steps.length - 1}
                     showRewrite={false}
+                    videoDuration={videoDuration}
+                    metaDuration={Number(stepsMeta?.durationSec ?? 0) || undefined}
                   />
                 ))}
               </div>
