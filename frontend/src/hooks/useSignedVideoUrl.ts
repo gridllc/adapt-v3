@@ -10,6 +10,10 @@ interface UseSignedVideoUrlResult {
   refetch: () => Promise<void>
 }
 
+interface VideoUrlResponse {
+  url: string;
+}
+
 export function useSignedVideoUrl(moduleId?: string): UseSignedVideoUrlResult {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,15 +34,12 @@ export function useSignedVideoUrl(moduleId?: string): UseSignedVideoUrlResult {
     try {
       console.log('🔗 Fetching video URL for module:', moduleId);
 
-      const response = await api.get<string>(API_ENDPOINTS.VIDEO_URL_BY_MODULE(moduleId), {
-        // prevent caches holding old signed URL
-        params: { t: Date.now() },
-      });
+      const response: VideoUrlResponse = await api(API_ENDPOINTS.VIDEO_URL_BY_MODULE(moduleId));
 
-      console.log('📦 Video URL response:', response.data);
+      console.log('📦 Video URL response:', response);
 
-      if (response.data) {
-        setUrl(response.data);
+      if (response?.url) {
+        setUrl(response.url);
         setError(null);
         triedRef.current = 0;
       } else {
