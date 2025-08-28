@@ -37,6 +37,13 @@ const clampSteps = (raw: any[], dur: number) =>
     };
   });
 
+// CRITICAL: Infer duration when missing (fixes placeholder leakage)
+const inferDuration = (dur: number, steps: any[]) => {
+  if (dur && Number.isFinite(dur)) return dur;
+  const maxEnd = Math.max(0, ...steps.map(s => Number(s.end ?? s.endTime ?? s.nextTimestamp ?? 0)));
+  return Number.isFinite(maxEnd) && maxEnd > 0 ? maxEnd : 0;
+};
+
 
 
 async function readS3Json(key: string) {
@@ -69,14 +76,18 @@ router.get('/:moduleId', async (req, res) => {
     });
 
     if (dbRows.length > 0) {
-      const steps = clampSteps(dbRows, durationSec);
+      // Infer duration if module duration is unknown
+      let dur = Number((mod as any)?.durationSec ?? 0) || 0;
+      dur = inferDuration(dur, dbRows);
 
-      // Reject any uniform placeholder grids that slipped through
-      if (durationSec > 0 && looksUniform(steps, durationSec)) {
+      const steps = clampSteps(dbRows, dur);
+
+      // Reject any uniform placeholder grids (even if duration was inferred)
+      if (dur > 0 && looksUniform(steps, dur)) {
         return res.status(202).json({
           success: true,
           steps: [],
-          meta: { durationSec, source: 'uniform-db' },
+          meta: { durationSec: dur, source: 'uniform-db' },
           message: 'Steps still normalizing'
         });
       }
@@ -84,7 +95,7 @@ router.get('/:moduleId', async (req, res) => {
       return res.status(200).json({
         success: true,
         steps,
-        meta: { durationSec, source: 'db' }
+        meta: { durationSec: dur, source: 'db' }
       });
     }
 
@@ -92,13 +103,16 @@ router.get('/:moduleId', async (req, res) => {
     const s3Key = `training/${moduleId}.json`;
     try {
       const data = await readS3Json(s3Key);
-      const dur = Number((mod as any)?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
-
-      // Normalize → clamp → guard (catches any bad timestamps)
       const stepsRaw = (data?.steps ?? data?.originalSteps ?? []);
+
+      // 1) Infer duration if module/meta missing
+      let dur = Number((mod as any)?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
+      dur = inferDuration(dur, stepsRaw);
+
+      // 2) Normalize + clamp
       const steps = clampSteps(stepsRaw, dur);
 
-      // Reject uniform grids
+      // 3) Block uniform placeholders even if dur came from maxEnd
       if (dur > 0 && looksUniform(steps, dur)) {
         return res.status(202).json({
           success: true,

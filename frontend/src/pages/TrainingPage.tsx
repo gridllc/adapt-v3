@@ -840,55 +840,28 @@ Just ask me anything about the training!`
                   </p>
                 )}
               </div>
+            ) : status?.status === 'PROCESSING' ? (
+              // Show ONLY processing panel — NO steps list
+              <div className="mb-4 rounded-xl border border-blue-300 bg-blue-50 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="animate-spin text-xl">⏳</div>
+                  <span className="font-medium">AI Processing in Progress</span>
+                </div>
+                <div className="text-sm text-blue-700">
+                  {status.message || 'Generating training steps...'} ({status.progress || 0}%)
+                </div>
+              </div>
             ) : steps && steps.length > 0 ? (
               <div className="space-y-4">
-                {/* Transcript Display */}
-                {steps[0]?.originalText && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                      📝 <span>Video Transcript</span>
-                      <span className="text-xs text-gray-500 font-normal">
-                        ({steps[0].originalText.length} characters)
-                      </span>
-                    </h3>
-                    <div className="text-sm text-gray-600 max-h-32 overflow-y-auto">
-                      {steps[0].originalText}
-                    </div>
-                  </div>
-                )}
-
-                {/* Show transcribe button only for fallback steps when not processing/failed */}
-                {isFallback && status?.status !== 'PROCESSING' && status?.status !== 'FAILED' && (
-                  <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-amber-900">
-                        ⚠️ You’re viewing placeholder steps. Run the AI pipeline to transcribe the video
-                        and generate real steps.
-                      </div>
-                      <button
-                        onClick={handleProcessWithAI}
-                        disabled={processingAI}
-                        className="ml-4 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-60"
-                      >
-                        Transcribe now
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Show processing status */}
+                {/* Show processing status when module is PROCESSING but we have stale steps */}
                 {status?.status === 'PROCESSING' && (
                   <div className="mb-4 rounded-xl border border-blue-300 bg-blue-50 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-blue-900">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="animate-spin text-xl">⏳</div>
-                          <span className="font-medium">AI Processing in Progress</span>
-                        </div>
-                        <div className="text-sm text-blue-700">
-                          {status.message || 'Generating training steps...'} ({status.progress || 0}%)
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="animate-spin text-xl">⏳</div>
+                      <span className="font-medium">AI Processing in Progress</span>
+                    </div>
+                    <div className="text-sm text-blue-700">
+                      {status.message || 'Generating training steps...'} ({status.progress || 0}%)
                     </div>
                   </div>
                 )}
@@ -917,6 +890,7 @@ Just ask me anything about the training!`
                   </div>
                 )}
 
+                {/* Render StepEditor list */}
                 {steps.map((step, index) => (
                   <StepEditor
                     key={step.id || index}
@@ -937,25 +911,6 @@ Just ask me anything about the training!`
                     metaDuration={Number(stepsMeta?.durationSec ?? 0) || undefined}
                   />
                 ))}
-              </div>
-            ) : showProcessingSkeleton ? (
-              <div className="text-center py-8">
-                <div className="w-12 h-12 mx-auto animate-spin text-blue-600 mb-4">⏳</div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Processing in Progress</h3>
-                <p className="text-gray-600 mb-4">
-                  Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
-                </p>
-                <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
-                  <span className="animate-spin">🔄</span>
-                  <span>Generating training steps and analyzing video content...</span>
-                </div>
-
-                {/* Debug info for developers */}
-                {process.env.NODE_ENV === 'development' && (
-                  <div className="text-xs text-gray-400 mt-4">
-                    Debug: moduleId={moduleId}, status: {status?.status}, steps={steps.length}
-                  </div>
-                )}
               </div>
             ) : (
               <div className="text-center py-8">
