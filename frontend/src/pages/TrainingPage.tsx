@@ -101,6 +101,7 @@ export const TrainingPage: React.FC = () => {
   const [processingAI, setProcessingAI] = useState(false)
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
+  const [videoDuration, setVideoDuration] = useState<number | undefined>(undefined)
 
   // 🎯 FETCH MODULE DATA FOR TITLE
   const [moduleData, setModuleData] = useState<any>(null)
@@ -345,7 +346,8 @@ export const TrainingPage: React.FC = () => {
         const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
         setIsFallback(isFallbackResponse)
 
-        const dur = Number(data.meta?.durationSec ?? 0) || undefined;
+        const durFromMeta = Number(data.meta?.durationSec ?? 0) || undefined;
+        const effectiveDur = durFromMeta ?? videoDuration; // prefer backend, fall back to real video
 
         const enhancedSteps = data.steps.map((raw: any, idx: number, arr: any[]) => {
           let start = Number(raw.start ?? raw.startTime ?? 0);
@@ -354,11 +356,12 @@ export const TrainingPage: React.FC = () => {
               ? Number(raw.end ?? raw.endTime)
               : idx < arr.length - 1
                 ? Number(arr[idx + 1].start ?? arr[idx + 1].startTime ?? start)
-                : Number(dur ?? start);
+                : Number(effectiveDur ?? start);
 
-          if (dur) {
-            start = Math.max(0, Math.min(dur, start));
-            end   = Math.max(start, Math.min(dur, end));
+          // clamp using whichever duration we know
+          if (effectiveDur) {
+            start = Math.max(0, Math.min(effectiveDur, start));
+            end   = Math.max(start, Math.min(effectiveDur, end));
           }
 
           return {
@@ -574,13 +577,26 @@ Just ask me anything about the training!`
     setCurrentStepIndex(getCurrentStepIndex())
   }, [videoTime, steps])
 
+  // Clamp steps once the real video duration arrives
+  useEffect(() => {
+    if (!videoDuration || steps.length === 0) return;
+    setSteps(prev =>
+      prev.map(s => {
+        let start = Math.max(0, Math.min(videoDuration, s.start));
+        let end   = Math.max(start, Math.min(videoDuration, s.end));
+        return { ...s, start, end, duration: end > start ? end - start : null };
+      })
+    );
+  }, [videoDuration]); // eslint-disable-line
+
   console.log('🎬 TrainingPage render state:', {
     moduleId,
     videoUrl,
     status,
     steps: steps.length,
     stepsLoading,
-    stepsError
+    stepsError,
+    videoDuration
   })
 
   // Show processing screen if module is still being processed
@@ -663,14 +679,19 @@ Just ask me anything about the training!`
               </div>
             </div>
           ) : videoUrl ? (
-            <video 
+            <video
               key={videoUrl}  // Force re-render when URL changes
-              controls 
+              controls
               playsInline  // Better mobile compatibility
               preload="metadata"  // Load metadata for seeking
               crossOrigin="anonymous"  // Handle CORS properly
-              className="w-full rounded-2xl shadow-sm" 
-              ref={videoRef} 
+              className="w-full rounded-2xl shadow-sm"
+              ref={videoRef}
+              onLoadedMetadata={() => {
+                if (videoRef.current?.duration && isFinite(videoRef.current.duration)) {
+                  setVideoDuration(videoRef.current.duration);
+                }
+              }}
               onTimeUpdate={handleVideoTimeUpdate}
               onPlay={handleVideoPlay}
               onPause={handleVideoPause}

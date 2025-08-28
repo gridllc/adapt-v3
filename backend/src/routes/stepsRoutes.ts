@@ -15,61 +15,7 @@ const BUCKET = process.env.AWS_BUCKET_NAME!
 const ok = (res: any, extra: any = {}) => res.status(200).json({ success: true, ...extra })
 const fail = (res: any, code = 500, msg = 'Failed') => res.status(code).json({ success: false, error: msg })
 
-// ---- compat helpers ----
-const mmssToSec = (v: any): number | undefined => {
-  if (v == null) return undefined;
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  const s = String(v).trim();
-  const m = s.match(/^(\d{1,2}):(\d{2})(?:\.\d+)?$/);
-  if (m) return (+m[1]) * 60 + (+m[2]);
-  const n = Number(s);
-  return Number.isFinite(n) ? n : undefined;
-};
 
-// Accepts *either* new format (steps[]) or old format (originalSteps[])
-// and always returns a normalized [{id,start,end,title,description}]
-function normalizeAnySteps(data: any, fallbackDuration = 0) {
-  const raw = Array.isArray(data?.steps) ? data.steps
-           : Array.isArray(data?.originalSteps) ? data.originalSteps
-           : [];
-
-  const out = raw.map((s: any, i: number, arr: any[]) => {
-    // new format fields
-    let start = mmssToSec(s.start ?? s.startTime);
-    let end   = mmssToSec(s.end   ?? s.endTime);
-
-    // old format sometimes had mm:ss strings or only "timestamp"/"nextTimestamp"
-    if (start == null) start = mmssToSec(s.timestamp);
-    if (end   == null) end   = mmssToSec(s.nextTimestamp);
-
-    // infer end from next.start if still missing
-    if (end == null && i < arr.length - 1) {
-      const n = arr[i + 1];
-      end = mmssToSec(n.start ?? n.startTime ?? n.timestamp);
-    }
-    // final fallback to file duration
-    if (end == null) end = fallbackDuration;
-
-    // clamp & order
-    if (fallbackDuration) {
-      start = Math.max(0, Math.min(fallbackDuration, start ?? 0));
-      end   = Math.max(start ?? 0, Math.min(fallbackDuration, end ?? fallbackDuration));
-    } else {
-      start = Math.max(0, start ?? 0);
-      end   = Math.max(start, end ?? start);
-    }
-
-    return {
-      id: s.id ?? `s${i + 1}`,
-      start,
-      end,
-      title: String(s.title ?? s.text ?? s.name ?? `Step ${i + 1}`),
-      description: String(s.description ?? s.details ?? ''),
-    };
-  });
-
-  return out;
-}
 
 async function readS3Json(key: string) {
   const out = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
@@ -105,9 +51,9 @@ router.get('/:moduleId', async (req, res) => {
 
   try {
     const mod = await prisma.module.findUnique({ where: { id: moduleId } });
-    const durationSec = Number((mod as any)?.durationSec ?? 0) || 0; // 0 = unknown
+    const moduleDur = Number((mod as any)?.durationSec ?? 0) || 0;
 
-    // 1) DB
+    // DB branch
     const dbRows = await prisma.step.findMany({
       where: { moduleId },
       orderBy: [{ order: 'asc' }],
@@ -121,39 +67,42 @@ router.get('/:moduleId', async (req, res) => {
         title: String(s.text ?? `Step ${i + 1}`),
         description: String(s.text ?? ''),
       }));
-
-      if (durationSec > 0 && looksUniform(steps, durationSec)) {
+      if (moduleDur > 0 && looksUniform(steps, moduleDur)) {
         return res.status(202).json({
-          success: true,
-          message: 'Steps still normalizing',
-          steps: [],
-          meta: { durationSec, source: 'uniform-db' },
+          success: true, steps: [],
+          meta: { durationSec: moduleDur, source: 'uniform-db' },
+          message: 'Steps still normalizing'
         });
       }
-
-      return ok(res, { steps, meta: { durationSec, source: 'db' } });
+      return res.status(200).json({ success: true, steps, meta: { durationSec: moduleDur, source: 'db' } });
     }
 
-    // 2) S3
+    // S3 branch
     const s3Key = `training/${moduleId}.json`;
     try {
       const data = await readS3Json(s3Key);
-      const dur = Number((mod as any)?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
+      const s3Steps = (data?.steps ?? data?.originalSteps ?? []).map((s: any, i: number) => ({
+        id: s.id ?? `s${i + 1}`,
+        start: Number(s.start ?? s.startTime ?? s.timestamp ?? 0),
+        end: Number(s.end ?? s.endTime ?? s.nextTimestamp ?? 0),
+        title: String(s.title ?? s.text ?? s.name ?? `Step ${i + 1}`),
+        description: String(s.description ?? s.details ?? ''),
+      }));
 
-      const stepsFromS3 = normalizeAnySteps(data, dur);
+      const dur = Number(moduleDur || data?.meta?.durationSec || 0) || 0;
 
-      if (dur > 0 && looksUniform(stepsFromS3, dur)) {
+      if (dur > 0 && looksUniform(s3Steps, dur)) {
         return res.status(202).json({
-          success: true,
-          message: 'Steps still normalizing',
-          steps: [],
+          success: true, steps: [],
           meta: { ...(data?.meta ?? {}), durationSec: dur, source: 'uniform-s3' },
+          message: 'Steps still normalizing'
         });
       }
 
       res.set('Cache-Control', 'no-store');
-      return ok(res, {
-        steps: stepsFromS3,
+      return res.status(200).json({
+        success: true,
+        steps: s3Steps,
         transcript: data?.transcript ?? '',
         meta: { ...(data?.meta ?? {}), durationSec: dur, source: 's3' },
       });
@@ -161,19 +110,20 @@ router.get('/:moduleId', async (req, res) => {
       /* fall through */
     }
 
-    // 3) Fallback ONLY if duration known — else 202 to keep polling
-    if (!durationSec) {
+    // Fallback: only if we know the duration. If we don't, keep polling.
+    if (!moduleDur) {
       return res.status(202).json({ success: true, steps: [], meta: { durationSec: 0, source: 'pending' } });
     }
-    const chunk = Math.max(5, Math.floor(durationSec / 3));
+    const chunk = Math.max(5, Math.floor(moduleDur / 3));
     const steps = [
       { id: 's1', start: 0,       end: chunk,     title: 'Intro',      description: 'Overview of the task.' },
       { id: 's2', start: chunk,   end: chunk * 2, title: 'Main Steps', description: 'Follow the core steps.' },
-      { id: 's3', start: chunk*2, end: durationSec, title: 'Finish',   description: 'Wrap up and verify.' },
+      { id: 's3', start: chunk*2, end: moduleDur, title: 'Finish',     description: 'Wrap up and verify.' },
     ];
     res.set('Cache-Control', 'no-store');
-    return ok(res, { steps, meta: { durationSec, source: 'fallback-transient' } });
-  } catch (e) {
+    return res.status(200).json({ success: true, steps, meta: { durationSec: moduleDur, source: 'fallback-transient' } });
+  } catch (err: any) {
+    console.error('[GET /steps/:moduleId] ERROR', err?.message);
     return res.status(500).json({ success: false, error: 'Could not load steps' });
   }
 });
