@@ -33,28 +33,15 @@ async function writeS3Json(key: string, data: any) {
   }))
 }
 
-function makeBasicSteps(durationSec: number) {
-  if (durationSec <= 0) {
-    throw new Error('Cannot create basic steps: invalid duration');
-  }
-  // 3 safe placeholders so the UI renders and click-to-seek works
-  const chunk = Math.max(5, Math.floor(durationSec / 3))
-  return [
-    { id: 's1', start: 0,          end: chunk,        title: 'Intro',       description: 'Overview of the task.' },
-    { id: 's2', start: chunk,      end: chunk * 2,    title: 'Main Steps',  description: 'Follow the core steps.' },
-    { id: 's3', start: chunk * 2,  end: durationSec,  title: 'Finish',      description: 'Wrap up and verify.' },
-  ]
-}
-
-// Get steps for a specific module (public) - NEVER assumes 60s
+// Get steps for a specific module (public) - NO PLACEHOLDERS, just real data or 202
 router.get('/:moduleId', async (req, res) => {
   const { moduleId } = req.params;
 
   try {
-    // CRITICAL: Use ModuleService to get REAL duration, never default to 60s
-    const moduleDur = await ModuleService.ensureDurationSec(moduleId, undefined);
+    const mod = await prisma.module.findUnique({ where: { id: moduleId } });
+    const durationSec = Number((mod as any)?.durationSec ?? 0) || 0;
 
-    // DB branch
+    // 1) DB
     const dbRows = await prisma.step.findMany({
       where: { moduleId },
       orderBy: [{ order: 'asc' }],
@@ -68,21 +55,29 @@ router.get('/:moduleId', async (req, res) => {
         title: String(s.text ?? `Step ${i + 1}`),
         description: String(s.text ?? ''),
       }));
-      if (moduleDur && moduleDur > 0 && looksUniform(steps, moduleDur)) {
+
+      // Reject any uniform placeholder grids that slipped through
+      if (durationSec > 0 && looksUniform(steps, durationSec)) {
         return res.status(202).json({
-          success: true, steps: [],
-          meta: { durationSec: moduleDur, source: 'uniform-db' },
+          success: true,
+          steps: [],
+          meta: { durationSec, source: 'uniform-db' },
           message: 'Steps still normalizing'
         });
       }
-      return res.status(200).json({ success: true, steps, meta: { durationSec: moduleDur || 0, source: 'db' } });
+
+      return res.status(200).json({
+        success: true,
+        steps,
+        meta: { durationSec, source: 'db' }
+      });
     }
 
-    // S3 branch - handle both old and new formats
+    // 2) S3
     const s3Key = `training/${moduleId}.json`;
     try {
       const data = await readS3Json(s3Key);
-      const s3Steps = (data?.steps ?? data?.originalSteps ?? []).map((s: any, i: number) => ({
+      const steps = (data?.steps ?? data?.originalSteps ?? []).map((s: any, i: number) => ({
         id: s.id ?? `s${i + 1}`,
         start: Number(s.start ?? s.startTime ?? s.timestamp ?? 0),
         end: Number(s.end ?? s.endTime ?? s.nextTimestamp ?? 0),
@@ -90,12 +85,14 @@ router.get('/:moduleId', async (req, res) => {
         description: String(s.description ?? s.details ?? ''),
       }));
 
-      const dur = Number(moduleDur || data?.meta?.durationSec || 0) || 0;
+      const dur = Number((mod as any)?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
 
-      if (dur > 0 && looksUniform(s3Steps, dur)) {
+      // Reject uniform grids
+      if (dur > 0 && looksUniform(steps, dur)) {
         return res.status(202).json({
-          success: true, steps: [],
-          meta: { ...(data?.meta ?? {}), durationSec: dur, source: 'uniform-s3' },
+          success: true,
+          steps: [],
+          meta: { durationSec: dur, source: 'uniform-s3' },
           message: 'Steps still normalizing'
         });
       }
@@ -103,26 +100,21 @@ router.get('/:moduleId', async (req, res) => {
       res.set('Cache-Control', 'no-store');
       return res.status(200).json({
         success: true,
-        steps: s3Steps,
+        steps,
         transcript: data?.transcript ?? '',
         meta: { ...(data?.meta ?? {}), durationSec: dur, source: 's3' },
       });
     } catch {
-      /* fall through */
+      /* no S3 file yet */
     }
 
-    // Fallback: only if we know the duration. If we don't, keep polling.
-    if (!moduleDur || moduleDur <= 0) {
-      return res.status(202).json({ success: true, steps: [], meta: { durationSec: 0, source: 'pending' } });
-    }
-    const chunk = Math.max(5, Math.floor(moduleDur / 3));
-    const steps = [
-      { id: 's1', start: 0,       end: chunk,     title: 'Intro',      description: 'Overview of the task.' },
-      { id: 's2', start: chunk,   end: chunk * 2, title: 'Main Steps', description: 'Follow the core steps.' },
-      { id: 's3', start: chunk*2, end: moduleDur, title: 'Finish',     description: 'Wrap up and verify.' },
-    ];
-    res.set('Cache-Control', 'no-store');
-    return res.status(200).json({ success: true, steps, meta: { durationSec: moduleDur, source: 'fallback-transient' } });
+    // 3) Nothing real yet → tell FE to wait (no placeholders!)
+    return res.status(202).json({
+      success: true,
+      steps: [],
+      meta: { durationSec, source: 'pending' }
+    });
+
   } catch (err: any) {
     console.error('[GET /steps/:moduleId] ERROR', err?.message);
     return res.status(500).json({ success: false, error: 'Could not load steps' });

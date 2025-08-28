@@ -88,6 +88,7 @@ export const TrainingPage: React.FC = () => {
   const [retryCount, setRetryCount] = useState(0)
   const [hasTriedOnce, setHasTriedOnce] = useState(false)
   const [isFallback, setIsFallback] = useState(false)
+  const [showProcessingSkeleton, setShowProcessingSkeleton] = useState(false)
   const maxRetries = 5
 
   const [chatMessage, setChatMessage] = useState('')
@@ -313,55 +314,62 @@ export const TrainingPage: React.FC = () => {
       console.log(`[AI DEBUG] Attempting to fetch steps for ${moduleId}, retry ${retryCount}`)
       setStepsLoading(true)
       setStepsError(null)
+
       try {
         const freshUrl = `${API_ENDPOINTS.STEPS(moduleId)}?t=${Date.now()}`
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), 10000))
-        const data = await Promise.race([api(freshUrl), timeoutPromise])
-        
-        if (!data.steps || data.steps.length === 0) {
-          // If no steps and module is ready, this might be an error
-          if (status && status.status === 'READY') {
-            throw new Error('Steps not found - module processing may have failed')
-          } else if (status && status.status === 'FAILED') {
-            throw new Error(`Processing failed: ${status.errorMessage || 'Unknown error'}`)
-          } else {
-            throw new Error('Steps not ready yet - module still processing')
-          }
+
+        // Make the request to check status
+        const response = await fetch(freshUrl, {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+
+        // Handle 202 (Accepted) - processing, show skeleton
+        if (response.status === 202) {
+          console.log(`⏳ Module ${moduleId} still processing, showing skeleton`)
+          setSteps([])
+          setShowProcessingSkeleton(true)
+          setStepsLoading(false)
+          return // Keep polling
         }
-        
-        console.log(`✅ Successfully loaded ${data.steps.length} steps for ${moduleId}`)
-        
-        // Load transcript and meta data if available
-        if (data.transcript) {
-          console.log(`📝 Transcript loaded: ${data.transcript.length} characters`)
+
+        // Handle errors
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
-        if (data.meta) {
-          console.log(`📊 Meta data loaded:`, data.meta)
-        }
+
+        const data = await response.json()
+
+        // Success! We have real steps
+        console.log(`✅ Successfully loaded ${data.steps.length} real steps for ${moduleId}`)
 
         // Set meta data
         setStepsMeta(data.meta)
+        setShowProcessingSkeleton(false) // Hide processing state
+        setIsFallback(false) // No more fake steps
 
-        // Check if these are fallback steps
-        const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
-        setIsFallback(isFallbackResponse)
+        // Load transcript if available
+        if (data.transcript) {
+          console.log(`📝 Transcript loaded: ${data.transcript.length} characters`)
+        }
 
-        const durFromMeta = Number(data.meta?.durationSec ?? 0) || undefined;
-        const effectiveDur = durFromMeta ?? videoDuration; // prefer backend, fall back to real video
+        // Process real steps with clamping
+        const dur = Number(data.meta?.durationSec ?? 0) || undefined;
 
-        const enhancedSteps = data.steps.map((raw: any, idx: number, arr: any[]) => {
+        const normalized = (data.steps || []).map((raw: any, idx: number, arr: any[]) => {
           let start = Number(raw.start ?? raw.startTime ?? 0);
           let end =
             raw.end != null || raw.endTime != null
               ? Number(raw.end ?? raw.endTime)
               : idx < arr.length - 1
                 ? Number(arr[idx + 1].start ?? arr[idx + 1].startTime ?? start)
-                : Number(effectiveDur ?? start);
+                : Number(dur ?? start);
 
-          // clamp using whichever duration we know
-          if (effectiveDur) {
-            start = Math.max(0, Math.min(effectiveDur, start));
-            end   = Math.max(start, Math.min(effectiveDur, end));
+          // Clamp to duration if we know it
+          if (dur) {
+            start = Math.max(0, Math.min(dur, start));
+            end = Math.max(start, Math.min(dur, end));
           }
 
           return {
@@ -373,11 +381,16 @@ export const TrainingPage: React.FC = () => {
           };
         });
 
-        setSteps(enhancedSteps)
+        setSteps(normalized)
         setRetryCount(0)
         setHasTriedOnce(true)
+
       } catch (err: any) {
         console.error(`❌ Error fetching steps for ${moduleId}:`, err)
+
+        // Don't show processing for actual errors
+        setShowProcessingSkeleton(false)
+
         if (retryCount < maxRetries) {
           console.warn(`🔄 Retry ${retryCount + 1}/${maxRetries} for ${moduleId}...`)
           setTimeout(() => setRetryCount(prev => prev + 1), 2000)
@@ -923,15 +936,35 @@ Just ask me anything about the training!`
                   />
                 ))}
               </div>
+            ) : showProcessingSkeleton ? (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 mx-auto animate-spin text-blue-600 mb-4">⏳</div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Processing in Progress</h3>
+                <p className="text-gray-600 mb-4">
+                  Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
+                </p>
+                <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+                  <span className="animate-spin">🔄</span>
+                  <span>Generating training steps and analyzing video content...</span>
+                </div>
+
+                {/* Debug info for developers */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="text-xs text-gray-400 mt-4">
+                    Debug: moduleId={moduleId}, status: {status?.status}, steps={steps.length}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="text-center py-8">
-                <div className="text-gray-400 mb-2">📝</div>
-                <p className="text-gray-600">No steps available for this training</p>
-                
+                <div className="text-gray-400 mb-2">⚠️</div>
+                <p className="text-gray-600 mb-2">No steps available for this training</p>
+                <p className="text-sm text-gray-500">The AI processing may have failed or is still in progress.</p>
+
                 {/* Debug info for developers */}
                 {process.env.NODE_ENV === 'development' && (
                   <div className="text-xs text-gray-400 mt-2">
-                    Debug: moduleId={moduleId}, videoUrl={videoUrl ? 'loaded' : 'not loaded'}, steps={steps.length}, hasTriedOnce={hasTriedOnce.toString()}
+                    Debug: moduleId={moduleId}, status: {status?.status}, steps={steps.length}, hasTriedOnce={hasTriedOnce.toString()}
                   </div>
                 )}
                 
