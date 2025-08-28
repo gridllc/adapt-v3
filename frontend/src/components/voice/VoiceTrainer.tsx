@@ -8,7 +8,7 @@ interface VoiceTrainerProps {
 }
 
 export default function VoiceTrainer({ moduleId, onQuestionAsked, autoStart = false }: VoiceTrainerProps) {
-  const { ask } = useModuleAsk(moduleId);
+  const { ask } = useModuleAsk();
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState('');
@@ -87,7 +87,7 @@ export default function VoiceTrainer({ moduleId, onQuestionAsked, autoStart = fa
   const handleVoiceCommand = async (command: string) => {
     try {
       // Process the voice command through the AI assistant
-      await ask(command);
+      await ask(moduleId, command);
       onQuestionAsked?.(command);
     } catch (err) {
       console.error('Voice command failed:', err);
