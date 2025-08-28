@@ -95,12 +95,7 @@ const enhancedAiService = {
             moduleId: moduleId || 'global',
             stepId: currentStep?.id,
             userId,
-            videoTime,
-            context: {
-              currentStep: currentStep?.title,
-              totalSteps: allSteps?.length || 0,
-              stepContext: currentStep
-            }
+            videoTime
           })
           console.log(`📝 [Contextual AI] Interaction logged for future learning`)
         } catch (logError) {
