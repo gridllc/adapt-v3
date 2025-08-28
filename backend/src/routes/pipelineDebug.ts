@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { runPipeline } from "../services/ai/aiPipeline.js";
-import { prisma } from "../config/database";
+import { prisma } from "../config/database.js";
 
 const router = Router();
 

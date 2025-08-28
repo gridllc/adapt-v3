@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { Receiver } from "@upstash/qstash";
 import { runPipeline } from "../services/ai/aiPipeline.js";
-import { prisma } from "../config/database";
+import { prisma } from "../config/database.js";
 import { getBaseUrl } from "../services/jobs/pipelineQueue.js";
 
 const router = Router();
