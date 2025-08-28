@@ -7,6 +7,7 @@ import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
 import { useVoiceCoach } from '../voice/useVoiceCoach'
+import VoiceTrainer from '../components/voice/VoiceTrainer'
 
 interface Step {
   id: string
@@ -91,7 +92,7 @@ export const TrainingPage: React.FC = () => {
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       type: 'assistant',
-      message: `Hi! I'm your AI training assistant with a growing knowledge base! 🤖\n\nI learn from every conversation and can help you with:\n• Step-by-step guidance\n• Answering questions about the training\n• Remembering what we've discussed\n\nTry asking "What's the second step?" or "Give me a summary!"`
+      message: `Hi! I'm your AI training assistant. I can help you with step-by-step guidance and answer questions about this training.`
     }
   ])
 
@@ -104,6 +105,8 @@ export const TrainingPage: React.FC = () => {
   const [moduleDataLoading, setModuleDataLoading] = useState(false)
   const [isRealData, setIsRealData] = useState<boolean>(false)
   const [aiLearningMetrics, setAiLearningMetrics] = useState<any>(null)
+  const [showLearningProgress, setShowLearningProgress] = useState<boolean>(false)
+  const [voiceTrainingActive, setVoiceTrainingActive] = useState<boolean>(false)
 
 
   // Video seeking function
@@ -283,9 +286,9 @@ export const TrainingPage: React.FC = () => {
         if (response.success) {
           setAiLearningMetrics(response.metrics)
 
-          // Update welcome message based on learning metrics
+          // Update welcome message based on learning metrics (keep it concise)
           if (response.metrics.totalInteractions > 0) {
-            const welcomeMessage = `Hi! I'm your AI training assistant with ${response.metrics.knowledgeBaseSize} learned answers! 🤖\n\nI've helped with ${response.metrics.totalInteractions} conversations and have a ${response.metrics.reuseRate}% learning efficiency.\n\nTry asking "What's the second step?" or "Give me a summary!"`
+            const welcomeMessage = `Hi! I'm your AI training assistant with ${response.metrics.knowledgeBaseSize} learned answers. I can help you with step-by-step guidance.`
             setChatHistory([{
               type: 'assistant',
               message: welcomeMessage
@@ -481,18 +484,18 @@ export const TrainingPage: React.FC = () => {
       // Generate AI response based on context
       const aiResponse = await generateAIResponse(userMessage, stepContext, steps)
       
-      // Remove typing indicator and add real response
+      // Remove typing indicator and add concise response
       setChatHistory(prev => prev.filter(msg => !msg.isTyping))
 
-      // Add learning indicator to response if AI reused knowledge
-      let enhancedResponse = aiResponse
-      if (aiResponse.includes('♻️') || aiResponse.includes('📚')) {
-        enhancedResponse += '\n\n*This answer was drawn from my learning database - I\'m getting smarter!* 📈'
-      } else if (aiResponse.length > 50) {
-        enhancedResponse += '\n\n*Thanks for the question! I\'ve learned from this interaction.* 🧠'
-      }
+      // Clean up the response - remove redundant learning messages
+      let cleanResponse = aiResponse
+        .replace(/\*Thanks for the question.*$/gm, '')
+        .replace(/\*This answer was drawn from.*$/gm, '')
+        .replace(/\*I've learned from this interaction.*$/gm, '')
+        .replace(/📈|🧠|♻️|📚/g, '')
+        .trim()
 
-      setChatHistory(prev => [...prev, { type: 'assistant', message: enhancedResponse }])
+      setChatHistory(prev => [...prev, { type: 'assistant', message: cleanResponse }])
 
       // Update learning metrics after successful interaction
       if (aiLearningMetrics) {
@@ -755,6 +758,43 @@ What would you like to know about this training?`
 
       </div>
 
+      {/* Voice Training Controls */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-purple-900 mb-1">
+              🎤 Voice-Powered Training
+            </h3>
+            <p className="text-sm text-purple-700">
+              Start voice training to ask questions naturally and get spoken responses
+            </p>
+          </div>
+          <button
+            onClick={() => setVoiceTrainingActive(!voiceTrainingActive)}
+            className={`px-6 py-3 rounded-lg font-medium transition-all ${
+              voiceTrainingActive
+                ? 'bg-red-600 hover:bg-red-700 text-white'
+                : 'bg-purple-600 hover:bg-purple-700 text-white'
+            }`}
+          >
+            {voiceTrainingActive ? 'Stop Voice Training' : 'Start Voice Training'}
+          </button>
+        </div>
+
+        {/* Voice Trainer Component */}
+        {voiceTrainingActive && (
+          <div className="mt-4">
+            <VoiceTrainer
+              moduleId={moduleId!}
+              active={voiceTrainingActive}
+              onStatusChange={(status) => {
+                console.log('Voice training status:', status)
+              }}
+            />
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
         <div className="lg:col-span-2">
@@ -905,39 +945,7 @@ What would you like to know about this training?`
                   </div>
                 )}
 
-                {/* Show enhancement banner only when we don't have real processed data */}
-                {!isRealData && status?.status !== 'PROCESSING' && status?.status !== 'FAILED' && (
-                  <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-blue-900">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="text-xl">🤖</div>
-                          <span className="font-medium">Enhance Your Training</span>
-                        </div>
-                        <p className="text-sm text-blue-700">
-                          Generate detailed, AI-powered steps from your video transcript for better learning outcomes.
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleProcessWithAI}
-                        disabled={processingAI}
-                        className="ml-4 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2"
-                      >
-                        {processingAI ? (
-                          <>
-                            <div className="animate-spin text-sm">⏳</div>
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <span>🚀</span>
-                            Generate Steps
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
+
 
                 {/* Show processing status */}
                 {status?.status === 'PROCESSING' && (
@@ -1021,13 +1029,7 @@ What would you like to know about this training?`
                   >
                     🔁 Retry Loading Steps
                   </button>
-                  <button
-                    onClick={handleProcessWithAI}
-                    disabled={processingAI || status?.status === 'processing'}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm"
-                  >
-                    🤖 Generate Steps with AI
-                  </button>
+
                 </div>
                 
                 {processingAI && (
@@ -1069,15 +1071,18 @@ What would you like to know about this training?`
         <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col h-[500px]">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">🤖 AI Assistant</h3>
-            {aiLearningMetrics && (
-              <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
-                🧠 Learned from {aiLearningMetrics.totalInteractions} conversations
-              </div>
+            {aiLearningMetrics && aiLearningMetrics.totalInteractions > 0 && (
+              <button
+                onClick={() => setShowLearningProgress(!showLearningProgress)}
+                className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded transition-colors"
+              >
+                {showLearningProgress ? 'Hide Progress' : 'View Progress'}
+              </button>
             )}
           </div>
 
-          {/* AI Learning Progress */}
-          {aiLearningMetrics && aiLearningMetrics.totalInteractions > 0 && (
+          {/* AI Learning Progress (hidden by default) */}
+          {aiLearningMetrics && aiLearningMetrics.totalInteractions > 0 && showLearningProgress && (
             <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-blue-900">AI Learning Progress</span>
@@ -1098,16 +1103,14 @@ What would you like to know about this training?`
             </div>
           )}
           
-          {/* Suggested Questions */}
+          {/* Suggested Questions (max 3) */}
           <div className="mb-4">
             <p className="text-xs text-gray-500 mb-2">Try asking:</p>
             <div className="flex flex-wrap gap-1">
               {[
                 "What's the second step?",
                 "How many steps?",
-                "What's the current step?",
-                "What's next?",
-                "Give me a summary"
+                "What's next?"
               ].map((suggestion, index) => (
                 <button
                   key={index}
@@ -1122,7 +1125,7 @@ What would you like to know about this training?`
           
           {/* Chat History */}
           <div
-            className="flex-1 space-y-4 overflow-y-auto mb-4 scroll-smooth"
+            className="flex-1 space-y-4 overflow-y-auto mb-4 scroll-smooth max-h-80"
             ref={chatHistoryRef}
             style={{ scrollBehavior: 'smooth' }}
           >

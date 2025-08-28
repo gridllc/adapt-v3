@@ -112,44 +112,14 @@ const enhancedAiService = {
   },
 
   async generateEnhancedResponse(message: string, similarInteraction: any, context: any): Promise<string> {
-    if (!openai) {
-      return similarInteraction.answer
-    }
-
-    try {
-      const prompt = `Based on a similar question and answer from our knowledge base, provide an enhanced response to: "${message}"
-
-      SIMILAR QUESTION: "${similarInteraction.question}"
-      SIMILAR ANSWER: "${similarInteraction.answer}"
-      SIMILARITY: ${(similarInteraction.similarity * 100).toFixed(1)}%
-
-      Current context:
-      - Module: ${context?.moduleId || 'Unknown'}
-      - Current step: ${context?.currentStep?.title || 'None'}
-      - Video time: ${context?.videoTime || 0}s
-
-      Provide a helpful, contextual response that adapts the similar answer to this specific question and context. Keep it concise but informative.`
-
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 300,
-        temperature: 0.3
-      })
-
-      const enhancedAnswer = completion.choices[0]?.message?.content || similarInteraction.answer
-      console.log(`✨ [Enhanced Response] Generated enhanced answer`)
-
-      return enhancedAnswer
-    } catch (error) {
-      console.warn('⚠️ [Enhanced Response] Failed to enhance, using original:', error)
-      return similarInteraction.answer
-    }
+    // For enhanced responses, just return the similar answer without extra messaging
+    console.log(`♻️ [Enhanced Response] Using similar answer (similarity: ${(similarInteraction.similarity * 100).toFixed(1)}%)`)
+    return similarInteraction.answer
   },
 
   async generateFreshResponse(message: string, context: any): Promise<string> {
     if (!openai) {
-      return `I understand you're asking about "${message}". I'm learning from our conversations to provide better answers over time.`
+      return `I understand you're asking about "${message}".`
     }
 
     try {
@@ -165,19 +135,19 @@ const enhancedAiService = {
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0.4
+        max_tokens: 150, // Reduced for conciseness
+        temperature: 0.3  // More consistent responses
       })
 
       const freshAnswer = completion.choices[0]?.message?.content ||
-        `I understand you're asking about "${message}". I'm here to help with your training questions.`
+        `I understand you're asking about "${message}".`
 
-      console.log(`🆕 [Fresh Response] Generated new answer`)
+      console.log(`🆕 [Fresh Response] Generated concise answer`)
 
       return freshAnswer
     } catch (error) {
       console.warn('⚠️ [Fresh Response] Failed to generate:', error)
-      return `I understand you're asking about "${message}". I'm here to help with your training questions.`
+      return `I understand you're asking about "${message}".`
     }
   },
 
