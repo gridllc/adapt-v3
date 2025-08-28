@@ -7,7 +7,6 @@ import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
 import { useVoiceCoach } from '../voice/useVoiceCoach'
-import VoiceTrainer from '../components/voice/VoiceTrainer'
 
 interface Step {
   id: string
@@ -106,7 +105,6 @@ export const TrainingPage: React.FC = () => {
   const [isRealData, setIsRealData] = useState<boolean>(false)
   const [aiLearningMetrics, setAiLearningMetrics] = useState<any>(null)
   const [showLearningProgress, setShowLearningProgress] = useState<boolean>(false)
-  const [voiceTrainingActive, setVoiceTrainingActive] = useState<boolean>(false)
 
 
   // Video seeking function
@@ -758,43 +756,6 @@ What would you like to know about this training?`
 
       </div>
 
-      {/* Voice Training Controls */}
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-purple-900 mb-1">
-              🎤 Voice-Powered Training
-            </h3>
-            <p className="text-sm text-purple-700">
-              Start voice training to ask questions naturally and get spoken responses
-            </p>
-          </div>
-          <button
-            onClick={() => setVoiceTrainingActive(!voiceTrainingActive)}
-            className={`px-6 py-3 rounded-lg font-medium transition-all ${
-              voiceTrainingActive
-                ? 'bg-red-600 hover:bg-red-700 text-white'
-                : 'bg-purple-600 hover:bg-purple-700 text-white'
-            }`}
-          >
-            {voiceTrainingActive ? 'Stop Voice Training' : 'Start Voice Training'}
-          </button>
-        </div>
-
-        {/* Voice Trainer Component */}
-        {voiceTrainingActive && (
-          <div className="mt-4">
-            <VoiceTrainer
-              moduleId={moduleId!}
-              active={voiceTrainingActive}
-              onStatusChange={(status) => {
-                console.log('Voice training status:', status)
-              }}
-            />
-          </div>
-        )}
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
         <div className="lg:col-span-2">
@@ -1029,7 +990,13 @@ What would you like to know about this training?`
                   >
                     🔁 Retry Loading Steps
                   </button>
-
+                  <button
+                    onClick={handleProcessWithAI}
+                    disabled={processingAI || status?.status === 'processing'}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm"
+                  >
+                    🤖 Generate Steps with AI
+                  </button>
                 </div>
                 
                 {processingAI && (
