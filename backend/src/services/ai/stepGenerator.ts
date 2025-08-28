@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import OpenAI from 'openai'
 import { Step, VideoAnalysisResult } from './types.js'
 import { smartTrimTranscript, getTranscriptCap } from './utils.js'
-import { normalizeStepTimings, RawStep } from './stepProcessor.js'
+import { normalizeSteps, RawStep } from './stepProcessor.js'
 
 // Gemini API gating - prevents any Gemini calls unless explicitly enabled
 const USE_GEMINI = 
@@ -171,7 +171,7 @@ function mapStepFields(parsed: any, videoDurationSec: number): VideoAnalysisResu
   }));
 
   // Use the new normalization that preserves real AI-generated timings
-  const normalizedSteps = normalizeStepTimings(rawSteps, videoDurationSec);
+  const normalizedSteps = normalizeSteps(rawSteps, videoDurationSec);
 
   return {
     title: parsed.title || 'Video Analysis',

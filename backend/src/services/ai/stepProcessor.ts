@@ -1,59 +1,54 @@
 // backend/src/services/ai/stepProcessor.ts
-export type RawStep = {
-  id?: string;
-  title: string;
-  description?: string;
-  start?: number | string; // sec or mm:ss
-  end?: number | string;   // sec or mm:ss
-  // ...anything else
-};
+export interface RawStep {
+  id?: string
+  title: string
+  description?: string
+  start?: number | string
+  end?: number | string
+}
 
-const toSec = (v: number | string | undefined): number | undefined => {
-  if (v == null) return undefined;
-  if (typeof v === 'number') return v;
-  // mm:ss -> seconds
-  const m = String(v).trim().match(/^(\d{1,2}):(\d{2})(?:\.\d+)?$/);
-  if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-  // numeric string
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-};
+const toSeconds = (v: number | string | undefined): number | undefined => {
+  if (v == null) return undefined
+  if (typeof v === 'number') return v
+  // mm:ss format
+  const match = String(v).trim().match(/^(\d{1,2}):(\d{2})(?:\.\d+)?$/)
+  if (match) return parseInt(match[1], 10) * 60 + parseInt(match[2], 10)
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
+}
 
-export function normalizeStepTimings(steps: RawStep[], videoDurationSec: number): RawStep[] {
-  const clamp = (x: number) => Math.max(0, Math.min(videoDurationSec, x));
+export function normalizeSteps(
+  steps: RawStep[],
+  videoDuration: number
+): RawStep[] {
+  if (!Array.isArray(steps) || steps.length === 0) return []
 
-  // 1) parse + sort by start
+  // 1. Parse and sort
   const parsed = steps
-    .map(s => {
-      const start = toSec(s.start) ?? 0;
-      const endFromField = toSec(s.end);
-      return { ...s, start, end: endFromField };
+    .map((s) => {
+      const start = toSeconds(s.start) ?? 0
+      const endFromField = toSeconds(s.end)
+      return { ...s, start, end: endFromField }
     })
-    .sort((a, b) => a.start - b.start);
+    .sort((a, b) => (a.start ?? 0) - (b.start ?? 0))
 
-  // 2) infer any missing end from next.start or video end
+  // 2. Fill missing ends from next start or video duration
   for (let i = 0; i < parsed.length; i++) {
     if (parsed[i].end == null) {
-      parsed[i].end = i < parsed.length - 1 ? parsed[i + 1].start : videoDurationSec;
+      parsed[i].end =
+        i < parsed.length - 1
+          ? parsed[i + 1].start
+          : videoDuration
     }
   }
 
-  // 3) clamp + fix inversions
-  for (let i = 0; i < parsed.length; i++) {
-    const s = clamp(parsed[i].start!);
-    const e = clamp(parsed[i].end!);
-    parsed[i].start = Math.min(s, e);
-    parsed[i].end = Math.max(s, e);
+  // 3. Clamp and ensure start < end
+  for (const s of parsed) {
+    s.start = Math.max(0, Math.min(videoDuration, s.start ?? 0))
+    s.end = Math.max(s.start, Math.min(videoDuration, s.end ?? videoDuration))
   }
 
-  // 4) collapse accidental overlaps by nudging starts forward
-  for (let i = 1; i < parsed.length; i++) {
-    if (parsed[i].start! < parsed[i - 1].end!) {
-      parsed[i].start = parsed[i - 1].end;
-    }
-  }
-
-  return parsed;
+  return parsed
 }
 
 // Guard against uniform spacing placeholders
@@ -63,3 +58,4 @@ export function looksUniform(steps: {start:number; end:number}[], dur: number) {
   const uniq = new Set(buckets);
   return uniq.size === 1 && Math.abs(steps[0].start) < 0.01 && Math.abs(steps.at(-1)!.end - dur) < 0.5;
 }
+
