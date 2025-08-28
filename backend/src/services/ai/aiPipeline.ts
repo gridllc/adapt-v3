@@ -59,9 +59,9 @@ export async function runPipeline(moduleId: string, s3Key: string) {
     }
     await ModuleService.setDurationSec(moduleId, durationSec)
 
-    // 3) AI steps (titles/descriptions) – may be missing timings
+    // 3) AI steps (titles/descriptions) – now with real duration + segments
     const transcriptText = segments.map(s => s.text).join(' ')
-    const aiSteps = await aiGenerateSteps(transcriptText)
+    const aiSteps = await aiGenerateSteps(transcriptText, segments, durationSec, moduleId)
 
     // 4) Build raw steps and normalize/clamp to real duration
     const raw: RawStep[] = mapAiStepsToSegments(aiSteps, segments)
@@ -136,14 +136,19 @@ async function transcribeToSegments(s3Key: string): Promise<{ segments: { start:
   }
 }
 
-async function aiGenerateSteps(transcript: string): Promise<Array<{ title: string; description?: string; start?: number; end?: number }>> {
-  // Your Gemini/OpenAI generator. It may return steps without timings.
-  const result = await generateVideoSteps(transcript, [], { duration: 0 }, 'temp')
+async function aiGenerateSteps(
+  transcript: string,
+  segments: Array<{ start: number; end: number; text: string }>,
+  durationSec: number,
+  moduleId: string
+): Promise<Array<{ title: string; description?: string; start?: number; end?: number }>> {
+  // Give AI the real duration + segments + moduleId to prevent guessing
+  const result = await generateVideoSteps(transcript, segments, { duration: durationSec }, moduleId)
   return (result.steps || []).map(step => ({
     title: step.title || step.text || '',
-    description: step.notes,
-    start: step.startTime,
-    end: step.endTime
+    description: step.notes || '',
+    start: Number(step.startTime ?? 0),
+    end: Number(step.endTime ?? 0),
   }))
 }
 // ----------------------------------------

@@ -67,6 +67,9 @@ router.get('/:moduleId', async (req, res) => {
 
   try {
     const mod = await prisma.module.findUnique({ where: { id: moduleId } });
+
+    // Belt-and-suspenders: ensure real duration before clamping
+    let ensured = await ModuleService.ensureDurationSec(moduleId);
     const durationSec = Number((mod as any)?.durationSec ?? 0) || 0;
 
     // 1) DB
@@ -76,8 +79,8 @@ router.get('/:moduleId', async (req, res) => {
     });
 
     if (dbRows.length > 0) {
-      // Infer duration if module duration is unknown
-      let dur = Number((mod as any)?.durationSec ?? 0) || 0;
+      // Infer duration if module duration is unknown (prefer ensured value)
+      let dur = Number(ensured ?? (mod as any)?.durationSec ?? 0) || 0;
       dur = inferDuration(dur, dbRows);
 
       const steps = clampSteps(dbRows, dur);
@@ -105,8 +108,8 @@ router.get('/:moduleId', async (req, res) => {
       const data = await readS3Json(s3Key);
       const stepsRaw = (data?.steps ?? data?.originalSteps ?? []);
 
-      // 1) Infer duration if module/meta missing
-      let dur = Number((mod as any)?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
+      // 1) Infer duration if module/meta missing (prefer ensured value)
+      let dur = Number(ensured ?? (mod as any)?.durationSec ?? data?.meta?.durationSec ?? 0) || 0;
       dur = inferDuration(dur, stepsRaw);
 
       // 2) Normalize + clamp
@@ -146,12 +149,15 @@ router.get('/:moduleId', async (req, res) => {
   }
 });
 
-// Generate steps using AI for a module (simple secret protection) - Frontend expects this route
+// Generate steps using AI for a module (smart secret protection) - Frontend expects this route
 // MUST come before /:moduleId to avoid route conflicts
 router.post('/generate/:moduleId', async (req, res) => {
-  // simple safeguard with a shared secret, or remove entirely if you trust the FE
-  if (process.env.GENERATE_SECRET && req.get('x-generate-secret') !== process.env.GENERATE_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized' })
+  // Enforce secret only in production, and only if set
+  const expected = process.env.GENERATE_SECRET;
+  const provided = req.header('x-generate-secret');
+
+  if (process.env.NODE_ENV === 'production' && expected && provided !== expected) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
   const { moduleId } = req.params
   

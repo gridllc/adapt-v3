@@ -104,58 +104,7 @@ function toNumber(v: any, def = 0): number {
   return Number.isFinite(n) ? n : def;
 }
 
-function normalizeSteps(
-  ai: { steps: any[]; totalDuration?: number },
-  videoDurationSec: number
-) {
-  const src = Array.isArray(ai.steps) ? ai.steps : [];
-  
-  // Find max end provided by LLM
-  const maxEndRaw = src.reduce((m, s) => {
-    const e = toNumber(s.end ?? s.endTime, 0);
-    return Math.max(m, e);
-  }, 0);
 
-  // If AI thinks the video is much longer than reality, scale all times.
-  const basis = ai.totalDuration && ai.totalDuration > 0 ? ai.totalDuration : maxEndRaw;
-  const needsScale = basis > videoDurationSec + 1;
-  const scale = needsScale && basis > 0 ? (videoDurationSec / basis) : 1;
-
-  console.log(`🔧 [StepGenerator] Time normalization: AI thinks ${basis}s, video is ${videoDurationSec}s, scaling by ${scale.toFixed(3)}`);
-
-  // Build normalized steps
-  let steps = src.map((s, i) => {
-    const rawStart = toNumber(s.start ?? s.startTime, 0);
-    const rawEnd = toNumber(s.end ?? s.endTime, (i < src.length - 1)
-      ? toNumber(src[i + 1].start ?? src[i + 1].startTime, rawStart) // next start fallback
-      : videoDurationSec);
-
-    // scale, clamp, and round to whole seconds
-    let start = Math.max(0, Math.min(videoDurationSec, Math.round(rawStart * scale)));
-    let end = Math.max(0, Math.min(videoDurationSec, Math.round(rawEnd * scale)));
-
-    if (end <= start) end = Math.min(videoDurationSec, start + 1);
-
-    return {
-      id: s.id || `step-${i + 1}`,
-      title: s.text || s.title || s.description || 'Step description', // Map text to title
-      text: s.text || s.title || s.description || 'Step description', // Keep text for backward compatibility
-      aliases: s.aliases || [],
-      notes: s.notes || '',
-      // canonical fields:
-      start,
-      end,
-      // legacy mirror fields for anything that still reads the old names:
-      startTime: start,
-      endTime: end,
-    };
-  });
-
-  // ensure sorted by start
-  steps.sort((a, b) => a.start - b.start);
-
-  return steps;
-}
 
 // Helper function to map AI response to new field names
 function mapStepFields(parsed: any, videoDurationSec: number): VideoAnalysisResult {
@@ -173,10 +122,21 @@ function mapStepFields(parsed: any, videoDurationSec: number): VideoAnalysisResu
   // Use the new normalization that preserves real AI-generated timings
   const normalizedSteps = normalizeSteps(rawSteps, videoDurationSec);
 
+  // Convert RawStep[] to Step[] format for VideoAnalysisResult
+  const steps: Step[] = normalizedSteps.map(step => ({
+    id: step.id || '',
+    title: step.title || '',
+    text: step.title || '',
+    startTime: Number(step.start) || 0,
+    endTime: Number(step.end) || 0,
+    aliases: [],
+    notes: step.description || ''
+  }));
+
   return {
     title: parsed.title || 'Video Analysis',
     description: parsed.description || 'AI-generated step-by-step guide',
-    steps: normalizedSteps,
+    steps,
     totalDuration: videoDurationSec
   }
 }
