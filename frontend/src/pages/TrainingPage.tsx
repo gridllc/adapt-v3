@@ -764,7 +764,7 @@ What would you like to know about this training?`
                 </div>
               </div>
             </div>
-          )}
+          )
 
           {/* Steps Display */}
           <div className="mt-6">
