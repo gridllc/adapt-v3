@@ -95,7 +95,7 @@ export const TrainingPage: React.FC = () => {
     }
   ])
 
-  const [processingAI, setProcessingAI] = useState(false)
+
   const [videoTime, setVideoTime] = useState(0)
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
 
@@ -423,36 +423,7 @@ export const TrainingPage: React.FC = () => {
     fetchSteps()
   }, [moduleId, retryCount, status?.status, hasTriedOnce]) // Added hasTriedOnce as dependency
 
-  const handleProcessWithAI = async () => {
-    if (!moduleId) return
 
-    console.log(`[AI DEBUG] Processing AI steps for ${moduleId}`)
-    setProcessingAI(true)
-    setStepsError(null) // Clear any previous errors
-
-    try {
-      console.log('🤖 AI processing requested for module:', moduleId)
-
-      // Call the steps generation endpoint
-      const result = await api(`/api/steps/generate/${moduleId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      console.log('✅ AI processing started:', result)
-
-      // The pipeline will update status automatically via polling
-      // No need to manually trigger reloads - polling will handle it
-
-    } catch (err) {
-      console.error('❌ AI processing error:', err)
-      setStepsError(`AI processing failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
-    } finally {
-      setProcessingAI(false)
-    }
-  }
 
   const handleSendMessage = async () => {
     if (!chatMessage.trim()) return
@@ -841,13 +812,7 @@ What would you like to know about this training?`
                   >
                     🔁 Retry Loading Steps
                   </button>
-                  <button
-                    onClick={handleProcessWithAI}
-                    disabled={processingAI || status?.status === 'processing'}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg"
-                  >
-                    🤖 Re-run AI Step Detection
-                  </button>
+
                   
                   {/* Voice Controls */}
                   {import.meta.env.VITE_ENABLE_VOICE === 'true' && (
@@ -883,11 +848,7 @@ What would you like to know about this training?`
                   )}
                 </div>
 
-                {processingAI && (
-                  <p className="text-sm text-blue-600 mt-2 animate-pulse">
-                    ⏳ AI is working... give it a sec, it's growing a brain.
-                  </p>
-                )}
+
               </div>
             ) : steps && steps.length > 0 ? (
               <div className="space-y-4">
@@ -938,13 +899,7 @@ What would you like to know about this training?`
                           {status.lastError || 'An error occurred during processing'}
                         </div>
                       </div>
-                      <button
-                        onClick={handleProcessWithAI}
-                        disabled={processingAI}
-                        className="ml-4 rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:opacity-60"
-                      >
-                        Retry Processing
-                      </button>
+
                     </div>
                   </div>
                 )}
@@ -990,30 +945,8 @@ What would you like to know about this training?`
                   >
                     🔁 Retry Loading Steps
                   </button>
-                  <button
-                    onClick={handleProcessWithAI}
-                    disabled={processingAI || status?.status === 'processing'}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm"
-                  >
-                    🤖 Generate Steps with AI
-                  </button>
                 </div>
-                
-                {processingAI && (
-                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 mt-4 shadow-sm">
-                    <div className="flex items-center justify-center gap-3 mb-3">
-                      <div className="text-2xl animate-pulse">⏳</div>
-                      <h3 className="text-lg font-bold text-blue-800">AI Processing in Progress</h3>
-                    </div>
-                    <p className="text-base text-blue-700 font-medium">
-                      Give it a sec… your AI is being born. It can take up to 2 minutes to grow a brain.
-                    </p>
-                    <div className="mt-2 flex items-center justify-center gap-2 text-sm text-blue-600">
-                      <span className="animate-spin">🔄</span>
-                      <span>Generating training steps and analyzing video content...</span>
-                    </div>
-                  </div>
-                )}
+
               </div>
             )}
 
