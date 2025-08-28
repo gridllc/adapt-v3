@@ -6,6 +6,7 @@ import { StepEditor } from '../components/StepEditor'
 import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
+import VoiceTrainer from '../components/voice/VoiceTrainer'
 
 interface Step {
   id: string
@@ -982,7 +983,16 @@ What would you like to know about this training?`
               ))}
             </div>
           </div>
-          
+
+          {/* Voice Assistant */}
+          <div className="mb-4">
+            <VoiceTrainer
+              moduleId={moduleId || ''}
+              onQuestionAsked={(question) => setChatMessage(question)}
+              autoStart={status?.status === 'READY' && steps.length > 0 && !isProcessing}
+            />
+          </div>
+
           {/* Chat History */}
           <div
             className="flex-1 space-y-4 overflow-y-auto mb-4 scroll-smooth max-h-80"
