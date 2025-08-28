@@ -7,6 +7,8 @@ import { FeedbackSection } from '../components/FeedbackSection'
 import { ProcessingScreen } from '../components/ProcessingScreen'
 import QRCodeGenerator from '../components/QRCodeGenerator'
 import { useVoiceCoach } from '../voice/useVoiceCoach'
+import { useVoiceAsk } from '../hooks/useVoiceAsk'
+import StickyVoiceBar from '../components/StickyVoiceBar'
 
 interface Step {
   id: string
@@ -122,6 +124,24 @@ export const TrainingPage: React.FC = () => {
     seekTo: seekToTime,
     pause: () => videoRef.current?.pause(),
     play: () => videoRef.current?.play(),
+  });
+
+  // Voice ask hook for AI conversation
+  const voiceAsk = useVoiceAsk(moduleId || '', {
+    onAnswer: (answer) => {
+      // Add AI response to chat history
+      setChatHistory(prev => [
+        ...prev.filter(msg => !msg.isTyping),
+        { type: 'assistant', message: answer }
+      ]);
+    },
+    onError: (error) => {
+      console.error('Voice ask error:', error);
+      setChatHistory(prev => [
+        ...prev.filter(msg => !msg.isTyping),
+        { type: 'assistant', message: `Sorry, I encountered an error: ${error}` }
+      ]);
+    }
   });
 
   // Video event handlers for smart sync
@@ -325,18 +345,42 @@ export const TrainingPage: React.FC = () => {
         const isFallbackResponse = !!data?.meta?.source && data.meta.source.startsWith('fallback')
         setIsFallback(isFallbackResponse)
 
-        // Normalize step data structure to match UI expectations
-        const normalizedSteps = (data.steps || []).map((step: any, index: number) => ({
-          id: step.id ?? `s-${index + 1}`,
-          title: step.title ??
-                 step.heading ??
-                 (typeof step.text === 'string' ? step.text.split('\n')[0].slice(0, 80) : `Step ${index + 1}`),
-          description: step.description ?? step.text ?? '',
-          start: step.start ?? step.startTime ?? index * 10,
-          end: step.end ?? step.endTime ?? (index + 1) * 10,
-          originalText: data.transcript || '', // Add transcript to each step
-          duration: data.meta?.durationSec ? Math.round(data.meta.durationSec / data.steps.length) : 15 // Calculate step duration
-        }))
+        // ✅ Use backend-provided durations when available, otherwise calculate from timestamps
+        const normalizedSteps = (data.steps || []).map((raw: any, idx: number, arr: any[]) => {
+          // Priority 1: Use backend-provided duration if available
+          let duration = null;
+          let start = Number(raw.start ?? raw.timestamp ?? 0);
+          let end = null;
+
+          if (raw.duration != null) {
+            // Backend provided a specific duration for this step
+            duration = Number(raw.duration);
+            end = start + duration;
+          } else {
+            // Fallback: calculate from timestamps or infer from next step
+            const inferredEnd =
+              raw.end != null
+                ? Number(raw.end)
+                : idx < arr.length - 1
+                  ? Number(arr[idx + 1].start ?? arr[idx + 1].timestamp ?? start)
+                  : Number(data.meta?.durationSec ?? start);
+
+            end = Math.max(inferredEnd, start);
+            duration = end > start ? end - start : null;
+          }
+
+          return {
+            id: raw.id ?? `s-${idx + 1}`,
+            title: raw.title ??
+                   raw.heading ??
+                   (typeof raw.text === 'string' ? raw.text.split('\n')[0].slice(0, 80) : `Step ${idx + 1}`),
+            description: raw.description ?? raw.text ?? '',
+            start,
+            end,
+            originalText: data.transcript || '',
+            duration, // seconds; uses backend duration when available
+          };
+        });
 
         setSteps(normalizedSteps)
         setRetryCount(0)
@@ -588,8 +632,8 @@ Just ask me anything about the training!`
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-8">
               <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link 
-              to="/upload" 
+            <Link
+              to="/upload"
               className="text-blue-600 hover:text-blue-800 transition-colors"
             >
               ← Back to Upload
@@ -604,6 +648,11 @@ Just ask me anything about the training!`
           </div>
 
       </div>
+
+      {/* Voice Training Bar - only show when module is ready */}
+      {status?.status === 'READY' && import.meta.env.VITE_ENABLE_VOICE === 'true' && (
+        <StickyVoiceBar controller={voiceAsk} />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Video Player */}
@@ -705,16 +754,16 @@ Just ask me anything about the training!`
                         disabled={!voice.sttAvailable}
                         onClick={voice.listening ? voice.stop : voice.start}
                         className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          voice.listening 
-                            ? 'bg-red-600 hover:bg-red-700 text-white' 
+                          voice.listening
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
                             : 'bg-purple-600 hover:bg-purple-700 text-white'
                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                         title={voice.listening ? 'Stop listening' : 'Start voice commands'}
                       >
                         {voice.listening ? '🎤 Stop' : '🎤 Voice Coach'}
                       </button>
-                      
-                      <button 
+
+                      <button
                         onClick={() => voice.speak(`You are on step ${(currentStepIndex || 0) + 1}`)}
                         disabled={!voice.ttsAvailable}
                         className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm font-medium disabled:cursor-not-allowed"
@@ -722,10 +771,41 @@ Just ask me anything about the training!`
                       >
                         🔊 Read Step
                       </button>
-                      
+
                       {voice.lastText && (
                         <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
                           Last: "{voice.lastText}"
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Voice Ask Controls - for AI conversation */}
+                  {import.meta.env.VITE_ENABLE_VOICE === 'true' && (
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={voiceAsk.listening ? voiceAsk.stop : voiceAsk.start}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          voiceAsk.listening
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                        title={voiceAsk.listening ? 'Stop voice training' : 'Start voice training'}
+                      >
+                        {voiceAsk.listening ? '🎤 Stop Training' : '🎤 Voice Training'}
+                      </button>
+
+                      <button
+                        onClick={voiceAsk.reset}
+                        className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-sm font-medium"
+                        title="Clear voice transcript"
+                      >
+                        Clear
+                      </button>
+
+                      {voiceAsk.finalTranscript && (
+                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          "{voiceAsk.finalTranscript}"
                         </div>
                       )}
                     </div>

@@ -1,6 +1,6 @@
 // src/hooks/useVoiceAsk.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BrowserSpeechService } from "../voice/BrowserSpeechService";
+import { createBrowserSpeech, BrowserSpeech } from "../voice/browserSpeech";
 
 type UseVoiceAskOpts = {
   onAnswer?: (text: string) => void;
@@ -8,11 +8,13 @@ type UseVoiceAskOpts = {
 };
 
 export type VoiceController = {
+  // state
   listening: boolean;
   status: "idle" | "listening" | "denied" | "unsupported" | "error";
   interimTranscript: string;
   finalTranscript: string;
   lastAnswer: string;
+  // actions
   start: () => Promise<void>;
   startWithPrefix: (prefix: string) => Promise<void>;
   stop: () => void;
@@ -20,86 +22,109 @@ export type VoiceController = {
   setContinuous: (v: boolean) => void;
 };
 
-const API = (p: string) => `${import.meta.env.VITE_API_BASE_URL ?? ""}${p}` || `/api${p}`;
+const API = (path: string) =>
+  `${import.meta.env.VITE_API_BASE_URL ?? ""}${path}` || `/api${path}`;
 
 export function useVoiceAsk(moduleId: string, opts: UseVoiceAskOpts = {}): VoiceController {
   const { onAnswer, onError } = opts;
-  const [status, setStatus] = useState<VoiceController["status"]>("idle");
   const [listening, setListening] = useState(false);
+  const [status, setStatus] = useState<VoiceController["status"]>("idle");
   const [interimTranscript, setInterim] = useState("");
   const [finalTranscript, setFinal] = useState("");
   const [lastAnswer, setLastAnswer] = useState("");
-  const svcRef = useRef<BrowserSpeechService | null>(null);
-  const prefixRef = useRef("");
+  const [continuous, setContinuous] = useState(true);
+
+  const svcRef = useRef<BrowserSpeech | null>(null);
+  const prefixRef = useRef<string>("");
 
   useEffect(() => {
-    const svc = new BrowserSpeechService("en-US");
-    svcRef.current = svc;
-
-    if (!svc.isSttAvailable()) {
+    // init browser speech
+    try {
+      const svc = createBrowserSpeech({
+        onStart: () => {
+          setStatus("listening");
+          setListening(true);
+          setInterim("");
+        },
+        onResult: (r) => {
+          if (r.isFinal) {
+            setFinal(r.text);
+            setInterim("");
+            void askAI((prefixRef.current + " " + r.text).trim());
+            prefixRef.current = "";
+          }
+        },
+        onPartial: (text) => {
+          setInterim(text);  // ✅ show interim text while user speaks
+        },
+        onEnd: () => {
+          if (!continuous) {
+            setListening(false);
+            setStatus("idle");
+          }
+          // continuous mode auto-restarts handled by browserSpeech service
+        },
+        onDenied: () => {
+          setStatus("denied");
+          setListening(false);
+        },
+        onUnsupported: () => {
+          setStatus("unsupported");
+          setListening(false);
+        },
+        onError: (e) => {
+          setStatus("error");
+          setListening(false);
+          onError?.(e?.message || "Voice recognition error");
+        },
+      });
+      svcRef.current = svc;
+      svc.setContinuous(continuous); // set initial continuous mode
+      return () => svc.destroy();
+    } catch {
       setStatus("unsupported");
-      return () => svc.dispose();
     }
-
-    // treat permission_denied as denied
-    svc.onError((e) => {
-      if (e === "permission_denied") {
-        setStatus("denied");
-        setListening(false);
-        return;
-      }
-      setStatus("error");
-      setListening(false);
-      onError?.(String(e));
-    });
-
-    // show interim while user speaks
-    svc.onPartial?.((text: string) => {
-      setInterim(text);
-    });
-
-    // send to AI when final phrase produced
-    svc.onResult((finalText: string) => {
-      setFinal(finalText);
-      setInterim("");
-      void askAI((prefixRef.current + " " + finalText).trim());
-      prefixRef.current = "";
-    });
-
-    // default to continuous coaching
-    svc.setContinuous?.(true);
-
-    return () => svc.dispose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const askAI = useCallback(async (question: string) => {
-    try {
-      const res = await fetch(API("/api/qa/ask"), {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ moduleId, question }),
-      });
-      const data = await res.json();
-      const answer = data?.answer ?? data?.data?.answer ?? "No answer returned.";
-      setLastAnswer(answer);
-      onAnswer?.(answer);
+  const askAI = useCallback(
+    async (question: string) => {
+      try {
+        const res = await fetch(API("/qa/ask"), {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ moduleId, question }),
+        });
+        const data = await res.json();
+        const answer: string =
+          (data && (data.answer || data?.data?.answer)) || "No answer returned.";
+        setLastAnswer(answer);
+        onAnswer?.(answer);
 
-      // optional: read the answer out loud using your TTS
-      try { await svcRef.current?.speak?.(answer); } catch {}
-    } catch (e: any) {
-      const msg = e?.message || "Failed to ask AI.";
-      onError?.(msg);
-    }
-  }, [moduleId, onAnswer, onError]);
+        // Optional: read the answer out loud using TTS
+        try {
+          if (svcRef.current && "speechSynthesis" in window) {
+            const utterance = new SpeechSynthesisUtterance(answer);
+            window.speechSynthesis.speak(utterance);
+          }
+        } catch (e) {
+          // TTS failed, but that's ok - we still show the text
+        }
+      } catch (e: any) {
+        const msg = e?.message || "Failed to ask AI.";
+        onError?.(msg);
+      }
+    },
+    [moduleId, onAnswer, onError]
+  );
 
   const start = useCallback(async () => {
     if (!svcRef.current) return;
     try {
-      await svcRef.current.startListening();
-      setStatus("listening");
+      await svcRef.current.start();
       setListening(true);
+      setStatus("listening");
     } catch (e: any) {
       const msg = e?.message || "Failed to start mic.";
       if (msg.includes("not supported")) setStatus("unsupported");
@@ -114,7 +139,7 @@ export function useVoiceAsk(moduleId: string, opts: UseVoiceAskOpts = {}): Voice
   }, [start]);
 
   const stop = useCallback(() => {
-    try { svcRef.current?.stopListening(); } catch {}
+    svcRef.current?.stop();
     setListening(false);
     setStatus("idle");
   }, []);
@@ -125,20 +150,24 @@ export function useVoiceAsk(moduleId: string, opts: UseVoiceAskOpts = {}): Voice
     setLastAnswer("");
   }, []);
 
-  const setContinuous = useCallback((v: boolean) => {
-    try { svcRef.current?.setContinuous?.(v); } catch {}
+  const setContinuousMode = useCallback((v: boolean) => {
+    setContinuous(v);
+    svcRef.current?.setContinuous(v);
   }, []);
 
-  return useMemo(() => ({
-    listening,
-    status,
-    interimTranscript,
-    finalTranscript,
-    lastAnswer,
-    start,
-    startWithPrefix,
-    stop,
-    reset,
-    setContinuous,
-  }), [listening, status, interimTranscript, finalTranscript, lastAnswer, start, startWithPrefix, stop, reset, setContinuous]);
+  return useMemo(
+    () => ({
+      listening,
+      status,
+      interimTranscript: interimTranscript,
+      finalTranscript,
+      lastAnswer,
+      start,
+      startWithPrefix,
+      stop,
+      reset,
+      setContinuous: setContinuousMode,
+    }),
+    [listening, status, interimTranscript, finalTranscript, lastAnswer, start, startWithPrefix, stop, reset, setContinuousMode]
+  );
 }
