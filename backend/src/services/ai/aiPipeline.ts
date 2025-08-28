@@ -49,8 +49,8 @@ export async function runPipeline(moduleId: string, s3Key: string) {
       await storageService.headObject(s3Key)
     })
 
-    // 2) Extract audio (use ffmpeg-static; write to /tmp)
-    const audioPath = await step(moduleId, 'EXTRACT_AUDIO', 15, async () => {
+    // 2) Extract audio and get video duration (use ffmpeg-static; write to /tmp)
+    const { audioPath, videoDuration } = await step(moduleId, 'EXTRACT_AUDIO', 15, async () => {
       // Download MP4 from S3 to temp directory
       const signedUrl = await storageService.generateSignedUrl(s3Key, 3600)
       const response = await fetch(signedUrl)
@@ -58,10 +58,17 @@ export async function runPipeline(moduleId: string, s3Key: string) {
       const localMp4 = `/tmp/${moduleId}.mp4`
       await fs.writeFile(localMp4, Buffer.from(buffer))
 
+      // Extract video duration using ffprobe
+      const { videoProcessor } = await import('../../utils/uploadUtils.js')
+      const metadata = await videoProcessor.extractMetadata(localMp4)
+      const actualDuration = metadata.duration
+
+      console.log(`📊 [AIPipeline] Actual video duration: ${actualDuration} seconds`)
+
       const wavPath = await audioProcessor.extract(localMp4)
       // Clean up temp MP4 file
       await fs.unlink(localMp4).catch(() => {})
-      return wavPath
+      return { audioPath: wavPath, videoDuration: actualDuration }
     })
 
     // 3) Transcribe
@@ -71,13 +78,11 @@ export async function runPipeline(moduleId: string, s3Key: string) {
 
     // 4) Generate steps
     const steps = await step(moduleId, 'GENERATE_STEPS', 70, async () => {
-      // Use transcript duration as fallback since we don't have getVideoDuration
-      const durationSec = transcript.segments?.length ?
-        transcript.segments[transcript.segments.length - 1].end : 60
+      console.log(`📊 [AIPipeline] Using actual video duration for step generation: ${videoDuration} seconds`)
       return await generateVideoSteps(
         transcript.text,
         transcript.segments,
-        { duration: durationSec },
+        { duration: videoDuration },
         moduleId
       )
     })

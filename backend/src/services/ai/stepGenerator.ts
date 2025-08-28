@@ -179,7 +179,7 @@ async function generateWithGemini(
   const label = `Module ${moduleId || 'unknown'}`
   const model = client.getGenerativeModel({ model: geminiModel })
 
-  const prompt = `Analyze this video transcript and create a structured step-by-step guide:
+  const prompt = `Analyze this video transcript and create a detailed, process-specific step-by-step training guide:
 
 TRANSCRIPT: ${transcript}
 VIDEO DURATION: ${metadata.duration} seconds
@@ -187,26 +187,30 @@ VIDEO DURATION: ${metadata.duration} seconds
 Create a JSON response with this exact structure:
 {
   "title": "Brief, descriptive title",
-  "description": "2-3 sentence summary",
+  "description": "2-3 sentence summary of what this process teaches",
   "steps": [
     {
       "id": "step-1",
-      "text": "What happens in this step",
+      "text": "Specific action or concept being demonstrated in this step",
       "startTime": 0,
       "endTime": 15,
-      "aliases": ["alternative names"],
-      "notes": "optional additional info"
+      "aliases": ["alternative names", "synonyms"],
+      "notes": "Key tips, warnings, or additional context for trainers"
     }
   ],
   "totalDuration": ${metadata.duration}
 }
 
-Rules:
-- Create 5-15 logical steps
-- Each step should be 10-60 seconds
-- Use clear, actionable language
-- Ensure steps cover the entire video
-- Make step text concise but descriptive`
+IMPORTANT RULES:
+- Break down the process into 8-20 specific, actionable steps
+- Each step should represent a distinct action, decision point, or concept
+- Use clear, instructional language like "Click the button", "Select the option", "Enter the data"
+- Focus on what the learner should DO or UNDERSTAND, not just what they see
+- Include timing that matches the actual video demonstration
+- Add helpful aliases for searchability (e.g., ["login", "sign in", "authenticate"])
+- Include practical notes like "Remember to save frequently" or "This step is optional for advanced users"
+- Ensure steps flow logically and cover the complete process from start to finish
+- Make steps detailed enough to be truly instructional, not just descriptive`
 
   const result = await model.generateContent(prompt)
   const response = await result.response
@@ -242,7 +246,7 @@ async function generateWithOpenAI(
 ): Promise<VideoAnalysisResult> {
   const label = `Module ${moduleId || 'unknown'}`
   console.log(`🤖 [StepGenerator] ${label}: OpenAI config - Model: ${OAI_MODEL}, Temp: ${TEMP}, Max Tokens: ${MAX_OUT}`)
-  const prompt = `Analyze this video transcript and create a structured step-by-step guide:
+  const prompt = `Analyze this video transcript and create a detailed, process-specific step-by-step training guide:
 
 TRANSCRIPT: ${transcript}
 VIDEO DURATION: ${metadata.duration} seconds
@@ -250,26 +254,30 @@ VIDEO DURATION: ${metadata.duration} seconds
 Create a JSON response with this exact structure:
 {
   "title": "Brief, descriptive title",
-  "description": "2-3 sentence summary",
+  "description": "2-3 sentence summary of what this process teaches",
   "steps": [
     {
       "id": "step-1",
-      "text": "What happens in this step",
+      "text": "Specific action or concept being demonstrated in this step",
       "startTime": 0,
       "endTime": 15,
-      "aliases": ["alternative names"],
-      "notes": "optional additional info"
+      "aliases": ["alternative names", "synonyms"],
+      "notes": "Key tips, warnings, or additional context for trainers"
     }
   ],
   "totalDuration": ${metadata.duration}
 }
 
-Rules:
-- Create 5-15 logical steps
-- Each step should be 10-60 seconds
-- Use clear, actionable language
-- Ensure steps cover the entire video
-- Make step text concise but descriptive
+CRITICAL REQUIREMENTS:
+- Break down the process into 8-20 specific, actionable steps
+- Each step should represent a distinct action, decision point, or concept
+- Use clear, instructional language like "Click the button", "Select the option", "Enter the data"
+- Focus on what the learner should DO or UNDERSTAND, not just what they see
+- Include timing that matches the actual video demonstration
+- Add helpful aliases for searchability (e.g., ["login", "sign in", "authenticate"])
+- Include practical notes like "Remember to save frequently" or "This step is optional for advanced users"
+- Ensure steps flow logically and cover the complete process from start to finish
+- Make steps detailed enough to be truly instructional, not just descriptive
 
 Return ONLY valid JSON.`
 

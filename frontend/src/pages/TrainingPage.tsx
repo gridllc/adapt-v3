@@ -755,20 +755,35 @@ Just ask me anything about the training!`
                   </div>
                 )}
 
-                {/* Show transcribe button only for fallback steps when not processing/failed */}
+                {/* Show improved transcribe button for fallback steps */}
                 {isFallback && status?.status !== 'PROCESSING' && status?.status !== 'FAILED' && (
-                  <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                  <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
                     <div className="flex items-center justify-between">
-                      <div className="text-amber-900">
-                        ⚠️ You’re viewing placeholder steps. Run the AI pipeline to transcribe the video
-                        and generate real steps.
+                      <div className="text-blue-900">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="text-xl">🤖</div>
+                          <span className="font-medium">Enhance Your Training</span>
+                        </div>
+                        <p className="text-sm text-blue-700">
+                          Generate detailed, AI-powered steps from your video transcript for better learning outcomes.
+                        </p>
                       </div>
                       <button
                         onClick={handleProcessWithAI}
                         disabled={processingAI}
-                        className="ml-4 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-60"
+                        className="ml-4 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2"
                       >
-                        Transcribe now
+                        {processingAI ? (
+                          <>
+                            <div className="animate-spin text-sm">⏳</div>
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <span>🚀</span>
+                            Generate Steps
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>

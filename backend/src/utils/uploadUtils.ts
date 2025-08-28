@@ -211,16 +211,53 @@ interface VideoMetadata {
 }
 
 class VideoProcessor {
-  async extractMetadata(file: MulterFile): Promise<VideoMetadata> {
-    // TODO: Implement actual metadata extraction using ffprobe
-    // This is a placeholder implementation
-    return {
-      duration: 0,
-      width: 1920,
-      height: 1080,
-      bitrate: 5000000,
-      codec: 'h264',
-      fps: 30
+  async extractMetadata(filePath: string): Promise<VideoMetadata> {
+    try {
+      const { exec } = await import('child_process')
+      const { promisify } = await import('util')
+      const execAsync = promisify(exec)
+
+      // Use ffprobe to get video metadata
+      const ffprobeCommand = `ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`
+      const { stdout } = await execAsync(ffprobeCommand)
+      const metadata = JSON.parse(stdout)
+
+      // Extract video stream info
+      const videoStream = metadata.streams?.find((stream: any) => stream.codec_type === 'video')
+      const format = metadata.format
+
+      if (!videoStream || !format) {
+        throw new Error('Could not extract video metadata')
+      }
+
+      const duration = parseFloat(format.duration || '0')
+      const width = parseInt(videoStream.width || '1920')
+      const height = parseInt(videoStream.height || '1080')
+      const bitrate = parseInt(format.bit_rate || '5000000')
+      const codec = videoStream.codec_name || 'h264'
+      const fps = eval(videoStream.r_frame_rate || '30/1') // Handle fractional frame rates
+
+      console.log(`📊 [VideoProcessor] Extracted metadata: ${duration}s, ${width}x${height}, ${codec}, ${fps}fps`)
+
+      return {
+        duration,
+        width,
+        height,
+        bitrate,
+        codec,
+        fps
+      }
+    } catch (error) {
+      console.error('❌ [VideoProcessor] Failed to extract metadata:', error)
+      // Fallback to basic metadata
+      return {
+        duration: 60, // Default fallback
+        width: 1920,
+        height: 1080,
+        bitrate: 5000000,
+        codec: 'h264',
+        fps: 30
+      }
     }
   }
 
