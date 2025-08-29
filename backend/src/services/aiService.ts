@@ -9,6 +9,23 @@ import { findSimilarInteractions, findBestMatchingAnswer } from './qaRecall.js'
 import { generateEmbedding, logInteractionToVectorDB } from '../utils/vectorUtils.js'
 import OpenAI from 'openai'
 
+// Utility function to sanitize AI responses
+function sanitizeAssistantResponse(text: string): string {
+  return text
+    // Remove timestamp lines like "Starts at 0:00 in the video."
+    .replace(/^\s*start[s]?\s+at\s+\d{1,2}:\d{2}.*$/gim, '')
+    // Remove other common timestamp patterns
+    .replace(/^\s*at\s+\d{1,2}:\d{2}.*$/gim, '')
+    .replace(/^\s*@\s+\d{1,2}:\d{2}.*$/gim, '')
+    // Remove video timing references
+    .replace(/^\s*in\s+the\s+video.*$/gim, '')
+    .replace(/^\s*at\s+\d{1,2}:\d{2}\s+in\s+the\s+video.*$/gim, '')
+    // Clean up extra whitespace and empty lines
+    .replace(/\n\s*\n/g, '\n')
+    .replace(/^\s*$/gm, '')
+    .trim()
+}
+
 // Initialize OpenAI for enhanced AI responses
 let openai: OpenAI | undefined
 try {
@@ -185,10 +202,12 @@ const enhancedAiService = {
         temperature: 0.3
       })
 
-      const contextualAnswer = completion.choices[0]?.message?.content ||
+      const rawAnswer = completion.choices[0]?.message?.content ||
         `I can help you with questions about this training. You're currently ${currentStep ? `on step: ${currentStep.title}` : 'navigating the training'}.`
 
-      console.log(`🎯 [Contextual Response] Generated contextual answer`)
+      const contextualAnswer = sanitizeAssistantResponse(rawAnswer)
+
+      console.log(`🎯 [Contextual Response] Generated and sanitized contextual answer`)
 
       return contextualAnswer
     } catch (error) {
@@ -204,22 +223,26 @@ const enhancedAiService = {
     const msg = message.toLowerCase()
 
     if (currentStep && (msg.includes('current') || msg.includes('this step'))) {
-      return `You're currently on **Step ${currentStep.stepNumber || '?'}: ${currentStep.title}**\n\n${currentStep.description}`
+      const response = `You're currently on **Step ${currentStep.stepNumber || '?'}: ${currentStep.title}**\n\n${currentStep.description}`
+      return sanitizeAssistantResponse(response)
     }
 
     if (msg.includes('how many steps')) {
-      return `This training has **${allSteps?.length || 0} steps** total.`
+      const response = `This training has **${allSteps?.length || 0} steps** total.`
+      return sanitizeAssistantResponse(response)
     }
 
     if (msg.includes('what step') && msg.match(/step\s+(\d+)/)) {
       const stepNum = parseInt(msg.match(/step\s+(\d+)/)![1])
       if (allSteps && stepNum <= allSteps.length) {
         const step = allSteps[stepNum - 1]
-        return `**Step ${stepNum}: ${step.title}**\n\n${step.description}`
+        const response = `**Step ${stepNum}: ${step.title}**\n\n${step.description}`
+        return sanitizeAssistantResponse(response)
       }
     }
 
-    return `I'm here to help with your training questions. You can ask me about the current step, specific steps by number, or general questions about the training content.`
+    const response = `I'm here to help with your training questions. You can ask me about the current step, specific steps by number, or general questions about the training content.`
+    return sanitizeAssistantResponse(response)
   }
 }
 
@@ -284,7 +307,8 @@ export const aiService = {
    */
   async generateContextualResponse(message: string, context: any): Promise<string> {
     try {
-      return enhancedAiService.processor.generateContextualResponse(message, context)
+      const rawResponse = await enhancedAiService.processor.generateContextualResponse(message, context)
+      return sanitizeAssistantResponse(rawResponse)
     } catch (error) {
       console.error('❌ Contextual response error:', error)
       throw new Error('Contextual response failed')
