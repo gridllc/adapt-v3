@@ -9,6 +9,19 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import OpenAI from 'openai'
 import multer from 'multer'
+import { PassThrough } from 'stream'
+
+// Performance monitoring middleware
+function withServerTiming(req: any, res: any, next: any) {
+  const marks = new Map<string, number>()
+  res.locals.mark = (k: string) => marks.set(k, performance.now())
+  res.locals.measure = (k: string) => {
+    const t = performance.now() - (marks.get(k) ?? performance.now())
+    const prev = res.getHeader('Server-Timing')
+    res.setHeader('Server-Timing', [prev, `${k};dur=${Math.round(t)}`].filter(Boolean).join(', '))
+  }
+  next()
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -38,7 +51,7 @@ const router = express.Router()
 /**
  * Enhanced contextual AI response endpoint
  */
-router.post('/contextual-response', async (req: any, res: any) => {
+router.post('/contextual-response', withServerTiming, async (req: any, res: any) => {
   const startTime = Date.now()
 
   try {
@@ -53,11 +66,14 @@ router.post('/contextual-response', async (req: any, res: any) => {
 
     console.log(`🤖 Contextual AI request for module ${moduleId} (start: ${startTime})`)
     console.log(`📝 User message: "${userMessage}"`)
-    console.log(`🎬 Current step: ${currentStep?.title || 'None'}`)
-    console.log(`⏰ Video time: ${videoTime}s`)
 
-    // Generate contextual response using the enhanced AI service with Shared Learning System
+    // Mark start of user ID fetch
+    res.locals.mark('auth')
     const userId = await UserService.getUserIdFromRequest(req)
+    res.locals.measure('auth')
+
+    // Mark start of AI processing
+    res.locals.mark('ai')
     const aiResponse = await aiService.generateContextualResponse(
       userMessage,
       {
@@ -68,6 +84,7 @@ router.post('/contextual-response', async (req: any, res: any) => {
         userId: userId || undefined
       }
     )
+    res.locals.measure('ai')
 
     const responseTime = Date.now() - startTime
     console.log(`✅ AI response generated in ${responseTime}ms: ${aiResponse.substring(0, 100)}...`)
@@ -81,12 +98,13 @@ router.post('/contextual-response', async (req: any, res: any) => {
         questionLength: userMessage.length,
         answerLength: aiResponse.length,
         videoTime,
-        stepId: currentStep?.id
+        stepId: currentStep?.id,
+        responseTime
       }
     }).catch(err => console.warn('Failed to log activity:', err))
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       answer: aiResponse,
       reused: false,
       similarity: null,
@@ -94,10 +112,114 @@ router.post('/contextual-response', async (req: any, res: any) => {
     })
   } catch (error) {
     console.error('❌ Contextual AI response error:', error)
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to generate AI response' 
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate AI response'
     })
+  }
+})
+
+/**
+ * Streaming contextual AI response endpoint
+ * Returns tokens immediately as they're generated
+ */
+router.post('/contextual-response/stream', withServerTiming, async (req: any, res: any) => {
+  const startTime = Date.now()
+
+  try {
+    const { userMessage, currentStep, allSteps, videoTime, moduleId } = req.body
+
+    if (!userMessage) {
+      return res.status(400).json({
+        success: false,
+        error: 'User message is required'
+      })
+    }
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Connection', 'keep-alive')
+    res.flushHeaders?.()
+
+    const send = (data: string) => res.write(`data: ${data}\n\n`)
+    const done = () => res.end()
+
+    console.log(`🎯 Streaming AI request for module ${moduleId} (start: ${startTime})`)
+    console.log(`📝 User message: "${userMessage}"`)
+
+    // Mark auth timing
+    res.locals.mark('auth')
+    const userId = await UserService.getUserIdFromRequest(req)
+    res.locals.measure('auth')
+
+    // Generate streaming response
+    const stream = await aiService.generateStreamingContextualResponse(
+      userMessage,
+      {
+        currentStep,
+        allSteps,
+        videoTime,
+        moduleId,
+        userId: userId || undefined
+      }
+    )
+
+    let fullResponse = ''
+
+    stream.on('data', (chunk: string) => {
+      if (chunk && chunk.trim()) {
+        fullResponse += chunk
+        send(chunk) // Send token immediately
+      }
+    })
+
+    stream.on('end', () => {
+      const responseTime = Date.now() - startTime
+      console.log(`✅ Streaming response completed in ${responseTime}ms`)
+
+      // Send metadata and close
+      send(JSON.stringify({
+        meta: {
+          ms: Math.round(responseTime),
+          tokens: fullResponse.length
+        }
+      }))
+
+      // Log activity (non-blocking)
+      DatabaseService.createActivityLog({
+        userId: userId || undefined,
+        action: 'AI_QUESTION_STREAM',
+        targetId: moduleId,
+        metadata: {
+          questionLength: userMessage.length,
+          answerLength: fullResponse.length,
+          videoTime,
+          stepId: currentStep?.id,
+          responseTime
+        }
+      }).catch(err => console.warn('Failed to log streaming activity:', err))
+
+      done()
+    })
+
+    stream.on('error', (error) => {
+      console.error('❌ Streaming error:', error)
+      send(JSON.stringify({ error: true, message: 'Streaming failed' }))
+      done()
+    })
+
+  } catch (error) {
+    console.error('❌ Streaming setup error:', error)
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start streaming response'
+      })
+    } else {
+      res.write(`data: ${JSON.stringify({ error: true, message: 'Setup failed' })}\n\n`)
+      res.end()
+    }
   }
 })
 

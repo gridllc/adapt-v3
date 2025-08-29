@@ -105,11 +105,144 @@ export default function ChatAssistant({
     const messageToSend = input.trim()
     setInput('')
 
-    await sendMessage(messageToSend, moduleId, {
-      currentStep,
-      allSteps,
-      videoTime
+    // Try streaming first, fall back to regular API if needed
+    try {
+      await sendStreamingMessage(messageToSend, moduleId, {
+        currentStep,
+        allSteps,
+        videoTime
+      })
+    } catch (error) {
+      console.warn('Streaming failed, falling back to regular API:', error)
+      await sendMessage(messageToSend, moduleId, {
+        currentStep,
+        allSteps,
+        videoTime
+      })
+    }
+  }
+
+  const sendStreamingMessage = async (message: string, moduleId: string, context: any) => {
+    startListening()
+
+    // Add user message immediately
+    addMessage({
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: message,
+      timestamp: new Date()
     })
+
+    // Add typing indicator
+    const typingId = `typing-${Date.now()}`
+    addMessage({
+      id: typingId,
+      role: 'assistant',
+      content: '...',
+      isTyping: true,
+      timestamp: new Date()
+    })
+
+    try {
+      const response = await fetch('/api/ai/contextual-response/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userMessage: message,
+          currentStep: context.currentStep,
+          allSteps: context.allSteps,
+          videoTime: context.videoTime,
+          moduleId
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('No response body')
+      }
+
+      const decoder = new TextDecoder()
+      let accumulatedResponse = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim()
+
+            if (data === '[DONE]') break
+
+            try {
+              const parsed = JSON.parse(data)
+
+              // Handle metadata
+              if (parsed.meta) {
+                console.log(`Streaming completed in ${parsed.meta.ms}ms`)
+                continue
+              }
+
+              // Handle error
+              if (parsed.error) {
+                throw new Error(parsed.message || 'Streaming error')
+              }
+
+              // Accumulate the response
+              if (typeof parsed === 'string') {
+                accumulatedResponse += parsed
+
+                // Update the typing message with accumulated response
+                updateMessage(typingId, {
+                  content: accumulatedResponse,
+                  isTyping: true
+                })
+              }
+            } catch (e) {
+              // If it's not JSON, treat it as a text chunk
+              if (data && !data.includes('{')) {
+                accumulatedResponse += data
+
+                // Update the typing message with accumulated response
+                updateMessage(typingId, {
+                  content: accumulatedResponse,
+                  isTyping: true
+                })
+              }
+            }
+          }
+        }
+      }
+
+      // Finalize the response
+      updateMessage(typingId, {
+        content: accumulatedResponse,
+        isTyping: false
+      })
+
+    } catch (error) {
+      console.error('Streaming error:', error)
+
+      // Remove typing indicator and add error message
+      removeMessage(typingId)
+      addMessage({
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: "I'm having trouble processing your request right now. Please try again in a moment.",
+        timestamp: new Date()
+      })
+    } finally {
+      stopListening()
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

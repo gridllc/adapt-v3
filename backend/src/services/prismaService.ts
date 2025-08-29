@@ -397,8 +397,8 @@ export class DatabaseService {
           q."videoTime", q."isFAQ", q."userId", q."createdAt", q."updatedAt",
           qv."embedding",
           1 - (qv."embedding" <=> $1) AS similarity
-        FROM "question_vectors" qv
-        JOIN "questions" q ON q."id" = qv."questionId"
+        FROM "QuestionVector" qv
+        JOIN "Question" q ON q."id" = qv."questionId"
         WHERE q."moduleId" = ANY($2)
         ORDER BY qv."embedding" <=> $1
         LIMIT $3

@@ -89,10 +89,16 @@ const enhancedAiService = {
           /^\s*what.*step\s+\d+/i.test(message)
         )
 
+        let reuseResult = null
         if (!isSimpleQuery) {
-          const reuseResult = await findBestMatchingAnswer(message, moduleId, 0.85)
-          if (reuseResult) {
-            console.log(`♻️ [Contextual AI] Reusing answer (similarity: ${(reuseResult.similarity * 100).toFixed(1)}%)`)
+          // Parallelize RAG search with context preparation
+          const [ragResult, contextPrep] = await Promise.all([
+            findBestMatchingAnswer(message, moduleId, 0.85),
+            this.prepareOptimizedContext(message, context) // Pre-compute context
+          ])
+
+          if (ragResult) {
+            console.log(`♻️ [Contextual AI] Reusing answer (similarity: ${(ragResult.similarity * 100).toFixed(1)}%)`)
 
             // Log the reuse for learning (non-blocking)
             DatabaseService.createActivityLog({
@@ -100,34 +106,30 @@ const enhancedAiService = {
               action: 'AI_QUESTION_REUSED',
               targetId: moduleId,
               metadata: {
-                originalQuestionId: reuseResult.questionId,
-                similarity: reuseResult.similarity,
-                reason: reuseResult.reason
+                originalQuestionId: ragResult.questionId,
+                similarity: ragResult.similarity,
+                reason: ragResult.reason
               }
             }).catch(err => console.warn('Failed to log reuse activity:', err))
 
-            return reuseResult.answer
+            return ragResult.answer
           }
         }
 
-        // Step 2: Generate fresh contextual response
+        // Step 2: Generate fresh contextual response with optimized context
         console.log(`🧠 [Contextual AI] Generating fresh contextual response`)
-        const freshResponse = await this.generateContextualResponse(message, context)
+        const optimizedContext = await this.prepareOptimizedContext(message, context)
+        const freshResponse = await this.generateContextualResponse(message, optimizedContext)
 
-        // Step 3: Log interaction for future learning
-        try {
-          await logInteractionToVectorDB({
-            question: message,
-            answer: freshResponse,
-            moduleId: moduleId || 'global',
-            stepId: currentStep?.id,
-            userId,
-            videoTime
-          })
-          console.log(`📝 [Contextual AI] Interaction logged for future learning`)
-        } catch (logError) {
-          console.warn('⚠️ [Contextual AI] Failed to log interaction:', logError)
-        }
+        // Step 3: Log interaction for future learning (non-blocking)
+        logInteractionToVectorDB({
+          question: message,
+          answer: freshResponse,
+          moduleId: moduleId || 'global',
+          stepId: currentStep?.id,
+          userId,
+          videoTime
+        }).catch(logError => console.warn('⚠️ [Contextual AI] Failed to log interaction:', logError))
 
         return freshResponse
 
@@ -135,6 +137,118 @@ const enhancedAiService = {
         console.error('❌ [Contextual AI] Error:', error)
         return `I'm having trouble processing your request right now. Please try again in a moment.`
       }
+    },
+
+    async prepareOptimizedContext(message: string, context: any): Promise<any> {
+      // Only include essential context to reduce prompt size
+      const { currentStep, allSteps, videoTime, moduleId } = context || {}
+
+      // For complex queries, include minimal context
+      // For simple queries, include even less
+      const isSimpleQuery = message.length < 100
+
+      if (isSimpleQuery) {
+        return {
+          currentStep: currentStep ? {
+            title: currentStep.title,
+            description: currentStep.description?.substring(0, 150)
+          } : null,
+          allSteps: [], // Don't include all steps for simple queries
+          videoTime,
+          moduleId
+        }
+      }
+
+      // For complex queries, include current step + 2 neighbors
+      const currentIndex = allSteps?.findIndex((s: any) => s.id === currentStep?.id) ?? -1
+      const neighborSteps = currentIndex >= 0 ? allSteps.slice(
+        Math.max(0, currentIndex - 1),
+        Math.min(allSteps.length, currentIndex + 2)
+      ).map((s: any) => ({ title: s.title, description: s.description?.substring(0, 100) })) : []
+
+      return {
+        currentStep: currentStep ? {
+          title: currentStep.title,
+          description: currentStep.description?.substring(0, 200)
+        } : null,
+        allSteps: neighborSteps,
+        videoTime,
+        moduleId
+      }
+    },
+
+    async generateStreamingContextualResponse(message: string, context: any): Promise<any> {
+      const { currentStep, allSteps, videoTime, moduleId, userId } = context || {}
+
+      // For streaming, we need to be even more aggressive about context size
+      const trimmedContext = {
+        currentStep: currentStep ? {
+          title: currentStep.title,
+          description: currentStep.description?.substring(0, 200)
+        } : null,
+        neighborSteps: allSteps?.slice(
+          Math.max(0, allSteps.findIndex((s: any) => s.id === currentStep?.id) - 1),
+          Math.min(allSteps.length, allSteps.findIndex((s: any) => s.id === currentStep?.id) + 2)
+        ).map((s: any) => ({ title: s.title, order: s.order })) || [],
+        moduleId,
+        videoTime
+      }
+
+      // Build compact prompt
+      const prompt = `You are helping with a training video. Current context:
+${trimmedContext.currentStep ? `Current step: ${trimmedContext.currentStep.title}
+${trimmedContext.currentStep.description ? `Description: ${trimmedContext.currentStep.description}` : ''}` : 'No current step'}
+
+${trimmedContext.neighborSteps.length > 0 ? `Nearby steps: ${trimmedContext.neighborSteps.map((s: any) => `Step ${s.order}: ${s.title}`).join(', ')}` : ''}
+
+Question: ${message}
+
+Provide a concise, practical answer. Do not mention video timestamps.`
+
+      // Use OpenAI streaming
+      if (!openai) {
+        throw new Error('OpenAI not initialized')
+      }
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        stream: true,
+        messages: [
+          { role: 'system', content: 'Give practical step guidance. Do NOT mention video timestamps.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 300
+      })
+
+      const passThrough = new PassThrough()
+
+      response.on('data', (chunk) => {
+        const content = chunk.choices?.[0]?.delta?.content
+        if (content) {
+          passThrough.write(content)
+        }
+      })
+
+      response.on('end', () => {
+        passThrough.end()
+
+        // Log interaction (non-blocking)
+        logInteractionToVectorDB({
+          question: message,
+          answer: 'STREAMING_RESPONSE', // We'll update this later if needed
+          moduleId: moduleId || 'global',
+          stepId: currentStep?.id,
+          userId,
+          videoTime
+        }).catch(err => console.warn('Failed to log streaming interaction:', err))
+      })
+
+      response.on('error', (error) => {
+        passThrough.emit('error', error)
+      })
+
+      return passThrough
     }
   },
 
@@ -322,6 +436,18 @@ export const aiService = {
     } catch (error) {
       console.error('❌ Contextual response error:', error)
       throw new Error('Contextual response failed')
+    }
+  },
+
+  /**
+   * Generate streaming contextual response
+   */
+  async generateStreamingContextualResponse(message: string, context: any): Promise<any> {
+    try {
+      return await enhancedAiService.processor.generateStreamingContextualResponse(message, context)
+    } catch (error) {
+      console.error('❌ Streaming contextual response error:', error)
+      throw new Error('Streaming response failed')
     }
   },
 
