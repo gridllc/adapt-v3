@@ -8,6 +8,7 @@ import { rewriteStepsWithGPT } from '../utils/transcriptFormatter.js'
 import { findSimilarInteractions, findBestMatchingAnswer } from './qaRecall.js'
 import { generateEmbedding, logInteractionToVectorDB } from '../utils/vectorUtils.js'
 import OpenAI from 'openai'
+import { PassThrough } from 'stream'
 
 // Utility function to sanitize AI responses
 function sanitizeAssistantResponse(text: string): string {
@@ -223,30 +224,32 @@ Provide a concise, practical answer. Do not mention video timestamps.`
 
       const passThrough = new PassThrough()
 
-      response.on('data', (chunk) => {
-        const content = chunk.choices?.[0]?.delta?.content
-        if (content) {
-          passThrough.write(content)
+      // Process the streaming response
+      ;(async () => {
+        try {
+          for await (const chunk of response) {
+            const content = chunk.choices?.[0]?.delta?.content
+            if (content) {
+              passThrough.write(content)
+            }
+          }
+
+          passThrough.end()
+
+          // Log interaction (non-blocking)
+          logInteractionToVectorDB({
+            question: message,
+            answer: 'STREAMING_RESPONSE', // We'll update this later if needed
+            moduleId: moduleId || 'global',
+            stepId: currentStep?.id,
+            userId,
+            videoTime
+          }).catch((err: any) => console.warn('Failed to log streaming interaction:', err))
+        } catch (error: any) {
+          console.error('Streaming error:', error)
+          passThrough.emit('error', error)
         }
-      })
-
-      response.on('end', () => {
-        passThrough.end()
-
-        // Log interaction (non-blocking)
-        logInteractionToVectorDB({
-          question: message,
-          answer: 'STREAMING_RESPONSE', // We'll update this later if needed
-          moduleId: moduleId || 'global',
-          stepId: currentStep?.id,
-          userId,
-          videoTime
-        }).catch(err => console.warn('Failed to log streaming interaction:', err))
-      })
-
-      response.on('error', (error) => {
-        passThrough.emit('error', error)
-      })
+      })()
 
       return passThrough
     }

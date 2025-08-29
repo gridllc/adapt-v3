@@ -203,7 +203,7 @@ router.post('/contextual-response/stream', withServerTiming, async (req: any, re
       done()
     })
 
-    stream.on('error', (error) => {
+    stream.on('error', (error: any) => {
       console.error('❌ Streaming error:', error)
       send(JSON.stringify({ error: true, message: 'Streaming failed' }))
       done()
