@@ -90,10 +90,14 @@ export default function ChatAssistant({
 
   // Sync voice state with chat store
   useEffect(() => {
-    if (voiceIsActive !== isListening) {
-      // This will be handled by the voice hook's state
+    if (voiceController.listening !== isListening) {
+      if (voiceController.listening) {
+        startListening()
+      } else {
+        stopListening()
+      }
     }
-  }, [voiceIsActive, isListening])
+  }, [voiceController.listening, isListening, startListening, stopListening])
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return
