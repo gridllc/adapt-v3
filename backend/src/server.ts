@@ -28,6 +28,7 @@ import { testAuthRoutes } from './routes/testAuth.js'
 import debugRoutes from './routes/debugRoutes.js'
 import { requestLogger } from './middleware/requestLogger.js'
 import healthRoutes from './routes/healthRoutes.js'
+import { handleDatabaseErrors } from './middleware/database.js'
 import { storageRoutes } from './routes/storageRoutes.js'
 import voiceRoutes from './routes/voiceRoutes.js'
 import healthDebugRoutes from './routes/healthDebugRoutes.js'
@@ -644,6 +645,9 @@ const configureErrorHandling = () => {
       method: req.method
     })
   })
+
+  // Database error handler - handles connection pool issues gracefully
+  app.use(handleDatabaseErrors)
 
   // Central error handler - catches thrown/async rejections in routes
   app.use((err: any, req: any, res: any, _next: any) => {

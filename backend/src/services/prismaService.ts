@@ -390,8 +390,8 @@ export class DatabaseService {
 
     let usedPg = false;
     try {
-      // Use native pgvector ANN search for better performance
-      const results = await prisma.$queryRawUnsafe(`
+      // Use native pgvector ANN search for better performance with timeout
+      const queryPromise = prisma.$queryRawUnsafe(`
         SELECT
           q."id", q."moduleId", q."stepId", q."question", q."answer",
           q."videoTime", q."isFAQ", q."userId", q."createdAt", q."updatedAt",
@@ -403,6 +403,13 @@ export class DatabaseService {
         ORDER BY qv."embedding" <=> $1
         LIMIT $3
       `, embedding, moduleIds, limit)
+
+      // Add 5 second timeout to prevent connection pool exhaustion
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Vector search timeout')), 5000)
+      )
+
+      const results = await Promise.race([queryPromise, timeoutPromise])
 
       usedPg = true;
 
@@ -447,7 +454,8 @@ export class DatabaseService {
     threshold: number = 0.8,
     limit: number = 5
   ) {
-    const vectors = await prisma.questionVector.findMany({
+    // Add timeout to prevent connection pool exhaustion
+    const queryPromise = prisma.questionVector.findMany({
       where: {
         question: {
           moduleId
@@ -463,6 +471,12 @@ export class DatabaseService {
         }
       }
     })
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('JS fallback query timeout')), 3000)
+    )
+
+    const vectors = await Promise.race([queryPromise, timeoutPromise]) as any[]
 
     // Calculate cosine similarity and filter by threshold
     const similarQuestions = vectors
