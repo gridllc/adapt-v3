@@ -39,17 +39,19 @@ const router = express.Router()
  * Enhanced contextual AI response endpoint
  */
 router.post('/contextual-response', async (req: any, res: any) => {
+  const startTime = Date.now()
+
   try {
     const { userMessage, currentStep, allSteps, videoTime, moduleId } = req.body
 
     if (!userMessage) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'User message is required' 
+      return res.status(400).json({
+        success: false,
+        error: 'User message is required'
       })
     }
 
-    console.log(`🤖 Contextual AI request for module ${moduleId}`)
+    console.log(`🤖 Contextual AI request for module ${moduleId} (start: ${startTime})`)
     console.log(`📝 User message: "${userMessage}"`)
     console.log(`🎬 Current step: ${currentStep?.title || 'None'}`)
     console.log(`⏰ Video time: ${videoTime}s`)
@@ -67,10 +69,11 @@ router.post('/contextual-response', async (req: any, res: any) => {
       }
     )
 
-    console.log(`✅ AI response generated: ${aiResponse.substring(0, 100)}...`)
+    const responseTime = Date.now() - startTime
+    console.log(`✅ AI response generated in ${responseTime}ms: ${aiResponse.substring(0, 100)}...`)
 
-    // Log activity with basic information
-    await DatabaseService.createActivityLog({
+    // Log activity (non-blocking - don't await)
+    DatabaseService.createActivityLog({
       userId: userId || undefined,
       action: 'AI_QUESTION',
       targetId: moduleId,
@@ -80,7 +83,7 @@ router.post('/contextual-response', async (req: any, res: any) => {
         videoTime,
         stepId: currentStep?.id
       }
-    })
+    }).catch(err => console.warn('Failed to log activity:', err))
 
     res.json({ 
       success: true, 

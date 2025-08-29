@@ -10,6 +10,35 @@ try {
   console.error('Failed to initialize OpenAI for embeddings:', error)
 }
 
+// Simple in-memory cache for embeddings (expires after 1 hour)
+const embeddingCache = new Map<string, { embedding: number[], timestamp: number }>()
+const CACHE_TTL = 60 * 60 * 1000 // 1 hour
+
+function getCachedEmbedding(text: string): number[] | null {
+  const cached = embeddingCache.get(text)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.embedding
+  }
+  if (cached) {
+    embeddingCache.delete(text) // Remove expired entry
+  }
+  return null
+}
+
+function setCachedEmbedding(text: string, embedding: number[]): void {
+  embeddingCache.set(text, { embedding, timestamp: Date.now() })
+
+  // Clean up old entries periodically
+  if (embeddingCache.size > 100) {
+    const cutoff = Date.now() - CACHE_TTL
+    for (const [key, value] of embeddingCache.entries()) {
+      if (value.timestamp < cutoff) {
+        embeddingCache.delete(key)
+      }
+    }
+  }
+}
+
 /**
  * Calculate cosine similarity between two vectors
  */
@@ -42,11 +71,19 @@ export function calculateCosineSimilarity(vecA: number[], vecB: number[]): numbe
  * Generate embedding for text using OpenAI
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
+  // Check cache first
+  const cached = getCachedEmbedding(text)
+  if (cached) {
+    console.log('📋 Using cached embedding for:', text.substring(0, 30) + '...')
+    return cached
+  }
+
   if (!openai) {
     throw new Error('OpenAI not initialized')
   }
 
   try {
+    console.log('🔄 Generating new embedding for:', text.substring(0, 30) + '...')
     const response = await openai.embeddings.create({
       model: 'text-embedding-3-small',
       input: text,
@@ -54,16 +91,19 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     })
 
     const embedding = response.data[0].embedding
-    
+
     // Validate embedding dimensions
     if (embedding.length !== 1536) {
       throw new Error(`Invalid embedding dimensions: expected 1536, got ${embedding.length}`)
     }
 
+    // Cache the result
+    setCachedEmbedding(text, embedding)
+
     return embedding
   } catch (error) {
-    console.error('Error generating embedding:', error)
-    throw new Error('Failed to generate embedding')
+    console.error('❌ Embedding generation error:', error)
+    throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 

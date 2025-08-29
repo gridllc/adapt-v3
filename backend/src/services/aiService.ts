@@ -80,24 +80,34 @@ const enhancedAiService = {
 
         const { currentStep, allSteps, videoTime, moduleId, userId } = context || {}
 
-        // Step 1: Try to reuse existing answers
-        const reuseResult = await findBestMatchingAnswer(message, moduleId, 0.85)
-        if (reuseResult) {
-          console.log(`♻️ [Contextual AI] Reusing answer (similarity: ${(reuseResult.similarity * 100).toFixed(1)}%)`)
+        // Step 1: Try to reuse existing answers (FAST PATH - no RAG for simple queries)
+        const isSimpleQuery = message.length < 50 && (
+          message.toLowerCase().includes('next') ||
+          message.toLowerCase().includes('current') ||
+          message.toLowerCase().includes('how many') ||
+          /^\s*step\s+\d+\s*$/i.test(message) ||
+          /^\s*what.*step\s+\d+/i.test(message)
+        )
 
-          // Log the reuse for learning
-          await DatabaseService.createActivityLog({
-            userId: userId || undefined,
-            action: 'AI_QUESTION_REUSED',
-            targetId: moduleId,
-            metadata: {
-              originalQuestionId: reuseResult.questionId,
-              similarity: reuseResult.similarity,
-              reason: reuseResult.reason
-            }
-          })
+        if (!isSimpleQuery) {
+          const reuseResult = await findBestMatchingAnswer(message, moduleId, 0.85)
+          if (reuseResult) {
+            console.log(`♻️ [Contextual AI] Reusing answer (similarity: ${(reuseResult.similarity * 100).toFixed(1)}%)`)
 
-          return reuseResult.answer
+            // Log the reuse for learning (non-blocking)
+            DatabaseService.createActivityLog({
+              userId: userId || undefined,
+              action: 'AI_QUESTION_REUSED',
+              targetId: moduleId,
+              metadata: {
+                originalQuestionId: reuseResult.questionId,
+                similarity: reuseResult.similarity,
+                reason: reuseResult.reason
+              }
+            }).catch(err => console.warn('Failed to log reuse activity:', err))
+
+            return reuseResult.answer
+          }
         }
 
         // Step 2: Generate fresh contextual response
