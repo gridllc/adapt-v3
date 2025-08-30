@@ -58,21 +58,15 @@ function App() {
       {/* Debug panel temporarily disabled */}
       {/* <ApiDebug /> */}
       
-      {/* TEMPORARY: Test spinner visibility - remove this after testing */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed top-4 right-4 z-50 bg-white p-4 border rounded-lg shadow-lg">
-          <p className="text-sm text-gray-600 mb-2">Test Spinner:</p>
-          <LoadingSpinner />
-        </div>
-      )}
+      {/* REMOVED: Test spinner overlay was causing issues on auth pages */}
       
       <Routes>
         {/* Always show home page at root */}
         <Route path="/" element={<HomePage />} />
         
-        {/* Clerk authentication routes - using path-based routing */}
-        <Route path="/sign-in" element={<SignInPage />} />
-        <Route path="/sign-up" element={<SignUpPage />} />
+        {/* Clerk authentication routes - using path-based routing with /* for nested routes */}
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/sign-up/*" element={<SignUpPage />} />
         <Route path="/sso-callback" element={<div>Loading...</div>} />
 
         {/* Protected routes */}

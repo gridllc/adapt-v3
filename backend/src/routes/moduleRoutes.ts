@@ -20,11 +20,27 @@ const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
 const uploadsDir = path.join(process.cwd(), 'uploads')
 const dataDir = path.join(process.cwd(), 'data')
 
-// Get all modules with enhanced info
+// Get all modules for the authenticated user
 router.get('/', async (req, res) => {
   try {
-    const result = await ModuleService.getAllModules()
-    
+    const userId = req.userId
+
+    // In development, allow unauthenticated access for testing
+    if (!userId && process.env.NODE_ENV === 'development') {
+      console.log('🔧 DEV MODE: Allowing unauthenticated access to modules')
+      const result = await ModuleService.getAllModules()
+      return res.json(result)
+    }
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required'
+      })
+    }
+
+    const result = await ModuleService.getUserModules(userId)
+
     if (result.success) {
       res.json(result)
     } else {

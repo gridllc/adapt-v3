@@ -49,16 +49,41 @@ const ConfigurationError: React.FC = () => (
   </div>
 )
 
+// Clerk Router Component (provides navigate to Clerk)
+const ClerkRouter: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const navigate = useNavigate()
+
+  return (
+    <ClerkProvider
+      publishableKey={pk}
+      navigate={(to) => navigate(to)} // Clean React Router integration
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      afterSignInUrl="/dashboard"
+      afterSignUpUrl="/dashboard"
+      appearance={{
+        baseTheme: undefined,
+        variables: {
+          colorPrimary: "#2563eb"
+        }
+      }}
+    >
+      {children}
+    </ClerkProvider>
+  )
+}
+
 // Main App Wrapper with Error Handling
 const AppWrapper: React.FC = () => {
   // Get the current domain for redirects
   const currentDomain = window.location.origin
   const dashboardUrl = `${currentDomain}/dashboard`
-  
+
   console.log('🔧 Clerk Configuration:', {
     currentDomain,
     dashboardUrl,
-    publishableKey: pk ? 'Set' : 'Missing'
+    publishableKey: pk ? 'Set' : 'Missing',
+    port: window.location.port || '80/443'
   })
 
   return (
@@ -69,17 +94,9 @@ const AppWrapper: React.FC = () => {
           v7_relativeSplatPath: true,
         }}
       >
-        <ClerkProvider 
-          publishableKey={pk}
-          appearance={{
-            baseTheme: undefined,
-            variables: {
-              colorPrimary: "#2563eb"
-            }
-          }}
-        >
+        <ClerkRouter>
           <App />
-        </ClerkProvider>
+        </ClerkRouter>
       </BrowserRouter>
     </ErrorBoundary>
   )

@@ -11,10 +11,9 @@ export const SignUpPage: React.FC = () => {
         </div>
         
         <div className="bg-white rounded-lg shadow-lg p-8">
-          <SignUp 
-            routing="path" 
-            path="/sign-up" 
-            redirectUrl="https://adaptord.com/dashboard"
+          <SignUp
+            routing="path"
+            path="/sign-up"
             appearance={{
               elements: {
                 rootBox: "mx-auto",

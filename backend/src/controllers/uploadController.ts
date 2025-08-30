@@ -103,6 +103,10 @@ export const uploadController = {
 
       // 2) Ensure Module exists (no schema change)
       const title = filename || baseTitle(key)
+
+      // Get userId from request (set by optionalAuth middleware)
+      const userId = (req as any).userId
+
       await prisma.module.upsert({
         where: { id: moduleId },
         update: {
@@ -112,6 +116,7 @@ export const uploadController = {
           progress: 1,
           updatedAt: new Date(),
           title,
+          userId: userId || null, // Associate with user if authenticated
         },
         create: {
           id: moduleId,
@@ -122,6 +127,7 @@ export const uploadController = {
           title,
           filename: filename || title + '.mp4',
           videoUrl: `https://${Bucket}.s3.amazonaws.com/${key}`,
+          userId: userId || null, // Associate with user if authenticated
         },
       })
 

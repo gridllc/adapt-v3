@@ -22,16 +22,13 @@ export default defineConfig({
     'process.env': {},
   },
   server: {
+    port: 5173,
+    host: true,
+    strictPort: true, // Force port 5173 - matches Clerk configuration
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        secure: false,
-      },
-      '/uploads': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-        secure: false,
       },
     },
   },

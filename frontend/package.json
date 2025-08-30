@@ -4,11 +4,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:port": "FRONTEND_PORT=5174 vite",
+    "dev:next": "vite --port 5174 || vite --port 5175 || vite --port 5176",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check-ports": "echo 'Checking port usage...' && (netstat -ano | findstr :5173 >nul 2>&1 && echo '5173: BUSY' || echo '5173: FREE') && (netstat -ano | findstr :8000 >nul 2>&1 && echo '8000: BUSY' || echo '8000: FREE')",
+    "kill-5173": "for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :5173') do taskkill /PID %a /F 2>nul",
+    "dev:clean": "npm run kill-5173 && timeout /t 2 >nul && npm run dev"
   },
   "dependencies": {
     "@clerk/clerk-react": "^4.32.5",

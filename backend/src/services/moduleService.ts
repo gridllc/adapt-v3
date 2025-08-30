@@ -19,15 +19,46 @@ export async function updateModule(id: string, data: any) {
 
 export class ModuleService {
   /**
-   * Get all modules with their basic info for dashboard
+   * Get all modules for a specific user
+   * @param userId - The Clerk user ID
    * @returns Promise<{ success: boolean; modules?: any[]; error?: string }>
    */
-  static async getAllModules(): Promise<{ success: boolean; modules?: any[]; error?: string }> {
+  static async getUserModules(userId: string): Promise<{ success: boolean; modules?: any[]; error?: string }> {
     try {
-      console.log('🔍 [ModuleService] Fetching all modules...')
-      
-      // Simplified query to prevent hanging
+      console.log(`🔍 [ModuleService] Fetching modules for user: ${userId}`)
+
+      // Get or create user record first
+      let user = await prisma.user.findUnique({
+        where: { clerkId: userId }
+      })
+
+      if (!user) {
+        console.log(`👤 Creating user record for clerkId: ${userId}`)
+        // Try to get user info from Clerk
+        let userEmail = `user-${userId}@temp.local`
+        try {
+          const { clerkClient } = await import('@clerk/clerk-sdk-node')
+          const clerkUser = await clerkClient.users.getUser(userId)
+          if (clerkUser.primaryEmailAddress?.emailAddress) {
+            userEmail = clerkUser.primaryEmailAddress.emailAddress
+          }
+        } catch (error) {
+          console.warn(`⚠️ Could not fetch user info from Clerk for ${userId}:`, error)
+        }
+
+        user = await prisma.user.create({
+          data: {
+            clerkId: userId,
+            email: userEmail
+          }
+        })
+      }
+
+      // Get user's modules
       const modules = await prisma.module.findMany({
+        where: {
+          userId: user.id
+        },
         select: {
           id: true,
           title: true,
@@ -43,7 +74,7 @@ export class ModuleService {
         }
       })
 
-      console.log(`✅ [ModuleService] Found ${modules.length} modules`)
+      console.log(`✅ [ModuleService] Found ${modules.length} modules for user ${userId}`)
 
       return {
         success: true,

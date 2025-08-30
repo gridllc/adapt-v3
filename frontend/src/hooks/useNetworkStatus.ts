@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@clerk/clerk-react'
 
 export type ConnectionSpeed = 'fast' | 'medium' | 'slow' | 'offline' | 'testing'
 
@@ -19,6 +20,7 @@ export const useNetworkStatus = (): NetworkStatus => {
   const [connectionSpeed, setConnectionSpeed] = useState<ConnectionSpeed>('testing')
   const [lastSpeedTest, setLastSpeedTest] = useState<number | null>(null)
   const [isSpeedTesting, setIsSpeedTesting] = useState(false)
+  const { isLoaded, isSignedIn } = useAuth()
 
   // 🎯 Enhanced speed test with proper error handling
   const testSpeed = useCallback(async (): Promise<void> => {
@@ -34,8 +36,8 @@ export const useNetworkStatus = (): NetworkStatus => {
       const startTime = performance.now()
       
       // Use your backend's health endpoint for realistic speed test
-      const response = await fetch(`${import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'development' ? 'http://localhost:8000' : 'https://adapt-v3.onrender.com')}/api/health`, {
-        method: 'HEAD',
+      const response = await fetch('/api/health', {
+        method: 'GET', // Use GET instead of HEAD for better compatibility
         cache: 'no-cache',
         headers: {
           'Cache-Control': 'no-cache',
@@ -83,15 +85,21 @@ export const useNetworkStatus = (): NetworkStatus => {
     await testSpeed()
   }, [testSpeed])
 
-  // 📱 Load cached speed on mount
+    // 📱 Load cached speed on mount (only when authenticated)
   useEffect(() => {
+    // Don't run network tests on public pages (sign-in, sign-up)
+    if (!isLoaded || !isSignedIn) {
+      setConnectionSpeed('testing') // Keep in testing state until authenticated
+      return
+    }
+
     const cachedSpeed = localStorage.getItem(SPEED_TEST_CACHE_KEY) as ConnectionSpeed
     const cachedTimestamp = localStorage.getItem(SPEED_TEST_TIMESTAMP_KEY)
-    
+
     if (cachedSpeed && cachedTimestamp) {
       const timestamp = parseInt(cachedTimestamp, 10)
       const age = Date.now() - timestamp
-      
+
       // Use cached result if less than 5 minutes old
       if (age < CACHE_DURATION) {
         setConnectionSpeed(cachedSpeed)
@@ -103,7 +111,7 @@ export const useNetworkStatus = (): NetworkStatus => {
 
     // No valid cache - run initial speed test
     testSpeed()
-  }, [testSpeed])
+  }, [testSpeed, isLoaded, isSignedIn])
 
   // 🌐 Network event listeners
   useEffect(() => {
@@ -124,8 +132,8 @@ export const useNetworkStatus = (): NetworkStatus => {
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
 
-    // 🚀 Run initial test if online
-    if (navigator.onLine && connectionSpeed === 'testing') {
+    // 🚀 Run initial test if online and authenticated
+    if (navigator.onLine && connectionSpeed === 'testing' && isLoaded && isSignedIn) {
       testSpeed()
     }
 
@@ -133,11 +141,11 @@ export const useNetworkStatus = (): NetworkStatus => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [testSpeed, connectionSpeed])
+  }, [testSpeed, connectionSpeed, isLoaded, isSignedIn])
 
-  // 🔄 Periodic speed test (every 10 minutes when active)
+  // 🔄 Periodic speed test (every 10 minutes when active and authenticated)
   useEffect(() => {
-    if (!isOnline) return
+    if (!isOnline || !isLoaded || !isSignedIn) return
 
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -147,7 +155,7 @@ export const useNetworkStatus = (): NetworkStatus => {
     }, 10 * 60 * 1000) // 10 minutes
 
     return () => clearInterval(interval)
-  }, [isOnline, testSpeed])
+  }, [isOnline, testSpeed, isLoaded, isSignedIn])
 
   return {
     isOnline,
