@@ -49,6 +49,18 @@ const upload = multer({
 const router = express.Router()
 
 /**
+ * Simple test endpoint to verify API is working
+ */
+router.post('/test', (req: any, res: any) => {
+  console.log('🧪 AI test endpoint called')
+  res.json({
+    success: true,
+    message: 'AI API is working',
+    timestamp: new Date().toISOString()
+  })
+})
+
+/**
  * Enhanced contextual AI response endpoint
  */
 router.post('/contextual-response', withServerTiming, async (req: any, res: any) => {
@@ -279,8 +291,10 @@ router.post('/ask', async (req: any, res: any) => {
       }
     })
 
-    res.json({ 
-      success: true, 
+    console.log(`✅ Sending response: ${aiResponse.substring(0, 50)}...`)
+
+    res.json({
+      success: true,
       answer: aiResponse,
       reused: false,
       similarity: null,

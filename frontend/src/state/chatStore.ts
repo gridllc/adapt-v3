@@ -121,10 +121,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         })
       })
 
+      // Debug log the response structure
+      console.log('🤖 API Response:', response)
+
       // Remove typing indicator and add response
       updateMessage(typingMessage.id, {
         role: 'assistant',
-        content: sanitizeAssistantResponse(response.response || 'I apologize, but I\'m having trouble processing your request right now.'),
+        content: sanitizeAssistantResponse(response.answer || response.response || 'I apologize, but I\'m having trouble processing your request right now.'),
         isTyping: false,
         timestamp: new Date()
       })

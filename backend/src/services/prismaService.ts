@@ -390,31 +390,34 @@ export class DatabaseService {
 
     let usedPg = false;
     try {
-      // Use native pgvector ANN search for better performance with timeout
+      // Try pgvector first, but be more defensive about errors
+      console.log(`🔍 Searching vectors: ${embedding.length} dims, modules: ${moduleIds.join(',')}`)
+
       const queryPromise = prisma.$queryRawUnsafe(`
         SELECT
           q."id", q."moduleId", q."stepId", q."question", q."answer",
           q."videoTime", q."isFAQ", q."userId", q."createdAt", q."updatedAt",
           qv."embedding",
-          1 - (qv."embedding" <=> $1) AS similarity
+          1 - (qv."embedding" <=> $1::vector) AS similarity
         FROM "QuestionVector" qv
         JOIN "Question" q ON q."id" = qv."questionId"
         WHERE q."moduleId" = ANY($2)
-        ORDER BY qv."embedding" <=> $1
+        ORDER BY qv."embedding" <=> $1::vector
         LIMIT $3
-      `, embedding, moduleIds, limit)
+      `, JSON.stringify(embedding), moduleIds, limit)
 
-      // Add 5 second timeout to prevent connection pool exhaustion
+      // Add 3 second timeout to prevent connection pool exhaustion
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Vector search timeout')), 5000)
+        setTimeout(() => reject(new Error('Vector search timeout')), 3000)
       )
 
-      const results = await Promise.race([queryPromise, timeoutPromise])
+      const results = await Promise.race([queryPromise, timeoutPromise]) as any[]
 
       usedPg = true;
+      console.log(`✅ pgvector search successful: ${results.length} results`)
 
       // Filter by threshold and return
-      return (results as any[])
+      const filteredResults = results
         .filter((item: any) => item.similarity >= threshold)
         .map((item: any) => ({
           ...item,
@@ -431,13 +434,12 @@ export class DatabaseService {
             updatedAt: item.updatedAt
           }
         }))
+
+      console.log(`📊 Filtered to ${filteredResults.length} results above threshold ${threshold}`)
+      return filteredResults
+
     } catch (error: any) {
-      // Check for specific column/mapping errors and log once
-      if (error?.code === 'P2010' && error?.meta?.code === '42703') {
-        console.warn('Vector SQL column mismatch — using JS fallback once. (Fixed in schema)')
-      } else {
-        console.error('Native pgvector search failed, falling back to JS calculation:', error)
-      }
+      console.warn('⚠️ pgvector search failed, using JS fallback:', error.message)
 
       // Fallback to JS calculation if native search fails
       return await this.findSimilarQuestionsJS(embedding, moduleIds[0], threshold, limit)
@@ -454,40 +456,57 @@ export class DatabaseService {
     threshold: number = 0.8,
     limit: number = 5
   ) {
-    // Add timeout to prevent connection pool exhaustion
-    const queryPromise = prisma.questionVector.findMany({
-      where: {
-        question: {
-          moduleId
-        }
-      },
-      include: {
-        question: {
-          include: {
-            step: {
-              select: { text: true, startTime: true }
-            }
+    try {
+      console.log(`🔄 JS fallback search for module: ${moduleId}`)
+
+      // Add timeout to prevent connection pool exhaustion
+      const queryPromise = prisma.questionVector.findMany({
+        where: {
+          question: {
+            moduleId
           }
+        },
+        include: {
+          question: true
         }
-      }
-    })
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('JS fallback query timeout')), 3000)
-    )
-
-    const vectors = await Promise.race([queryPromise, timeoutPromise]) as any[]
-
-    // Calculate cosine similarity and filter by threshold
-    const similarQuestions = vectors
-      .map((vector: any) => {
-        const sim = calculateCosineSimilarity(embedding, vector.embedding)
-        return { ...vector, similarity: sim }
       })
-      .filter((item: any) => item.similarity >= threshold)
-      .sort((a: any, b: any) => b.similarity - a.similarity)
 
-    return similarQuestions.slice(0, limit)
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('JS fallback query timeout')), 3000)
+      )
+
+      const vectors = await Promise.race([queryPromise, timeoutPromise]) as any[]
+
+      console.log(`📊 JS fallback found ${vectors.length} vectors`)
+
+      if (vectors.length === 0) {
+        console.log('📭 No vectors found in database - returning empty results')
+        return []
+      }
+
+      // Calculate cosine similarity and filter by threshold
+      const similarQuestions = vectors
+        .map((vector: any) => {
+          try {
+            const sim = calculateCosineSimilarity(embedding, vector.embedding)
+            return { ...vector, similarity: sim }
+          } catch (calcError) {
+            console.warn('⚠️ Error calculating similarity for vector:', calcError)
+            return { ...vector, similarity: 0 }
+          }
+        })
+        .filter((item: any) => item.similarity >= threshold)
+        .sort((a: any, b: any) => b.similarity - a.similarity)
+
+      const results = similarQuestions.slice(0, limit)
+      console.log(`📊 JS fallback returned ${results.length} results`)
+
+      return results
+    } catch (error: any) {
+      console.error('❌ JS fallback completely failed:', error.message)
+      // Return empty array as last resort
+      return []
+    }
   }
 
   /**
