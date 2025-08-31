@@ -110,13 +110,7 @@ export class ModuleService {
           progress: true,
           createdAt: true,
           updatedAt: true,
-          userId: true,
-          user: {
-            select: {
-              email: true,
-              clerkId: true
-            }
-          }
+          userId: true
         },
         orderBy: {
           createdAt: 'desc'
@@ -164,13 +158,7 @@ export class ModuleService {
           progress: true,
           createdAt: true,
           updatedAt: true,
-          userId: true,
-          user: {
-            select: {
-              email: true,
-              clerkId: true
-            }
-          }
+          userId: true
         },
         orderBy: {
           createdAt: 'desc'
@@ -587,13 +575,7 @@ export class ModuleService {
         where: { id },
         include: includeRelations ? {
           steps: true,
-          feedbacks: true,
-          user: {
-            select: {
-              email: true,
-              clerkId: true
-            }
-          }
+          feedbacks: true
         } : undefined
       })
 

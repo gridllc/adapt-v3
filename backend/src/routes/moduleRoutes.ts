@@ -143,19 +143,8 @@ router.get('/:id', async (req, res) => {
         steps: {
           orderBy: { order: 'asc' }
         },
-        user: {
-          select: {
-            email: true,
-            clerkId: true
-          }
-        },
-        _count: {
-          select: {
-            steps: true,
-            feedbacks: true,
-            questions: true
-          }
-        }
+        feedbacks: true,
+        questions: true
       }
     })
 
@@ -170,9 +159,9 @@ router.get('/:id', async (req, res) => {
       success: true,
       module: {
         ...module,
-        stepCount: module._count.steps,
-        feedbackCount: module._count.feedbacks,
-        questionCount: module._count.questions,
+        stepCount: module.steps.length,
+        feedbackCount: module.feedbacks.length,
+        questionCount: module.questions.length,
         // Include lastError for frontend error display
         lastError: module.lastError
       }

@@ -284,12 +284,7 @@ export class DatabaseService {
     return await prisma.activityLog.findMany({
       where: userId ? { userId } : undefined,
       orderBy: { createdAt: 'desc' },
-      take: limit,
-      include: {
-        user: {
-          select: { email: true }
-        }
-      }
+      take: limit
     })
   }
 
@@ -303,7 +298,14 @@ export class DatabaseService {
     userId?: string
   }) {
     return await prisma.question.create({
-      data
+      data: {
+        moduleId: data.moduleId,
+        stepId: data.stepId,
+        question: data.question,
+        answer: data.answer,
+        videoTime: data.videoTime,
+        userId: data.userId
+      }
     })
   }
 
@@ -317,9 +319,6 @@ export class DatabaseService {
       include: {
         step: {
           select: { text: true, startTime: true }
-        },
-        user: {
-          select: { email: true }
         }
       }
     })
@@ -576,9 +575,6 @@ export class DatabaseService {
       include: {
         step: {
           select: { text: true, startTime: true }
-        },
-        user: {
-          select: { email: true }
         }
       }
     })

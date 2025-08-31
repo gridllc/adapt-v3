@@ -8,42 +8,43 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  clerkId      String?       @unique
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  activityLogs ActivityLog[]
-  modules      Module[]
-  questions    Question[]
+  id        String   @id @default(cuid())
+  email     String   @unique
+  clerkId   String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("users")
 }
 
 model Module {
-  id        String         @id @default(cuid())
-  title     String
-  filename  String
-  videoUrl  String
-  progress  Int            @default(0)
-  userId    String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  lastError String?
-  s3Key     String?
-  statuses  ModuleStatus[]
-  stepsKey  String?
-  status    ModuleStatus   @default(UPLOADED)
-  feedbacks Feedback[]
-  user      User?          @relation(fields: [userId], references: [id])
-  questions Question[]
-  steps     Step[]
+  id                                     String         @id @default(uuid())
+  title                                  String
+  filename                               String
+  videoUrl                               String
+  progress                               Int            @default(0)
+  userId                                 String?
+  createdAt                              DateTime       @default(now())
+  updatedAt                              DateTime       @updatedAt
+  lastError                              String?
+  s3Key                                  String?
+  statuses                               ModuleStatus[]
+  stepsKey                               String?
+  status                                 ModuleStatus   @default(UPLOADED)
+  transcriptJobId                        String?
+  transcriptText                         String?
+  feedbacks                              Feedback[]
+  questions                              Question[]
+  steps                                  Step[]
+  videos                                 videos?
 
+  @@index([status], map: "idx_modules_status")
+  @@index([userId], map: "idx_modules_userid")
   @@map("modules")
 }
 
 model Step {
-  id             String     @id @default(cuid())
+  id             String     @id @default(uuid())
   moduleId       String
   order          Int
   createdAt      DateTime   @default(now())
@@ -53,9 +54,12 @@ model Step {
   startTime      Int
   endTime        Int
   updatedAt      DateTime   @updatedAt
+  aliases        String[]   @default([])
+  notes          String?
   questions      Question[]
   module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
+  @@index([moduleId], map: "idx_steps_moduleid")
   @@map("steps")
 }
 
@@ -105,34 +109,33 @@ model ActivityLog {
   targetId  String?
   metadata  Json?
   createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id])
 
   @@map("activity_logs")
 }
 
 model Question {
-  id         String          @id @default(cuid())
-  moduleId   String
-  stepId     String?
-  question   String
-  answer     String
-  videoTime  Float?
-  isFAQ      Boolean         @default(false)
-  userId     String?
-  createdAt  DateTime        @default(now())
-  lastUsedAt DateTime?
-  reuseCount Int             @default(0)
-  vector     QuestionVector?
-  module     Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  step       Step?           @relation(fields: [stepId], references: [id])
-  user       User?           @relation(fields: [userId], references: [id])
+  id                                   String          @id @default(uuid())
+  moduleId                             String          @map("module_id")
+  stepId                               String?
+  question                             String
+  answer                               String
+  videoTime                            Float?
+  isFAQ                                Boolean         @default(false) @map("is_faq")
+  userId                               String?
+  createdAt                            DateTime        @default(now())
+  lastUsedAt                           DateTime?
+  reuseCount                           Int             @default(0)
+  vector                               QuestionVector?
+  module                               Module          @relation(fields: [moduleId], references: [id])
+  step                                 Step?           @relation(fields: [stepId], references: [id])
 
   @@index([reuseCount])
+  @@index([moduleId], map: "questions_moduleid_idx")
   @@map("questions")
 }
 
 model QuestionVector {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid()) @db.Uuid
   questionId String   @unique
   embedding  Float[]
   createdAt  DateTime @default(now())
@@ -140,6 +143,16 @@ model QuestionVector {
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@map("question_vectors")
+}
+
+model videos {
+  id        String   @id
+  moduleId  String   @unique
+  fileKey   String   @unique
+  status    String   @default("UPLOADING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  modules   Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 }
 
 enum ModuleStatus {
