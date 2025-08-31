@@ -7,34 +7,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// ===== Models aligned to your current Postgres =====
+// ---------- Enums (local TypeScript can still import ModuleStatus if needed) ----------
+enum ModuleStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
+}
+
+// ---------- Core models ----------
 
 model Module {
-  id              String   @id
+  id              String        @id
   title           String
   filename        String
   videoUrl        String
-  progress        Int      @default(0)
-  userId          String?  @map("userId")
-  createdAt       DateTime @default(now()) @db.Timestamp(3)
-  updatedAt       DateTime @db.Timestamp(3)
+  progress        Int           @default(0)
+  userId          String?       @map("userId")
+  createdAt       DateTime      @default(now()) @db.Timestamp(3)
+  updatedAt       DateTime      @default(now()) @db.Timestamp(3)
   lastError       String?
   s3Key           String?
-  statuses        String[] @db.Text      // PG enum array "ModuleStatus" -> keep as text[] for safety
+  statuses        String[]      @db.Text       // keep array column you already have
   stepsKey        String?
-  status          Unsupported("ModuleStatus") @default(dbgenerated("'UPLOADED'::\"ModuleStatus\""))
+  status          ModuleStatus  @map("status") @default(UPLOADED) // bring 'status' back
   transcriptJobId String?
   transcriptText  String?
 
-  // Relations (optional to keep loose; add back if you want typed relations)
-  // steps     Step[]
-  // questions Question[]
+  // Relations (restore for typing)
+  steps      Step[]
+  questions  Question[]
+  feedbacks  Feedback[]
 
   @@map("modules")
 }
 
 model Step {
-  id             String    @id
+  id             String    @id @default(cuid())
   moduleId       String
   order          Int
   createdAt      DateTime  @default(now()) @db.Timestamp(3)
@@ -43,55 +52,115 @@ model Step {
   text           String
   startTime      Int
   endTime        Int
-  updatedAt      DateTime  @db.Timestamp(3)
+  updatedAt      DateTime  @default(now()) @db.Timestamp(3)
   aliases        String[]  @db.Text
   notes          String?
 
-  // Relation back to Module (optional)
-  // module Module @relation(fields: [moduleId], references: [id])
+  // Relation back to Module
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  // Questions relation (optional)
+  questions Question[]
 
   @@map("steps")
 }
 
 model Question {
-  id         String   @id
-  /// Use snake column in DB, keep camel in code
+  id         String   @id @default(cuid())
+  // Use snake in DB, camel in code
   moduleId   String   @map("module_id")
   stepId     String?  @map("stepId")
   question   String
   answer     String
   videoTime  Float?
-  /// Prisma field using the snake column
   isFAQ      Boolean  @default(false) @map("is_faq")
-  /// Legacy camel column exists in DB; ignore it so Prisma doesn't try to use it
+  // Legacy camel exists in DB; ignore to avoid conflicts
   legacyIsFAQ Boolean? @map("isFAQ") @ignore
   userId     String?  @map("userId")
   createdAt  DateTime @default(now()) @db.Timestamp(3)
   lastUsedAt DateTime? @db.Timestamp(3)
   reuseCount Int      @default(0)
 
-  // Optional relations:
-  // module Module @relation(fields: [moduleId], references: [id])
-  // step   Step?  @relation(fields: [stepId], references: [id])
+  // Relations
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  step   Step?  @relation(fields: [stepId], references: [id], onUpdate: Cascade)
+  vector QuestionVector?
 
   @@index([reuseCount], map: "questions_reuseCount_idx")
   @@map("questions")
 }
 
 model QuestionVector {
-  id         String   @id @default(uuid()) // DB column is uuid; Prisma will store as String
-  questionId String   @map("questionId")
-  // Relation (optional)
-  // question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  id         String @id @default(uuid()) @db.Uuid
+  questionId String @map("questionId")
 
-  embedding  Unsupported("vector") // pgvector(1536)
+  // Store as Float array for pgvector compatibility
+  embedding  Float[]
+
+  // Relation (optional)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@unique([questionId], map: "question_vectors_questionid_key")
   @@map("question_vectors")
 }
 
-/// Minimal User so FKs to users(id) stop complaining (keep loose; add fields as needed)
+// ---------- Minimal models needed by code (stubs to satisfy Prisma Client) ----------
+
 model User {
-  id String @id
+  id      String @id @default(cuid())
+  email   String? @unique
+  clerkId String? @unique
   @@map("users")
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  moduleId  String
+  userId    String?
+  action    String?
+  comment   String?
+  rating    Int?
+  createdAt DateTime  @default(now()) @db.Timestamp(3)
+
+  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  @@map("feedbacks")
+}
+
+model AIInteraction {
+  id          String   @id @default(cuid())
+  moduleId    String?
+  userId      String?
+  userMessage String?
+  aiResponse  String?
+  source      String?
+  context     String?
+  kind        String?
+  payload     String?
+  createdAt   DateTime  @default(now()) @db.Timestamp(3)
+  sourceModel String?
+  usedMemory  Boolean  @default(false)
+  @@map("ai_interactions")
+}
+
+model TrainingSession {
+  id        String    @id @default(cuid())
+  moduleId  String?
+  userId    String?
+  sessionId String
+  startedAt DateTime  @default(now()) @db.Timestamp(3)
+  endedAt   DateTime?
+  duration  Int?
+  data      String?
+  @@map("training_sessions")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  moduleId  String?
+  userId    String?
+  action    String
+  targetId  String?
+  metadata  String?
+  createdAt DateTime  @default(now()) @db.Timestamp(3)
+  @@map("activity_logs")
 }
