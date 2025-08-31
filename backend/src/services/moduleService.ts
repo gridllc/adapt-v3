@@ -39,8 +39,8 @@ export class ModuleService {
         try {
           const { clerkClient } = await import('@clerk/clerk-sdk-node')
           const clerkUser = await clerkClient.users.getUser(userId)
-          if (clerkUser.primaryEmailAddress?.emailAddress) {
-            userEmail = clerkUser.primaryEmailAddress.emailAddress
+          if (clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
+            userEmail = clerkUser.emailAddresses[0].emailAddress
           }
         } catch (error) {
           console.warn(`⚠️ Could not fetch user info from Clerk for ${userId}:`, error)
@@ -89,6 +89,55 @@ export class ModuleService {
       return {
         success: false,
         error: 'Failed to fetch modules'
+      }
+    }
+  }
+
+  /**
+   * Get all modules (for development/admin use)
+   * @returns Promise<{ success: boolean; modules?: any[]; error?: string }>
+   */
+  static async getAllModules(): Promise<{ success: boolean; modules?: any[]; error?: string }> {
+    try {
+      console.log(`🔍 [ModuleService] Fetching all modules for development mode`)
+
+      const modules = await prisma.module.findMany({
+        select: {
+          id: true,
+          title: true,
+          filename: true,
+          status: true,
+          progress: true,
+          createdAt: true,
+          updatedAt: true,
+          userId: true,
+          user: {
+            select: {
+              email: true,
+              clerkId: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      })
+
+      console.log(`✅ [ModuleService] Found ${modules.length} modules total`)
+
+      return {
+        success: true,
+        modules: modules.map((module: any) => ({
+          ...module,
+          stepCount: 0, // Simplified for now
+          feedbackCount: 0 // Simplified for now
+        }))
+      }
+    } catch (error) {
+      console.error('❌ Error fetching all modules:', error)
+      return {
+        success: false,
+        error: 'Failed to fetch all modules'
       }
     }
   }

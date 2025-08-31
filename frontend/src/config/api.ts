@@ -20,6 +20,16 @@ export const getApiUrl = (endpoint: string): string => {
   return `${API_BASE}${cleanEndpoint}`
 }
 
+// Legacy API_BASE_URL export for backward compatibility
+export const API_BASE_URL = API_BASE
+
+// API_CONFIG object for components that expect it
+export const API_CONFIG = {
+  baseURL: API_BASE,
+  getApiUrl: getApiUrl,
+  isDev: isDev
+}
+
 export const API_ENDPOINTS = {
   MODULES: '/api/modules',
   UPLOAD: '/api/upload',
