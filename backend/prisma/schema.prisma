@@ -7,157 +7,91 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  clerkId   String?  @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
-}
+/// ===== Models aligned to your current Postgres =====
 
 model Module {
-  id                                     String         @id @default(uuid())
-  title                                  String
-  filename                               String
-  videoUrl                               String
-  progress                               Int            @default(0)
-  userId                                 String?
-  createdAt                              DateTime       @default(now())
-  updatedAt                              DateTime       @updatedAt
-  lastError                              String?
-  s3Key                                  String?
-  statuses                               ModuleStatus[]
-  stepsKey                               String?
-  status                                 ModuleStatus   @default(UPLOADED)
-  transcriptJobId                        String?
-  transcriptText                         String?
-  feedbacks                              Feedback[]
-  questions                              Question[]
-  steps                                  Step[]
-  videos                                 videos?
+  id              String   @id
+  title           String
+  filename        String
+  videoUrl        String
+  progress        Int      @default(0)
+  userId          String?  @map("userId")
+  createdAt       DateTime @default(now()) @db.Timestamp(3)
+  updatedAt       DateTime @db.Timestamp(3)
+  lastError       String?
+  s3Key           String?
+  statuses        String[] @db.Text      // PG enum array "ModuleStatus" -> keep as text[] for safety
+  stepsKey        String?
+  status          Unsupported("ModuleStatus") @default(dbgenerated("'UPLOADED'::\"ModuleStatus\""))
+  transcriptJobId String?
+  transcriptText  String?
 
-  @@index([status], map: "idx_modules_status")
-  @@index([userId], map: "idx_modules_userid")
+  // Relations (optional to keep loose; add back if you want typed relations)
+  // steps     Step[]
+  // questions Question[]
+
   @@map("modules")
 }
 
 model Step {
-  id             String     @id @default(uuid())
+  id             String    @id
   moduleId       String
   order          Int
-  createdAt      DateTime   @default(now())
+  createdAt      DateTime  @default(now()) @db.Timestamp(3)
   aiConfidence   Float?
   confusionScore Float?
   text           String
   startTime      Int
   endTime        Int
-  updatedAt      DateTime   @updatedAt
-  aliases        String[]   @default([])
+  updatedAt      DateTime  @db.Timestamp(3)
+  aliases        String[]  @db.Text
   notes          String?
-  questions      Question[]
-  module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
-  @@index([moduleId], map: "idx_steps_moduleid")
+  // Relation back to Module (optional)
+  // module Module @relation(fields: [moduleId], references: [id])
+
   @@map("steps")
 }
 
-model Feedback {
-  id        String   @id @default(cuid())
-  moduleId  String
-  type      String
-  action    String
-  context   String?
-  sessionId String?
-  createdAt DateTime @default(now())
-  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-
-  @@map("feedbacks")
-}
-
-model AIInteraction {
-  id          String   @id @default(cuid())
-  moduleId    String
-  userMessage String
-  aiResponse  String
-  source      String?
-  context     Json?
-  createdAt   DateTime @default(now())
-  sourceModel String?
-  usedMemory  Boolean  @default(false)
-
-  @@map("ai_interactions")
-}
-
-model TrainingSession {
-  id        String    @id @default(cuid())
-  moduleId  String
-  userId    String?
-  sessionId String
-  startedAt DateTime  @default(now())
-  endedAt   DateTime?
-  duration  Int?
-
-  @@map("training_sessions")
-}
-
-model ActivityLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  action    String
-  targetId  String?
-  metadata  Json?
-  createdAt DateTime @default(now())
-
-  @@map("activity_logs")
-}
-
 model Question {
-  id                                   String          @id @default(uuid())
-  moduleId                             String          @map("module_id")
-  stepId                               String?
-  question                             String
-  answer                               String
-  videoTime                            Float?
-  isFAQ                                Boolean         @default(false) @map("is_faq")
-  userId                               String?
-  createdAt                            DateTime        @default(now())
-  lastUsedAt                           DateTime?
-  reuseCount                           Int             @default(0)
-  vector                               QuestionVector?
-  module                               Module          @relation(fields: [moduleId], references: [id])
-  step                                 Step?           @relation(fields: [stepId], references: [id])
+  id         String   @id
+  /// Use snake column in DB, keep camel in code
+  moduleId   String   @map("module_id")
+  stepId     String?  @map("stepId")
+  question   String
+  answer     String
+  videoTime  Float?
+  /// Prisma field using the snake column
+  isFAQ      Boolean  @default(false) @map("is_faq")
+  /// Legacy camel column exists in DB; ignore it so Prisma doesn't try to use it
+  legacyIsFAQ Boolean? @map("isFAQ") @ignore
+  userId     String?  @map("userId")
+  createdAt  DateTime @default(now()) @db.Timestamp(3)
+  lastUsedAt DateTime? @db.Timestamp(3)
+  reuseCount Int      @default(0)
 
-  @@index([reuseCount])
-  @@index([moduleId], map: "questions_moduleid_idx")
+  // Optional relations:
+  // module Module @relation(fields: [moduleId], references: [id])
+  // step   Step?  @relation(fields: [stepId], references: [id])
+
+  @@index([reuseCount], map: "questions_reuseCount_idx")
   @@map("questions")
 }
 
 model QuestionVector {
-  id         String   @id @default(uuid()) @db.Uuid
-  questionId String   @unique
-  embedding  Float[]
-  createdAt  DateTime @default(now())
-  modelName  String?  @default("openai-embedding-3-small")
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid()) // DB column is uuid; Prisma will store as String
+  questionId String   @map("questionId")
+  // Relation (optional)
+  // question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
+  embedding  Unsupported("vector") // pgvector(1536)
+
+  @@unique([questionId], map: "question_vectors_questionid_key")
   @@map("question_vectors")
 }
 
-model videos {
-  id        String   @id
-  moduleId  String   @unique
-  fileKey   String   @unique
-  status    String   @default("UPLOADING")
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-  modules   Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-}
-
-enum ModuleStatus {
-  UPLOADED
-  PROCESSING
-  READY
-  FAILED
+/// Minimal User so FKs to users(id) stop complaining (keep loose; add fields as needed)
+model User {
+  id String @id
+  @@map("users")
 }
