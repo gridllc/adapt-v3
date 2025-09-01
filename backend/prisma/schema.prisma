@@ -11,15 +11,15 @@ model Module {
   id        String         @id
   title     String
   filename  String
-  videoUrl  String
+  videoUrl  String         @map("video_url")
   progress  Int            @default(0)
-  userId    String?        @map("userId")
-  createdAt DateTime       @default(now())
-  updatedAt DateTime
-  lastError String?
-  s3Key     String?
+  userId    String?        @map("user_id")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @map("updated_at")
+  lastError String?        @map("last_error")
+  s3Key     String?        @map("s3_key")
   statuses  ModuleStatus[]
-  stepsKey  String?
+  stepsKey  String?        @map("steps_key")
   status    ModuleStatus   @default(UPLOADED) @map("status")
   feedbacks Feedback[]
   users     User?          @relation(fields: [userId], references: [id])
@@ -31,15 +31,15 @@ model Module {
 
 model Step {
   id             String     @id @default(cuid())
-  moduleId       String
+  moduleId       String     @map("module_id")
   order          Int
-  createdAt      DateTime   @default(now())
-  aiConfidence   Float?
-  confusionScore Float?
+  createdAt      DateTime   @default(now()) @map("created_at")
+  aiConfidence   Float?     @map("ai_confidence")
+  confusionScore Float?     @map("confusion_score")
   text           String
-  startTime      Int
-  endTime        Int
-  updatedAt      DateTime
+  startTime      Int        @map("start_time")
+  endTime        Int        @map("end_time")
+  updatedAt      DateTime   @map("updated_at")
   questions      Question[]
   module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
@@ -48,16 +48,16 @@ model Step {
 
 model Question {
   id             String          @id @default(cuid())
-  moduleId       String
-  stepId         String?
+  moduleId       String          @map("module_id")
+  stepId         String?         @map("step_id")
   question       String
   answer         String
-  videoTime      Float?
-  isFAQ          Boolean         @default(false)
-  userId         String?
-  createdAt      DateTime        @default(now())
-  lastUsedAt     DateTime?
-  reuseCount     Int             @default(0)
+  videoTime      Float?          @map("video_time")
+  isFAQ          Boolean         @default(false) @map("is_faq")
+  userId         String?         @map("user_id")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  lastUsedAt     DateTime?       @map("last_used_at")
+  reuseCount     Int             @default(0) @map("reuse_count")
   questionVector QuestionVector?
   modules        Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   step           Step?           @relation(fields: [stepId], references: [id], onDelete: SetNull, map: "fk_questions_step_id")
@@ -69,10 +69,10 @@ model Question {
 
 model QuestionVector {
   id         String   @id @default(uuid())
-  questionId String   @unique @map("questionId")
+  questionId String   @unique @map("question_id")
   embedding  Float[]
-  createdAt  DateTime @default(now())
-  modelName  String?  @default("openai-embedding-3-small")
+  createdAt  DateTime @default(now()) @map("created_at")
+  modelName  String?  @default("openai-embedding-3-small") @map("model_name")
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@map("question_vectors")
@@ -81,9 +81,9 @@ model QuestionVector {
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
-  clerkId       String?       @unique
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime
+  clerkId       String?       @unique @map("clerk_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @map("updated_at")
   activity_logs ActivityLog[]
   modules       Module[]
   questions     Question[]
@@ -93,12 +93,12 @@ model User {
 
 model Feedback {
   id        String   @id @default(cuid())
-  moduleId  String
+  moduleId  String   @map("module_id")
   type      String
   action    String
   context   String?
-  sessionId String?
-  createdAt DateTime @default(now())
+  sessionId String?  @map("session_id")
+  createdAt DateTime @default(now()) @map("created_at")
   module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@map("feedbacks")
@@ -106,25 +106,25 @@ model Feedback {
 
 model AIInteraction {
   id          String   @id @default(cuid())
-  moduleId    String
-  userMessage String
-  aiResponse  String
+  moduleId    String   @map("module_id")
+  userMessage String   @map("user_message")
+  aiResponse  String   @map("ai_response")
   source      String?
   context     Json?
-  createdAt   DateTime @default(now())
-  sourceModel String?
-  usedMemory  Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  sourceModel String?  @map("source_model")
+  usedMemory  Boolean  @default(false) @map("used_memory")
 
   @@map("ai_interactions")
 }
 
 model TrainingSession {
   id        String    @id @default(cuid())
-  moduleId  String
-  userId    String?
-  sessionId String
-  startedAt DateTime  @default(now())
-  endedAt   DateTime?
+  moduleId  String    @map("module_id")
+  userId    String?   @map("user_id")
+  sessionId String    @map("session_id")
+  startedAt DateTime  @default(now()) @map("started_at")
+  endedAt   DateTime? @map("ended_at")
   duration  Int?
 
   @@map("training_sessions")
@@ -132,11 +132,11 @@ model TrainingSession {
 
 model ActivityLog {
   id        String   @id @default(cuid())
-  userId    String?
+  userId    String?  @map("user_id")
   action    String
-  targetId  String?
+  targetId  String?  @map("target_id")
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
   users     User?    @relation(fields: [userId], references: [id])
 
   @@map("activity_logs")

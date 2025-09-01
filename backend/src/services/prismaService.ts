@@ -403,7 +403,7 @@ export class DatabaseService {
       const queryPromise = prisma.$queryRawUnsafe(`
         SELECT
           q."id", q."moduleId", q."stepId", q."question", q."answer",
-          q."videoTime", q."isFAQ", q."userId", q."createdAt", q."updatedAt",
+          q."videoTime", q."isFAQ", q."userId", q."createdAt",
           qv."embedding",
           1 - (qv."embedding" <=> $1::vector) AS similarity
         FROM question_vectors qv
@@ -437,8 +437,7 @@ export class DatabaseService {
             videoTime: item.videoTime,
             isFAQ: item.isFAQ,
             userId: item.userId,
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt
+            createdAt: item.createdAt
           }
         }))
 
@@ -602,4 +601,4 @@ export class DatabaseService {
       return false
     }
   }
-} 
+}

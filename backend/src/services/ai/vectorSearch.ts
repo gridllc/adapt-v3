@@ -22,7 +22,7 @@ export async function findSimilarQuestionsScoped(
   const vec = `[${embedding.join(',')}]`;
   return prisma.$queryRawUnsafe<any[]>(`
     SELECT q.id, q."moduleId", q."stepId", q.question, q.answer,
-           q."videoTime", q."isFAQ", q."userId", q."createdAt",
+           q."videoTime", q."isFAQ", q."userId", q.created_at,
            (1 - (qv.embedding <-> ${vec}::vector)) AS similarity
     FROM question_vectors qv
     JOIN questions q ON q.id = qv.question_id
