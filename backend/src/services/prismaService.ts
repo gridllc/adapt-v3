@@ -1,6 +1,9 @@
 import { prisma } from '../config/database.js'
-import { ModuleStatus } from '@prisma/client'
+// import { ModuleStatus } from '@prisma/client' - removed from schema
 import { calculateCosineSimilarity } from '../utils/vectorUtils.js'
+
+// Define module status values inline
+export type ModuleStatus = 'UPLOADED' | 'PROCESSING' | 'READY' | 'FAILED'
 
 // Type definitions for better type safety
 interface VectorWithEmbedding {
@@ -325,7 +328,7 @@ export class DatabaseService {
         step: {
           select: { text: true, startTime: true }
         }
-      }
+      } as any
     })
   }
 
@@ -340,7 +343,7 @@ export class DatabaseService {
         step: {
           select: { text: true, startTime: true }
         }
-      }
+      } as any
     })
   }
 
@@ -581,7 +584,7 @@ export class DatabaseService {
         step: {
           select: { text: true, startTime: true }
         }
-      }
+      } as any
     })
   }
 

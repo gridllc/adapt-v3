@@ -37,11 +37,12 @@ export class ModuleService {
         // Try to get user info from Clerk
         let userEmail = `user-${userId}@temp.local`
         try {
-          const { clerkClient } = await import('@clerk/clerk-sdk-node')
-          const clerkUser = await clerkClient.users.getUser(userId)
-          if (clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
-            userEmail = clerkUser.emailAddresses[0].emailAddress
-          }
+          // Temporarily disabled - Clerk SDK not available
+          // const { clerkClient } = await import('@clerk/clerk-sdk-node')
+          // const clerkUser = await clerkClient.users.getUser(userId)
+          // if (clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
+          //   userEmail = clerkUser.emailAddresses[0].emailAddress
+          // }
         } catch (error) {
           console.warn(`⚠️ Could not fetch user info from Clerk for ${userId}:`, error)
         }

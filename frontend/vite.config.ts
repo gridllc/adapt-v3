@@ -27,7 +27,7 @@ export default defineConfig({
     strictPort: true, // Force port 5173 - matches Clerk configuration
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://localhost:8001',
         changeOrigin: true,
       },
     },
