@@ -6,16 +6,13 @@ export async function findSimilarQuestions(embedding: number[], topN = 5) {
     SELECT q.id, q.question, q.answer,
            (qv.embedding <-> ${vec}::vector) AS distance
     FROM question_vectors qv
-    JOIN questions q ON q.id = qv."questionId"
+    JOIN questions q ON q.id = qv.question_id
     WHERE qv.embedding IS NOT NULL
     ORDER BY qv.embedding <-> ${vec}::vector
     LIMIT ${Number(topN)}
   `);
 }
 
-/**
- * Enhanced version with module scoping and similarity threshold
- */
 export async function findSimilarQuestionsScoped(
   embedding: number[],
   moduleIds: string[],
@@ -28,7 +25,7 @@ export async function findSimilarQuestionsScoped(
            q."videoTime", q."isFAQ", q."userId", q."createdAt",
            (1 - (qv.embedding <-> ${vec}::vector)) AS similarity
     FROM question_vectors qv
-    JOIN questions q ON q.id = qv."questionId"
+    JOIN questions q ON q.id = qv.question_id
     WHERE q."moduleId" = ANY(ARRAY[${moduleIds.map(id => `'${id}'`).join(',')}])
       AND qv.embedding IS NOT NULL
       AND (1 - (qv.embedding <-> ${vec}::vector)) >= ${threshold}
@@ -37,9 +34,6 @@ export async function findSimilarQuestionsScoped(
   `);
 }
 
-/**
- * Simple vector search without module filtering
- */
 export async function findSimilarQuestionsGlobal(
   embedding: number[],
   topN = 5
@@ -50,7 +44,7 @@ export async function findSimilarQuestionsGlobal(
            (qv.embedding <-> ${vec}::vector) AS distance,
            (1 - (qv.embedding <-> ${vec}::vector)) AS similarity
     FROM question_vectors qv
-    JOIN questions q ON q.id = qv."questionId"
+    JOIN questions q ON q.id = qv.question_id
     WHERE qv.embedding IS NOT NULL
     ORDER BY qv.embedding <-> ${vec}::vector
     LIMIT ${Number(topN)}
