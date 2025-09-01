@@ -8,26 +8,23 @@ datasource db {
 }
 
 model Module {
-  id                                    String         @id
-  title                                 String
-  filename                              String
-  videoUrl                              String
-  progress                              Int            @default(0)
-  userId                                String?        @map("userId")
-  createdAt                             DateTime       @default(now())
-  updatedAt                             DateTime
-  lastError                             String?
-  s3Key                                 String?
-  statuses                              ModuleStatus[]
-  stepsKey                              String?
-  status                                ModuleStatus   @default(UPLOADED) @map("status")
-  transcriptJobId                       String?
-  transcriptText                        String?
-  feedbacks                             Feedback[]
-  users                                 User?          @relation(fields: [userId], references: [id])
-  questions_questions_moduleIdTomodules Question[]     @relation("questions_moduleIdTomodules")
-  questions                             Question[]
-  steps                                 Step[]
+  id        String         @id
+  title     String
+  filename  String
+  videoUrl  String
+  progress  Int            @default(0)
+  userId    String?        @map("userId")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime
+  lastError String?
+  s3Key     String?
+  statuses  ModuleStatus[]
+  stepsKey  String?
+  status    ModuleStatus   @default(UPLOADED) @map("status")
+  feedbacks Feedback[]
+  users     User?          @relation(fields: [userId], references: [id])
+  questions Question[]
+  steps     Step[]
 
   @@map("modules")
 }
@@ -43,8 +40,6 @@ model Step {
   startTime      Int
   endTime        Int
   updatedAt      DateTime
-  aliases        String[]   @default([])
-  notes          String?
   questions      Question[]
   module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
@@ -52,21 +47,23 @@ model Step {
 }
 
 model Question {
-  id                                  String   @id @default(cuid())
-  moduleId                            String?  @map("module_id")
-  stepId                              String?  @map("step_id")
-  question                            String
-  answer                              String?
-  isFAQ                               Boolean  @default(false) @map("is_faq")
-  userId                              String?  @map("user_id") // keep snake_case in DB; adjust @map if your DB currently has "userId"
-  videoTime                           Float?
-  createdAt                           DateTime @default(now()) @map("created_at")
+  id             String          @id @default(cuid())
+  moduleId       String
+  stepId         String?
+  question       String
+  answer         String
+  videoTime      Float?
+  isFAQ          Boolean         @default(false)
+  userId         String?
+  createdAt      DateTime        @default(now())
+  lastUsedAt     DateTime?
+  reuseCount     Int             @default(0)
+  questionVector QuestionVector?
+  modules        Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  step           Step?           @relation(fields: [stepId], references: [id], onDelete: SetNull, map: "fk_questions_step_id")
+  users          User?           @relation(fields: [userId], references: [id])
 
-  // Relations to match Module model
-  modules_questions_moduleIdTomodules Module   @relation("questions_moduleIdTomodules", fields: [moduleId], references: [id])
-  module                              Module?  @relation(fields: [moduleId], references: [id])
-
-  @@index([moduleId])
+  @@index([reuseCount])
   @@map("questions")
 }
 

@@ -25,7 +25,10 @@ export class DatabaseService {
     clerkId?: string
   }) {
     return await prisma.user.create({
-      data
+      data: {
+        ...data,
+        updatedAt: new Date()
+      }
     })
   }
 
@@ -69,6 +72,7 @@ export class DatabaseService {
           userId: data.userId || null,
           s3Key: data.s3Key || null,
           stepsKey: data.stepsKey || null,
+          updatedAt: new Date(),
         }
       })
       return module
@@ -154,6 +158,7 @@ export class DatabaseService {
   }>) {
     const stepData = steps.map((step, index) => ({
       moduleId,
+      updatedAt: new Date(),
       text: step.text || step.title || step.description || '',
       startTime: step.startTime || step.timestamp || 0,
       endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),

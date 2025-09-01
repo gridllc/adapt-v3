@@ -124,6 +124,7 @@ export const uploadController = {
           stepsKey: `training/${moduleId}.json`,
           status: 'PROCESSING',
           progress: 1,
+          updatedAt: new Date(),
           title,
           filename: filename || title + '.mp4',
           videoUrl: `https://${Bucket}.s3.amazonaws.com/${key}`,

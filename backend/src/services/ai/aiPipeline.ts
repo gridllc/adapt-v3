@@ -143,7 +143,8 @@ export async function process(ctx: { moduleId: string; s3Key: string; title?: st
         filename: moduleTitle + '.mp4',
         videoUrl: `https://${bucketName}.s3.amazonaws.com/${s3Key}`,
         status: 'PROCESSING',
-        progress: 0
+        progress: 0,
+        updatedAt: new Date()
       },
     })
   }

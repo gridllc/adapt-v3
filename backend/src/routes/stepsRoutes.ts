@@ -67,6 +67,7 @@ router.get('/:moduleId', async (req, res) => {
               data: {
                 moduleId,
                 order: i,
+                updatedAt: new Date(),
                 startTime: Math.max(0, Number(s.start) || 0),
                 endTime: Math.max(0, Number(s.end) || 0),
                 text: String(s.title || s.description || `Step ${i + 1}`),

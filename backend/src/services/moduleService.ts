@@ -49,7 +49,8 @@ export class ModuleService {
         user = await prisma.user.create({
           data: {
             clerkId: userId,
-            email: userEmail
+            email: userEmail,
+            updatedAt: new Date()
           }
         })
       }
@@ -527,6 +528,7 @@ export class ModuleService {
       const stepData = steps.map((step, index) => ({
         moduleId: moduleId,
         order: index + 1,
+        updatedAt: new Date(),
         text: step.text || step.title || step.description || '',
         startTime: step.startTime || step.timestamp || 0,
         endTime: step.endTime || (step.startTime || step.timestamp || 0) + (step.duration || 15),
