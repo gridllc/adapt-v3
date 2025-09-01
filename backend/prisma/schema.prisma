@@ -7,160 +7,147 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ---------- Enums (local TypeScript can still import ModuleStatus if needed) ----------
-enum ModuleStatus {
-  UPLOADED
-  PROCESSING
-  READY
-  FAILED
-}
-
-// ---------- Core models ----------
-
 model Module {
-  id              String        @id
-  title           String
-  filename        String
-  videoUrl        String
-  progress        Int           @default(0)
-  userId          String?       @map("userId")
-  createdAt       DateTime      @default(now()) @db.Timestamp(3)
-  updatedAt       DateTime      @default(now()) @db.Timestamp(3)
-  lastError       String?
-  s3Key           String?
-  statuses        String[]      @db.Text       // keep array column you already have
-  stepsKey        String?
-  status          ModuleStatus  @map("status") @default(UPLOADED) // bring 'status' back
-  transcriptJobId String?
-  transcriptText  String?
-
-  // Relations (restore for typing)
-  steps      Step[]
-  questions  Question[]
-  feedbacks  Feedback[]
+  id                                    String         @id
+  title                                 String
+  filename                              String
+  videoUrl                              String
+  progress                              Int            @default(0)
+  userId                                String?        @map("userId")
+  createdAt                             DateTime       @default(now())
+  updatedAt                             DateTime
+  lastError                             String?
+  s3Key                                 String?
+  statuses                              ModuleStatus[]
+  stepsKey                              String?
+  status                                ModuleStatus   @default(UPLOADED) @map("status")
+  transcriptJobId                       String?
+  transcriptText                        String?
+  feedbacks                             Feedback[]
+  users                                 User?          @relation(fields: [userId], references: [id])
+  questions_questions_moduleIdTomodules Question[]     @relation("questions_moduleIdTomodules")
+  questions                             Question[]
+  steps                                 Step[]
 
   @@map("modules")
 }
 
 model Step {
-  id             String    @id @default(cuid())
+  id             String     @id @default(cuid())
   moduleId       String
   order          Int
-  createdAt      DateTime  @default(now()) @db.Timestamp(3)
+  createdAt      DateTime   @default(now())
   aiConfidence   Float?
   confusionScore Float?
   text           String
   startTime      Int
   endTime        Int
-  updatedAt      DateTime  @default(now()) @db.Timestamp(3)
-  aliases        String[]  @db.Text
+  updatedAt      DateTime
+  aliases        String[]   @default([])
   notes          String?
-
-  // Relation back to Module
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  // Questions relation (optional)
-  questions Question[]
+  questions      Question[]
+  module         Module     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
   @@map("steps")
 }
 
 model Question {
-  id         String   @id @default(cuid())
-  // Use snake in DB, camel in code
-  moduleId   String   @map("module_id")
-  stepId     String?  @map("stepId")
-  question   String
-  answer     String
-  videoTime  Float?
-  isFAQ      Boolean  @default(false) @map("is_faq")
-  // Legacy camel exists in DB; ignore to avoid conflicts
-  legacyIsFAQ Boolean? @map("isFAQ") @ignore
-  userId     String?  @map("userId")
-  createdAt  DateTime @default(now()) @db.Timestamp(3)
-  lastUsedAt DateTime? @db.Timestamp(3)
-  reuseCount Int      @default(0)
+  id                                  String   @id @default(cuid())
+  moduleId                            String?  @map("module_id")
+  stepId                              String?  @map("step_id")
+  question                            String
+  answer                              String?
+  isFAQ                               Boolean  @default(false) @map("is_faq")
+  userId                              String?  @map("user_id") // keep snake_case in DB; adjust @map if your DB currently has "userId"
+  videoTime                           Float?
+  createdAt                           DateTime @default(now()) @map("created_at")
 
-  // Relations
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  step   Step?  @relation(fields: [stepId], references: [id], onUpdate: Cascade)
-  vector QuestionVector?
+  // Relations to match Module model
+  modules_questions_moduleIdTomodules Module   @relation("questions_moduleIdTomodules", fields: [moduleId], references: [id])
+  module                              Module?  @relation(fields: [moduleId], references: [id])
 
-  @@index([reuseCount], map: "questions_reuseCount_idx")
+  @@index([moduleId])
   @@map("questions")
 }
 
 model QuestionVector {
-  id         String @id @default(uuid()) @db.Uuid
-  questionId String @map("questionId")
-
-  // Store as Float array for pgvector compatibility
+  id         String   @id @default(uuid())
+  questionId String   @unique @map("questionId")
   embedding  Float[]
+  createdAt  DateTime @default(now())
+  modelName  String?  @default("openai-embedding-3-small")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
-  // Relation (optional)
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  @@unique([questionId], map: "question_vectors_questionid_key")
   @@map("question_vectors")
 }
 
-// ---------- Minimal models needed by code (stubs to satisfy Prisma Client) ----------
-
 model User {
-  id      String @id @default(cuid())
-  email   String? @unique
-  clerkId String? @unique
+  id            String        @id @default(cuid())
+  email         String        @unique
+  clerkId       String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
+  activity_logs ActivityLog[]
+  modules       Module[]
+  questions     Question[]
+
   @@map("users")
 }
 
 model Feedback {
   id        String   @id @default(cuid())
   moduleId  String
-  userId    String?
-  action    String?
-  comment   String?
-  rating    Int?
-  createdAt DateTime  @default(now()) @db.Timestamp(3)
+  type      String
+  action    String
+  context   String?
+  sessionId String?
+  createdAt DateTime @default(now())
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 
-  module Module @relation(fields: [moduleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   @@map("feedbacks")
 }
 
 model AIInteraction {
   id          String   @id @default(cuid())
-  moduleId    String?
-  userId      String?
-  userMessage String?
-  aiResponse  String?
+  moduleId    String
+  userMessage String
+  aiResponse  String
   source      String?
-  context     String?
-  kind        String?
-  payload     String?
-  createdAt   DateTime  @default(now()) @db.Timestamp(3)
+  context     Json?
+  createdAt   DateTime @default(now())
   sourceModel String?
   usedMemory  Boolean  @default(false)
+
   @@map("ai_interactions")
 }
 
 model TrainingSession {
   id        String    @id @default(cuid())
-  moduleId  String?
+  moduleId  String
   userId    String?
   sessionId String
-  startedAt DateTime  @default(now()) @db.Timestamp(3)
+  startedAt DateTime  @default(now())
   endedAt   DateTime?
   duration  Int?
-  data      String?
+
   @@map("training_sessions")
 }
 
 model ActivityLog {
   id        String   @id @default(cuid())
-  moduleId  String?
   userId    String?
   action    String
   targetId  String?
-  metadata  String?
-  createdAt DateTime  @default(now()) @db.Timestamp(3)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  users     User?    @relation(fields: [userId], references: [id])
+
   @@map("activity_logs")
+}
+
+enum ModuleStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  FAILED
 }
