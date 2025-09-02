@@ -144,7 +144,6 @@ router.get('/:id', async (req, res) => {
         steps: {
           orderBy: { order: 'asc' }
         },
-        feedbacks: true,
         questions: true
       }
     })
@@ -166,7 +165,7 @@ router.get('/:id', async (req, res) => {
       module: {
         ...module,
         stepCount: module.steps.length,
-        feedbackCount: module.feedbacks.length,
+        feedbackCount: 0, // Temporarily disabled due to table issues
         questionCount: module.questions.length,
         // Include lastError for frontend error display
         lastError: module.lastError
