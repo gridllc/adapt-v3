@@ -78,7 +78,7 @@ export async function authenticatedApi(endpoint: string, options?: RequestInit) 
   try {
     const { useAuth } = await import('@clerk/clerk-react')
     const { getToken } = useAuth()
-    token = await getToken()
+    token = await getToken({ template: 'api' })
   } catch {}
 
   const controller = new AbortController()

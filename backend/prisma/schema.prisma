@@ -11,16 +11,16 @@ model Module {
   id        String         @id
   title     String
   filename  String
-  videoUrl  String         @map("video_url")
+  videoUrl  String
   progress  Int            @default(0)
-  userId    String?        @map("user_id")
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @map("updated_at")
-  lastError String?        @map("last_error")
-  s3Key     String?        @map("s3_key")
+  userId    String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime
+  lastError String?
+  s3Key     String?
   statuses  ModuleStatus[]
-  stepsKey  String?        @map("steps_key")
-  status    ModuleStatus   @default(UPLOADED) @map("status")
+  stepsKey  String?
+  status    ModuleStatus   @default(UPLOADED)
   feedbacks Feedback[]
   users     User?          @relation(fields: [userId], references: [id])
   questions Question[]
@@ -81,9 +81,9 @@ model QuestionVector {
 model User {
   id            String        @id @default(cuid())
   email         String        @unique
-  clerkId       String?       @unique @map("clerk_id")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @map("updated_at")
+  clerkId       String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime
   activity_logs ActivityLog[]
   modules       Module[]
   questions     Question[]
