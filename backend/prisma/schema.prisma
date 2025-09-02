@@ -70,7 +70,7 @@ model Question {
 model QuestionVector {
   id         String   @id @default(uuid())
   questionId String   @unique @map("question_id")
-  embedding  Float[]
+  embedding  Unsupported("vector(1536)")?
   createdAt  DateTime @default(now()) @map("created_at")
   modelName  String?  @default("openai-embedding-3-small") @map("model_name")
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
