@@ -31,7 +31,7 @@ model Module {
 
 model Step {
   id             String     @id @default(cuid())
-  moduleId       String
+  moduleId       String     @map("module_id")
   order          Int
   createdAt      DateTime   @default(now())
   aiConfidence   Float?
@@ -48,16 +48,16 @@ model Step {
 
 model Question {
   id             String          @id @default(cuid())
-  moduleId       String
-  stepId         String?
+  moduleId       String          @map("module_id")
+  stepId         String?         @map("step_id")
   question       String
   answer         String
-  videoTime      Float?
-  isFAQ          Boolean         @default(false)
-  userId         String?
+  videoTime      Float?          @map("video_time")
+  isFAQ          Boolean         @default(false) @map("is_faq")
+  userId         String?         @map("user_id")
   createdAt      DateTime        @default(now())
-  lastUsedAt     DateTime?
-  reuseCount     Int             @default(0)
+  lastUsedAt     DateTime?       @map("last_used_at")
+  reuseCount     Int             @default(0) @map("reuse_count")
   questionVector QuestionVector?
   modules        Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   step           Step?           @relation(fields: [stepId], references: [id], onDelete: SetNull)
@@ -70,11 +70,13 @@ model Question {
 model QuestionVector {
   id         String   @id @default(uuid())
   questionId String   @unique @map("question_id")
-  embedding  Float[]
-  createdAt  DateTime @default(now())
-  modelName  String?  @default("openai-embedding-3-small")
+  embedding  Unsupported("vector(1536)")
+  createdAt  DateTime @default(now()) @map("created_at")
+  modelName  String?  @default("openai-embedding-3-small") @map("model_name")
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
+  @@unique([questionId], map: "question_vectors_questionId_key")
+  @@index([embedding], type: Gin, map: "question_vectors_embedding_idx")
   @@map("question_vectors")
 }
 

@@ -146,6 +146,9 @@ export const uploadController = {
         // Don't crash the upload response - the pipeline will handle its own status updates
       }
 
+      // Required log line for upload tracking
+      console.info('[UPLOAD] complete', { moduleId, key: Key })
+
       console.info('[UploadComplete] OK', {
         rid,
         moduleId,

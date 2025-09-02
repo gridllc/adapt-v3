@@ -38,6 +38,9 @@ async function step(moduleId: string, phase: Phase, pct: number, fn: () => Promi
 
 // Main robust pipeline (QStash handles deduplication)
 export async function runPipeline(moduleId: string, s3Key: string) {
+  // Required log line for upload tracking
+  console.info('[PIPELINE] start', { moduleId })
+
   console.info('[AIPipeline] ENTER', { moduleId, s3Key })
   const rid: string = 'pipeline-' + moduleId
 
