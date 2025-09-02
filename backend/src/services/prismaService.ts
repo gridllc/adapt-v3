@@ -372,12 +372,15 @@ export class DatabaseService {
       throw new Error(`Invalid vector size — must be 1536 dimensions, got ${data.embedding.length}`)
     }
 
-    return await prisma.questionVector.create({
-      data: {
-        questionId: data.questionId,
-        embedding: data.embedding
-      }
-    })
+    // Use raw SQL since QuestionVector uses Unsupported("vector(1536)")
+    const vec = `[${data.embedding.join(',')}]`
+    return await prisma.$executeRawUnsafe(`
+      INSERT INTO question_vectors (id, question_id, embedding, created_at)
+      VALUES (gen_random_uuid(), $1, $2::vector, NOW())
+      ON CONFLICT (question_id) DO UPDATE SET
+        embedding = EXCLUDED.embedding,
+        created_at = NOW()
+    `, data.questionId, vec)
   }
 
   /**
@@ -466,29 +469,61 @@ export class DatabaseService {
       console.log(`🔄 JS fallback search for module: ${moduleId}`)
 
       // Add timeout to prevent connection pool exhaustion
-      const queryPromise = prisma.questionVector.findMany({
-        where: {
-          question: {
-            moduleId
-          }
-        },
-        include: {
-          question: true
-        }
-      })
+      const queryPromise = prisma.$queryRawUnsafe(`
+        SELECT
+          qv.id,
+          qv.question_id as "questionId",
+          qv.embedding,
+          qv.created_at as "createdAt",
+          q.id as "q_id",
+          q.question,
+          q.answer,
+          q.module_id as "moduleId",
+          q.step_id as "stepId",
+          q.video_time as "videoTime",
+          q.is_faq as "isFAQ",
+          q.user_id as "userId",
+          q.created_at as "q_createdAt",
+          q.last_used_at as "lastUsedAt",
+          q.reuse_count as "reuseCount"
+        FROM question_vectors qv
+        JOIN questions q ON q.id = qv.question_id
+        WHERE q.module_id = $1
+      `, moduleId)
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('JS fallback query timeout')), 3000)
       )
 
-      const vectors = await Promise.race([queryPromise, timeoutPromise]) as any[]
+      const rawResults = await Promise.race([queryPromise, timeoutPromise]) as any[]
 
-      console.log(`📊 JS fallback found ${vectors.length} vectors`)
+      console.log(`📊 JS fallback found ${rawResults.length} vectors`)
 
-      if (vectors.length === 0) {
+      if (rawResults.length === 0) {
         console.log('📭 No vectors found in database - returning empty results')
         return []
       }
+
+      // Transform flat SQL results to nested structure expected by JS code
+      const vectors = rawResults.map((row: any) => ({
+        id: row.id,
+        questionId: row.questionId,
+        embedding: row.embedding,
+        createdAt: row.createdAt,
+        question: {
+          id: row.q_id,
+          question: row.question,
+          answer: row.answer,
+          moduleId: row.moduleId,
+          stepId: row.stepId,
+          videoTime: row.videoTime,
+          isFAQ: row.isFAQ,
+          userId: row.userId,
+          createdAt: row.q_createdAt,
+          lastUsedAt: row.lastUsedAt,
+          reuseCount: row.reuseCount
+        }
+      }))
 
       // Calculate cosine similarity and filter by threshold
       const similarQuestions = vectors
