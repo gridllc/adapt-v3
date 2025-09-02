@@ -136,7 +136,8 @@ router.get('/stats', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params
-    
+    console.log(`[MODULE] Getting module: ${id}`)
+
     const module = await prisma.module.findUnique({
       where: { id },
       include: {
@@ -148,12 +149,17 @@ router.get('/:id', async (req, res) => {
       }
     })
 
+    console.log(`[MODULE] Module found:`, !!module)
+
     if (!module) {
+      console.log(`[MODULE] Module ${id} not found`)
       return res.status(404).json({
         success: false,
         error: 'Module not found'
       })
     }
+
+    console.log(`[MODULE] Module data: ${module.steps.length} steps, ${module.questions.length} questions`)
 
     res.json({
       success: true,

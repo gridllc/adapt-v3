@@ -58,7 +58,9 @@ router.get('/:moduleId', async (req, res) => {
     // 2) Try S3 JSON (source of truth)
     const s3Key = `training/${moduleId}.json`
     try {
+      console.log(`[STEPS] Trying S3 key: ${s3Key}`)
       const data = await readS3Json(s3Key)
+      console.log(`[STEPS] S3 data found with ${data?.steps?.length || 0} steps`)
       if (Array.isArray(data?.steps) && data.steps.length > 0) {
         // (optional) hydrate DB in background
         prisma.$transaction(
@@ -78,13 +80,17 @@ router.get('/:moduleId', async (req, res) => {
         res.set('Cache-Control', 'no-store')
         return ok(res, { steps: data.steps, transcript: data.transcript ?? '', meta: data.meta ?? {} })
       }
-    } catch (_) {
+    } catch (s3Error: any) {
+      console.log(`[STEPS] S3 read failed for ${s3Key}:`, s3Error?.message)
       // not found is fine; fall through
     }
 
     // 3) Transient fallback (DO NOT persist). Just return something so UI renders,
     // and let the client continue polling for real steps written by the pipeline.
+    console.log(`[STEPS] Using fallback for module: ${moduleId}`)
     const module = await prisma.module.findUnique({ where: { id: moduleId } })
+    console.log(`[STEPS] Module lookup result:`, !!module)
+
     const durationSec = Number((module as any)?.durationSec || 60)
     const chunk = Math.max(5, Math.floor(durationSec / 3))
     const steps = [
@@ -93,6 +99,7 @@ router.get('/:moduleId', async (req, res) => {
       { id: 's3', start: chunk * 2,  end: durationSec,  title: 'Finish',      description: 'Wrap up and verify.' },
     ]
 
+    console.log(`[STEPS] Generated ${steps.length} fallback steps`)
     // NOTE: no write to S3 here, no DB seed here.
     res.set('Cache-Control', 'no-store')
     return res.status(200).json({
