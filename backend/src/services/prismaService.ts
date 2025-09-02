@@ -372,15 +372,9 @@ export class DatabaseService {
       throw new Error(`Invalid vector size — must be 1536 dimensions, got ${data.embedding.length}`)
     }
 
-    // Use raw SQL since QuestionVector uses Unsupported("vector(1536)")
-    const vec = `[${data.embedding.join(',')}]`
-    return await prisma.$executeRawUnsafe(`
-      INSERT INTO question_vectors (id, question_id, embedding, created_at)
-      VALUES (gen_random_uuid(), $1, $2::vector, NOW())
-      ON CONFLICT (question_id) DO UPDATE SET
-        embedding = EXCLUDED.embedding,
-        created_at = NOW()
-    `, data.questionId, vec)
+    // For now, skip vector creation since pgvector is not available
+    console.log('⚠️ Vector creation disabled - pgvector extension not available')
+    return null
   }
 
   /**
