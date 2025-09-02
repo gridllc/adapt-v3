@@ -119,7 +119,7 @@ const configureMiddleware = () => {
     'http://localhost:3000',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    'http://localhost:5174', 
+    'http://localhost:5174',
     'http://localhost:5175',
     'http://localhost:5176',
     'http://localhost:5177',
@@ -144,10 +144,10 @@ const configureMiddleware = () => {
       .split(',')
       .map(s => s.trim())
       .filter(Boolean)
-    
+
     // Add environment origins to the list
     allowedOrigins.push(...envOrigins)
-    
+
     console.log('🌐 CORS: Added environment origins:', envOrigins)
   }
 
@@ -162,10 +162,10 @@ const configureMiddleware = () => {
         console.log('🌐 CORS: Allowing request with no origin (server-to-server)')
         return cb(null, true)
       }
-      
+
       // Check if origin is in allowed list
       const isAllowed = uniqueOrigins.some(allowed => allowed === origin)
-      
+
       if (isAllowed) {
         console.log(`🌐 CORS: Allowing origin: ${origin}`)
         return cb(null, true)
@@ -821,6 +821,8 @@ const initializeServer = async () => {
       })
       console.log('✅ DEV MODE: Feedback stats stub added')
     }
+
+
 
     console.log('🚨 Configuring error handling...')
     configureErrorHandling()

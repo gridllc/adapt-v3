@@ -85,37 +85,53 @@ export const stepsController = {
     try {
       const { moduleId } = req.params
       console.log(`📖 Getting steps for moduleId: ${moduleId}`)
-      
+
+      // TEMPORARY: Return hardcoded response to test routing
+      return res.json({
+        success: true,
+        steps: [{
+          id: 'test-step-1',
+          moduleId: moduleId,
+          order: 1,
+          text: 'Test step - routing works',
+          startTime: 0,
+          endTime: 5
+        }],
+        source: 'hardcoded-test',
+        moduleId
+      })
+
+      /* COMMENTED OUT FOR TESTING
       // Get module to find stepsKey and check status
       const { DatabaseService } = await import('../services/prismaService.js')
       const m = await DatabaseService.getModule(moduleId)
       if (!m) {
         return res.status(404).json({ error: 'Module not found' })
       }
-      
+
       // Check if module is still processing
       if (m.status && m.status !== 'READY') {
         console.log(`⏳ Module ${moduleId} still processing, status: ${m.status}, progress: ${m.progress || 0}`)
-        return res.status(202).json({ 
-          processing: true, 
-          status: m.status, 
+        return res.status(202).json({
+          processing: true,
+          status: m.status,
           progress: m.progress ?? 0,
-          moduleId 
+          moduleId
         })
       }
-      
+
       // Use stepsKey if it exists, otherwise generate a default key
       const key = (m as any).stepsKey ?? `training/${moduleId}.json`
       console.log(`🔍 Using stepsKey: ${key}`)
-      
+
       try {
         // Try to get steps from S3 using storageService
         const { storageService } = await import('../services/storageService.js')
         const doc = await storageService.getJson(key)
         console.log(`✅ Retrieved steps from S3: ${key}`)
-        
-        return res.json({ 
-          success: true, 
+
+        return res.json({
+          success: true,
           steps: doc?.steps ?? [],
           transcript: doc?.transcript ?? '',
           meta: doc?.meta ?? {},
@@ -124,17 +140,17 @@ export const stepsController = {
         })
       } catch (s3Error) {
         console.log(`⚠️ S3 retrieval failed, checking database fallback:`, s3Error)
-        
+
         try {
           // Try to get steps from database as fallback
           const dbSteps = await DatabaseService.getSteps(moduleId)
-          
+
           if (dbSteps && dbSteps.length > 0) {
             console.log(`✅ Found ${dbSteps.length} steps in database for module: ${moduleId}`)
-            
+
             // Convert database steps to frontend format
             const normalizedSteps = dbSteps.map((step: any, index: number) => normalizeStep(step, index))
-            
+
             return res.json({
               success: true,
               moduleId,
@@ -152,18 +168,19 @@ export const stepsController = {
         } catch (dbError) {
           console.log(`⚠️ Database fallback failed:`, dbError)
         }
-        
+
         // If we get here, the module is READY but no steps found - this is an error
         console.log(`❌ Module ${moduleId} is READY but no steps found`)
-        return res.status(404).json({ 
+        return res.status(404).json({
           error: 'Steps not found',
           message: 'Module processing is complete but no steps were generated',
-          moduleId 
+          moduleId
         })
       }
+      */
     } catch (error) {
       console.error('❌ Get steps error:', error)
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to get steps',
         message: error instanceof Error ? error.message : 'Unknown error'
       })

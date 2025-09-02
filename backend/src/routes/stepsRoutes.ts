@@ -46,6 +46,20 @@ router.get('/:moduleId', async (req, res) => {
   try {
     console.info('[STEPS] Getting steps for', { moduleId, rid })
 
+    // TEMPORARY: Return hardcoded response to test routing
+    return ok(res, {
+      steps: [{
+        id: 'test-step-1',
+        moduleId: moduleId,
+        order: 1,
+        text: 'Test step - routing works',
+        startTime: 0,
+        endTime: 5
+      }],
+      source: 'hardcoded-test'
+    })
+
+    /* COMMENTED OUT FOR TESTING
     // 1) DB first
     const dbSteps = await prisma.step.findMany({
       where: { moduleId },
@@ -107,6 +121,7 @@ router.get('/:moduleId', async (req, res) => {
       steps,
       meta: { durationSec, source: 'fallback-transient' },
     })
+    */
   } catch (err: any) {
     console.error('[GET /steps/:moduleId] ERROR', err?.message)
     return fail(res, 500, 'Could not load steps')
