@@ -24,6 +24,7 @@ import { adminRoutes } from './routes/adminRoutes.js'
 import { qaRoutes } from './routes/qaRoutes.js'
 import { workerRoutes } from './routes/workerRoutes.js'
 import { requireAuth, optionalAuth } from './middleware/auth.js'
+import { clerkMiddleware, requireAuth as clerkRequireAuth } from '@clerk/express'
 import { testAuthRoutes } from './routes/testAuth.js'
 import debugRoutes from './routes/debugRoutes.js'
 import { requestLogger } from './middleware/requestLogger.js'
@@ -170,7 +171,7 @@ const configureMiddleware = () => {
         return cb(new Error(`Not allowed by CORS: ${origin}`), false)
       }
     },
-    credentials: false, // Set to true only if you use cookies/sessions
+    credentials: false, // you're using Bearer tokens, no cookies needed
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Accept',
@@ -209,6 +210,25 @@ const configureMiddleware = () => {
 
   // Request logging middleware with traceId
   app.use(requestLogger)
+
+  // Clerk authentication middleware - reads Bearer token and validates
+  app.use(clerkMiddleware())
+
+  // Temporary auth probe endpoint for debugging
+  app.get("/api/_authcheck", (req, res) => {
+    const auth = (req as any).auth; // clerkMiddleware puts this on req
+    const hdr = req.headers.authorization || "";
+    res.json({
+      gotAuthHeader: hdr.startsWith("Bearer "),
+      authHeaderLen: hdr.length,
+      authSummary: {
+        userId: auth?.userId ?? null,
+        sessionId: auth?.sessionId ?? null,
+        orgId: auth?.orgId ?? null,
+        debug: Object.keys(auth || {})
+      }
+    });
+  });
 
   // Add request timeout to prevent hanging requests
   app.use((req, res, next) => {
@@ -280,11 +300,11 @@ app.use('/api/voice', voiceRoutes)
     }
   })
   
-  // Module Routes (temporarily optional for debugging - change back to requireAuth after testing)
-  app.use('/api/modules', optionalAuth, moduleRoutes)
+  // Module Routes - require authentication
+  app.use('/api/modules', clerkRequireAuth(), moduleRoutes)
   
   // Admin Routes (protected)
-  app.use('/api/admin', requireAuth, adminRoutes)
+  app.use('/api/admin', clerkRequireAuth(), adminRoutes)
   
   // Test Routes (for development)
   if (NODE_ENV === 'development') {

@@ -67,79 +67,44 @@ function buildHeaders(options?: RequestInit, token?: string): HeadersInit {
   return { ...headers, ...(options?.headers as any) }
 }
 
-export async function authenticatedApi(endpoint: string, options?: RequestInit) {
-  const url = apiUrl(endpoint)
-  
-  // Add detailed logging
-  console.log('🔍 [authenticatedApi] Making request:', {
-    endpoint,
-    fullUrl: url,
-    method: options?.method || 'GET',
-    baseURL: API_BASE_URL,
-    isDevelopment
-  })
+import { useAuth } from "@clerk/clerk-react";
 
-  // Get Clerk token
-  let token: string | null = null
-  try {
-    const { useAuth } = await import('@clerk/clerk-react')
-    const { getToken } = useAuth()
-    token = await getToken()
-  } catch {}
+export function useAuthenticatedApi() {
+  const { getToken, isSignedIn } = useAuth();
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 10000)
+  return async (input: RequestInfo, init: RequestInit = {}) => {
+    if (!isSignedIn) throw new Error("Not signed in");
 
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-      headers: buildHeaders(options, token || undefined),
-    })
-    clearTimeout(timeoutId)
-    
-    console.log('✅ [authenticatedApi] Response received:', {
-      url,
-      status: res.status,
-      statusText: res.statusText,
-      headers: Object.fromEntries(res.headers.entries())
-    })
+    // Ensure you're really attaching the Clerk session token:
+    const token = await getToken({ template: "default" });
+    if (!token) throw new Error("No Clerk token available");
 
-    const ct = res.headers.get('content-type') || ''
-    const text = await res.text()
-    
+    // Add logging:
+    console.log("🔑 Clerk token:", token?.slice(0,10));
+
+    const res = await fetch(input, {
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      // credentials not required when you send Bearer tokens:
+      // credentials: "omit",
+    });
+
     if (!res.ok) {
-      console.error('❌ [authenticatedApi] Request failed:', {
-        url,
-        status: res.status,
-        statusText: res.statusText,
-        responseText: text.slice(0, 200)
-      })
-      throw new Error(`API Error ${res.status}: ${text.slice(0, 120)}`)
+      const text = await res.text().catch(() => "");
+      throw new Error(`API Error ${res.status}: ${text}`);
     }
-    
-    if (!ct.includes('application/json')) {
-      console.error('❌ [authenticatedApi] Non-JSON response:', {
-        url,
-        contentType: ct,
-        responseText: text.slice(0, 200)
-      })
-      throw new Error(`Unexpected response (not JSON): ${text.slice(0, 200)}`)
-    }
-    
-    const data = JSON.parse(text)
-    console.log('✅ [authenticatedApi] Request successful:', { url, data })
-    return data
-    
-  } catch (error) {
-    clearTimeout(timeoutId)
-    console.error('❌ [authenticatedApi] Request error:', {
-      url,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    })
-    throw error
-  }
+    return res.json();
+  };
+}
+
+// Legacy function for backward compatibility
+export async function authenticatedApi(endpoint: string, options?: RequestInit) {
+  // This will be replaced by the hook-based approach
+  throw new Error("Use useAuthenticatedApi hook instead of authenticatedApi function")
 }
 
 export async function api(endpoint: string, options?: RequestInit) {
