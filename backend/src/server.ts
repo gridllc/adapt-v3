@@ -45,7 +45,6 @@ import { validateS3Config } from './services/s3Uploader.js'
 
 
 // Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Server configuration
@@ -83,8 +82,8 @@ const validateEnvironment = () => {
   console.log(`📁 Temp directory ready: ${tempDir}`)
   
   // Check for critical environment variables
-  const missingCritical = []
-  const missingOptional = []
+  const missingCritical: string[] = []
+  const missingOptional: string[] = []
   
   // Critical for basic operation
   if (!process.env.DATABASE_URL) missingCritical.push('DATABASE_URL')

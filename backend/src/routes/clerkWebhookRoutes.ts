@@ -8,7 +8,6 @@ import { fileURLToPath } from 'url'
 const router = express.Router()
 
 // ES Module compatible __dirname
-const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const eventSchema = z.object({
@@ -31,7 +30,7 @@ router.post('/webhooks/clerk', async (req: Request, res: Response) => {
       }
 
       const dataPath = path.resolve(__dirname, '../data/users.json')
-      let users = []
+      let users: { id: string; email: string; createdAt: string }[] = []
 
       try {
         const raw = await fs.readFile(dataPath, 'utf-8')

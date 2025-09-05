@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url'
 const router = express.Router()
 
 // Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Get shared module data (public access)
@@ -24,8 +23,8 @@ router.get('/:moduleId', async (req, res) => {
       path.join(projectRoot, 'data', 'modules', `${moduleId}.json`)
     ]
     
-    let moduleData = null
-    let foundPath = null
+    let moduleData: any = null
+    let foundPath: string | null = null
     
     // Search for the module data
     for (const dataPath of possiblePaths) {
@@ -51,7 +50,7 @@ router.get('/:moduleId', async (req, res) => {
     
     // Get module metadata from modules.json
     const modulesPath = path.join(process.cwd(), 'data', 'modules.json')
-    let moduleMetadata = null
+    let moduleMetadata: any = null
     
     try {
       const modulesRaw = await fs.readFile(modulesPath, 'utf-8')

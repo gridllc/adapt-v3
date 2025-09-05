@@ -264,8 +264,8 @@ export const stepsController = {
         path.join(projectRoot, 'backend', 'data', 'training', `${moduleId}.json`)
       ]
 
-      let existingData = null
-      let targetPath = null
+      let existingData: { moduleId: string; steps: any[]; createdAt: string; updatedAt: string } | null = null
+      let targetPath: string | null = null
 
       // Try to find existing file
       for (const filePath of possiblePaths) {
@@ -330,10 +330,12 @@ export const stepsController = {
       if (action === 'add' && Array.isArray(steps)) {
         // Add new steps to existing steps
         const backendSteps = steps.map(convertToBackendFormat)
+        if (!existingData) throw new Error('existingData is null')
         existingData.steps = [...(existingData.steps || []), ...backendSteps]
         console.log(`➕ Added ${steps.length} new steps`)
       } else if (action === 'update' && Array.isArray(steps) && typeof stepIndex === 'number') {
         // Update specific step
+        if (!existingData) throw new Error('existingData is null')
         if (!existingData.steps) existingData.steps = []
         if (stepIndex >= 0 && stepIndex < existingData.steps.length) {
           existingData.steps[stepIndex] = convertToBackendFormat(steps[0])
@@ -343,6 +345,7 @@ export const stepsController = {
         }
       } else if (action === 'delete' && typeof stepIndex === 'number') {
         // Delete specific step
+        if (!existingData) throw new Error('existingData is null')
         if (!existingData.steps) existingData.steps = []
         if (stepIndex >= 0 && stepIndex < existingData.steps.length) {
           existingData.steps.splice(stepIndex, 1)
@@ -352,16 +355,19 @@ export const stepsController = {
         }
       } else if (action === 'reorder' && Array.isArray(steps)) {
         // Replace all steps with reordered array
+        if (!existingData) throw new Error('existingData is null')
         existingData.steps = steps.map(convertToBackendFormat)
         console.log(`🔄 Reordered ${steps.length} steps`)
       } else if (Array.isArray(steps)) {
         // Replace all steps (default behavior)
+        if (!existingData) throw new Error('existingData is null')
         existingData.steps = steps.map(convertToBackendFormat)
         console.log(`🔄 Replaced all steps with ${steps.length} new steps`)
       } else {
         return res.status(400).json({ error: 'Invalid request data' })
       }
 
+      if (!existingData) throw new Error('existingData is null')
       existingData.updatedAt = new Date().toISOString()
 
       // Write back to file
@@ -405,7 +411,7 @@ export const stepsController = {
         path.join(projectRoot, 'backend', 'data', 'training', `${moduleId}.json`)
       ]
 
-      let foundPath = null
+      let foundPath: string | null = null
       for (const filePath of possiblePaths) {
         if (fs.existsSync(filePath)) {
           foundPath = filePath

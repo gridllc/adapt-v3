@@ -7,7 +7,6 @@ import { fileURLToPath } from 'url'
 const router = express.Router()
 
 // ES Module compatible __dirname
-const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const bodySchema = z.object({

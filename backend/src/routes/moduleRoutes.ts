@@ -10,7 +10,6 @@ import { fileURLToPath } from 'url'
 const router = express.Router()
 
 // Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Handle both development and production paths

@@ -4,7 +4,6 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 
 // Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 export const videoController = {

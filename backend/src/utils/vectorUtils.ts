@@ -123,7 +123,7 @@ export function findMostSimilarQuestion(
     throw new Error(`Invalid embedding dimensions: expected 1536, got ${newEmbedding.length}`)
   }
 
-  let bestMatch = null
+  let bestMatch: { question: string; answer: string; similarity: number } | null = null
   let highestSimilarity = 0
 
   for (const existing of existingQuestions) {

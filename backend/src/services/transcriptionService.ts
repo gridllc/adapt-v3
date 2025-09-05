@@ -9,7 +9,6 @@ import { tmpdir } from 'os'
 // import { v4 as uuidv4 } from 'uuid'
 
 // Get __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // ffmpeg.setFfmpegPath(ffmpegPath.path)
