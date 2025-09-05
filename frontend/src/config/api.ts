@@ -1,4 +1,26 @@
 // frontend/src/config/api.ts
+import { useAuth } from "@clerk/clerk-react";
+
+// API Configuration
+export const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "/api";
+
+export const API_ENDPOINTS = {
+  MODULES: '/modules',
+  STEPS: '/steps',
+  VIDEO: '/video',
+  TRANSCRIPT: '/transcript',
+  FEEDBACK: '/feedback',
+  AI: '/ai',
+  UPLOAD: '/upload',
+  PRESIGNED_UPLOAD: '/presigned-upload',
+  QA: '/qa'
+};
+
+export const API_CONFIG = {
+  BASE_URL: API_BASE_URL,
+  TIMEOUT: 10000,
+  RETRY_ATTEMPTS: 3
+};
 
 /**
  * Compute the absolute API URL for a given endpoint.
@@ -15,6 +37,11 @@ export function getApiUrl(endpoint: string): string {
   const ep = String(endpoint).replace(/^\/+/, "");
   return `${b}/${ep}`;
 }
+
+/**
+ * Legacy API function for backward compatibility
+ */
+export const api = authenticatedApi;
 
 /**
  * Minimal authenticated fetch wrapper.
@@ -104,4 +131,36 @@ export function getJson(endpoint: string, init?: RequestInit) {
     method: "GET",
     ...(init || {}),
   });
+}
+
+/**
+ * React hook for authenticated API calls with Clerk
+ */
+export function useAuthenticatedApi() {
+  const { getToken, isSignedIn } = useAuth();
+
+  return async (input: RequestInfo, init: RequestInit = {}) => {
+    if (!isSignedIn) throw new Error("Not signed in");
+
+    // If you created a JWT Template named "backend", keep this:
+    const token = await getToken({ template: "default" });
+    if (!token) throw new Error("No Clerk token available");
+
+    console.log("🔑 Clerk token:", token?.slice(0,10));
+
+    const res = await fetch(input, {
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`API Error ${res.status}: ${text}`);
+    }
+    return res.json();
+  };
 }
