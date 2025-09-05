@@ -103,37 +103,17 @@ export async function authenticatedApi(endpoint: string, options?: RequestInit) 
     const text = await res.text()
     
     if (!res.ok) {
-      console.error('❌ [authenticatedApi] Request failed:', {
-        url,
-        status: res.status,
-        statusText: res.statusText,
-        responseText: text.slice(0, 200)
-      })
-      throw new Error(`API Error ${res.status}: ${text.slice(0, 120)}`)
+      const text = await res.text().catch(() => "");
+      throw new Error(`API Error ${res.status}: ${text}`);
     }
-    
-    if (!ct.includes('application/json')) {
-      console.error('❌ [authenticatedApi] Non-JSON response:', {
-        url,
-        contentType: ct,
-        responseText: text.slice(0, 200)
-      })
-      throw new Error(`Unexpected response (not JSON): ${text.slice(0, 200)}`)
-    }
-    
-    const data = JSON.parse(text)
-    console.log('✅ [authenticatedApi] Request successful:', { url, data })
-    return data
-    
-  } catch (error) {
-    clearTimeout(timeoutId)
-    console.error('❌ [authenticatedApi] Request error:', {
-      url,
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    })
-    throw error
-  }
+    return res.json();
+  };
+}
+
+// Legacy function for backward compatibility
+export async function authenticatedApi(endpoint: string, options?: RequestInit) {
+  // This will be replaced by the hook-based approach
+  throw new Error("Use useAuthenticatedApi hook instead of authenticatedApi function")
 }
 
 export async function api(endpoint: string, options?: RequestInit) {

@@ -1,10 +1,7 @@
-import { useCallback } from 'react'
-import { authenticatedApi } from '../config/api'
+import { useAuthenticatedApi as useAuthenticatedApiFromConfig } from '../config/api'
 
 export function useAuthenticatedApi() {
-  const authenticatedFetch = useCallback(async (endpoint: string, options: RequestInit = {}) => {
-    return await authenticatedApi(endpoint, options)
-  }, [])
+  const authenticatedFetch = useAuthenticatedApiFromConfig()
 
   return { authenticatedFetch }
 }
