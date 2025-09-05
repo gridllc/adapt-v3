@@ -6,20 +6,23 @@ export const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "/api
 
 export const API_ENDPOINTS = {
   MODULES: '/modules',
-  STEPS: '/steps',
-  VIDEO: '/video',
-  TRANSCRIPT: '/transcript',
+  STEPS: (moduleId: string) => `/steps/${moduleId}`,
+  VIDEO: (moduleId: string) => `/video/${moduleId}`,
+  TRANSCRIPT: (moduleId: string) => `/transcript/${moduleId}`,
   FEEDBACK: '/feedback',
   AI: '/ai',
   UPLOAD: '/upload',
   PRESIGNED_UPLOAD: '/presigned-upload',
-  QA: '/qa'
+  QA: '/qa',
+  HEALTH: '/health'
 };
 
 export const API_CONFIG = {
   BASE_URL: API_BASE_URL,
+  baseURL: API_BASE_URL, // alias for backward compatibility
   TIMEOUT: 10000,
-  RETRY_ATTEMPTS: 3
+  RETRY_ATTEMPTS: 3,
+  getApiUrl: (endpoint: string) => `${API_BASE_URL}/${endpoint.replace(/^\//, '')}`
 };
 
 /**
